@@ -1,0 +1,515 @@
+﻿// ─── SEPARAÇÃO ─────────────────────────────────────────
+
+function initSeparacao() {
+  if (!D.separacoes) D.separacoes = [];
+  setSepView('lista');
+}
+
+function setSepView(v) {
+  ['lista','nova','detalhe'].forEach(function(x) {
+    var el = document.getElementById('sep-view-'+x);
+    if (el) el.style.display = x===v ? '' : 'none';
+  });
+  if (v==='lista') rSeparacoes();
+  if (v==='nova')  rSepNova();
+}
+
+function rSeparacoes() {
+  var cont = document.getElementById('sep-lista-body');
+  if (!cont) return;
+  var lista = (D.separacoes||[]).slice().sort(function(a,b){return (b.data||'').localeCompare(a.data||'');});
+  if (!lista.length) {
+    cont.innerHTML = '<div style="text-align:center;color:var(--text3);padding:32px;font-size:13px">Nenhuma folha gerada. Clique em "+ Nova Folha".</div>';
+    return;
+  }
+  cont.innerHTML = lista.map(function(s) {
+    return '<div class="sec" style="margin-bottom:10px">' +
+      '<div class="sec-head" style="display:flex;align-items:center;gap:10px">' +
+        '<span class="sec-title">📋 ' + (s.evento||'—') + '</span>' +
+        '<span style="color:var(--text3);font-size:12px">' + (fd(s.data)||'') + '</span>' +
+        '<span style="color:var(--text3);font-size:11px">' + (s.convidados||'—') + ' convidados</span>' +
+        '<div style="margin-left:auto;display:flex;gap:6px">' +
+          '<button class="btn-sm" style="background:var(--blue)" onclick="abrirSeparacao(\'' + s.id + '\')">✏️ Ver / Editar</button>' +
+          '<button class="btn-sm" style="background:#6C63FF" onclick="imprimirSeparacao(\'' + s.id + '\')">🖨️ Imprimir</button>' +
+          '<button class="btn-sm btn-red" onclick="excluirSeparacao(\'' + s.id + '\')">Excluir</button>' +
+        '</div>' +
+      '</div>' +
+      '<div style="padding:6px 16px;font-size:11px;color:var(--text3)">' + (s.local||'') + ' · Equipe: ' + (s.totalEquipe||'—') + ' · Bartenders: ' + (s.bartenders||'—') + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function rSepNova() {
+  var cont = document.getElementById('sep-nova-body');
+  if (!cont) return;
+  var producoes = (D.producoes||[]).slice().sort(function(a,b){return (b.data||'').localeCompare(a.data||'');});
+  var opts = producoes.map(function(p){
+    return '<option value="' + p.id + '">' + (p.evento||p.cliente||'—') + ' · ' + (fd(p.data)||'') + '</option>';
+  }).join('');
+  cont.innerHTML = '<div style="padding:16px">' +
+    '<label class="lbl" style="display:block;margin-bottom:6px">Selecionar evento *</label>' +
+    '<select id="sep-prod-sel" class="inp" onchange="sepCarregarProducao(this.value)" style="width:100%;max-width:480px">' +
+      '<option value="">— Selecione o evento —</option>' + opts +
+    '</select>' +
+    '<div id="sep-form-campos" style="display:none;margin-top:16px"></div>' +
+  '</div>';
+}
+
+function sepCarregarProducao(prodId) {
+  if (!prodId) return;
+  var p = (D.producoes||[]).find(function(x){return x.id===prodId;});
+  if (!p) return;
+
+  var conv = parseInt(p.convidados)||0;
+  var equipe = p.equipe||[];
+  var bartenders = equipe.filter(function(e){return (e.cargo||'').toLowerCase().includes('bartender');})
+    .reduce(function(s,e){return s+(parseInt(e.qtd)||0);},0) || Math.max(1,Math.ceil(conv/30));
+  var equipeTotal = equipe.reduce(function(s,e){return s+(parseInt(e.qtd)||0);},0) || bartenders;
+
+  // Itens removidos desta separação (persistidos no D via campo temporário)
+  var _sepRemovidosKey = 'sep_removidos_' + prodId;
+  if (!window._sepRemovidosMap) window._sepRemovidosMap = {};
+  if (!window._sepRemovidosMap[prodId]) window._sepRemovidosMap[prodId] = [];
+
+  // Cruzar cardápio com fichas — retorna { cat: { item: {count, coqueteis} } }
+  var itensCardapio = cruzarCardapioComFichas(p.cardapio||'');
+  var temFichas = Object.keys(itensCardapio).length > 0;
+
+  // Identificar coquetéis do cardápio e quais têm ficha
+  var coqueteisCardapio = []; // [{nome, temFicha, itens:[]}]
+  if (p.cardapio) {
+    var linhasCard = p.cardapio.split('\n').filter(Boolean);
+    linhasCard.forEach(function(linha) {
+      var linhaNorm = linha.toUpperCase().replace(/[-•*:]/g,'').trim();
+      if (!linhaNorm || linhaNorm.length < 3) return;
+      var fichaEncontrada = null;
+      (D.fichas||[]).forEach(function(ficha) {
+        var nomes = [ficha.nome].concat((ficha.variantes||'').split(',').map(function(v){return v.trim();})).filter(Boolean);
+        if (nomes.some(function(n){return linhaNorm.includes(n.toUpperCase());})) {
+          fichaEncontrada = ficha;
+        }
+      });
+      coqueteisCardapio.push({
+        nome: linha.trim(),
+        nomeLimpo: linhaNorm,
+        temFicha: !!fichaEncontrada,
+        ficha: fichaEncontrada
+      });
+    });
+  }
+
+  var regras = getRegrasItens();
+  var cont = document.getElementById('sep-form-campos');
+  if (!cont) return;
+  cont.style.display = '';
+
+  // Classificar categorias por seção
+  var CATS_KIT_BASE = ['MATERIAL','DESCARTÁVEIS','ESPECIARIAS','KIT BARTENDER'];
+  var CATS_CONFERENCIA = ['BEBIDAS SEM ÁLCOOL','GELO','COPOS E TAÇAS','PRODUÇÃO','XAROPES'];
+
+  // Calcular todos os itens
+  var todosItens = {}; // cat -> [item]
+  regras.forEach(function(r) {
+    var itensDoCardapio = itensCardapio[r.cat] && itensCardapio[r.cat][r.item];
+    var coquetelDoItem = itensDoCardapio ? itensCardapio[r.cat][r.item].coqueteis : [];
+    if (r.soSeCardapio && !itensDoCardapio && r.min === 0) return;
+    if (!todosItens[r.cat]) todosItens[r.cat] = [];
+    var qtd = calcQtdItem(r, conv, bartenders, equipeTotal);
+    todosItens[r.cat].push({
+      item: r.item, qtd: qtd,
+      doCardapio: !!itensDoCardapio,
+      coqueteis: coquetelDoItem || [],
+      soSeCardapio: r.soSeCardapio, obs: r.obs||'',
+      semFicha: r.soSeCardapio && !itensDoCardapio && r.min > 0
+    });
+  });
+
+  var equipeHtml = equipe.length
+    ? equipe.map(function(e){return '<span style="margin-right:10px">'+e.qtd+' '+e.cargo+'</span>';}).join('')
+    : (p.equipeTexto||'—');
+
+  // ── Cabeçalho do evento
+  var html = '<div style="background:var(--bg3);border-radius:var(--radius);padding:10px 14px;margin-bottom:14px;border:1px solid var(--border);font-size:12px">' +
+    '<strong>' + (p.evento||p.cliente||'—') + '</strong> · ' + (fd(p.data)||'—') + ' · ' + (p.hrInicio||'—') + '–' + (p.hrFim||'—') + '<br>' +
+    '<span style="color:var(--text3)">' + conv + ' convidados · ' + (p.local||'—') + '</span><br>' +
+    '<span style="color:var(--text3)">Equipe: ' + equipeHtml + '</span>' +
+  '</div>';
+
+  html += '<div style="display:grid;gap:16px">';
+
+  // ══════════════════════════════════════════════════════
+  // SEÇÃO 1 — COQUETÉIS
+  // ══════════════════════════════════════════════════════
+  html += '<div style="background:var(--bg2);border:2px solid var(--blue-dim);border-radius:var(--radius-lg);overflow:hidden">' +
+    '<div style="padding:10px 14px;background:var(--blue-bg);border-bottom:1px solid var(--blue-dim);display:flex;align-items:center;gap:8px">' +
+      '<span style="font-size:12px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.8px">🍹 Coquetéis</span>' +
+      '<span style="font-size:11px;color:var(--text3)">Insumos por coquetel — confira cada item</span>' +
+    '</div>';
+
+  if (coqueteisCardapio.length === 0) {
+    html += '<div style="padding:14px;font-size:12px;color:var(--text3)">Nenhum coquetel no cardápio ou cardápio não preenchido.</div>';
+  } else {
+    coqueteisCardapio.forEach(function(coq, coqIdx) {
+      // Verificar se foi removido desta separação
+      var removidos = window._sepRemovidosMap[prodId] || [];
+      if (removidos.includes(coq.nomeLimpo)) return;
+
+      var corBorda = coq.temFicha ? 'var(--green-dim)' : 'var(--amber-dim)';
+      var corTitulo = coq.temFicha ? 'var(--green)' : 'var(--amber)';
+      var bgTitulo = coq.temFicha ? 'var(--green-bg)' : 'var(--amber-bg)';
+      var icone = coq.temFicha ? '✅' : '⚠️';
+      var nomeEsc = coq.nomeLimpo.replace(/'/g,"\\'");
+
+      html += '<div style="border-bottom:1px solid var(--border);padding:0">';
+      html += '<div style="padding:8px 14px;background:' + bgTitulo + ';border-left:3px solid ' + corBorda + ';display:flex;align-items:center;gap:8px">' +
+        '<span style="font-size:12px;font-weight:600;color:' + corTitulo + '">' + icone + ' ' + coq.nome + '</span>' +
+        '<div style="margin-left:auto;display:flex;gap:6px;align-items:center">' +
+          (!coq.temFicha ? '<button class="btn-sm" onclick="irParaCadastroFicha()" style="background:var(--amber-dim);color:var(--amber)">+ Cadastrar ficha</button>' : '') +
+          '<button class="btn-sm" data-nomecoq="' + coq.nomeLimpo + '" data-prodid="' + prodId + '" onclick="removerItemSeparacao(this.dataset.nomecoq,this.dataset.prodid)" style="background:var(--red-dim);color:var(--red)" title="Remover desta separação">✕ Remover</button>' +
+        '</div>' +
+      '</div>';
+
+      if (coq.temFicha && coq.ficha) {
+        var itensCoquetel = coq.ficha.itens || [];
+        if (itensCoquetel.length) {
+          html += '<div style="padding:6px 0">';
+          itensCoquetel.forEach(function(item) {
+            var qtdItem = 0;
+            if (todosItens[item.cat]) {
+              var found = todosItens[item.cat].find(function(x){return x.item===item.nome;});
+              if (found) qtdItem = found.qtd;
+            }
+            html += '<div style="display:grid;grid-template-columns:1fr 100px;gap:8px;align-items:center;padding:4px 14px;border-bottom:1px solid var(--border)">' +
+              '<div style="font-size:12px;color:var(--text)">' +
+                '<span style="font-size:10px;color:var(--text3);margin-right:6px">' + item.cat + '</span>' + item.nome +
+              '</div>' +
+              '<input type="number" value="' + qtdItem + '" min="0" ' +
+                'data-item="' + item.nome.replace(/"/g,'') + '" data-cat="' + item.cat.replace(/"/g,'') + '" ' +
+                'style="font-size:12px;font-weight:600;padding:4px 8px;border-radius:4px;border:1px solid var(--green-dim);background:var(--bg);color:var(--green);text-align:center;font-family:var(--mono)">' +
+            '</div>';
+          });
+          html += '</div>';
+        } else {
+          html += '<div style="padding:8px 14px;font-size:11px;color:var(--text3)">Ficha sem itens cadastrados.</div>';
+        }
+      } else if (!coq.temFicha) {
+        html += '<div style="padding:8px 14px;font-size:11px;color:var(--amber)">Sem ficha — quantidades não calculadas automaticamente.</div>';
+      }
+
+      html += '</div>';
+    });
+
+    // Mostrar itens removidos (para poder restaurar)
+    var removidosAtivos = (window._sepRemovidosMap[prodId]||[]).filter(function(r){
+      return coqueteisCardapio.some(function(c){return c.nomeLimpo===r;});
+    });
+    if (removidosAtivos.length) {
+      html += '<div style="padding:8px 14px;border-top:1px solid var(--border)">' +
+        '<div style="font-size:10px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Itens removidos desta separação</div>' +
+        '<div style="display:flex;flex-wrap:wrap;gap:6px">' +
+        removidosAtivos.map(function(r) {
+          var coq = coqueteisCardapio.find(function(c){return c.nomeLimpo===r;});
+          var nomeEsc = r.replace(/'/g,"\'");
+          return '<span style="display:inline-flex;align-items:center;gap:5px;background:var(--bg4);border:1px solid var(--border2);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--text3)">' +
+            (coq ? coq.nome : r) +
+            '<button data-nomecoq="' + r + '" data-prodid="' + prodId + '" onclick="restaurarItemSeparacao(this.dataset.nomecoq,this.dataset.prodid)" style="background:none;border:none;color:var(--green);cursor:pointer;font-size:11px;padding:0;margin-left:4px" title="Restaurar">↩ restaurar</button>' +
+          '</span>';
+        }).join('') +
+        '</div>' +
+      '</div>';
+    }
+  }
+
+  html += '</div>'; // fim seção coquetéis
+
+  // ══════════════════════════════════════════════════════
+  // SEÇÃO 2 — CONFERÊNCIA
+  // ══════════════════════════════════════════════════════
+  html += '<div style="background:var(--bg2);border:2px solid var(--border2);border-radius:var(--radius-lg);overflow:hidden">' +
+    '<div style="padding:10px 14px;background:var(--bg3);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:8px">' +
+      '<span style="font-size:12px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.8px">📋 Conferência</span>' +
+      '<span style="font-size:11px;color:var(--text3)">Bebidas, gelo, copos, produção, equipe</span>' +
+    '</div>';
+
+  // Equipe
+  html += '<div style="border-bottom:1px solid var(--border)">' +
+    '<div style="padding:6px 14px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;background:var(--bg3)">EQUIPE</div>';
+  equipe.forEach(function(e) {
+    html += '<div style="display:grid;grid-template-columns:1fr 100px;gap:8px;align-items:center;padding:4px 14px;border-bottom:1px solid var(--border)">' +
+      '<span style="font-size:12px;color:var(--text)">' + e.cargo + '</span>' +
+      '<input type="number" value="' + e.qtd + '" min="0" data-item="' + e.cargo + '" data-cat="EQUIPE" ' +
+        'style="font-size:12px;font-weight:600;padding:4px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:center;font-family:var(--mono)">' +
+    '</div>';
+  });
+  html += '</div>';
+
+  // Bebidas alcoólicas
+  var bebidasAlc = [p.bebidasConsignadas, p.bebidasRomero, p.bebidasCliente].filter(Boolean).join('\n');
+  html += '<div style="border-bottom:1px solid var(--border)">' +
+    '<div style="padding:6px 14px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;background:var(--bg3)">BEBIDAS ALCOÓLICAS</div>' +
+    '<div style="padding:8px 14px"><textarea class="inp" id="sep-bebidas-alc" rows="4" style="font-size:12px;resize:vertical;width:100%">' + bebidasAlc + '</textarea></div>' +
+  '</div>';
+
+  // Categorias de conferência calculadas
+  CATS_CONFERENCIA.forEach(function(cat) {
+    var itens = todosItens[cat];
+    if (!itens || !itens.length) return;
+    html += '<div style="border-bottom:1px solid var(--border)">' +
+      '<div style="padding:6px 14px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;background:var(--bg3)">' + cat + '</div>';
+    itens.forEach(function(it) {
+      var badge = it.doCardapio
+        ? '<span style="font-size:9px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-dim);padding:1px 6px;border-radius:10px;margin-left:6px">' + it.coqueteis.join(', ') + '</span>'
+        : it.semFicha ? '<span style="font-size:9px;background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-dim);padding:1px 6px;border-radius:10px;margin-left:6px">⚠️</span>' : '';
+      html += '<div style="display:grid;grid-template-columns:1fr 100px;gap:8px;align-items:center;padding:4px 14px;border-bottom:1px solid var(--border)">' +
+        '<div style="font-size:12px;color:var(--text)">' + it.item + badge +
+          (it.obs ? '<span style="font-size:10px;color:var(--text3);margin-left:6px">' + it.obs + '</span>' : '') +
+        '</div>' +
+        '<input type="number" value="' + it.qtd + '" min="0" ' +
+          'data-item="' + it.item.replace(/"/g,'') + '" data-cat="' + cat.replace(/"/g,'') + '" ' +
+          'style="font-size:12px;font-weight:600;padding:4px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:center;font-family:var(--mono)">' +
+      '</div>';
+    });
+    html += '</div>';
+  });
+
+  html += '</div>'; // fim seção conferência
+
+  // ══════════════════════════════════════════════════════
+  // SEÇÃO 3 — KIT BASE
+  // ══════════════════════════════════════════════════════
+  html += '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden">' +
+    '<div style="padding:10px 14px;background:var(--bg3);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">' +
+      '<div>' +
+        '<span style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.8px">🔧 Kit Base</span>' +
+        '<span style="font-size:11px;color:var(--text3);margin-left:8px">Calculado automaticamente — menos conferência</span>' +
+      '</div>' +
+      '<button onclick="toggleKitBase(this)" style="font-size:10px;background:none;border:1px solid var(--border2);color:var(--text3);padding:3px 8px;border-radius:4px;cursor:pointer">▼ Ver itens</button>' +
+    '</div>' +
+    '<div id="sep-kit-base" style="display:none">';
+
+  CATS_KIT_BASE.forEach(function(cat) {
+    var itens = todosItens[cat];
+    if (!itens || !itens.length) return;
+    html += '<div style="border-bottom:1px solid var(--border)">' +
+      '<div style="padding:6px 14px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;background:var(--bg3)">' + cat + '</div>';
+    itens.forEach(function(it) {
+      html += '<div style="display:grid;grid-template-columns:1fr 100px;gap:8px;align-items:center;padding:4px 14px;border-bottom:1px solid var(--border)">' +
+        '<span style="font-size:12px;color:var(--text2)">' + it.item +
+          (it.obs ? '<span style="font-size:10px;color:var(--text3);margin-left:6px">' + it.obs + '</span>' : '') +
+        '</span>' +
+        '<input type="number" value="' + it.qtd + '" min="0" ' +
+          'data-item="' + it.item.replace(/"/g,'') + '" data-cat="' + cat.replace(/"/g,'') + '" ' +
+          'style="font-size:12px;padding:4px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text2);text-align:center;font-family:var(--mono)">' +
+      '</div>';
+    });
+    html += '</div>';
+  });
+
+  html += '</div></div>'; // fim kit base
+
+  // Coquetéis (campo oculto para impressão)
+  html += '<input type="hidden" id="sep-coqueteis" value="' + (p.cardapio||'').replace(/"/g,'&quot;') + '">';
+
+  // Campos ocultos
+  html += '<input type="hidden" id="sep-prod-id" value="' + prodId + '">' +
+    '<input type="hidden" id="sep-conv" value="' + conv + '">' +
+    '<input type="hidden" id="sep-bt" value="' + bartenders + '">' +
+    '<input type="hidden" id="sep-total-equipe" value="' + equipeTotal + '">';
+
+  html += '</div>'; // fim grid
+
+  html += '<div style="display:flex;gap:8px;margin-top:14px">' +
+    '<button class="btn" onclick="salvarSeparacao()" style="background:var(--green)">💾 Gerar Folha</button>' +
+    '<button class="btn" onclick="setSepView(\'lista\')" style="background:var(--bg3);color:var(--text)">Cancelar</button>' +
+  '</div>';
+
+  cont.innerHTML = html;
+}
+
+
+function removerItemSeparacao(nomeLimpo, prodId) {
+  if (!window._sepRemovidosMap) window._sepRemovidosMap = {};
+  if (!window._sepRemovidosMap[prodId]) window._sepRemovidosMap[prodId] = [];
+  if (!window._sepRemovidosMap[prodId].includes(nomeLimpo)) {
+    window._sepRemovidosMap[prodId].push(nomeLimpo);
+  }
+  sepCarregarProducao(prodId);
+}
+
+function restaurarItemSeparacao(nomeLimpo, prodId) {
+  if (!window._sepRemovidosMap || !window._sepRemovidosMap[prodId]) return;
+  window._sepRemovidosMap[prodId] = window._sepRemovidosMap[prodId].filter(function(r){return r!==nomeLimpo;});
+  sepCarregarProducao(prodId);
+}
+
+function irParaCadastroFicha() {
+  setSepView('lista');
+  setTimeout(function(){ go('regras'); setRegrasView('nova-ficha'); }, 100);
+}
+
+function toggleKitBase(btn) {
+  var el = document.getElementById('sep-kit-base');
+  if (!el) return;
+  if (el.style.display === 'none') {
+    el.style.display = '';
+    btn.textContent = '▲ Ocultar itens';
+  } else {
+    el.style.display = 'none';
+    btn.textContent = '▼ Ver itens';
+  }
+}
+
+
+function salvarSeparacao() {
+  var prodId = document.getElementById('sep-prod-id')?.value;
+  if (!prodId) { alert('Selecione um evento primeiro.'); return; }
+  var p = (D.producoes||[]).find(function(x){return x.id===prodId;});
+  if (!p) return;
+
+  var conv = parseInt(document.getElementById('sep-conv')?.value)||0;
+  var bt   = parseInt(document.getElementById('sep-bt')?.value)||0;
+  var teq  = parseInt(document.getElementById('sep-total-equipe')?.value)||0;
+
+  // Coletar todos os itens com quantidades editadas
+  var itensFinais = {};
+  document.querySelectorAll('[data-item][data-cat]').forEach(function(input) {
+    var cat = input.dataset.cat;
+    var item = input.dataset.item;
+    var qtd = parseInt(input.value)||0;
+    if (!itensFinais[cat]) itensFinais[cat] = {};
+    itensFinais[cat][item] = qtd;
+  });
+
+  var sep = {
+    id: 'SEP'+Date.now(),
+    producaoId: prodId,
+    evento: p.evento||p.cliente||'',
+    cliente: p.cliente||'',
+    data: p.data||'',
+    convidados: conv,
+    local: p.local||'',
+    hrInicio: p.hrInicio||'',
+    hrFim: p.hrFim||'',
+    equipe: p.equipe||[],
+    equipeTexto: p.equipeTexto||'',
+    bartenders: bt,
+    totalEquipe: teq,
+    itens: itensFinais,
+    bebidasAlc: document.getElementById('sep-bebidas-alc')?.value||'',
+    coqueteis: document.getElementById('sep-coqueteis')?.value||'',
+    criadoEm: new Date().toISOString()
+  };
+
+  if (!D.separacoes) D.separacoes = [];
+  var idx = D.separacoes.findIndex(function(s){return s.producaoId===prodId;});
+  if (idx>=0) {
+    if (!confirm('Já existe folha para este evento. Substituir?')) return;
+    D.separacoes[idx] = sep;
+  } else {
+    D.separacoes.push(sep);
+  }
+  sv('separacoes');
+  alert('Folha de separação gerada!');
+  setSepView('lista');
+}
+
+function abrirSeparacao(id) {
+  var s = (D.separacoes||[]).find(function(x){return x.id===id;});
+  if (!s) return;
+  var cont = document.getElementById('sep-detalhe-body');
+  if (!cont) return;
+
+  var html = '<div style="padding:16px">';
+  html += '<div style="background:var(--bg3);border-radius:var(--radius);padding:10px 14px;margin-bottom:14px;border:1px solid var(--border)">' +
+    '<div style="font-size:15px;font-weight:700">' + (s.evento||'—') + '</div>' +
+    '<div style="font-size:12px;color:var(--text3)">' + (s.local||'') + ' · ' + (fd(s.data)||'') + ' · ' + (s.hrInicio||'') + '–' + (s.hrFim||'') + '</div>' +
+    '<div style="font-size:12px;color:var(--text3)">' + s.convidados + ' convidados · Equipe: ' + s.totalEquipe + ' · Bartenders: ' + s.bartenders + '</div>' +
+  '</div>';
+
+  if (s.itens) {
+    Object.entries(s.itens).forEach(function(entry) {
+      var cat = entry[0]; var itens = entry[1];
+      var linhas = Object.entries(itens).filter(function(e){return e[1]>0;});
+      if (!linhas.length) return;
+      html += '<div style="margin-bottom:12px">' +
+        '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;padding-bottom:4px;border-bottom:2px solid var(--border2);margin-bottom:6px">' + cat + '</div>' +
+        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:4px">';
+      linhas.forEach(function(e) {
+        html += '<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border);font-size:12px">' +
+          '<span style="color:var(--text2)">' + e[0] + '</span>' +
+          '<span style="font-weight:600;font-family:var(--mono)">' + e[1] + ' UN</span>' +
+        '</div>';
+      });
+      html += '</div></div>';
+    });
+  }
+
+  if (s.bebidasAlc) {
+    html += '<div style="margin-bottom:12px">' +
+      '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;padding-bottom:4px;border-bottom:2px solid var(--border2);margin-bottom:6px">BEBIDAS ALCOÓLICAS</div>' +
+      '<div style="white-space:pre-wrap;font-size:12px;color:var(--text2)">' + s.bebidasAlc + '</div>' +
+    '</div>';
+  }
+
+  if (s.coqueteis) {
+    html += '<div style="margin-bottom:12px">' +
+      '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;padding-bottom:4px;border-bottom:2px solid var(--border2);margin-bottom:6px">COQUETÉIS</div>' +
+      '<div style="white-space:pre-wrap;font-size:12px;color:var(--text2)">' + s.coqueteis + '</div>' +
+    '</div>';
+  }
+
+  html += '</div>';
+  cont.innerHTML = html;
+  setSepView('detalhe');
+}
+
+function imprimirSeparacao(id) {
+  var s = (D.separacoes||[]).find(function(x){return x.id===id;});
+  if (!s) return;
+  var dataFmt = s.data ? s.data.split('-').reverse().join('/') : '—';
+  var col = '<colgroup><col style="width:55%"><col style="width:15%"><col style="width:15%"><col style="width:15%"></colgroup>';
+  var thead = '<thead><tr><th>Item</th><th>Qtd</th><th>Saída</th><th>Volta</th></tr></thead>';
+  var w = window.open('','_blank');
+  var body = '';
+
+  if (s.itens) {
+    Object.entries(s.itens).forEach(function(entry) {
+      var cat = entry[0]; var itens = entry[1];
+      var linhas = Object.entries(itens).filter(function(e){return e[1]>0;});
+      if (!linhas.length) return;
+      body += '<div class="st">' + cat + '</div>' +
+        '<table>' + col + thead + '<tbody>' +
+        linhas.map(function(e){return '<tr><td>'+e[0]+'</td><td>'+e[1]+' UN</td><td></td><td></td></tr>';}).join('') +
+        '</tbody></table>';
+    });
+  }
+
+  if (s.bebidasAlc) {
+    body += '<div class="st">BEBIDAS ALCOÓLICAS</div>' +
+      '<table>' + col + thead + '<tbody>' +
+      s.bebidasAlc.split('\n').filter(Boolean).map(function(l){return '<tr><td colspan="2">'+l+'</td><td></td><td></td></tr>';}).join('') +
+      '</tbody></table>';
+  }
+
+  if (s.coqueteis) {
+    body += '<div class="st">COQUETÉIS</div><div style="white-space:pre-wrap;font-size:11px;padding:4px 0">' + s.coqueteis + '</div>';
+  }
+
+  w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Separação — '+s.evento+'</title>' +
+    '<style>body{font-family:Arial,sans-serif;font-size:11px;margin:20px;color:#111}h2{font-size:14px;margin:0 0 2px}.sub{font-size:11px;color:#555;margin-bottom:10px}table{width:100%;border-collapse:collapse;margin-bottom:12px;table-layout:fixed}th{background:#111;color:#fff;padding:5px 8px;text-align:left;font-size:10px;text-transform:uppercase}td{padding:4px 8px;border-bottom:1px solid #e0e0e0;word-break:break-word}tr:nth-child(even)td{background:#f9f9f9}.st{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#333;margin:8px 0 4px;border-bottom:1px solid #ccc;padding-bottom:3px}@media print{body{margin:10px}}</style>' +
+    '</head><body>' +
+    '<h2>FOLHA DE SEPARAÇÃO — ' + (s.evento||'').toUpperCase() + '</h2>' +
+    '<div class="sub">Data: ' + dataFmt + ' | Local: ' + (s.local||'—') + ' | Horário: ' + (s.hrInicio||'—') + ' às ' + (s.hrFim||'—') + '<br>' +
+    'Convidados: ' + s.convidados + ' | Equipe: ' + s.totalEquipe + ' | Bartenders: ' + s.bartenders + '</div>' +
+    body +
+    '<div style="margin-top:20px;font-size:10px;color:#888">Quebras no transporte: ___________________________________</div>' +
+    '<div style="font-size:10px;color:#888;margin-top:6px">Impresso em: ' + new Date().toLocaleDateString('pt-BR') + ' ' + new Date().toLocaleTimeString('pt-BR') + '</div>' +
+    '<script>window.onload=function(){window.print()};<\/script></body></html>');
+  w.document.close();
+}
+
+function excluirSeparacao(id) {
+  if (!confirm('Excluir esta folha?')) return;
+  D.separacoes = (D.separacoes||[]).filter(function(s){return s.id!==id;});
+  sv('separacoes'); rSeparacoes();
+}

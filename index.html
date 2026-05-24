@@ -1,0 +1,1229 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Controle e Gestão — Juliana Santos</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ═══ LOGIN ═══ -->
+<div id="login-overlay" style="position:fixed;inset:0;background:#0F1117;z-index:10000;display:flex;align-items:center;justify-content:center">
+  <div style="background:#161A26;border:1px solid #2A2F42;border-radius:12px;padding:40px 48px;min-width:320px;text-align:center">
+    <div style="font-size:22px;font-weight:600;color:#E8EAF0;margin-bottom:6px">Controle e Gestão</div>
+    <div style="font-size:13px;color:#8B91A8;margin-bottom:28px">Informe a senha de acesso</div>
+    <input id="login-senha" type="password" placeholder="Senha" maxlength="6"
+      style="width:100%;padding:10px 14px;background:#0F1117;border:1px solid #2A2F42;border-radius:8px;color:#E8EAF0;font-size:15px;letter-spacing:4px;text-align:center;box-sizing:border-box;margin-bottom:8px"
+      onkeydown="if(event.key==='Enter')tentarLogin()">
+    <div id="login-erro" style="color:#F7625A;font-size:12px;min-height:16px;margin-bottom:12px"></div>
+    <button onclick="tentarLogin()"
+      style="width:100%;padding:10px;background:#4F8EF7;border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:600;cursor:pointer">
+      Entrar
+    </button>
+  </div>
+</div>
+
+
+<!-- ═══ LOADING OVERLAY ═══ -->
+<div id="loading-overlay" style="position:fixed;inset:0;background:#0F1117;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px">
+  <div style="font-size:22px;font-weight:600;color:#E8EAF0">Controle e Gestão</div>
+  <div style="font-size:13px;color:#8B91A8">Juliana Santos — Sistema de Gestão</div>
+  <div style="font-size:12px;color:#555D7A" id="loading-msg">Carregando...</div>
+  <div style="width:40px;height:40px;border:3px solid #2A2F42;border-top-color:#4F8EF7;border-radius:50%;animation:spin 0.8s linear infinite"></div>
+  <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+</div>
+
+<!-- ═══ SIDEBAR ═══ -->
+<div class="sidebar">
+  <div class="logo">
+    <div class="logo-mark">C&G</div>
+    <div class="logo-title">Controle e Gestão</div>
+    <div class="logo-by">Juliana Santos</div>
+  </div>
+  <nav class="nav">
+    <div class="nav-section" data-modulo="estoque">Fechamento</div>
+    <div class="nav-item active" data-modulo="estoque" onclick="go('fechamento')">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="2" width="14" height="12" rx="1"/><path d="M1 6h14M5 2v4M11 2v4"/></svg>
+      Dashboard
+    </div>
+
+    <div class="nav-section" data-modulo="estoque">Inventário</div>
+    <div class="nav-item" data-modulo="estoque" onclick="go('est-mar')">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1L1 4.5v7L8 15l7-3.5v-7L8 1z"/><path d="M1 4.5L8 8l7-3.5M8 8v7"/></svg>
+      Contagem 30/03
+    </div>
+    <div class="nav-item" data-modulo="estoque" onclick="go('est-abr')">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1L1 4.5v7L8 15l7-3.5v-7L8 1z"/><path d="M1 4.5L8 8l7-3.5M8 8v7"/></svg>
+      Contagem 28/04
+    </div>
+    <div class="nav-item" data-modulo="estoque" onclick="go('contagens')">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12l4-4 3 3 5-6"/><circle cx="2" cy="12" r="1"/><circle cx="6" cy="8" r="1"/><circle cx="9" cy="11" r="1"/><circle cx="14" cy="5" r="1"/></svg>
+      Contagens semanais
+    </div>
+    <div class="nav-item" data-modulo="estoque" onclick="go('precos')">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v1.5M8 9.5V11M6.5 6.5a1.5 1.5 0 0 1 3 0c0 1-1.5 1.5-1.5 2.5"/></svg>
+      Preços
+    </div>
+
+    <div class="nav-section" data-modulo="estoque">Lançamentos</div>
+    <div class="nav-item" data-modulo="estoque" onclick="go('fornecedores')">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 13V6l6-4 6 4v7"/><path d="M6 13V9h4v4"/><path d="M2 6h12"/></svg>
+      Fornecedores
+    </div>
+    <div class="nav-item" data-modulo="estoque" onclick="go('produtos')">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
+      Produtos
+    </div>
+    <div class="nav-item" data-modulo="estoque" onclick="go('entrada')">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v9M4 7l4 4 4-4"/><path d="M2 14h12"/></svg>
+      Entrada de produtos
+    </div>
+    <div class="nav-item" data-modulo="estoque" onclick="go('comparativo')">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12l4-4 3 3 5-6"/><circle cx="2" cy="12" r="1"/><circle cx="6" cy="8" r="1"/><circle cx="9" cy="11" r="1"/><circle cx="14" cy="5" r="1"/></svg>
+      Comparativo de preços
+    </div>
+    <div class="nav-item" data-modulo="estoque" onclick="go('festas')">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 4v4l3 2"/></svg>
+      Festas / Eventos
+    </div>
+
+    <div class="nav-section" data-modulo="estoque">Análise</div>
+    <div class="nav-item" data-modulo="estoque" onclick="go('relatorio')">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2h10v12H3z"/><path d="M6 6h4M6 9h4M6 12h2"/></svg>
+      Relatório geral
+    </div>
+  </nav>
+
+    <div class="nav-section" data-modulo="contratos">Operações</div>
+    <div class="nav-item" data-modulo="contratos" onclick="go('contratos')">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2h10v12H3z"/><path d="M6 5h4M6 8h4M6 11h2"/><path d="M10 2v3H6V2"/></svg>
+      Contratos
+    </div>
+
+    <div class="nav-section" data-modulo="regras">Configurações</div>
+    <div class="nav-item" data-modulo="regras" onclick="go('regras')">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.2 3.2l1.4 1.4M11.4 11.4l1.4 1.4M3.2 12.8l1.4-1.4M11.4 4.6l1.4-1.4"/></svg>
+      Regras e Cálculos
+    </div>
+    <div class="nav-section" data-modulo="producao">Operacional</div>
+    <div class="nav-item" data-modulo="producao" onclick="go('producao')">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="1" width="10" height="14" rx="1"/><path d="M5 5h5M5 8h5M5 11h3"/><path d="M10 1v4h4"/></svg>
+      Produção
+    </div>
+    <div class="nav-item" data-modulo="producao" onclick="go('separacao')">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h8M2 12h10"/></svg>
+      Folha de Separação
+    </div>
+    <div class="nav-section" data-modulo="agenda">Agenda</div>
+    <div class="nav-item" data-modulo="agenda" onclick="go('agenda')">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="2" width="14" height="13" rx="1"/><path d="M1 6h14M5 1v2M11 1v2"/></svg>
+      Agenda
+    </div>
+    <div class="nav-section" data-modulo="financeiro">Financeiro</div>
+    <div class="nav-item" data-modulo="financeiro" onclick="go('financeiro')">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v1.5M8 9.5V11M6 7a2 2 0 0 1 4 0c0 1.5-2 2-2 3"/></svg>
+      Financeiro
+    </div>
+    <div class="nav-section" data-modulo="analise">Análise</div>
+    <div class="nav-item" data-modulo="analise" onclick="go('analise')">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 13l3-5 3 3 3-6 3 4"/><rect x="1" y="1" width="14" height="14" rx="1"/></svg>
+      Análise
+    </div>
+  <div class="nav-footer" id="nav-date"></div>
+  <div class="nav-footer" style="cursor:pointer;color:#8B91A8;font-size:11px" onclick="fazerLogout()" title="Sair"><span id="perfil-label"></span> · Sair</div>
+</div>
+
+<!-- ═══ MAIN ═══ -->
+<div class="main">
+  <div class="topbar">
+    <div>
+      <div class="topbar-title" id="ptitle">Dashboard</div>
+      <div class="topbar-sub" id="psub">Visão geral de movimento, giro e inventário</div>
+    </div>
+    <div class="topbar-date" id="tdate"></div>
+  </div>
+  <div class="content">
+    <div id="alertbox" class="alert"></div>
+
+    <!-- ═══ DASHBOARD ═══ -->
+    <div id="page-fechamento" class="page active">
+      <div class="cards" id="dash-cards" style="margin-bottom:16px"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+        <div class="sec">
+          <div class="sec-head"><span class="sec-title">🔥 Top 10 — Mais usados no período</span></div>
+          <div id="dash-top10" style="padding:8px 0"></div>
+        </div>
+        <div class="sec">
+          <div class="sec-head"><span class="sec-title">📊 Consumo por categoria</span></div>
+          <div id="dash-cat-chart" style="padding:12px 16px"></div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div class="sec">
+          <div class="sec-head"><span class="sec-title">🧊 Produtos parados — sem nenhuma saída</span></div>
+          <div id="dash-parado" style="padding:8px 0;max-height:280px;overflow-y:auto"></div>
+        </div>
+        <div class="sec">
+          <div class="sec-head"><span class="sec-title">🥃 Quebras por evento</span></div>
+          <div id="dash-qbr-chart" style="padding:12px 16px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ ESTOQUE MAR ═══ -->
+    <div id="page-est-mar" class="page">
+      <div class="sec">
+        <div class="sec-head">
+          <span class="sec-title">Contagem 30/03/2025</span>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="mbusca" placeholder="Buscar..." oninput="rEst('mar')" style="width:160px;font-size:11px;padding:5px 9px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);border-radius:var(--radius)">
+            <select id="mcat" onchange="rEst('mar')" style="font-size:11px;padding:5px 9px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);border-radius:var(--radius)"><option value="">Todas</option></select>
+          </div>
+        </div>
+        <table><thead><tr><th>Produto</th><th>Categoria</th><th>Depósito</th><th>Salão</th><th>Total</th></tr></thead>
+        <tbody id="tab-mar"></tbody></table>
+      </div>
+    </div>
+
+    <!-- ═══ ESTOQUE ABR ═══ -->
+    <div id="page-est-abr" class="page">
+      <div class="sec">
+        <div class="sec-head">
+          <span class="sec-title">Contagem 28/04/2025</span>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="abusca" placeholder="Buscar..." oninput="rEst('abr')" style="width:160px;font-size:11px;padding:5px 9px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);border-radius:var(--radius)">
+            <select id="abcat" onchange="rEst('abr')" style="font-size:11px;padding:5px 9px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);border-radius:var(--radius)"><option value="">Todas</option></select>
+          </div>
+        </div>
+        <table><thead><tr><th>Produto</th><th>Categoria</th><th>Depósito</th><th>Salão</th><th>Total</th></tr></thead>
+        <tbody id="tab-abr"></tbody></table>
+      </div>
+    </div>
+
+    <!-- ═══ CONTAGENS SEMANAIS ═══ -->
+    <div id="page-contagens" class="page">
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+        <button class="sort-btn active" id="cv-historico" onclick="setContView('historico')">📋 Histórico</button>
+        <button class="sort-btn" id="cv-nova" onclick="setContView('nova')">+ Nova Contagem</button>
+        <button class="sort-btn" id="cv-comparar" onclick="setContView('comparar')">🔀 Comparar</button>
+      </div>
+
+      <!-- Histórico -->
+      <div id="cview-historico">
+        <div id="cont-historico-body"></div>
+      </div>
+
+      <!-- Nova contagem -->
+      <div id="cview-nova" style="display:none">
+        <div class="sec" style="margin-bottom:14px">
+          <div class="sec-head"><span class="sec-title">Nova contagem de inventário</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;padding:14px 16px;align-items:flex-end">
+            <div>
+              <label style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:4px">Data da contagem</label>
+              <input type="date" id="cont-data" style="font-size:12px;padding:7px 10px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);border-radius:var(--radius);width:100%">
+            </div>
+            <div>
+              <label style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:4px">Nome / Identificação</label>
+              <input type="text" id="cont-label" placeholder="Ex: Semana 1 de Maio..." style="font-size:12px;padding:7px 10px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);border-radius:var(--radius);width:100%">
+            </div>
+            <div>
+              <label style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:4px">Filtrar categoria</label>
+              <select id="nova-cont-cat" onchange="rNovaContagem()" style="font-size:11px;padding:7px 10px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);border-radius:var(--radius);width:100%"><option value="">Todas</option></select>
+            </div>
+            <button class="btn btn-primary" onclick="iniciarNovaContagem()" style="white-space:nowrap">Carregar produtos</button>
+          </div>
+          <div style="padding:0 16px 10px">
+            <input type="text" id="nova-cont-busca" placeholder="Buscar produto..." oninput="rNovaContagem()" style="width:220px;font-size:11px;padding:5px 9px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);border-radius:var(--radius)">
+          </div>
+        </div>
+        <div class="sec">
+          <div id="nova-cont-body" style="max-height:500px;overflow-y:auto">
+            <div style="padding:20px;font-size:12px;color:var(--text3);text-align:center">Clique em "Carregar produtos" para iniciar a contagem.</div>
+          </div>
+          <div class="form-actions">
+            <button class="btn" onclick="setContView('historico')">Cancelar</button>
+            <button class="btn btn-primary" onclick="salvarContagem()">💾 Salvar contagem</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Comparar -->
+      <div id="cview-comparar" style="display:none">
+        <div class="sec" style="margin-bottom:14px">
+          <div class="sec-head"><span class="sec-title">Selecionar contagens para comparar</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:14px 16px">
+            <div>
+              <label style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:6px">Contagem A (mais recente)</label>
+              <select id="comp-cont-a" onchange="rCompararContagens()" style="font-size:12px;padding:7px 10px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);border-radius:var(--radius);width:100%"></select>
+            </div>
+            <div>
+              <label style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:6px">Contagem B (anterior)</label>
+              <select id="comp-cont-b" onchange="rCompararContagens()" style="font-size:12px;padding:7px 10px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);border-radius:var(--radius);width:100%"></select>
+            </div>
+          </div>
+        </div>
+        <div id="cont-comparar-body"></div>
+      </div>
+    </div>
+
+    <!-- ═══ PREÇOS ═══ -->
+    <div id="page-precos" class="page">
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        <button class="sort-btn active" id="pv-lista" onclick="setPrecosView('lista')">📋 Tabela de preços</button>
+        <button class="sort-btn" id="pv-editar" onclick="setPrecosView('editar')">✏️ Editar preços</button>
+      </div>
+
+      <!-- Lista -->
+      <div id="pview-lista">
+        <div class="sec">
+          <div class="sec-head">
+            <span class="sec-title">Custo e revenda por produto (por garrafa)</span>
+            <div style="display:flex;gap:8px">
+              <input type="text" id="precos-busca" placeholder="Buscar..." oninput="rPrecos()" style="width:160px;font-size:11px;padding:5px 9px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);border-radius:var(--radius)">
+              <select id="precos-cat" onchange="rPrecos()" style="font-size:11px;padding:5px 9px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);border-radius:var(--radius)"><option value="">Todas</option></select>
+            </div>
+          </div>
+          <div id="precos-lista-body"></div>
+        </div>
+      </div>
+
+      <!-- Editar -->
+      <div id="pview-editar" style="display:none">
+        <div class="sec">
+          <div class="sec-head">
+            <span class="sec-title">Editar preços — custo e revenda por garrafa</span>
+            <div style="display:flex;gap:8px">
+              <input type="text" id="precos-edit-busca" placeholder="Buscar..." oninput="rEditarPrecos()" style="width:160px;font-size:11px;padding:5px 9px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);border-radius:var(--radius)">
+              <select id="precos-edit-cat" onchange="rEditarPrecos()" style="font-size:11px;padding:5px 9px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);border-radius:var(--radius)"><option value="">Todas</option></select>
+            </div>
+          </div>
+          <div id="precos-editar-body" style="max-height:600px;overflow-y:auto"></div>
+          <div class="form-actions">
+            <button class="btn" onclick="setPrecosView('lista')">Cancelar</button>
+            <button class="btn btn-primary" onclick="salvarPrecos()">💾 Salvar preços</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ ENTRADA ═══ -->
+    <div id="page-entrada" class="page">
+      <div class="sec">
+        <div class="sec-head"><span class="sec-title">Lançar nota fiscal / entrada</span></div>
+        <div class="form-grid c3" style="padding-bottom:4px">
+          <div class="form-group"><label>Fornecedor</label><select id="eforn" style="font-size:12px"><option value="">Selecione ou deixe em branco</option></select></div>
+          <div class="form-group"><label>NF / Número</label><input type="text" id="enf" placeholder="Nº da nota fiscal"></div>
+          <div class="form-group"><label>Data</label><input type="date" id="edata"></div>
+          <div class="form-group"><label>Observação</label><input type="text" id="eobs" placeholder="Opcional"></div>
+        </div>
+        <div style="padding:12px 16px;border-top:1px solid var(--border)">
+          <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Produtos da nota</div>
+          <div style="display:grid;grid-template-columns:1fr 110px 130px 36px;gap:8px;margin-bottom:10px;align-items:center">
+            <select id="eprod" style="font-size:12px"><option value="">Selecionar produto...</option></select>
+            <input type="number" id="eqtd" placeholder="Quantidade" step="0.01" style="font-size:12px" onkeydown="if(event.key==='Enter')addIE()">
+            <input type="number" id="ecusto" placeholder="Custo unit. (R$)" step="0.01" style="font-size:12px" onkeydown="if(event.key==='Enter')addIE()">
+            <button class="btn btn-primary btn-sm" onclick="addIE()" style="padding:0;height:36px;width:100%;font-size:18px;line-height:1">+</button>
+          </div>
+          <div id="nf-ent-itens" style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg3);min-height:48px"></div>
+          <div id="nf-ent-count" style="font-size:10px;color:var(--text3);margin-top:6px;text-align:right"></div>
+        </div>
+        <div class="form-actions">
+          <button class="btn" onclick="limparNFEnt()">Limpar</button>
+          <button class="btn btn-primary" onclick="regEnt()">Lançar nota fiscal</button>
+        </div>
+      </div>
+      <div class="sec">
+        <div class="sec-head">
+          <span class="sec-title">Histórico de entradas por NF</span>
+          <span id="tot-ent" style="font-size:11px;font-weight:600;color:var(--green);font-family:var(--mono)"></span>
+        </div>
+        <div id="lista-entradas" style="padding:8px 0"></div>
+      </div>
+    </div>
+
+    <!-- ═══ FORNECEDORES ═══ -->
+    <div id="page-fornecedores" class="page">
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button class="sort-btn active" id="forn-v-lista" onclick="setFornView('lista')">Fornecedores</button>
+        <button class="sort-btn" id="forn-v-novo" onclick="setFornView('novo')">+ Novo fornecedor</button>
+      </div>
+      <div id="forn-view-novo" style="display:none">
+        <div class="sec">
+          <div class="sec-head"><span class="sec-title">Cadastrar fornecedor</span></div>
+          <div class="form-grid c3">
+            <div class="form-group full"><label>Nome do fornecedor</label><input type="text" id="fn-nome" placeholder="Ex: Distribuidora São João, Macro..."></div>
+            <div class="form-group"><label>Telefone</label><input type="text" id="fn-tel" placeholder="(31) 9 9999-9999"></div>
+            <div class="form-group"><label>Contato</label><input type="text" id="fn-contato" placeholder="Nome do representante"></div>
+            <div class="form-group"><label>Observação</label><input type="text" id="fn-obs" placeholder="Opcional"></div>
+          </div>
+          <div class="form-actions"><button class="btn btn-primary" onclick="salvarForn()">Salvar fornecedor</button></div>
+        </div>
+      </div>
+      <div id="forn-view-lista">
+        <div class="sec">
+          <div class="sec-head"><span class="sec-title">Fornecedores cadastrados</span><span id="forn-count" style="font-size:11px;color:var(--text3)"></span></div>
+          <table>
+            <thead><tr><th>Nome</th><th>Contato</th><th>Telefone</th><th>Compras</th><th>Obs</th></tr></thead>
+            <tbody id="tab-forn"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ COMPARATIVO DE PREÇOS ═══ -->
+    <div id="page-comparativo" class="page">
+      <div class="sec">
+        <div class="sec-head">
+          <span class="sec-title">Comparativo de preços por produto</span>
+          <input type="text" id="comp-busca" placeholder="Buscar produto..." oninput="rComparativo()" style="width:200px;font-size:11px;padding:5px 9px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);border-radius:var(--radius)">
+        </div>
+        <div id="comp-body" style="padding:8px 0"></div>
+      </div>
+    </div>
+
+    <!-- ═══ FESTAS ═══ -->
+    <div id="page-festas" class="page">
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+        <button class="sort-btn active" id="fv-geral"    onclick="setFestaView('geral')">📋 Visão Geral</button>
+        <button class="sort-btn"        id="fv-produtos"  onclick="setFestaView('produtos')">🍾 Produtos consumidos</button>
+        <button class="sort-btn"        id="fv-quebras"   onclick="setFestaView('quebras')">🥃 Quebras detalhadas</button>
+        <button class="sort-btn"        id="fv-novo"      onclick="setFestaView('novo')">+ Novo evento</button>
+      </div>
+      <div id="fview-geral">
+        <div class="cards" id="festas-cards" style="margin-bottom:14px"></div>
+        <div class="sec">
+          <div class="sec-head">
+            <span class="sec-title">Todos os eventos do período</span>
+            <input type="text" id="festas-busca" placeholder="Buscar evento..." oninput="rFestas()" style="font-size:11px;padding:5px 9px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);border-radius:var(--radius);width:200px">
+          </div>
+          <table>
+            <thead><tr><th></th><th>Data</th><th>Evento</th><th>Local</th><th>🍾 Val. produtos</th><th>🥃 Val. quebras</th><th>💰 Total evento</th><th></th></tr></thead>
+            <tbody id="tab-festas"></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="fview-produtos" style="display:none">
+        <div class="sec">
+          <div class="sec-head">
+            <span class="sec-title">Produtos consumidos — todos os eventos</span>
+            <input type="text" id="fp-busca" placeholder="Buscar produto..." oninput="rFestaProdutos()" style="font-size:11px;padding:5px 9px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);border-radius:var(--radius);width:200px">
+          </div>
+          <table>
+            <thead><tr><th>Evento</th><th>Data</th><th>Produto</th><th>Qtd consumida</th><th>Valor (R$)</th></tr></thead>
+            <tbody id="tab-festa-prods"></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="fview-quebras" style="display:none">
+        <div class="sec">
+          <div class="sec-head"><span class="sec-title">🥃 Quebras detalhadas por evento</span></div>
+          <table>
+            <thead><tr><th>Evento</th><th>Data</th><th>Peça quebrada</th><th>Qtd</th><th>Custo unit.</th><th>Total</th></tr></thead>
+            <tbody id="tab-festa-qbr"></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="fview-novo" style="display:none">
+        <div class="sec">
+          <div class="sec-head"><span class="sec-title">Criar novo evento</span></div>
+          <div class="form-grid c3">
+            <div class="form-group full"><label>Nome do evento</label><input type="text" id="fnome" placeholder="Ex: Casamento Silva, 15 anos Maria..."></div>
+            <div class="form-group"><label>Data</label><input type="date" id="fdata"></div>
+            <div class="form-group"><label>Local</label><input type="text" id="flocal" placeholder="Endereço ou local"></div>
+            <div class="form-group"><label>Responsável</label><input type="text" id="fresp" placeholder="Nome do bartender"></div>
+            <div class="form-group"><label>Valor total do evento (R$)</label><input type="number" id="fvalor" placeholder="0,00" step="0.01"></div>
+          </div>
+          <div style="padding:0 16px 14px">
+            <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Produtos consumidos</div>
+            <div style="display:grid;grid-template-columns:1fr 110px 130px 36px;gap:8px;margin-bottom:10px;align-items:center">
+              <select id="fi-prod" style="font-size:12px"><option value="">Selecionar produto...</option></select>
+              <input type="number" id="fi-qtd" placeholder="Qtd consumida" step="0.01" style="font-size:12px" onkeydown="if(event.key==='Enter')addIF()">
+              <input type="number" id="fi-val" placeholder="Valor (opcional)" step="0.01" style="font-size:12px" onkeydown="if(event.key==='Enter')addIF()">
+              <button class="btn btn-primary btn-sm" onclick="addIF()" style="padding:0;height:36px;width:100%;font-size:18px;line-height:1">+</button>
+            </div>
+            <div id="nf-itens" style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg3);min-height:48px"></div>
+            <div id="nf-count" style="font-size:10px;color:var(--text3);margin-top:6px;text-align:right"></div>
+          </div>
+          <div class="form-actions">
+            <button class="btn" onclick="limparNF()">Limpar</button>
+            <button class="btn btn-primary" onclick="criarFesta()">Salvar evento</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ QUEBRAS ═══ -->
+    <div id="page-quebras" class="page">
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button class="sort-btn active" id="qv-evento"       onclick="setQView('evento')">Por evento</button>
+        <button class="sort-btn"        id="qv-lista"         onclick="setQView('lista')">Lista completa</button>
+        <button class="sort-btn"        id="qv-consolidado"   onclick="setQView('consolidado')">📊 Consolidado por peça</button>
+        <button class="sort-btn"        id="qv-nova"          onclick="setQView('nova')">+ Nova quebra avulsa</button>
+      </div>
+      <div id="qview-evento"><div id="lista-quebras-evento"></div></div>
+      <div id="qview-lista" style="display:none">
+        <div class="sec">
+          <div class="sec-head">
+            <span class="sec-title">Todas as quebras lançadas</span>
+            <span id="tot-prej" style="font-size:11px;font-weight:600;color:var(--red);font-family:var(--mono)"></span>
+          </div>
+          <table><thead><tr><th>Data</th><th>Produto</th><th>Motivo</th><th>Qtd</th><th>Custo</th><th>Total</th><th>Obs</th></tr></thead>
+          <tbody id="tab-qbr"></tbody></table>
+        </div>
+      </div>
+      <div id="qview-consolidado" style="display:none"></div>
+      <div id="qview-nova" style="display:none">
+        <div class="sec">
+          <div class="sec-head"><span class="sec-title">Registrar quebra / perda avulsa</span></div>
+          <div class="form-grid c3">
+            <div class="form-group"><label>Produto</label><select id="qprod"><option value="">Selecione...</option></select></div>
+            <div class="form-group"><label>Motivo</label><select id="qmot"><option>Quebra/Avaria</option><option>Vencimento</option><option>Furto/Desvio</option><option>Diferença Inventário</option><option>Outro</option></select></div>
+            <div class="form-group"><label>Data</label><input type="date" id="qdata"></div>
+            <div class="form-group"><label>Quantidade</label><input type="number" id="qqtd" step="0.01" placeholder="0"></div>
+            <div class="form-group"><label>Custo unit. (R$)</label><input type="number" id="qcusto" step="0.01" placeholder="0,00"></div>
+            <div class="form-group"><label>Observação</label><input type="text" id="qobs" placeholder="Descreva o ocorrido"></div>
+          </div>
+          <div class="form-actions"><button class="btn btn-danger" onclick="regQbr()">Registrar perda</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ RELATÓRIO ═══ -->
+    <div id="page-relatorio" class="page">
+      <div class="cards" id="rel-cards"></div>
+      <div class="sec" style="margin-top:14px">
+        <div class="sec-head">
+          <span class="sec-title">Conciliação: esperado vs. contado (30/03 → 28/04)</span>
+          <button class="btn btn-sm" onclick="imprimirRelatorio()" style="font-size:11px">🖨️ Imprimir</button>
+        </div>
+        <div style="padding:10px 16px 8px;display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--border);align-items:center">
+          <select id="rel-cat" onchange="rRelatorio()" style="font-size:11px;padding:5px 9px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);border-radius:var(--radius)"><option value="">Todas as categorias</option></select>
+          <input type="text" id="rel-busca" placeholder="Buscar produto..." oninput="rRelatorio()" style="font-size:11px;padding:5px 9px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);border-radius:var(--radius);width:180px">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-left:4px">
+            <button class="sort-btn" id="rf-todos"       onclick="setRelFiltro('todos')">Todos</button>
+            <button class="sort-btn" id="rf-mais-usado"  onclick="setRelFiltro('mais-usado')">↑ Mais usados</button>
+            <button class="sort-btn" id="rf-menos-usado" onclick="setRelFiltro('menos-usado')">↓ Menos usados</button>
+            <button class="sort-btn" id="rf-diferenca"   onclick="setRelFiltro('diferenca')">⚠ Com diferença</button>
+            <button class="sort-btn" id="rf-positivo"    onclick="setRelFiltro('positivo')">▲ Sobra de estoque</button>
+            <button class="sort-btn" id="rf-negativo"    onclick="setRelFiltro('negativo')">▼ Falta de estoque</button>
+            <button class="sort-btn" id="rf-zerado"      onclick="setRelFiltro('zerado')">● Sem movimento</button>
+          </div>
+        </div>
+        <table>
+          <thead><tr>
+            <th onclick="setRelSort('nome')"     style="cursor:pointer;user-select:none">Produto <span id="rs-nome"></span></th>
+            <th>Cat.</th>
+            <th onclick="setRelSort('inicial')"  style="cursor:pointer;user-select:none">Inicial <span id="rs-inicial"></span></th>
+            <th onclick="setRelSort('entradas')" style="cursor:pointer;user-select:none">+ Entradas <span id="rs-entradas"></span></th>
+            <th onclick="setRelSort('quebras')"  style="cursor:pointer;user-select:none">- Quebras <span id="rs-quebras"></span></th>
+            <th onclick="setRelSort('esperado')" style="cursor:pointer;user-select:none">Esperado <span id="rs-esperado"></span></th>
+            <th onclick="setRelSort('contado')"  style="cursor:pointer;user-select:none">Contado (Abr) <span id="rs-contado"></span></th>
+            <th onclick="setRelSort('diff')"     style="cursor:pointer;user-select:none">Diferença <span id="rs-diff"></span></th>
+          </tr></thead>
+          <tbody id="tab-rel"></tbody>
+        </table>
+        <div id="rel-footer" style="padding:8px 16px;font-size:11px;color:var(--text3);border-top:1px solid var(--border)"></div>
+      </div>
+    </div>
+
+    <!-- ═══ PRODUTOS ═══ -->
+    <div id="page-produtos" class="page">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+        <div>
+          <div style="font-size:15px;font-weight:600">Produtos</div>
+          <div style="font-size:11px;color:var(--text3)">Cadastro de produtos, embalagens e aliases para reconhecimento de NF</div>
+        </div>
+        <button class="btn" onclick="setProdutosView('form');rFormProduto()" style="background:var(--green)">+ Novo Produto</button>
+        <button class="btn" onclick="importarProdutosDoMAR()" style="background:var(--blue)" title="Importar produtos do estoque/relatório geral">↓ Importar do Estoque</button>
+      </div>
+      <!-- Filtros -->
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+        <input class="inp" id="prd-busca" type="text" placeholder="🔍 Buscar por nome ou alias..." style="flex:1;min-width:200px" oninput="rProdutos()">
+        <select class="inp" id="prd-cat-filtro" style="width:200px" onchange="rProdutos()">
+          <option value="">Todas as categorias</option>
+          <option value="MATERIAL">MATERIAL</option>
+          <option value="COPOS E TAÇAS">COPOS E TAÇAS</option>
+          <option value="DESCARTÁVEIS">DESCARTÁVEIS</option>
+          <option value="ESPECIARIAS">ESPECIARIAS</option>
+          <option value="BEBIDAS ALCOÓLICAS">BEBIDAS ALCOÓLICAS</option>
+          <option value="BEBIDAS SEM ÁLCOOL">BEBIDAS SEM ÁLCOOL</option>
+          <option value="HORTIFRUTI">HORTIFRUTI</option>
+          <option value="MIX ARTESANAL">MIX ARTESANAL</option>
+          <option value="PRODUÇÃO">PRODUÇÃO</option>
+          <option value="XAROPES">XAROPES</option>
+          <option value="KIT BARTENDER">KIT BARTENDER</option>
+          <option value="GELO">GELO</option>
+          <option value="OUTROS">OUTROS</option>
+        </select>
+      </div>
+      <!-- Views -->
+      <div id="prd-view-lista">
+        <div class="sec">
+          <div class="sec-head"><span class="sec-title">📦 Produtos cadastrados</span></div>
+          <div id="prd-lista-body" style="padding:8px 16px"></div>
+        </div>
+      </div>
+      <div id="prd-view-form" style="display:none"></div>
+    </div>
+
+    <!-- ═══ CONTRATOS ═══ -->
+    <div id="page-contratos" class="page">
+
+      <!-- Tabs -->
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+        <button class="sort-btn active" id="cv-lista"    onclick="setContratoView('lista')">📋 Todos os contratos</button>
+        <button class="sort-btn"        id="cv-importar" onclick="setContratoView('importar')">📥 Importar contrato existente</button>
+      </div>
+
+      <!-- ─── VIEW: Novo contrato via PDF ─────────────────────────────── -->
+      <div id="cview-novo" style="display:none">
+        <div class="sec" style="margin-bottom:14px">
+          <div class="sec-head"><span class="sec-title">📂 Upload da Proposta (PDF)</span></div>
+          <div style="padding:16px">
+            <div id="contrato-upload-zone"
+              style="border:2px dashed #2A2F42;border-radius:10px;padding:32px;text-align:center;cursor:pointer;transition:border-color 0.2s;max-width:500px"
+              onclick="document.getElementById('contrato-pdf-input').click()">
+              <div style="font-size:32px;margin-bottom:8px">📂</div>
+              <div style="color:#8B91A8;font-size:13px">Clique ou arraste a proposta PDF aqui</div>
+              <input id="contrato-pdf-input" type="file" accept=".pdf" style="display:none" onchange="lerPDFContrato(this)">
+            </div>
+            <div id="contrato-status" style="color:#8B91A8;font-size:12px;margin-top:10px;min-height:16px"></div>
+          </div>
+        </div>
+        <div class="sec" id="contrato-form" style="display:none">
+          <div class="sec-head"><span class="sec-title">✏️ Confirmar dados extraídos</span></div>
+          <div style="padding:12px 16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">
+            <div><label class="lbl">Nome completo *</label><input id="c-nome" class="inp" type="text" placeholder="Nome do contratante"></div>
+            <div><label class="lbl">CPF *</label><input id="c-cpf" class="inp" type="text" placeholder="000.000.000-00"></div>
+            <div style="grid-column:1/-1"><label class="lbl">Endereço</label><input id="c-endereco" class="inp" type="text" placeholder="Rua, número, bairro"></div>
+            <div><label class="lbl">Tipo de evento</label><input id="c-tipo" class="inp" type="text" placeholder="Casamento"></div>
+            <div><label class="lbl">Data do evento</label><input id="c-data" class="inp" type="date"></div>
+            <div><label class="lbl">Nº de convidados</label><input id="c-convidados" class="inp" type="number" placeholder="300"></div>
+            <div><label class="lbl">Horário de início</label><input id="c-hora-inicio" class="inp" type="time"></div>
+            <div style="grid-column:1/-1"><label class="lbl">Local</label><input id="c-local" class="inp" type="text" placeholder="Nome do espaço"></div>
+            <div id="c-cerimonia-row" style="grid-column:1/-1;display:none">
+              <label class="lbl">Cerimônia no local?</label>
+              <select id="c-cerimonia" class="inp"><option value="">Não</option><option value="Sim, cerimônia no local">Sim</option></select>
+            </div>
+            <div style="grid-column:1/-1"><label class="lbl">Valor do contrato (R$)</label><input id="c-opcao" class="inp" type="text" placeholder="Ex: 12.500,00"></div>
+            <div style="grid-column:1/-1;display:flex;gap:8px;margin-top:4px">
+              <button id="btn-gerar-contrato" class="btn" onclick="gerarContratoDocx()" style="background:#4F8EF7">📄 Gerar Contrato (.docx)</button>
+              <button class="btn" onclick="novoContrato()" style="background:#2A2F42">Limpar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── VIEW: Importar contrato existente ────────────────────────── -->
+      <div id="cview-importar" style="display:none">
+        <div class="sec" style="margin-bottom:14px">
+          <div class="sec-head"><span class="sec-title">📂 Upload do contrato existente (PDF)</span></div>
+          <div style="padding:16px">
+            <p style="color:#8B91A8;font-size:13px;margin-bottom:14px">Envie o PDF de um contrato já assinado. O sistema extrai os dados e registra na agenda e financeiro.</p>
+            <div id="imp-upload-zone"
+              style="border:2px dashed #2A2F42;border-radius:10px;padding:32px;text-align:center;cursor:pointer;transition:border-color 0.2s;max-width:500px"
+              onclick="document.getElementById('imp-pdf-input').click()">
+              <div style="font-size:32px;margin-bottom:8px">📂</div>
+              <div style="color:#8B91A8;font-size:13px">Clique ou arraste o PDF do contrato aqui</div>
+              <input id="imp-pdf-input" type="file" accept=".pdf" style="display:none" onchange="lerPDFImportacao(this)">
+            </div>
+            <div id="imp-status" style="color:#8B91A8;font-size:12px;margin-top:10px;min-height:16px"></div>
+            <div id="imp-resumo" style="display:none;margin-top:10px"></div>
+          </div>
+        </div>
+        <div class="sec" id="imp-form" style="display:none">
+          <div class="sec-head"><span class="sec-title">✅ Confirmar dados extraídos</span></div>
+          <div style="padding:12px 16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">
+            <div><label class="lbl">Cliente *</label><input id="imp-nome" class="inp" type="text" placeholder="Nome"></div>
+            <div><label class="lbl">Tipo de evento</label><input id="imp-tipo" class="inp" type="text" placeholder="Casamento"></div>
+            <div><label class="lbl">Data do evento *</label><input id="imp-data" class="inp" type="date"></div>
+            <div><label class="lbl">Nº de convidados</label><input id="imp-conv" class="inp" type="number" placeholder="300"></div>
+            <div style="grid-column:1/-1"><label class="lbl">Local</label><input id="imp-local" class="inp" type="text" placeholder="Nome do espaço"></div>
+            <div><label class="lbl">Horário início</label><input id="imp-ini" class="inp" type="time"></div>
+            <div><label class="lbl">Horário fim</label><input id="imp-fim" class="inp" type="time"></div>
+            <div><label class="lbl">Equipe</label><input id="imp-equipe" class="inp" type="text" placeholder="1 Head Bartender · 4 Bartenders..." readonly style="font-size:11px;color:#8B91A8"></div>
+            <div style="grid-column:1/-1"><label class="lbl">Valor total (R$)</label><input id="imp-valor" class="inp" type="text" placeholder="Ex: 12.500,00"></div>
+            <div style="grid-column:1/-1"><label class="lbl">Status do contrato</label>
+              <select id="imp-contrato-status" class="inp" style="max-width:240px">
+                <option value="concluido">Concluído</option>
+                <option value="ativo">Ativo</option>
+                <option value="cancelado">Cancelado</option>
+              </select>
+            </div>
+            <div style="grid-column:1/-1;display:flex;gap:8px;margin-top:4px">
+              <button class="btn" onclick="salvarImportacao()" style="background:#4F8EF7">✅ Confirmar e salvar</button>
+              <button class="btn" onclick="limparImportacao()" style="background:#2A2F42">Limpar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── VIEW: Lista de contratos ─────────────────────────────────── -->
+      <div id="cview-lista" style="display:none">
+        <div class="sec">
+          <div class="sec-head">
+            <span class="sec-title">📋 Contratos cadastrados</span>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <input id="ct-data-ini" class="inp" type="date" style="width:140px" onchange="rContratos()" placeholder="De">
+              <span style="color:#8B91A8;font-size:12px">até</span>
+              <input id="ct-data-fim" class="inp" type="date" style="width:140px" onchange="rContratos()" placeholder="Até">
+              <button class="btn-sm" onclick="document.getElementById('ct-data-ini').value='';document.getElementById('ct-data-fim').value='';rContratos()">✕ Limpar</button>
+            </div>
+          </div>
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+              <thead>
+                <tr style="color:#8B91A8;border-bottom:1px solid #2A2F42">
+                  <th style="padding:10px 12px;text-align:left;font-weight:500">Cliente</th>
+                  <th style="padding:10px 12px;text-align:left;font-weight:500">Tipo</th>
+                  <th style="padding:10px 12px;text-align:left;font-weight:500">Data</th>
+                  <th style="padding:10px 12px;text-align:center;font-weight:500">Convidados</th>
+                  <th style="padding:10px 12px;text-align:left;font-weight:500">Local</th>
+                  <th style="padding:10px 12px;text-align:left;font-weight:500">Equipe</th>
+                  <th style="padding:10px 12px;text-align:left;font-weight:500">Valor</th>
+                  <th style="padding:10px 12px;text-align:left;font-weight:500">Status</th>
+                  <th style="padding:10px 12px;text-align:left;font-weight:500">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="contratos-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+        <!-- ═══ REGRAS E CÁLCULOS ═══ -->
+    <div id="page-regras" class="page">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+        <div><div style="font-size:15px;font-weight:600">Regras e Cálculos</div>
+        <div style="font-size:11px;color:var(--text3)">Fichas técnicas de coquetéis e regras de proporção</div></div>
+        <button class="btn" onclick="setRegrasView('nova-ficha')" style="background:var(--green)">+ Nova Ficha de Coquetel</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        <button class="sort-btn active" id="regras-tab-fichas" onclick="setRegrasView('fichas')">🍹 Fichas</button>
+        <button class="sort-btn" id="regras-tab-proporcoes" onclick="setRegrasView('proporcoes')">📐 Proporções</button>
+        <button class="sort-btn" id="regras-tab-biblioteca" onclick="setRegrasView('biblioteca')">📦 Biblioteca de Itens</button>
+      </div>
+      <div id="regras-view-fichas">
+        <div class="sec"><div class="sec-head"><span class="sec-title">Fichas cadastradas</span></div>
+        <div id="fichas-body" style="padding:8px 16px"></div></div>
+      </div>
+      <div id="regras-view-proporcoes" style="display:none">
+        <div class="sec"><div class="sec-head"><span class="sec-title">📐 Regras de Proporção</span></div>
+        <div id="regras-prop-body" style="padding:14px 16px"></div></div>
+      </div>
+      <div id="regras-view-nova-ficha" style="display:none"></div>
+      <div id="regras-view-biblioteca" style="display:none"></div>
+    </div>
+
+    <!-- ═══ PRODUÇÃO ═══ -->
+    <div id="page-producao" class="page">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+        <div><div style="font-size:15px;font-weight:600">Produção</div>
+        <div style="font-size:11px;color:var(--text3)">Folhas de produção dos eventos</div></div>
+        <button class="btn" onclick="setProdView('nova')" style="background:var(--green)">+ Nova Produção</button>
+      </div>
+      <div id="prodview-lista">
+        <div class="sec"><div class="sec-head"><span class="sec-title">📋 Produções cadastradas</span></div>
+        <div id="prod-body" style="padding:8px 16px"></div></div>
+      </div>
+      <div id="prodview-nova" style="display:none"></div>
+    </div>
+
+    <!-- ═══ SEPARAÇÃO ═══ -->
+    <div id="page-separacao" class="page">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+        <div><div style="font-size:15px;font-weight:600">Folha de Separação</div>
+        <div style="font-size:11px;color:var(--text3)">Geração automática a partir da produção do evento</div></div>
+        <button class="btn" onclick="setSepView('nova')" style="background:var(--green)">+ Nova Folha</button>
+      </div>
+      <div id="sep-view-lista">
+        <div class="sec"><div class="sec-head"><span class="sec-title">📋 Folhas geradas</span></div>
+        <div id="sep-lista-body" style="padding:8px 16px"></div></div>
+      </div>
+      <div id="sep-view-nova" style="display:none">
+        <div class="sec">
+          <div class="sec-head"><span class="sec-title">+ Nova Folha de Separação</span>
+          <button class="btn-sm" onclick="setSepView('lista')" style="margin-left:auto">← Voltar</button></div>
+          <div id="sep-nova-body"></div>
+        </div>
+      </div>
+      <div id="sep-view-detalhe" style="display:none">
+        <div class="sec">
+          <div class="sec-head"><span class="sec-title">📋 Folha de Separação</span>
+          <div style="margin-left:auto"><button class="btn-sm" onclick="setSepView('lista')">← Voltar</button></div></div>
+          <div id="sep-detalhe-body"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ AGENDA ═══ -->
+    <div id="page-agenda" class="page">
+      <div style="display:flex;gap:12px;align-items:flex-end;margin-bottom:14px;flex-wrap:wrap">
+        <div><label class="lbl">De</label><input id="ag-data-ini" class="inp" type="date" style="width:145px" onchange="rAgenda()"></div>
+        <div><label class="lbl">Até</label><input id="ag-data-fim" class="inp" type="date" style="width:145px" onchange="rAgenda()"></div>
+        <button class="sort-btn active" onclick="rAgenda()">Filtrar</button>
+      </div>
+
+      <!-- Cards de destaque -->
+      <div class="cards" style="margin-bottom:14px">
+        <div class="card"><div class="card-label">Total de eventos</div><div class="card-val" id="ag-card-eventos">—</div></div>
+        <div class="card"><div class="card-label">Total de convidados</div><div class="card-val" id="ag-card-convidados">—</div></div>
+        <div class="card"><div class="card-label">Total de colaboradores</div><div class="card-val" id="ag-card-colab">—</div></div>
+        <div class="card" id="ag-card-viagem-box" style="border:1px solid #2A2F42">
+          <div class="card-label">Eventos com viagem</div>
+          <div class="card-val" id="ag-card-viagem">—</div>
+        </div>
+      </div>
+
+      <!-- Detalhe equipe -->
+      <div style="font-size:12px;color:#8B91A8;margin-bottom:14px" id="ag-detalhe-equipe"></div>
+
+      <div class="sec" style="margin-bottom:14px">
+        <div class="sec-head"><span class="sec-title">📅 Agenda de Eventos</span></div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead>
+              <tr style="color:#8B91A8;border-bottom:1px solid #2A2F42">
+                <th style="padding:10px 12px;text-align:left;font-weight:500">Data</th>
+                <th style="padding:10px 12px;text-align:left;font-weight:500">Evento / Cliente</th>
+                <th style="padding:10px 12px;text-align:left;font-weight:500">Tipo</th>
+                <th style="padding:10px 12px;text-align:left;font-weight:500">Convidados</th>
+                <th style="padding:10px 12px;text-align:left;font-weight:500">Local</th>
+                <th style="padding:10px 12px;text-align:left;font-weight:500">Início</th>
+                <th style="padding:10px 12px;text-align:left;font-weight:500">Fim</th>
+                <th style="padding:10px 12px;text-align:left;font-weight:500">Duração</th>
+                <th style="padding:10px 12px;text-align:left;font-weight:500">Equipe</th>
+              </tr>
+            </thead>
+            <tbody id="ag-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="sec">
+        <div class="sec-head"><span class="sec-title">➕ Adicionar evento avulso</span></div>
+        <div style="padding:12px 16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px">
+          <div><label class="lbl">Nome *</label><input id="ag-m-nome" class="inp" type="text" placeholder="Nome do evento"></div>
+          <div><label class="lbl">Data *</label><input id="ag-m-data" class="inp" type="date"></div>
+          <div><label class="lbl">Tipo</label>
+            <select id="ag-m-tipo" class="inp">
+              <option>Casamento</option><option>Aniversário</option><option>15 Anos</option>
+              <option>Formatura</option><option>Corporativo</option><option>Outro</option>
+            </select>
+          </div>
+          <div><label class="lbl">Local</label><input id="ag-m-local" class="inp" type="text" placeholder="Espaço..."></div>
+          <div><label class="lbl">Convidados</label><input id="ag-m-conv" class="inp" type="number" placeholder="200"></div>
+          <div><label class="lbl">Início</label><input id="ag-m-ini" class="inp" type="time"></div>
+          <div><label class="lbl">Fim</label><input id="ag-m-fim" class="inp" type="time"></div>
+          <div><label class="lbl">Equipe (detalhada)</label><input id="ag-m-equipe" class="inp" type="text" placeholder="Ex: 1 Head · 4 Bartenders · 1 Bar Back · 1 Copeiro"></div>
+          <div style="display:flex;align-items:flex-end">
+            <button class="btn" onclick="adicionarEventoManual()" style="background:#4F8EF7;width:100%">Adicionar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ FINANCEIRO ═══ -->
+    <div id="page-financeiro" class="page">
+      <div class="cards" style="margin-bottom:14px">
+        <div class="card"><div class="card-label">A receber (pendente)</div><div class="card-val" id="fin-total-pend">—</div></div>
+        <div class="card"><div class="card-label">Recebido (pago)</div><div class="card-val" id="fin-total-pago">—</div></div>
+        <div class="card"><div class="card-label">Total contratado</div><div class="card-val" id="fin-total-geral">—</div></div>
+      </div>
+
+      <div class="sec">
+        <div class="sec-head" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span class="sec-title">💰 Parcelas e Pagamentos</span>
+          <select id="fin-filtro" class="inp" style="width:120px" onchange="rFinanceiro()">
+            <option value="todos">Todos</option>
+            <option value="pendente">Pendentes</option>
+            <option value="pago">Pagos</option>
+          </select>
+          <label class="lbl" style="margin:0">De</label>
+          <input id="fin-data-ini" class="inp" type="date" style="width:140px" onchange="rFinanceiro()">
+          <label class="lbl" style="margin:0">Até</label>
+          <input id="fin-data-fim" class="inp" type="date" style="width:140px" onchange="rFinanceiro()">
+        </div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead>
+              <tr style="color:#8B91A8;border-bottom:1px solid #2A2F42">
+                <th style="padding:10px 12px;text-align:left;font-weight:500">Vencimento</th>
+                <th style="padding:10px 12px;text-align:left;font-weight:500">Evento</th>
+                <th style="padding:10px 12px;text-align:left;font-weight:500">Data evento</th>
+                <th style="padding:10px 12px;text-align:left;font-weight:500">Tipo</th>
+                <th style="padding:10px 12px;text-align:center;font-weight:500">Convidados</th>
+                <th style="padding:10px 12px;text-align:left;font-weight:500">Descrição</th>
+                <th style="padding:10px 12px;text-align:left;font-weight:500">Valor</th>
+                <th style="padding:10px 12px;text-align:left;font-weight:500">Status</th>
+                <th style="padding:10px 12px;text-align:left;font-weight:500">Ação</th>
+              </tr>
+            </thead>
+            <tbody id="fin-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ ANÁLISE ═══ -->
+    <div id="page-analise" class="page">
+
+      <!-- Filtros + sub-navegação -->
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;justify-content:space-between">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+          <div><label class="lbl">Mês</label>
+            <select id="an-mes" class="inp" style="width:130px" onchange="rAnalise()">
+              <option value="">Todos</option>
+              <option value="01">Janeiro</option><option value="02">Fevereiro</option>
+              <option value="03">Março</option><option value="04">Abril</option>
+              <option value="05">Maio</option><option value="06">Junho</option>
+              <option value="07">Julho</option><option value="08">Agosto</option>
+              <option value="09">Setembro</option><option value="10">Outubro</option>
+              <option value="11">Novembro</option><option value="12">Dezembro</option>
+            </select>
+          </div>
+          <div><label class="lbl">Ano</label>
+            <select id="an-ano" class="inp" style="width:90px" onchange="rAnalise()">
+              <option value="2025">2025</option>
+              <option value="2026" selected>2026</option>
+              <option value="2027">2027</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="sort-btn active" id="an-btn-dash" onclick="document.getElementById('analise-sub-view').value='dashboard';document.getElementById('an-btn-dash').classList.add('active');document.getElementById('an-btn-cfg').classList.remove('active');rAnalise()">📊 Dashboard</button>
+          <button class="sort-btn" id="an-btn-cfg" onclick="document.getElementById('analise-sub-view').value='config';document.getElementById('an-btn-cfg').classList.add('active');document.getElementById('an-btn-dash').classList.remove('active');rAnalise()">⚙️ Configurar</button>
+        </div>
+      </div>
+      <input type="hidden" id="analise-sub-view" value="dashboard">
+
+      <!-- ── DASHBOARD ── -->
+      <div id="an-view-dashboard">
+
+        <!-- KPI Cards -->
+        <div class="cards" style="margin-bottom:14px">
+          <div class="card"><div class="card-label">Faturamento</div><div class="card-val" id="an-faturamento">—</div></div>
+          <div class="card"><div class="card-label">Nº de eventos</div><div class="card-val" id="an-eventos">—</div></div>
+          <div class="card"><div class="card-label">Convidados</div><div class="card-val" id="an-convidados">—</div></div>
+          <div class="card"><div class="card-label">Ticket médio / PAX</div><div class="card-val" id="an-ticket">—</div></div>
+          <div class="card"><div class="card-label">Colaboradores</div><div class="card-val" id="an-equipe">—</div></div>
+          <div class="card"><div class="card-label">Eventos c/ viagem</div><div class="card-val" id="an-viagem">—</div></div>
+        </div>
+
+        <!-- Barra de meta -->
+        <div class="sec" style="margin-bottom:14px">
+          <div class="sec-head"><span class="sec-title">🎯 Meta do período</span></div>
+          <div id="an-meta-box" style="padding:14px 16px"></div>
+        </div>
+
+        <!-- Semáforo mensal -->
+        <div class="sec" style="margin-bottom:14px">
+          <div class="sec-head"><span class="sec-title">🚦 Status por mês — clique para filtrar</span></div>
+          <div id="an-semaforo" style="padding:12px 16px;display:flex;flex-wrap:wrap;gap:8px"></div>
+        </div>
+
+        <!-- Comparativo anual -->
+        <div class="sec">
+          <div class="sec-head"><span class="sec-title">📊 Comparativo ano anterior</span></div>
+          <div id="an-comp-box" style="padding:0 0 8px"></div>
+        </div>
+
+      </div>
+
+      <!-- ── CONFIGURAR ── -->
+      <div id="an-view-config" style="display:none">
+        <div class="sec">
+          <div class="sec-head">
+            <span class="sec-title">⚙️ Base histórica e metas</span>
+            <div style="display:flex;gap:8px;align-items:center">
+              <label class="btn" style="cursor:pointer;font-size:12px;padding:6px 12px">
+                📥 Importar CSV
+                <input type="file" accept=".csv,.txt" style="display:none" onchange="importarCSVAnalise(this.files[0])">
+              </label>
+              <a href="#" onclick="baixarModeloCSV();return false" class="btn" style="font-size:12px;padding:6px 12px;text-decoration:none">📄 Modelo CSV</a>
+            </div>
+          </div>
+          <!-- Meta anual + distribuição automática -->
+          <div style="padding:14px 16px;background:#0D1117;margin:0 16px 12px;border-radius:6px;border:1px solid #2A2F42">
+            <div style="font-size:12px;color:#8B91A8;margin-bottom:10px">🎯 <b style="color:#E8EAF0">Meta anual</b> — o sistema distribui automaticamente pelos meses proporcional ao histórico</div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <input id="an-meta-anual-input" class="inp" type="number" style="width:180px" placeholder="Ex: 2000000"
+                onchange="if(!D.metas)D.metas={};D.metas.metaAnual=parseFloat(this.value)||0;sv('metas')">
+              <button class="btn" style="background:#4F8EF7;padding:8px 16px" onclick="distribuirMetaAnual()">⚡ Distribuir pelos meses</button>
+              <span style="font-size:11px;color:#8B91A8">Você pode ajustar cada mês individualmente depois</span>
+            </div>
+          </div>
+          <div style="padding:10px 16px;font-size:12px;color:#8B91A8;background:#0D1117;margin:0 16px 12px;border-radius:6px;border:1px solid #2A2F42">
+            📋 Formato do CSV: <b style="color:#E8EAF0">MES;ANO;PAX;FATURAMENTO</b> — ex: <code>Janeiro;2025;525;22990</code><br>
+            Dados do ano anterior (2025) alimentam o histórico. Dados do ano atual (2026) alimentam as metas.
+          </div>
+          <div style="overflow-x:auto;padding:0 16px 16px">
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+              <thead><tr style="color:#8B91A8;border-bottom:2px solid #2A2F42">
+                <th style="padding:8px 12px;text-align:left">Mês</th>
+                <th style="padding:8px 12px;text-align:left">PAX 2025 (histórico)</th>
+                <th style="padding:8px 12px;text-align:left">Fat. 2025 (histórico)</th>
+                <th style="padding:8px 12px;text-align:left">Meta PAX 2026</th>
+                <th style="padding:8px 12px;text-align:left">Meta Fat. 2026</th>
+              </tr></thead>
+              <tbody id="an-config-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<!-- ═══ MODAL EDITAR FESTA ═══ -->
+<div class="modal-overlay" id="medit">
+  <div class="modal" style="width:600px">
+    <div class="modal-head">
+      <span class="modal-title">✏️ Editar evento</span>
+      <button class="modal-close" onclick="closeM('medit')">×</button>
+    </div>
+    <input type="hidden" id="edit-id">
+    <div class="form-grid c3" style="padding:14px 18px 10px;gap:10px">
+      <div class="form-group full"><label>Nome do evento</label><input type="text" id="edit-nome"></div>
+      <div class="form-group"><label>Data</label><input type="date" id="edit-data"></div>
+      <div class="form-group"><label>Local</label><input type="text" id="edit-local"></div>
+      <div class="form-group"><label>Responsável</label><input type="text" id="edit-resp"></div>
+    </div>
+    <div style="padding:0 18px 6px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Produtos consumidos no evento</div>
+        <span id="edit-count" style="font-size:11px;font-weight:600;color:var(--blue);font-family:var(--mono)"></span>
+      </div>
+      <div id="edit-itens" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg3);min-height:48px;margin-bottom:12px"></div>
+      <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">Adicionar produto</div>
+      <div style="display:grid;grid-template-columns:1fr 90px 110px 36px;gap:8px;align-items:center">
+        <select id="edit-fi-prod" style="font-size:12px"><option value="">Selecionar produto...</option></select>
+        <input type="number" id="edit-fi-qtd" placeholder="Qtd" step="0.01" style="font-size:12px" onkeydown="if(event.key==='Enter')addEditItem()">
+        <input type="number" id="edit-fi-val" placeholder="Valor (opc.)" step="0.01" style="font-size:12px" onkeydown="if(event.key==='Enter')addEditItem()">
+        <button class="btn btn-primary btn-sm" onclick="addEditItem()" style="padding:0;height:36px;width:100%;font-size:18px;line-height:1">+</button>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn" onclick="closeM('medit')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarEdicao()">Salvar alterações</button>
+    </div>
+  </div>
+</div>
+
+
+
+
+<div id="print-area" style="display:none"></div>
+
+<!-- ═══ SCRIPTS ═══ -->
+<!-- PDF.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<!-- PizZip e Docxtemplater para gerar .docx -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PizZip/3.1.4/pizzip.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.39.0/docxtemplater.js"></script>
+
+<!-- ── Dados e configurações globais ── -->
+<script src="js/data.js"></script>
+<script src="js/globals.js"></script>
+<!-- ── Módulos do sistema ── -->
+<script src="js/dashboard.js"></script>
+<script src="js/estoques.js"></script>
+<script src="js/contagens.js"></script>
+<script src="js/precos.js"></script>
+<script src="js/selects.js"></script>
+<script src="js/entradas.js"></script>
+<script src="js/quebras.js"></script>
+<script src="js/festas.js"></script>
+<script src="js/relatorio.js"></script>
+<script src="js/fornecedores.js"></script>
+<script src="js/nav.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/contratos.js"></script>
+<script src="js/agenda.js"></script>
+<script src="js/producao.js"></script>
+<script src="js/financeiro.js"></script>
+<script src="js/producao2.js"></script>
+<script src="js/produtos.js"></script>
+<script src="js/regras.js"></script>
+<script src="js/separacao.js"></script>
+
+<script type="module">
+import { initializeApp }    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey:            "AIzaSyCSIMoj3cx0OddVWNgVuUz85Hwk32kRV3g",
+  authDomain:        "controle-e-gestao-93c69.firebaseapp.com",
+  projectId:         "controle-e-gestao-93c69",
+  storageBucket:     "controle-e-gestao-93c69.firebasestorage.app",
+  messagingSenderId: "754860108927",
+  appId:             "1:754860108927:web:212499c91e35f113dbe34a"
+};
+
+const fbApp  = initializeApp(firebaseConfig);
+const db     = getFirestore(fbApp);
+const DOC_ID = "principal";
+
+// ─── SALVAR ──────────────────────────────────────────────────────────────────
+window.svFirebase = async function(chave) {
+  try {
+    const preloadIds     = new Set(FESTAS_PRELOAD.map(f => f.id));
+    const preloadQbrKeys = new Set(QUEBRAS_PRELOAD.map(q => q.prod+"|"+q.data+"|"+q.qtd));
+    const campo = {};
+    if(chave==='fornecedores') campo.fornecedores = D.fornecedores;
+    if(chave==='entradas')     campo.entradas     = D.entradas;
+    if(chave==='quebras')      campo.quebras      = D.quebras.filter(q => !preloadQbrKeys.has(q.prod+"|"+q.data+"|"+q.qtd));
+    if(chave==='festas')       campo.festas       = D.festas.filter(f => !preloadIds.has(f.id));
+    if(chave==='contagens')    campo.contagens    = D.contagens;
+    if(chave==='precos')       campo.precos       = D.precos;
+    if(chave==='agenda')       campo.agenda       = D.agenda;
+    if(chave==='financeiro')   campo.financeiro   = D.financeiro;
+    if(chave==='contratos')    campo.contratos    = D.contratos;
+    if(chave==='producoes')    campo.producoes    = D.producoes;
+    if(chave==='separacoes')   campo.separacoes   = D.separacoes;
+    if(chave==='fichas')       campo.fichas       = D.fichas;
+    if(chave==='regrasProp')   campo.regrasProp   = D.regrasProp;
+    if(chave==='regrasItens')  campo.regrasItens  = D.regrasItens;
+    if(chave==='bibliotecaItens') campo.bibliotecaItens = D.bibliotecaItens;
+    if(chave==='produtos')       campo.produtos       = D.produtos;
+    if(chave==='historico')    campo.historico    = D.historico;
+    if(chave==='metas')        campo.metas        = D.metas;
+    if (Object.keys(campo).length === 0) return;
+    await setDoc(doc(db, "dados", DOC_ID), campo, { merge: true });
+  } catch(e) {
+    alert2("Erro ao salvar: " + e.message, "error");
+    console.error(e);
+  }
+};
+
+// ─── CARREGAR ────────────────────────────────────────────────────────────────
+async function carregarDados() {
+  try {
+    const snap = await getDoc(doc(db, "dados", DOC_ID));
+    const r    = snap.exists() ? snap.data() : {};
+
+    const qbrs    = r.quebras || [];
+    const qbrKeys = new Set(qbrs.map(q => q.prod+"|"+q.data+"|"+q.qtd));
+    QUEBRAS_PRELOAD.forEach(q => { if(!qbrKeys.has(q.prod+"|"+q.data+"|"+q.qtd)) qbrs.push(q); });
+
+    const festas = r.festas || [];
+    const fIds   = new Set(festas.map(f => f.id));
+    FESTAS_PRELOAD.forEach(f => { if(!fIds.has(f.id)) festas.push(f); });
+
+    D.fornecedores = r.fornecedores || [];
+    D.entradas     = r.entradas     || [];
+    D.quebras      = qbrs;
+    D.festas       = festas;
+    D.contagens    = r.contagens    || [];
+    D.precos       = r.precos       || {};
+    D.agenda       = r.agenda       || [];
+    D.financeiro   = r.financeiro   || [];
+    D.contratos    = r.contratos    || [];
+    D.producoes    = r.producoes    || [];
+    D.separacoes   = r.separacoes   || [];
+    D.fichas       = r.fichas       || [];
+    D.regrasProp   = r.regrasProp   || [];
+    D.historico    = r.historico    || {};
+    D.metas        = r.metas        || {};
+
+    document.getElementById("loading-overlay").style.display = "none";
+    init();
+    populateSels();
+    rFechamento();
+    rNFItens();
+    rNFEntItens();
+    // Verificar login salvo na sessão
+    const perfSalvo = sessionStorage.getItem("perfil");
+    if (perfSalvo) {
+      window.perfilAtual = perfSalvo;
+      document.getElementById("login-overlay").style.display = "none";
+      if (typeof aplicarPerfil === "function") aplicarPerfil(perfSalvo);
+    }
+    // Re-render página ativa após dados chegarem
+    window._dadosCarregados = true;
+    setTimeout(() => {
+      try {
+        const pa = document.querySelector('.page.active');
+        if (pa && typeof pageRenders !== 'undefined') {
+          const pid = pa.id.replace('page-','');
+          if (pageRenders[pid]) pageRenders[pid]();
+        }
+      } catch(e) {}
+    }, 300);
+
+  } catch(e) {
+    document.getElementById("loading-msg").textContent = "⚠ Erro ao conectar. Verifique sua internet.";
+    document.getElementById("loading-msg").style.color = "#F7625A";
+    console.error("Firebase erro:", e);
+  }
+}
+
+carregarDados();
+
+// ─── TEMPLATE B64 do contrato (embutido no momento do upload) ───────────────
+// O template será carregado dinamicamente — não embutido aqui para manter o arquivo leve
+// Se precisar usar o template local, defina: window.TEMPLATE_B64_GLOBAL = "...";
+</script>
+
+<script>
+// ─── CSS extras para botões novos ────────────────────────────────────────────
+const styleExtra = document.createElement("style");
+styleExtra.textContent = `
+  .tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+  .tag-green{background:#1A3D2B;color:#4ADE80}
+  .tag-yellow{background:#3D3210;color:#FBBF24}
+  .tag-red{background:#3D1A1A;color:#F87171}
+  .tag-blue{background:#1A2A3D;color:#60A5FA}
+  .btn-sm{padding:3px 8px;font-size:11px;border-radius:6px;cursor:pointer;border:1px solid #2A2F42;background:#1A1E2E;color:#C0C5DA;margin-right:4px}
+  .btn-sm:hover{background:#2A2F42}
+  .btn-green{border-color:#1A3D2B;color:#4ADE80}
+  .btn-red{border-color:#3D1A1A;color:#F87171}
+  .lbl{display:block;font-size:11px;color:#8B91A8;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px}
+  .contrato-upload-zone.drag-over{border-color:#4F8EF7!important}
+  [data-modulo]{transition:display 0s}
+`;
+document.head.appendChild(styleExtra);
+</script>
+
+
+<!-- ═══ MODAL EDITAR CONTRATO ═══ -->
+<div id="m-edit-contrato" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5000;align-items:center;justify-content:center">
+  <div style="background:#161A26;border:1px solid #2A2F42;border-radius:12px;padding:28px 32px;width:100%;max-width:680px;max-height:90vh;overflow-y:auto">
+    <div style="font-size:16px;font-weight:600;color:#E8EAF0;margin-bottom:20px">✏️ Editar Contrato</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px">
+      <div><label class="lbl">Cliente *</label><input id="ec-nome" class="inp" type="text"></div>
+      <div><label class="lbl">CPF</label><input id="ec-cpf" class="inp" type="text"></div>
+      <div><label class="lbl">Tipo de evento</label><input id="ec-tipo" class="inp" type="text"></div>
+      <div><label class="lbl">Data *</label><input id="ec-data" class="inp" type="date"></div>
+      <div><label class="lbl">Convidados</label><input id="ec-convidados" class="inp" type="number"></div>
+      <div><label class="lbl">Horário início</label><input id="ec-ini" class="inp" type="time"></div>
+      <div><label class="lbl">Horário fim</label><input id="ec-fim" class="inp" type="time"></div>
+      <div><label class="lbl">Valor (R$)</label><input id="ec-opcao" class="inp" type="text" placeholder="Ex: 12.500,00"></div>
+      <div><label class="lbl">Status</label>
+        <select id="ec-status" class="inp">
+          <option value="ativo">Ativo</option>
+          <option value="concluido">Concluído</option>
+          <option value="cancelado">Cancelado</option>
+        </select>
+      </div>
+      <div style="grid-column:1/-1"><label class="lbl">Local</label><input id="ec-local" class="inp" type="text"></div>
+      <div style="grid-column:1/-1"><label class="lbl">Equipe</label><input id="ec-equipe" class="inp" type="text" placeholder="Ex: 01 Head Bartender · 04 Bartender · 01 Bar Back · 01 Copeiro"></div>
+      <div style="grid-column:1/-1"><label class="lbl">Bebidas Romero</label><input id="ec-bebidas" class="inp" type="text"></div>
+      <div style="grid-column:1/-1"><label class="lbl">Cardápio (Coquetéis)</label><textarea id="ec-cardapio" class="inp" rows="6" placeholder="Cole aqui o cardápio de coquetéis..." style="font-size:12px;resize:vertical"></textarea></div>
+    </div>
+    <input type="hidden" id="ec-id">
+    <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
+      <button class="btn" onclick="document.getElementById('m-edit-contrato').style.display='none'">Cancelar</button>
+      <button class="btn" style="background:#4F8EF7" onclick="salvarEdicaoContrato()">Salvar alterações</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>
