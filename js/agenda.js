@@ -139,8 +139,7 @@ function rAgenda() {
       <td style="padding:8px 12px">${ev.duracao||calcDuracao(ev.hrInicio,ev.hrFim)||'—'}</td>
       <td style="padding:8px 12px;font-size:11px;line-height:1.6">${equipeDisplay}</td>
       <td style="padding:8px 12px;white-space:nowrap">
-        <button class="btn-sm" onclick="abrirEdicaoAgenda('${ev.id}')">✏️</button>
-        <button class="btn-sm btn-red" onclick="excluirEventoAgenda('${ev.id}')">✕</button>
+        <button class="btn-sm btn-red" onclick="excluirEventoAgenda('${ev.id}')" title="Remover da agenda">✕</button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -157,83 +156,11 @@ function calcDuracao(ini, fim) {
   } catch { return '—'; }
 }
 
-function adicionarEventoManual() {
-  const nome = document.getElementById('ag-m-nome')?.value?.trim();
-  const data = document.getElementById('ag-m-data')?.value;
-  if (!nome || !data) { alert('Preencha ao menos nome e data.'); return; }
-  const ev = {
-    nome, data,
-    tipo: document.getElementById('ag-m-tipo')?.value || '',
-    local: document.getElementById('ag-m-local')?.value?.trim() || '',
-    convidados: document.getElementById('ag-m-conv')?.value?.trim() || '',
-    hrInicio: document.getElementById('ag-m-ini')?.value || '',
-    hrFim: document.getElementById('ag-m-fim')?.value || '',
-    equipeTexto: document.getElementById('ag-m-equipe')?.value?.trim() || '',
-    equipe: [],
-    equipeTotal: 0,
-    fonte: 'manual'
-  };
-  registrarEventoNaAgenda(ev);
-  rAgenda();
-  // Limpar
-  ['ag-m-nome','ag-m-data','ag-m-local','ag-m-conv','ag-m-ini','ag-m-fim','ag-m-equipe'].forEach(id => {
-    const el = document.getElementById(id); if (el) el.value = '';
-  });
-  alert('Evento adicionado!');
-}
-
 function excluirEventoAgenda(id) {
   if (!confirm('Excluir este evento da agenda?')) return;
   D.agenda = (D.agenda || []).filter(e => e.id !== id);
   sv('agenda');
   rAgenda();
-}
-
-function abrirEdicaoAgenda(id) {
-  const ev = (D.agenda || []).find(e => e.id === id);
-  if (!ev) return;
-  document.getElementById('eag-id').value    = id;
-  document.getElementById('eag-nome').value  = ev.nome || '';
-  document.getElementById('eag-data').value  = ev.data || '';
-  document.getElementById('eag-tipo').value  = ev.tipo || 'Casamento';
-  document.getElementById('eag-conv').value  = ev.convidados || '';
-  document.getElementById('eag-local').value = ev.local || '';
-  document.getElementById('eag-ini').value   = ev.hrInicio || '';
-  document.getElementById('eag-fim').value   = ev.hrFim || '';
-  document.getElementById('eag-equipe').value= ev.equipeTexto || '';
-  const modal = document.getElementById('m-edit-agenda');
-  modal.style.display = 'flex';
-}
-
-function salvarEdicaoAgenda() {
-  const id   = document.getElementById('eag-id').value;
-  const nome = document.getElementById('eag-nome').value.trim();
-  const data = document.getElementById('eag-data').value;
-  if (!nome || !data) { alert('Preencha Nome e Data.'); return; }
-
-  const idx = (D.agenda || []).findIndex(e => e.id === id);
-  if (idx === -1) { alert('Evento não encontrado.'); return; }
-
-  const equipeTexto = document.getElementById('eag-equipe').value.trim();
-  const hrInicio    = document.getElementById('eag-ini').value;
-  const hrFim       = document.getElementById('eag-fim').value;
-
-  D.agenda[idx] = {
-    ...D.agenda[idx],
-    nome,
-    data,
-    tipo:        document.getElementById('eag-tipo').value,
-    convidados:  document.getElementById('eag-conv').value.trim(),
-    local:       document.getElementById('eag-local').value.trim(),
-    hrInicio,
-    hrFim,
-    duracao:     calcDuracao(hrInicio, hrFim),
-    equipeTexto,
-  };
-
-  sv('agenda');
-  rAgenda();
-  document.getElementById('m-edit-agenda').style.display = 'none';
 }
 
 // ═══════════════════════════════════════════════════════
