@@ -572,9 +572,10 @@
     <div id="page-contratos" class="page">
 
       <!-- Tabs -->
-      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
         <button class="sort-btn active" id="cv-lista"    onclick="setContratoView('lista')">📋 Todos os contratos</button>
         <button class="sort-btn"        id="cv-importar" onclick="setContratoView('importar')">📥 Importar contrato existente</button>
+        <button class="btn-sm" onclick="repararVinculosContratos()" style="margin-left:auto;background:#2A2F42;color:#F7C84F;border:1px solid #F7C84F" title="Corrige vínculos quebrados entre contratos, agenda, financeiro e produção">🔧 Reparar vínculos</button>
       </div>
 
       <!-- ─── VIEW: Novo contrato via PDF ─────────────────────────────── -->

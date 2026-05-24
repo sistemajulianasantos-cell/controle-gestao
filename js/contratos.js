@@ -619,12 +619,14 @@ function salvarContrato(c) {
 function salvarContratoCompleto(c) {
   if (!D.contratos) D.contratos = [];
   const id = 'CON'+Date.now();
-  D.contratos.push({ id, ...c, criadoEm: new Date().toISOString() });
+  // ⚠️ cComId garante que o id correto seja propagado para agenda/financeiro/produção
+  const cComId = { ...c, id, criadoEm: new Date().toISOString() };
+  D.contratos.push(cComId);
   sv('contratos');
 
   // → AGENDA com equipe detalhada
   registrarEventoNaAgenda({
-    contratoId: c.id||'',
+    contratoId: id,                           // ← CORRIGIDO: era c.id||'' (undefined)
     nome: c.nomeEvento||c.nome, data: c.data, tipo: c.tipo,
     local: c.local, conv: c.convidados,
     hrIni: c.hrInicio, hrFim: c.hrFim, duracao: c.duracao,
@@ -632,10 +634,10 @@ function salvarContratoCompleto(c) {
   });
 
   // → FINANCEIRO com parcelas reais do contrato
-  registrarParcelasContratoFinanceiro(c);
+  registrarParcelasContratoFinanceiro(cComId); // ← CORRIGIDO: passa cComId com .id
 
   // → PRODUÇÃO com ficha pré-preenchida
-  registrarFichaProducao(c);
+  registrarFichaProducao(cComId);              // ← CORRIGIDO: passa cComId com .id
 }
 
 function registrarParcelasContratoFinanceiro(c) {
@@ -1180,9 +1182,144 @@ function salvarEdicaoContrato() {
     cardapio: (document.getElementById('ec-cardapio')?.value||'').trim(),
   };
 
+  // ── Sincronizar Agenda, Financeiro e Produção com os novos dados ──────────
+  sincronizarContratoComAbas(D.contratos[idx]);
+
   sv('contratos');
   rContratos();
   document.getElementById('m-edit-contrato').style.display = 'none';
+}
+
+// ─── SINCRONIZAÇÃO CONTRATO → ABAS ───────────────────────────────────────────
+// Atualiza (ou cria) os registros vinculados em Agenda, Financeiro e Produção
+// para um contrato já existente. Usado na edição e na reparação de dados antigos.
+function sincronizarContratoComAbas(c) {
+  const id = c.id;
+  if (!id) return;
+
+  const nomeChave = (c.nome||'').toLowerCase().split(' ')[0];
+  const matchFallback = (campo, nome) =>
+    !campo && nome && nome.toLowerCase().includes(nomeChave) && true;
+
+  // ── AGENDA ─────────────────────────────────────────────────────────────────
+  if (!D.agenda) D.agenda = [];
+  const agIdx = D.agenda.findIndex(a =>
+    a.contratoId === id ||
+    (!a.contratoId && (a.nome||'').toLowerCase().includes(nomeChave) && a.data === c.data)
+  );
+  const agDados = {
+    contratoId:  id,
+    nome:        c.nomeEvento||c.nome,
+    data:        c.data,
+    tipo:        c.tipo||'',
+    local:       c.local||'',
+    convidados:  c.convidados||'',
+    hrInicio:    c.hrInicio||'',
+    hrFim:       c.hrFim||'',
+    duracao:     c.duracao||'',
+    equipe:      c.equipe||[],
+    equipeTexto: c.equipeTexto||'',
+    equipeTotal: c.equipeTotal||0
+  };
+  if (agIdx !== -1) {
+    D.agenda[agIdx] = { ...D.agenda[agIdx], ...agDados };
+  } else {
+    registrarEventoNaAgenda({
+      ...agDados, conv: c.convidados,
+      hrIni: c.hrInicio, hrFim: c.hrFim
+    });
+    return; // sv('agenda') já chamado dentro de registrarEventoNaAgenda
+  }
+  sv('agenda');
+
+  // ── FINANCEIRO ─────────────────────────────────────────────────────────────
+  if (!D.financeiro) D.financeiro = [];
+  const finDados = { contratoId:id, contrato:c.nome, evento:c.nomeEvento||c.nome,
+                     data:c.data, tipo:c.tipo||'', convidados:c.convidados||'' };
+  let finAtualizado = false;
+  D.financeiro.forEach((f, fi) => {
+    if (f.contratoId === id ||
+        (!f.contratoId && (f.contrato||'').toLowerCase().includes(nomeChave) && f.data === c.data)) {
+      D.financeiro[fi] = { ...D.financeiro[fi], ...finDados };
+      finAtualizado = true;
+    }
+  });
+  if (finAtualizado) sv('financeiro');
+
+  // ── PRODUÇÃO ───────────────────────────────────────────────────────────────
+  if (!D.producoes) D.producoes = [];
+  const prdIdx = D.producoes.findIndex(p =>
+    p.contratoId === id ||
+    (!p.contratoId && (p.cliente||p.evento||'').toLowerCase().includes(nomeChave) && p.data === c.data)
+  );
+  if (prdIdx !== -1) {
+    D.producoes[prdIdx] = {
+      ...D.producoes[prdIdx],
+      contratoId:  id,
+      evento:      c.nomeEvento||c.nome,
+      cliente:     c.nome,
+      tipo:        c.tipo||'',
+      data:        c.data,
+      convidados:  c.convidados||'',
+      local:       c.local||'',
+      hrInicio:    c.hrInicio||'',
+      hrFim:       c.hrFim||'',
+      duracao:     c.duracao||'',
+      equipe:      c.equipe||[],
+      equipeTexto: c.equipeTexto||'',
+      transporte:  c.transporte||''
+    };
+    sv('producoes');
+  }
+}
+
+// ─── REPARAÇÃO DE DADOS HISTÓRICOS ───────────────────────────────────────────
+// Corrige vínculos quebrados em contratos importados antes da correção do bug.
+// Pode ser chamada uma única vez para corrigir a base existente.
+function repararVinculosContratos() {
+  if (!confirm('Isso vai reparar os vínculos de todos os contratos com Agenda, Financeiro e Produção. Continuar?')) return;
+  let corrigidos = 0;
+  (D.contratos||[]).forEach(c => {
+    const id = c.id;
+    const nomeChave = (c.nome||'').toLowerCase().split(' ')[0];
+
+    // Agenda: corrigir contratoId vazio
+    (D.agenda||[]).forEach((a, ai) => {
+      if (!a.contratoId && (a.nome||'').toLowerCase().includes(nomeChave) && a.data === c.data) {
+        D.agenda[ai].contratoId = id;
+        corrigidos++;
+      }
+    });
+    // Financeiro
+    (D.financeiro||[]).forEach((f, fi) => {
+      if (!f.contratoId && (f.contrato||'').toLowerCase().includes(nomeChave) && f.data === c.data) {
+        D.financeiro[fi].contratoId = id;
+        corrigidos++;
+      }
+    });
+    // Produção
+    (D.producoes||[]).forEach((p, pi) => {
+      if (!p.contratoId && (p.cliente||p.evento||'').toLowerCase().includes(nomeChave) && p.data === c.data) {
+        D.producoes[pi].contratoId = id;
+        corrigidos++;
+      }
+    });
+    // Se o contrato não tem entrada na agenda, cria
+    const temAgenda = (D.agenda||[]).some(a => a.contratoId === id);
+    if (!temAgenda && c.data && c.nome) {
+      registrarEventoNaAgenda({
+        contratoId: id,
+        nome: c.nomeEvento||c.nome, data: c.data, tipo: c.tipo||'',
+        local: c.local||'', conv: c.convidados||'',
+        hrIni: c.hrInicio||'', hrFim: c.hrFim||'', duracao: c.duracao||'',
+        equipe: c.equipe||[], equipeTexto: c.equipeTexto||'', equipeTotal: c.equipeTotal||0,
+        fonte: 'contrato'
+      });
+      corrigidos++;
+    }
+  });
+  sv('agenda'); sv('financeiro'); sv('producoes');
+  alert2('✅ Reparação concluída! ' + corrigidos + ' vínculos corrigidos em ' + (D.contratos||[]).length + ' contratos.');
 }
 
 function novoContrato() {
