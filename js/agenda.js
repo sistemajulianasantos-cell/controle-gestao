@@ -73,9 +73,24 @@ function rAgenda() {
     return;
   }
 
+  // Mapa de variações → cargo canônico (singular/plural, maiúsc/minúsc)
+  const CARGO_CANONICO = [
+    { variações: ['head bartender','head bartenders'], exibir: 'Head Bartender', ordem: 1 },
+    { variações: ['bartender','bartenders'],           exibir: 'Bartender',      ordem: 2 },
+    { variações: ['bar back','bar backs','barback','barbacks'], exibir: 'Bar Back', ordem: 3 },
+    { variações: ['copeiro','copeiros'],               exibir: 'Copeiro',        ordem: 4 },
+  ];
+  function resolverCargo(nome) {
+    const n = (nome||'Outros').toLowerCase().trim().replace(/\s+/g,' ');
+    for (const c of CARGO_CANONICO) {
+      if (c.variações.includes(n)) return c;
+    }
+    return { variações: [n], exibir: (nome||'Outros').trim(), ordem: 99 };
+  }
+
   // Totalizadores
-  const totCargos = {};      // chave normalizada → quantidade
-  const cargoDisplay = {};   // chave normalizada → nome para exibição (1ª ocorrência)
+  const totCargos = {};   // chave canônica → quantidade
+  const cargoMeta  = {};  // chave canônica → { exibir, ordem }
   let totalConv = 0;
   let totalViagens = 0;
 
@@ -83,20 +98,20 @@ function rAgenda() {
     totalConv += parseInt(ev.convidados||0);
     if (ehViagem(ev)) totalViagens++;
     (ev.equipe||[]).forEach(e => {
-      const nomeOriginal = (e.cargo || 'Outros').trim();
-      // Chave normalizada: lowercase + espaços simples (agrupa variações)
-      const chave = nomeOriginal.toLowerCase().replace(/\s+/g,' ');
-      if (!cargoDisplay[chave]) cargoDisplay[chave] = nomeOriginal;
+      const canon = resolverCargo(e.cargo);
+      const chave = canon.variações[0];
+      if (!cargoMeta[chave]) cargoMeta[chave] = { exibir: canon.exibir, ordem: canon.ordem };
       totCargos[chave] = (totCargos[chave]||0) + (e.qtd||0);
     });
     if (!(ev.equipe||[]).length && ev.equipeTotal) {
-      if (!cargoDisplay['colaboradores']) cargoDisplay['colaboradores'] = 'Colaboradores';
+      if (!cargoMeta['colaboradores']) cargoMeta['colaboradores'] = { exibir: 'Colaboradores', ordem: 98 };
       totCargos['colaboradores'] = (totCargos['colaboradores']||0) + ev.equipeTotal;
     }
   });
   const totalGeral = Object.values(totCargos).reduce((s,v)=>s+v,0);
   const totStr = Object.entries(totCargos)
-    .map(([k,n])=>`<strong>${n}</strong> ${cargoDisplay[k]||k}`)
+    .sort(([a],[b]) => (cargoMeta[a]?.ordem||99) - (cargoMeta[b]?.ordem||99))
+    .map(([k,n]) => `<strong>${n}</strong> ${cargoMeta[k]?.exibir||k}`)
     .join(' &nbsp;·&nbsp; ');
 
   // Atualizar cards
