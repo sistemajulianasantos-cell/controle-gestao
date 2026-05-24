@@ -163,6 +163,46 @@ function excluirFinanceiro(id) {
   sv('financeiro'); rFinanceiro();
 }
 
+// ─── LIMPEZA DE LANÇAMENTOS ÓRFÃOS ──────────────────────────────────────────
+// Remove lançamentos do financeiro cujo contrato de origem não existe mais.
+function limparFinanceiroOrfaos() {
+  const contratos = D.contratos || [];
+
+  // Monta índice rápido: id → contrato e "nomeChave|data" → contrato
+  const porId   = new Map(contratos.map(c => [c.id, c]));
+  const porNome = new Map(contratos.map(c => [
+    (c.nome||'').toLowerCase().split(' ')[0] + '|' + c.data, c
+  ]));
+
+  const orfaos = (D.financeiro||[]).filter(f => {
+    // 1. Tem contratoId válido → verifica se o contrato ainda existe
+    if (f.contratoId) return !porId.has(f.contratoId);
+    // 2. Sem contratoId → tenta casar por nome + data
+    const chave = (f.contrato||f.evento||'').toLowerCase().split(' ')[0] + '|' + f.data;
+    return !porNome.has(chave);
+  });
+
+  if (!orfaos.length) {
+    alert2('✅ Nenhum lançamento órfão encontrado. Financeiro está limpo!');
+    return;
+  }
+
+  // Monta lista legível para o usuário confirmar
+  const lista = orfaos.map(f =>
+    `• ${f.evento||f.contrato||'(sem nome)'}  |  ${fd(f.data)||'sem data'}  |  ${f.descricao||''}  |  ${f.valor||'—'}`
+  ).join('\n');
+
+  if (!confirm(
+    `Encontrados ${orfaos.length} lançamento(s) sem contrato correspondente:\n\n${lista}\n\nDeseja excluir todos?`
+  )) return;
+
+  const orfaoIds = new Set(orfaos.map(f => f.id));
+  D.financeiro = (D.financeiro||[]).filter(f => !orfaoIds.has(f.id));
+  sv('financeiro');
+  rFinanceiro();
+  alert2(`🗑️ ${orfaos.length} lançamento(s) órfão(s) removido(s).`);
+}
+
 // ═══════════════════════════════════════════════════════
 // ─── EXTENSÃO DO svFirebase PARA NOVOS CAMPOS ──────────
 // ═══════════════════════════════════════════════════════
