@@ -166,41 +166,52 @@ function excluirFinanceiro(id) {
 // ─── LIMPEZA DE LANÇAMENTOS ÓRFÃOS ──────────────────────────────────────────
 // Remove lançamentos do financeiro cujo contrato de origem não existe mais.
 function limparFinanceiroOrfaos() {
-  const contratos = D.contratos || [];
+  try {
+    const contratos = D.contratos || [];
+    const financeiro = D.financeiro || [];
 
-  // Monta índice rápido: id → contrato e "nomeChave|data" → contrato
-  const porId   = new Map(contratos.map(c => [c.id, c]));
-  const porNome = new Map(contratos.map(c => [
-    (c.nome||'').toLowerCase().split(' ')[0] + '|' + c.data, c
-  ]));
+    // Índice 1: contratoId → existe?
+    const idsValidos = new Set(contratos.map(c => c.id).filter(Boolean));
 
-  const orfaos = (D.financeiro||[]).filter(f => {
-    // 1. Tem contratoId válido → verifica se o contrato ainda existe
-    if (f.contratoId) return !porId.has(f.contratoId);
-    // 2. Sem contratoId → tenta casar por nome + data
-    const chave = (f.contrato||f.evento||'').toLowerCase().split(' ')[0] + '|' + f.data;
-    return !porNome.has(chave);
-  });
+    // Índice 2: "nome completo normalizado|data" → existe?
+    const norm = s => (s||'').toLowerCase().trim().replace(/\s+/g,' ');
+    const nomeDataValidos = new Set(
+      contratos.map(c => norm(c.nome) + '|' + (c.data||''))
+    );
 
-  if (!orfaos.length) {
-    alert2('✅ Nenhum lançamento órfão encontrado. Financeiro está limpo!');
-    return;
+    const orfaos = financeiro.filter(f => {
+      // Tem contratoId real → contrato precisa existir
+      if (f.contratoId) return !idsValidos.has(f.contratoId);
+      // Sem contratoId → cruza pelo nome completo + data do evento
+      const chave = norm(f.contrato||f.evento) + '|' + (f.data||'');
+      return !nomeDataValidos.has(chave);
+    });
+
+    if (!orfaos.length) {
+      alert('✅ Nenhum lançamento órfão encontrado!\nO financeiro está limpo.');
+      return;
+    }
+
+    // Preview (máx 8 linhas para não transbordar o dialog)
+    const preview = orfaos.slice(0, 8).map(f =>
+      `• ${f.evento||f.contrato||'(sem nome)'}  —  ${fd(f.data)||'sem data'}  —  ${f.valor||'—'}`
+    ).join('\n');
+    const mais = orfaos.length > 8 ? `\n... e mais ${orfaos.length - 8} lançamento(s).` : '';
+
+    if (!confirm(
+      `Encontrados ${orfaos.length} lançamento(s) sem contrato vinculado:\n\n${preview}${mais}\n\nExcluir todos esses lançamentos?`
+    )) return;
+
+    const orfaoIds = new Set(orfaos.map(f => f.id));
+    D.financeiro = financeiro.filter(f => !orfaoIds.has(f.id));
+    sv('financeiro');
+    rFinanceiro();
+    alert(`✅ ${orfaos.length} lançamento(s) excluído(s) com sucesso!`);
+
+  } catch(e) {
+    alert('Erro ao limpar órfãos: ' + e.message);
+    console.error('limparFinanceiroOrfaos:', e);
   }
-
-  // Monta lista legível para o usuário confirmar
-  const lista = orfaos.map(f =>
-    `• ${f.evento||f.contrato||'(sem nome)'}  |  ${fd(f.data)||'sem data'}  |  ${f.descricao||''}  |  ${f.valor||'—'}`
-  ).join('\n');
-
-  if (!confirm(
-    `Encontrados ${orfaos.length} lançamento(s) sem contrato correspondente:\n\n${lista}\n\nDeseja excluir todos?`
-  )) return;
-
-  const orfaoIds = new Set(orfaos.map(f => f.id));
-  D.financeiro = (D.financeiro||[]).filter(f => !orfaoIds.has(f.id));
-  sv('financeiro');
-  rFinanceiro();
-  alert2(`🗑️ ${orfaos.length} lançamento(s) órfão(s) removido(s).`);
 }
 
 // ═══════════════════════════════════════════════════════
