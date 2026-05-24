@@ -81,11 +81,35 @@ function rAgenda() {
     { variações: ['copeiro','copeiros'],               exibir: 'Copeiro',        ordem: 4 },
   ];
   function resolverCargo(nome) {
-    const n = (nome||'Outros').toLowerCase().trim().replace(/\s+/g,' ');
+    const n = (nome||'').toLowerCase().trim().replace(/\s+/g,' ');
     for (const c of CARGO_CANONICO) {
       if (c.variações.includes(n)) return c;
     }
-    return { variações: [n], exibir: (nome||'Outros').trim(), ordem: 99 };
+    return { variações: [n], exibir: (nome||'').trim(), ordem: 99 };
+  }
+
+  // Parseia texto livre: "2 Bartenders 1 Bar back" ou "1 Head · 4 Bartender · 1 Bar Back"
+  // → [{cargo:'Bartenders', qtd:2}, {cargo:'Bar back', qtd:1}]
+  function parsearTextoEquipe(texto) {
+    const resultado = [];
+    const limpo = (texto||'').replace(/\([^)]*\)/g,'').replace(/\s+/g,' ').trim();
+    // Tenta separadores explícitos primeiro (·, ,, ;)
+    if (/[·,;]/.test(limpo)) {
+      limpo.split(/\s*[·,;]\s*/).forEach(parte => {
+        const m = parte.trim().match(/^(\d+)\s+(.+)$/);
+        if (m && parseInt(m[1]) > 0) resultado.push({ qtd: parseInt(m[1]), cargo: m[2].trim() });
+      });
+      if (resultado.length) return resultado;
+    }
+    // Sem separadores: extrai pares "número nome" até o próximo número ou fim
+    const re = /\b(\d+)\s+([A-Za-zÀ-ú][A-Za-zÀ-ú ]*?)(?=\s+\d|\s*$)/g;
+    let m;
+    while ((m = re.exec(limpo)) !== null) {
+      const qtd = parseInt(m[1]);
+      const cargo = m[2].trim();
+      if (qtd > 0 && cargo.length > 1) resultado.push({ qtd, cargo });
+    }
+    return resultado;
   }
 
   // Totalizadores
@@ -94,20 +118,47 @@ function rAgenda() {
   let totalConv = 0;
   let totalViagens = 0;
 
+  const adicionarCargo = (cargoNome, qtd) => {
+    if (!qtd || qtd <= 0) return;
+    const canon = resolverCargo(cargoNome);
+    const chave = canon.variações[0];
+    if (!cargoMeta[chave]) cargoMeta[chave] = { exibir: canon.exibir || cargoNome, ordem: canon.ordem };
+    totCargos[chave] = (totCargos[chave]||0) + qtd;
+  };
+
   lista.forEach(ev => {
     totalConv += parseInt(ev.convidados||0);
     if (ehViagem(ev)) totalViagens++;
+
+    let adicionou = false;
     (ev.equipe||[]).forEach(e => {
-      const canon = resolverCargo(e.cargo);
-      const chave = canon.variações[0];
-      if (!cargoMeta[chave]) cargoMeta[chave] = { exibir: canon.exibir, ordem: canon.ordem };
-      totCargos[chave] = (totCargos[chave]||0) + (e.qtd||0);
+      const cargoNome = (e.cargo||'').trim();
+      const canon = resolverCargo(cargoNome);
+      if (canon.ordem < 99) {
+        // Cargo estruturado reconhecido
+        adicionarCargo(cargoNome, e.qtd||0);
+        adicionou = true;
+      } else if (/\d/.test(cargoNome)) {
+        // Campo cargo contém texto livre com números (dado legado) — parseia
+        const partes = parsearTextoEquipe(cargoNome);
+        partes.forEach(p => { adicionarCargo(p.cargo, p.qtd); });
+        if (partes.length) adicionou = true;
+      }
+      // Cargo não reconhecido sem números → ignora (não polui o resumo)
     });
-    if (!(ev.equipe||[]).length && ev.equipeTotal) {
-      if (!cargoMeta['colaboradores']) cargoMeta['colaboradores'] = { exibir: 'Colaboradores', ordem: 98 };
-      totCargos['colaboradores'] = (totCargos['colaboradores']||0) + ev.equipeTotal;
+
+    // Fallback: equipe[] sem dados úteis → parseia equipeTexto
+    if (!adicionou && ev.equipeTexto) {
+      const partes = parsearTextoEquipe(ev.equipeTexto);
+      partes.forEach(p => { adicionarCargo(p.cargo, p.qtd); });
+      if (partes.length) adicionou = true;
+    }
+    // Último recurso: conta como colaboradores genéricos
+    if (!adicionou && ev.equipeTotal) {
+      adicionarCargo('Colaboradores', ev.equipeTotal);
     }
   });
+
   const totalGeral = Object.values(totCargos).reduce((s,v)=>s+v,0);
   const totStr = Object.entries(totCargos)
     .sort(([a],[b]) => (cargoMeta[a]?.ordem||99) - (cargoMeta[b]?.ordem||99))
