@@ -74,7 +74,8 @@ function rAgenda() {
   }
 
   // Totalizadores
-  const totCargos = {};
+  const totCargos = {};      // chave normalizada → quantidade
+  const cargoDisplay = {};   // chave normalizada → nome para exibição (1ª ocorrência)
   let totalConv = 0;
   let totalViagens = 0;
 
@@ -82,15 +83,21 @@ function rAgenda() {
     totalConv += parseInt(ev.convidados||0);
     if (ehViagem(ev)) totalViagens++;
     (ev.equipe||[]).forEach(e => {
-      const c = e.cargo || 'Outros';
-      totCargos[c] = (totCargos[c]||0) + (e.qtd||0);
+      const nomeOriginal = (e.cargo || 'Outros').trim();
+      // Chave normalizada: lowercase + espaços simples (agrupa variações)
+      const chave = nomeOriginal.toLowerCase().replace(/\s+/g,' ');
+      if (!cargoDisplay[chave]) cargoDisplay[chave] = nomeOriginal;
+      totCargos[chave] = (totCargos[chave]||0) + (e.qtd||0);
     });
     if (!(ev.equipe||[]).length && ev.equipeTotal) {
-      totCargos['Colaboradores'] = (totCargos['Colaboradores']||0) + ev.equipeTotal;
+      if (!cargoDisplay['colaboradores']) cargoDisplay['colaboradores'] = 'Colaboradores';
+      totCargos['colaboradores'] = (totCargos['colaboradores']||0) + ev.equipeTotal;
     }
   });
   const totalGeral = Object.values(totCargos).reduce((s,v)=>s+v,0);
-  const totStr = Object.entries(totCargos).map(([c,n])=>`<strong>${n}</strong> ${c}`).join(' &nbsp;·&nbsp; ');
+  const totStr = Object.entries(totCargos)
+    .map(([k,n])=>`<strong>${n}</strong> ${cargoDisplay[k]||k}`)
+    .join(' &nbsp;·&nbsp; ');
 
   // Atualizar cards
   const setCard = (id, v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
