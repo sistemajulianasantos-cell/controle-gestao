@@ -1198,15 +1198,25 @@ function sincronizarContratoComAbas(c) {
   if (!id) return;
 
   const nomeChave = (c.nome||'').toLowerCase().split(' ')[0];
-  const matchFallback = (campo, nome) =>
-    !campo && nome && nome.toLowerCase().includes(nomeChave) && true;
+
+  // IDs válidos — para detectar contratoId obsoleto (de reparação anterior errada)
+  const idsValidos = new Set((D.contratos||[]).map(x => x.id).filter(Boolean));
+
+  // Busca robusta: id exato → fallback por nome+data (mesmo que tenha contratoId obsoleto)
+  const acharNaAgenda = () => D.agenda.findIndex(a => {
+    if (a.contratoId === id) return true;
+    if (a.data !== c.data) return false;
+    const nomeA = (a.nome||'').toLowerCase();
+    const nomeMatch = nomeA.includes(nomeChave) ||
+                      nomeA.includes((c.nomeEvento||'').toLowerCase().split(' ')[0]);
+    if (!nomeMatch) return false;
+    // Aceita: sem contratoId OU contratoId obsoleto (não aponta para nenhum contrato)
+    return !a.contratoId || !idsValidos.has(a.contratoId);
+  });
 
   // ── AGENDA ─────────────────────────────────────────────────────────────────
   if (!D.agenda) D.agenda = [];
-  const agIdx = D.agenda.findIndex(a =>
-    a.contratoId === id ||
-    (!a.contratoId && (a.nome||'').toLowerCase().includes(nomeChave) && a.data === c.data)
-  );
+  const agIdx = acharNaAgenda();
   const agDados = {
     contratoId:  id,
     nome:        c.nomeEvento||c.nome,
@@ -1281,9 +1291,29 @@ function repararVinculosContratos() {
   let corrigidos = 0;
   const nomeChave = c => (c.nome||'').toLowerCase().split(' ')[0];
 
+  // IDs válidos — para detectar contratoId obsoleto
+  const idsValidos = new Set((D.contratos||[]).map(x => x.id).filter(Boolean));
+
+  // ── PASSO 0: remover duplicatas na agenda (mesmo contratoId ou mesmo nome+data) ─
+  const agendaLimpa = [];
+  const agendaVistos = new Set();
+  (D.agenda||[]).forEach(a => {
+    const key = (a.contratoId && idsValidos.has(a.contratoId))
+      ? 'id:' + a.contratoId
+      : 'nd:' + (a.nome||'').toLowerCase().trim() + '|' + a.data;
+    if (!agendaVistos.has(key)) {
+      agendaVistos.add(key);
+      agendaLimpa.push(a);
+    } else {
+      corrigidos++; // conta como duplicata removida
+    }
+  });
+  D.agenda = agendaLimpa;
+
   (D.contratos||[]).forEach(c => {
     const id = c.id;
     const chave = nomeChave(c);
+    const chaveEvento = (c.nomeEvento||'').toLowerCase().split(' ')[0];
 
     // Campos completos que devem ser espelhados do contrato → agenda
     const agDados = {
@@ -1301,11 +1331,15 @@ function repararVinculosContratos() {
       equipeTotal: c.equipeTotal||0
     };
 
-    // ── AGENDA: atualiza entrada existente OU cria nova ───────────────────────
-    const agIdx = (D.agenda||[]).findIndex(a =>
-      a.contratoId === id ||
-      (!a.contratoId && (a.nome||'').toLowerCase().includes(chave) && a.data === c.data)
-    );
+    // ── AGENDA: busca robusta (aceita contratoId obsoleto como fallback) ──────
+    const agIdx = (D.agenda||[]).findIndex(a => {
+      if (a.contratoId === id) return true;
+      if (a.data !== c.data) return false;
+      const nomeA = (a.nome||'').toLowerCase();
+      if (!nomeA.includes(chave) && !(chaveEvento && nomeA.includes(chaveEvento))) return false;
+      return !a.contratoId || !idsValidos.has(a.contratoId); // sem vínculo ou vínculo obsoleto
+    });
+
     if (agIdx !== -1) {
       D.agenda[agIdx] = { ...D.agenda[agIdx], ...agDados };
       corrigidos++;
