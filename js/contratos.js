@@ -220,7 +220,7 @@ function extrairDadosContratoRomero(txt) {
     const blocoTexto = mBloco[1];
     for (const c of CARGOS_DEF) {
       // Busca "número (extenso)? cargo" em qualquer ponto do bloco
-      const mC = blocoTexto.match(new RegExp('(\\d+)\\s*(?:\\([^)]+\\))?\\s*' + c.re.source, 'i'));
+      const mC = blocoTexto.match(new RegExp('(\\d+)\\.?\\s*(?:\\([^)]+\\))?\\s*' + c.re.source, 'i'));
       if (mC) {
         // Garante que não confunde "Bartender" com "Head Bartender"
         if (c.nome === 'Bartender' && /Head/i.test(mC[0])) continue;

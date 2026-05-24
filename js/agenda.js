@@ -96,13 +96,13 @@ function rAgenda() {
     // Tenta separadores explícitos primeiro (·, ,, ;)
     if (/[·,;]/.test(limpo)) {
       limpo.split(/\s*[·,;]\s*/).forEach(parte => {
-        const m = parte.trim().match(/^(\d+)\s+(.+)$/);
+        const m = parte.trim().match(/^(\d+)\.?\s+(.+)$/);
         if (m && parseInt(m[1]) > 0) resultado.push({ qtd: parseInt(m[1]), cargo: m[2].trim() });
       });
       if (resultado.length) return resultado;
     }
-    // Sem separadores: extrai pares "número nome" até o próximo número ou fim
-    const re = /\b(\d+)\s+([A-Za-zÀ-ú][A-Za-zÀ-ú ]*?)(?=\s+\d|\s*$)/g;
+    // Sem separadores: extrai pares "número[.] nome" até o próximo número ou fim
+    const re = /\b(\d+)\.?\s+([A-Za-zÀ-ú][A-Za-zÀ-ú ]*?)(?=\s+\d|\s*$)/g;
     let m;
     while ((m = re.exec(limpo)) !== null) {
       const qtd = parseInt(m[1]);
