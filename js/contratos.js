@@ -1277,49 +1277,91 @@ function sincronizarContratoComAbas(c) {
 // Corrige vínculos quebrados em contratos importados antes da correção do bug.
 // Pode ser chamada uma única vez para corrigir a base existente.
 function repararVinculosContratos() {
-  if (!confirm('Isso vai reparar os vínculos de todos os contratos com Agenda, Financeiro e Produção. Continuar?')) return;
+  if (!confirm('Isso vai sincronizar TODOS os contratos com Agenda, Financeiro e Produção\n(equipe, local, horário, etc. serão atualizados).\n\nContinuar?')) return;
   let corrigidos = 0;
+  const nomeChave = c => (c.nome||'').toLowerCase().split(' ')[0];
+
   (D.contratos||[]).forEach(c => {
     const id = c.id;
-    const nomeChave = (c.nome||'').toLowerCase().split(' ')[0];
+    const chave = nomeChave(c);
 
-    // Agenda: corrigir contratoId vazio
-    (D.agenda||[]).forEach((a, ai) => {
-      if (!a.contratoId && (a.nome||'').toLowerCase().includes(nomeChave) && a.data === c.data) {
-        D.agenda[ai].contratoId = id;
-        corrigidos++;
-      }
-    });
-    // Financeiro
-    (D.financeiro||[]).forEach((f, fi) => {
-      if (!f.contratoId && (f.contrato||'').toLowerCase().includes(nomeChave) && f.data === c.data) {
-        D.financeiro[fi].contratoId = id;
-        corrigidos++;
-      }
-    });
-    // Produção
-    (D.producoes||[]).forEach((p, pi) => {
-      if (!p.contratoId && (p.cliente||p.evento||'').toLowerCase().includes(nomeChave) && p.data === c.data) {
-        D.producoes[pi].contratoId = id;
-        corrigidos++;
-      }
-    });
-    // Se o contrato não tem entrada na agenda, cria
-    const temAgenda = (D.agenda||[]).some(a => a.contratoId === id);
-    if (!temAgenda && c.data && c.nome) {
-      registrarEventoNaAgenda({
-        contratoId: id,
-        nome: c.nomeEvento||c.nome, data: c.data, tipo: c.tipo||'',
-        local: c.local||'', conv: c.convidados||'',
-        hrIni: c.hrInicio||'', hrFim: c.hrFim||'', duracao: c.duracao||'',
-        equipe: c.equipe||[], equipeTexto: c.equipeTexto||'', equipeTotal: c.equipeTotal||0,
-        fonte: 'contrato'
+    // Campos completos que devem ser espelhados do contrato → agenda
+    const agDados = {
+      contratoId:  id,
+      nome:        c.nomeEvento||c.nome,
+      data:        c.data,
+      tipo:        c.tipo||'',
+      local:       c.local||'',
+      convidados:  c.convidados||'',
+      hrInicio:    c.hrInicio||'',
+      hrFim:       c.hrFim||'',
+      duracao:     c.duracao||'',
+      equipe:      c.equipe||[],
+      equipeTexto: c.equipeTexto||'',
+      equipeTotal: c.equipeTotal||0
+    };
+
+    // ── AGENDA: atualiza entrada existente OU cria nova ───────────────────────
+    const agIdx = (D.agenda||[]).findIndex(a =>
+      a.contratoId === id ||
+      (!a.contratoId && (a.nome||'').toLowerCase().includes(chave) && a.data === c.data)
+    );
+    if (agIdx !== -1) {
+      D.agenda[agIdx] = { ...D.agenda[agIdx], ...agDados };
+      corrigidos++;
+    } else if (c.data && c.nome) {
+      if (!D.agenda) D.agenda = [];
+      D.agenda.push({
+        id: 'AG'+Date.now()+'_'+corrigidos,
+        ...agDados, fonte: 'contrato'
       });
       corrigidos++;
     }
+
+    // ── FINANCEIRO: corrigir contratoId e dados básicos ───────────────────────
+    (D.financeiro||[]).forEach((f, fi) => {
+      if (f.contratoId === id ||
+          (!f.contratoId && (f.contrato||'').toLowerCase().includes(chave) && f.data === c.data)) {
+        D.financeiro[fi] = {
+          ...D.financeiro[fi],
+          contratoId: id,
+          contrato:   c.nome,
+          evento:     c.nomeEvento||c.nome,
+          data:       c.data,
+          tipo:       c.tipo||'',
+          convidados: c.convidados||''
+        };
+        corrigidos++;
+      }
+    });
+
+    // ── PRODUÇÃO: corrigir contratoId e dados básicos ─────────────────────────
+    (D.producoes||[]).forEach((p, pi) => {
+      if (p.contratoId === id ||
+          (!p.contratoId && (p.cliente||p.evento||'').toLowerCase().includes(chave) && p.data === c.data)) {
+        D.producoes[pi] = {
+          ...D.producoes[pi],
+          contratoId:  id,
+          evento:      c.nomeEvento||c.nome,
+          cliente:     c.nome,
+          tipo:        c.tipo||'',
+          data:        c.data,
+          convidados:  c.convidados||'',
+          local:       c.local||'',
+          hrInicio:    c.hrInicio||'',
+          hrFim:       c.hrFim||'',
+          duracao:     c.duracao||'',
+          equipe:      c.equipe||[],
+          equipeTexto: c.equipeTexto||'',
+          transporte:  c.transporte||''
+        };
+        corrigidos++;
+      }
+    });
   });
+
   sv('agenda'); sv('financeiro'); sv('producoes');
-  alert2('✅ Reparação concluída! ' + corrigidos + ' vínculos corrigidos em ' + (D.contratos||[]).length + ' contratos.');
+  alert('✅ Sincronização concluída!\n' + corrigidos + ' registros atualizados em ' + (D.contratos||[]).length + ' contratos.\n\nA agenda já reflete a equipe atual de cada contrato.');
 }
 
 function novoContrato() {
