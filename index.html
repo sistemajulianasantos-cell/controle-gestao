@@ -116,6 +116,10 @@
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h8M2 12h10"/></svg>
       Folha de Separação
     </div>
+    <div class="nav-item" data-modulo="producao" onclick="go('equipe')">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="5" cy="5" r="2.5"/><circle cx="11" cy="5" r="2.5"/><path d="M1 13c0-2.2 1.8-4 4-4s4 1.8 4 4"/><path d="M9.5 9.3C10 9.1 10.5 9 11 9c2.2 0 4 1.8 4 4"/></svg>
+      Equipe
+    </div>
     <div class="nav-section" data-modulo="agenda">Agenda</div>
     <div class="nav-item" data-modulo="agenda" onclick="go('agenda')">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="2" width="14" height="13" rx="1"/><path d="M1 6h14M5 1v2M11 1v2"/></svg>
@@ -850,6 +854,11 @@
       </div>
     </div>
 
+    <!-- ═══ EQUIPE ═══ -->
+    <div id="page-equipe" class="page">
+      <div id="eq-content"></div>
+    </div>
+
     <!-- ═══ ANÁLISE ═══ -->
     <div id="page-analise" class="page">
 
@@ -1033,6 +1042,7 @@
 <script src="js/produtos.js?v=20260528"></script>
 <script src="js/regras.js?v=20260528"></script>
 <script src="js/separacao.js?v=20260528"></script>
+<script src="js/equipe.js?v=20260528"></script>
 
 <script type="module">
 import { initializeApp }    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -1173,6 +1183,81 @@ styleExtra.textContent = `
 document.head.appendChild(styleExtra);
 </script>
 
+
+<!-- ═══ MODAL NOVO COLABORADOR ═══ -->
+<div id="m-novo-colab" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5000;align-items:center;justify-content:center">
+  <div style="background:#161A26;border:1px solid #2A2F42;border-radius:12px;padding:28px 32px;width:100%;max-width:640px;max-height:90vh;overflow-y:auto">
+    <div id="eq-m-titulo" style="font-size:16px;font-weight:600;color:#E8EAF0;margin-bottom:20px">+ Novo Colaborador</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:10px">
+      <div style="grid-column:1/-1"><label class="lbl">Nome completo *</label><input id="eq-m-nome" class="inp" type="text" placeholder="Nome do colaborador"></div>
+      <div><label class="lbl">CPF</label><input id="eq-m-cpf" class="inp" type="text" placeholder="000.000.000-00"></div>
+      <div><label class="lbl">Telefone / WhatsApp</label><input id="eq-m-telefone" class="inp" type="text" placeholder="(31) 9 0000-0000"></div>
+      <div><label class="lbl">Data de nascimento</label><input id="eq-m-nascimento" class="inp" type="date"></div>
+      <div><label class="lbl">Cargo</label>
+        <select id="eq-m-cargo" class="inp">
+          <option value="">Selecione...</option>
+          <option>Head Bartender</option>
+          <option>Bartender</option>
+          <option>Bar Back</option>
+          <option>Copeiro</option>
+          <option>Coordenador</option>
+          <option>Auxiliar</option>
+        </select>
+      </div>
+      <div><label class="lbl">Nível / Experiência</label>
+        <select id="eq-m-nivel" class="inp">
+          <option value="">Selecione...</option>
+          <option>Novato</option>
+          <option>Experiente</option>
+          <option>Sênior</option>
+        </select>
+      </div>
+      <div><label class="lbl">Status</label>
+        <select id="eq-m-status" class="inp">
+          <option value="ativo">Ativo</option>
+          <option value="inativo">Inativo</option>
+        </select>
+      </div>
+      <div style="grid-column:1/-1"><label class="lbl">Endereço</label><input id="eq-m-endereco" class="inp" type="text" placeholder="Rua, número, bairro, cidade"></div>
+      <div style="grid-column:1/-1"><label class="lbl">Observações</label><textarea id="eq-m-obs" class="inp" rows="2" placeholder="Observações gerais, restrições, etc." style="resize:vertical"></textarea></div>
+    </div>
+    <input type="hidden" id="eq-m-id">
+    <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
+      <button class="btn" onclick="document.getElementById('m-novo-colab').style.display='none'">Cancelar</button>
+      <button class="btn" style="background:#4F8EF7" onclick="salvarColab()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL ESCALAR COLABORADOR ═══ -->
+<div id="m-escalar-colab" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5000;align-items:center;justify-content:center">
+  <div style="background:#161A26;border:1px solid #2A2F42;border-radius:12px;padding:28px 32px;width:100%;max-width:480px">
+    <div style="font-size:16px;font-weight:600;color:#E8EAF0;margin-bottom:20px">📅 Escalar Colaborador</div>
+    <div style="display:grid;gap:10px">
+      <div><label class="lbl">Data do evento *</label><input id="esc-m-data" class="inp" type="date"></div>
+      <div><label class="lbl">Nome do evento</label><input id="esc-m-evento" class="inp" type="text" placeholder="Ex: Casamento João e Maria"></div>
+      <div><label class="lbl">Colaborador *</label>
+        <select id="esc-m-lista" class="inp" style="width:100%"></select>
+      </div>
+      <div><label class="lbl">Cargo neste evento</label>
+        <select id="esc-m-cargo" class="inp">
+          <option value="">Mesmo do cadastro</option>
+          <option>Head Bartender</option>
+          <option>Bartender</option>
+          <option>Bar Back</option>
+          <option>Copeiro</option>
+          <option>Coordenador</option>
+          <option>Auxiliar</option>
+        </select>
+      </div>
+    </div>
+    <input type="hidden" id="esc-m-contrato">
+    <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
+      <button class="btn" onclick="document.getElementById('m-escalar-colab').style.display='none'">Cancelar</button>
+      <button class="btn" style="background:#4F8EF7" onclick="confirmarEscalar()">Escalar</button>
+    </div>
+  </div>
+</div>
 
 <!-- ═══ MODAL EDITAR CONTRATO ═══ -->
 <div id="m-edit-contrato" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5000;align-items:center;justify-content:center">

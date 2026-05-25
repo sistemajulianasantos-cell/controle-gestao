@@ -228,6 +228,9 @@ if (!D.fichas) D.fichas = [];
 if (!D.regrasProp) D.regrasProp = [];
 if (!D.historico) D.historico = {};
 if (!D.metas) D.metas = {};
+if (!D.equipe) D.equipe = [];
+if (!D.escalas) D.escalas = [];
+if (!D.orcamentos) D.orcamentos = [];
 
 function baixarModeloCSV() {
   const linhas = [
