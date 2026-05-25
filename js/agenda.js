@@ -131,34 +131,34 @@ function rAgenda() {
     if (ehViagem(ev)) totalViagens++;
 
     let adicionou = false;
-    (ev.equipe||[]).forEach(e => {
-      const cargoNome = (e.cargo||'').trim();
-      const canon = resolverCargo(cargoNome);
-      if (canon.ordem < 99) {
-        // Cargo estruturado reconhecido
-        adicionarCargo(cargoNome, e.qtd||0);
-        adicionou = true;
-      } else {
-        // Cargo não reconhecido — tenta parsear como texto livre
-        // Se começa com dígito, usa o texto direto.
-        // Se NÃO começa com dígito (ex: "Bartenders 1 Bar back" com qtd:2),
-        // prefixa com e.qtd para recuperar a quantidade do primeiro cargo.
-        const textoBase = /^\d/.test(cargoNome)
-          ? cargoNome
-          : ((e.qtd||0) > 0 ? `${e.qtd} ${cargoNome}` : cargoNome);
-        const partes = parsearTextoEquipe(textoBase.trim());
-        partes.forEach(p => { adicionarCargo(p.cargo, p.qtd); });
-        if (partes.length) adicionou = true;
-      }
-    });
 
-    // Fallback: equipe[] sem dados úteis → parseia equipeTexto
-    if (!adicionou && ev.equipeTexto) {
+    // Prioridade 1: equipeTexto — fonte mais confiável (é o que aparece na tabela)
+    if (ev.equipeTexto) {
       const partes = parsearTextoEquipe(ev.equipeTexto);
       partes.forEach(p => { adicionarCargo(p.cargo, p.qtd); });
       if (partes.length) adicionou = true;
     }
-    // Último recurso: conta como colaboradores genéricos
+
+    // Prioridade 2: equipe[] estruturado (quando equipeTexto não retornou nada)
+    if (!adicionou) {
+      (ev.equipe||[]).forEach(e => {
+        const cargoNome = (e.cargo||'').trim();
+        const canon = resolverCargo(cargoNome);
+        if (canon.ordem < 99) {
+          adicionarCargo(cargoNome, e.qtd||0);
+          adicionou = true;
+        } else {
+          const textoBase = /^\d/.test(cargoNome)
+            ? cargoNome
+            : ((e.qtd||0) > 0 ? `${e.qtd} ${cargoNome}` : cargoNome);
+          const partes = parsearTextoEquipe(textoBase.trim());
+          partes.forEach(p => { adicionarCargo(p.cargo, p.qtd); });
+          if (partes.length) adicionou = true;
+        }
+      });
+    }
+
+    // Último recurso: total genérico
     if (!adicionou && ev.equipeTotal) {
       adicionarCargo('Colaboradores', ev.equipeTotal);
     }
