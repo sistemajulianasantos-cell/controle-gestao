@@ -138,13 +138,18 @@ function rAgenda() {
         // Cargo estruturado reconhecido
         adicionarCargo(cargoNome, e.qtd||0);
         adicionou = true;
-      } else if (/\d/.test(cargoNome)) {
-        // Campo cargo contém texto livre com números (dado legado) — parseia
-        const partes = parsearTextoEquipe(cargoNome);
+      } else {
+        // Cargo não reconhecido — tenta parsear como texto livre
+        // Se começa com dígito, usa o texto direto.
+        // Se NÃO começa com dígito (ex: "Bartenders 1 Bar back" com qtd:2),
+        // prefixa com e.qtd para recuperar a quantidade do primeiro cargo.
+        const textoBase = /^\d/.test(cargoNome)
+          ? cargoNome
+          : ((e.qtd||0) > 0 ? `${e.qtd} ${cargoNome}` : cargoNome);
+        const partes = parsearTextoEquipe(textoBase.trim());
         partes.forEach(p => { adicionarCargo(p.cargo, p.qtd); });
         if (partes.length) adicionou = true;
       }
-      // Cargo não reconhecido sem números → ignora (não polui o resumo)
     });
 
     // Fallback: equipe[] sem dados úteis → parseia equipeTexto

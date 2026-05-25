@@ -1158,10 +1158,27 @@ function salvarEdicaoContrato() {
   if (idx === -1) return;
 
   const equipeTexto = document.getElementById('ec-equipe').value.trim();
-  const equipeArray = equipeTexto.split('·').map(e => {
-    const m = e.trim().match(/^(\d+)\s+(.+)$/);
-    return m ? { qtd: parseInt(m[1]), cargo: m[2].trim() } : null;
-  }).filter(Boolean);
+  // Parser robusto: aceita "N Cargo · N Cargo" (com ·) ou "N Cargo N Cargo" (sem ·)
+  const equipeArray = (() => {
+    const res = [];
+    if (/·/.test(equipeTexto)) {
+      // Separado por ·
+      equipeTexto.split(/\s*·\s*/).forEach(parte => {
+        const m = parte.trim().match(/^(\d+)\.?\s+(.+)$/);
+        if (m && parseInt(m[1]) > 0) res.push({ qtd: parseInt(m[1]), cargo: m[2].trim() });
+      });
+      if (res.length) return res;
+    }
+    // Sem ·: extrai pares "número [.] cargo" do texto livre
+    const re = /\b(\d+)\.?\s+([A-Za-zÀ-ú][A-Za-zÀ-ú ]*?)(?=\s+\d|\s*$)/g;
+    let m;
+    while ((m = re.exec(equipeTexto)) !== null) {
+      const qtd = parseInt(m[1]);
+      const cargo = m[2].trim();
+      if (qtd > 0 && cargo.length > 1) res.push({ qtd, cargo });
+    }
+    return res;
+  })();
 
   D.contratos[idx] = {
     ...D.contratos[idx],
