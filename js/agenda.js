@@ -52,7 +52,6 @@ function rAgenda() {
 
   const ehViagem = ev => {
     const local = normalizar(ev.local||'');
-    console.log('[DBG]', ev.nome, '|', local.substring(0,70));
     if (CIDADES_VIAGEM_AG.some(ci => local.includes(normalizar(ci)))) return true;
     if (/mateus\s*leme/i.test(ev.local||'')) return true;
     if (/por conta da romero/i.test(ev.transporte||'')) return true;
