@@ -349,7 +349,8 @@ function extrairDadosContratoRomero(txt) {
     'ipatinga','divinópolis','pará de minas','formiga','lavras','alfenas',
     'poços de caldas','três pontas','varginha','passos','patos de minas',
     'teófilo otoni','muriaé','viçosa','barbacena','são joão del rei',
-    'coronel fabriciano','timóteo','caratinga','manhuaçu'
+    'coronel fabriciano','timóteo','caratinga','manhuaçu',
+    'mateus leme','matheus leme'
   ];
   const normExt = s => s.toLowerCase()
     .replace(/pte\.?\s*/g,'ponte ')
@@ -779,7 +780,8 @@ function rAnalise() {
     'ipatinga','divinópolis','pará de minas','formiga','lavras','alfenas',
     'poços de caldas','três pontas','varginha','passos','patos de minas',
     'teófilo otoni','muriaé','viçosa','barbacena','são joão del rei',
-    'coronel fabriciano','timóteo','caratinga','manhuaçu'
+    'coronel fabriciano','timóteo','caratinga','manhuaçu',
+    'mateus leme','matheus leme'
   ];
   const normAn = s => s.toLowerCase()
     .replace(/pte\.?\s*/g,'ponte ')

@@ -39,17 +39,22 @@ function rAgenda() {
     'ipatinga','divinópolis','pará de minas','formiga','lavras','alfenas',
     'poços de caldas','três pontas','varginha','passos','patos de minas',
     'teófilo otoni','muriaé','viçosa','barbacena','são joão del rei',
-    'coronel fabriciano','timóteo','caratinga','manhuaçu'
+    'coronel fabriciano','timóteo','caratinga','manhuaçu',
+    'mateus leme','matheus leme'
   ];
 
   const normalizar = s => s.toLowerCase()
+    .replace(/[ –—​ ]/g, ' ')
+    .replace(/\s+/g, ' ')
     .replace(/pte\.?\s*/g,'ponte ')
     .replace(/[áàã]/g,'a').replace(/[éê]/g,'e').replace(/[íi]/g,'i')
     .replace(/[óôõ]/g,'o').replace(/[úü]/g,'u').replace(/ç/g,'c');
 
   const ehViagem = ev => {
     const local = normalizar(ev.local||'');
+    console.log('[DBG]', ev.nome, '|', local.substring(0,70));
     if (CIDADES_VIAGEM_AG.some(ci => local.includes(normalizar(ci)))) return true;
+    if (/mateus\s*leme/i.test(ev.local||'')) return true;
     if (/por conta da romero/i.test(ev.transporte||'')) return true;
     // Cruzar com contrato salvo pelo nome+data — só verifica o local, não o transporte
     // (transporte pode estar desatualizado de versões antigas do sistema)
@@ -242,3 +247,4 @@ function excluirEventoAgenda(id) {
 }
 
 // ═══════════════════════════════════════════════════════
+
