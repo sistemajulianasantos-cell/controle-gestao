@@ -130,6 +130,9 @@ function rAgenda() {
     totalConv += parseInt(ev.convidados||0);
     if (ehViagem(ev)) totalViagens++;
 
+    // DEBUG TEMPORÁRIO — remover depois
+    console.log('[AGENDA]', ev.nome, '| equipeTexto:', ev.equipeTexto, '| equipe:', JSON.stringify(ev.equipe), '| equipeTotal:', ev.equipeTotal);
+
     let adicionou = false;
 
     // Prioridade 1: equipeTexto — fonte mais confiável (é o que aparece na tabela)
