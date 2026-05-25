@@ -93,9 +93,9 @@ function rAgenda() {
   function parsearTextoEquipe(texto) {
     const resultado = [];
     const limpo = (texto||'').replace(/\([^)]*\)/g,'').replace(/\s+/g,' ').trim();
-    // Tenta separadores explícitos primeiro (·, ,, ;)
-    if (/[·,;]/.test(limpo)) {
-      limpo.split(/\s*[·,;]\s*/).forEach(parte => {
+    // Tenta separadores explícitos: ·  ,  ;  ou " . " (ponto com espaços, formato legado)
+    if (/[·,;]|\s\.\s/.test(limpo)) {
+      limpo.split(/\s*[·,;]\s*|\s+\.\s+/).forEach(parte => {
         const m = parte.trim().match(/^(\d+)\.?\s+(.+)$/);
         if (m && parseInt(m[1]) > 0) resultado.push({ qtd: parseInt(m[1]), cargo: m[2].trim() });
       });
@@ -129,9 +129,6 @@ function rAgenda() {
   lista.forEach(ev => {
     totalConv += parseInt(ev.convidados||0);
     if (ehViagem(ev)) totalViagens++;
-
-    // DEBUG TEMPORÁRIO — remover depois
-    console.log('[AGENDA]', ev.nome, '| equipeTexto:', ev.equipeTexto, '| equipe:', JSON.stringify(ev.equipe), '| equipeTotal:', ev.equipeTotal);
 
     let adicionou = false;
 

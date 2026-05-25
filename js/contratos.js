@@ -1161,9 +1161,9 @@ function salvarEdicaoContrato() {
   // Parser robusto: aceita "N Cargo · N Cargo" (com ·) ou "N Cargo N Cargo" (sem ·)
   const equipeArray = (() => {
     const res = [];
-    if (/·/.test(equipeTexto)) {
-      // Separado por ·
-      equipeTexto.split(/\s*·\s*/).forEach(parte => {
+    if (/[·,;]|\s\.\s/.test(equipeTexto)) {
+      // Separado por · ou " . " (ponto com espaços, formato legado)
+      equipeTexto.split(/\s*[·,;]\s*|\s+\.\s+/).forEach(parte => {
         const m = parte.trim().match(/^(\d+)\.?\s+(.+)$/);
         if (m && parseInt(m[1]) > 0) res.push({ qtd: parseInt(m[1]), cargo: m[2].trim() });
       });
