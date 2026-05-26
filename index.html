@@ -1133,11 +1133,10 @@ async function carregarDados() {
     D.orcamentos   = r.orcamentos   || [];
     D.senhas       = r.senhas       || {};
 
-    // Migração única: se ainda não há senhas no Firebase, grava as defaults.
-    // Após o primeiro carregamento os valores ficam apenas no banco — remova
-    // este bloco após confirmar que D.senhas está salvo no Firebase.
-    if (!r.senhas || Object.keys(r.senhas).length === 0) {
-      D.senhas = { '2002': 'admin', '0035': 'financeiro', '0040': 'operacional' };
+    // Seed/atualização de senhas: roda sempre que a configuração estiver
+    // desatualizada (nova chave admin '1225' ainda não gravada no banco).
+    if (!r.senhas || !r.senhas['1225']) {
+      D.senhas = { '1225': 'admin', '0035': 'financeiro', '0040': 'operacional' };
       try { await setDoc(doc(db, "dados", DOC_ID), { senhas: D.senhas }, { merge: true }); } catch(_){}
     }
 
