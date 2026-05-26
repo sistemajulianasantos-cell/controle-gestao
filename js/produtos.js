@@ -270,8 +270,8 @@ function arredondarEmbalagem(qtd, produto) {
 function abrirCadastroProdutoRapido() {
   var el = document.getElementById('m-quick-produto');
   if (!el) return;
-  // Pré-preenche o nome com o que o usuário digitou no campo de produto
-  var nomePre = ((document.getElementById('eprod') || {}).value || '').trim().toUpperCase();
+  // Pré-preenche com o texto digitado na busca (campo visível), não com o valor oculto
+  var nomePre = ((document.getElementById('eprod-search') || document.getElementById('eprod') || {}).value || '').trim().toUpperCase();
   document.getElementById('qp-nome').value  = nomePre;
   document.getElementById('qp-cat').value   = 'OUTROS';
   document.getElementById('qp-unid').value  = 'UN';
@@ -325,13 +325,15 @@ function salvarProdutoRapido() {
 }
 
 function _selecionarProdutoNaNF(nome) {
-  var inp = document.getElementById('eprod');
-  if (inp) {
-    inp.value = nome;
-    // Foca no campo de quantidade para agilizar o lançamento
-    var qtdEl = document.getElementById('eqtd');
-    if (qtdEl) setTimeout(function(){ qtdEl.focus(); }, 80);
-  }
+  // Atualiza tanto o hidden quanto o campo de busca visível
+  var hidden = document.getElementById('eprod');
+  var search = document.getElementById('eprod-search');
+  var dd     = document.getElementById('eprod-dropdown');
+  if (hidden) hidden.value = nome;
+  if (search) search.value = nome;
+  if (dd)     dd.style.display = 'none';
+  // Foca no campo de quantidade
+  setTimeout(function(){ var q=document.getElementById('eqtd'); if(q) q.focus(); }, 80);
 }
 
 

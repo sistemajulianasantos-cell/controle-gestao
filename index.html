@@ -332,14 +332,25 @@
         <div style="padding:12px 16px;border-top:1px solid var(--border)">
           <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Produtos da nota</div>
           <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;flex-wrap:wrap">
-            <div style="display:flex;gap:4px;flex:1;min-width:200px">
-              <select id="eprod" onchange="document.getElementById('eqtd').focus()"
+            <div style="display:flex;gap:4px;flex:1;min-width:200px;position:relative">
+              <!-- valor real enviado ao addIE() -->
+              <input type="hidden" id="eprod" value="">
+              <!-- campo de busca visível -->
+              <input type="text" id="eprod-search" autocomplete="off"
+                placeholder="🔍 Digite para buscar produto..."
+                oninput="filtrarEprod(this.value)"
+                onfocus="filtrarEprod(this.value)"
+                onblur="setTimeout(fecharEprod,200)"
+                onkeydown="navegarEprod(event)"
                 style="font-size:12px;flex:1;padding:6px 10px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text)">
-                <option value="">Selecionar produto...</option>
-              </select>
+              <!-- dropdown filtrado -->
+              <div id="eprod-dropdown"
+                style="display:none;position:absolute;top:38px;left:0;right:44px;max-height:240px;overflow-y:auto;
+                       background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius);
+                       z-index:500;box-shadow:0 6px 24px rgba(0,0,0,.55)"></div>
               <button class="btn-sm" onclick="abrirCadastroProdutoRapido()"
-                title="Cadastrar novo produto — só use se o produto não estiver na lista"
-                style="background:var(--green);color:#fff;white-space:nowrap;padding:0 10px">+ Novo</button>
+                title="Produto não está na lista? Cadastre aqui"
+                style="background:var(--green);color:#fff;white-space:nowrap;padding:0 10px;flex-shrink:0">+ Novo</button>
             </div>
             <input type="number" id="eqtd" placeholder="Quantidade" step="0.01"
               style="font-size:12px;width:110px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text)"
@@ -1045,8 +1056,8 @@
 <script src="js/estoques.js?v=20260530"></script>
 <script src="js/contagens.js?v=20260530"></script>
 <script src="js/precos.js?v=20260530"></script>
-<script src="js/selects.js?v=20260526d"></script>
-<script src="js/entradas.js?v=20260526c"></script>
+<script src="js/selects.js?v=20260526e"></script>
+<script src="js/entradas.js?v=20260526e"></script>
 <script src="js/quebras.js?v=20260530"></script>
 <script src="js/festas.js?v=20260530"></script>
 <script src="js/relatorio.js?v=20260530"></script>
@@ -1058,7 +1069,7 @@
 <script src="js/producao.js?v=20260530"></script>
 <script src="js/financeiro.js?v=20260530"></script>
 <script src="js/producao2.js?v=20260530"></script>
-<script src="js/produtos.js?v=20260526d"></script>
+<script src="js/produtos.js?v=20260526e"></script>
 <script src="js/regras.js?v=20260530"></script>
 <script src="js/separacao.js?v=20260530"></script>
 <script src="js/equipe.js?v=20260526"></script>

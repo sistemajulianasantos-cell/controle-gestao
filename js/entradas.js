@@ -9,7 +9,11 @@ function addIE(){
   if(ex){ex.qtd+=qtd;}else{nfEntItens.push({prod,qtd,custo:custo?Number(custo):null});}
   document.getElementById('eqtd').value='';
   document.getElementById('ecusto').value='';
-  document.getElementById('eprod').focus();
+  // Limpa seleção e volta o foco para o campo de busca de produto
+  document.getElementById('eprod').value='';
+  const s=document.getElementById('eprod-search');
+  if(s){s.value='';s.focus();}
+  if(typeof filtrarEprod==='function') filtrarEprod('');
   rNFEntItens();
 }
 function rNFEntItens(){
