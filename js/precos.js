@@ -12,19 +12,37 @@ function setPrecosView(v){
   if(v==='editar')rEditarPrecos();
 }
 
+// Retorna lista unificada de produtos: D.produtos (se existir) + quaisquer
+// chaves em D.precos que não estejam nessa lista (compatibilidade retroativa).
+function _listaProdutosPrecos(){
+  // Fonte principal: D.produtos cadastrados
+  const base=(D.produtos&&D.produtos.length)
+    ? D.produtos.map(p=>({nome:p.nome||p,cat:p.cat||MAR[p.nome||p]?.cat||''}))
+    : nomes.map(n=>({nome:n,cat:MAR[n]?.cat||''}));
+
+  // Adiciona produtos que têm preço mas não estão na lista principal
+  const nomesBase=new Set(base.map(p=>p.nome));
+  Object.keys(D.precos||{}).forEach(n=>{
+    if(!nomesBase.has(n)) base.push({nome:n,cat:MAR[n]?.cat||''});
+  });
+
+  return base.sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
+}
+
 function rPrecos(){
   const container=document.getElementById('precos-lista-body');
   if(!container)return;
   const busca=(document.getElementById('precos-busca')?.value||'').toLowerCase();
   const catF=document.getElementById('precos-cat')?.value||'';
 
-  const rows=nomes.filter(n=>{
-    if(busca&&!n.toLowerCase().includes(busca))return false;
-    if(catF&&MAR[n].cat!==catF)return false;
+  const todos=_listaProdutosPrecos();
+  const rows=todos.filter(p=>{
+    if(busca&&!p.nome.toLowerCase().includes(busca))return false;
+    if(catF&&p.cat!==catF)return false;
     return true;
   });
 
-  const comPreco=rows.filter(n=>D.precos[n]?.custo||D.precos[n]?.revenda).length;
+  const comPreco=rows.filter(p=>D.precos[p.nome]?.custo||D.precos[p.nome]?.revenda).length;
 
   container.innerHTML=`
     <div style="padding:8px 16px;font-size:11px;color:var(--text3);border-bottom:1px solid var(--border)">
@@ -33,14 +51,14 @@ function rPrecos(){
     <table>
       <thead><tr><th>Produto</th><th>Categoria</th><th style="text-align:right">Custo unit.</th><th style="text-align:right">Revenda unit.</th><th style="text-align:right">Margem</th></tr></thead>
       <tbody>
-        ${rows.map(n=>{
-          const p=D.precos[n]||{};
-          const margem=p.custo&&p.revenda?((p.revenda-p.custo)/p.revenda*100).toFixed(0):null;
+        ${rows.map(p=>{
+          const pr=D.precos[p.nome]||{};
+          const margem=pr.custo&&pr.revenda?((pr.revenda-pr.custo)/pr.revenda*100).toFixed(0):null;
           return`<tr>
-            <td class="bold">${n}</td>
-            <td><span class="badge b-blue" style="font-size:9px">${MAR[n].cat}</span></td>
-            <td style="font-family:var(--mono);text-align:right;color:${p.custo?'var(--text2)':'var(--text3)'}">${p.custo?fR(p.custo):'— a preencher'}</td>
-            <td style="font-family:var(--mono);text-align:right;color:${p.revenda?'var(--green)':'var(--text3)'}">${p.revenda?fR(p.revenda):'— a preencher'}</td>
+            <td class="bold">${p.nome}</td>
+            <td>${p.cat?`<span class="badge b-blue" style="font-size:9px">${p.cat}</span>`:'<span style="color:var(--text3);font-size:11px">—</span>'}</td>
+            <td style="font-family:var(--mono);text-align:right;color:${pr.custo?'var(--text2)':'var(--text3)'}">${pr.custo?fR(pr.custo):'— a preencher'}</td>
+            <td style="font-family:var(--mono);text-align:right;color:${pr.revenda?'var(--green)':'var(--text3)'}">${pr.revenda?fR(pr.revenda):'— a preencher'}</td>
             <td style="font-family:var(--mono);text-align:right;color:${margem?Number(margem)>=30?'var(--green)':'var(--amber)':'var(--text3)'}">${margem?margem+'%':'—'}</td>
           </tr>`;
         }).join('')}
@@ -54,9 +72,10 @@ function rEditarPrecos(){
   const busca=(document.getElementById('precos-edit-busca')?.value||'').toLowerCase();
   const catF=document.getElementById('precos-edit-cat')?.value||'';
 
-  const rows=nomes.filter(n=>{
-    if(busca&&!n.toLowerCase().includes(busca))return false;
-    if(catF&&MAR[n].cat!==catF)return false;
+  const todos=_listaProdutosPrecos();
+  const rows=todos.filter(p=>{
+    if(busca&&!p.nome.toLowerCase().includes(busca))return false;
+    if(catF&&p.cat!==catF)return false;
     return true;
   });
 
@@ -67,21 +86,23 @@ function rEditarPrecos(){
       <div style="padding:8px 14px;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;text-align:center">Custo unit. (R$)</div>
       <div style="padding:8px 14px;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;text-align:center">Revenda unit. (R$)</div>
     </div>`+
-  rows.map(n=>{
-    const p=D.precos[n]||{};
+  rows.map(p=>{
+    const n=p.nome;
+    const pr=D.precos[n]||{};
+    const nEsc=n.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     return`<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:0;border-bottom:1px solid var(--border);align-items:center">
       <div style="padding:8px 14px;font-size:12px;font-weight:500;color:var(--text)">${n}</div>
-      <div style="padding:8px 14px"><span class="badge b-blue" style="font-size:9px">${MAR[n].cat}</span></div>
+      <div style="padding:8px 14px">${p.cat?`<span class="badge b-blue" style="font-size:9px">${p.cat}</span>`:'<span style="color:var(--text3);font-size:11px">—</span>'}</div>
       <div style="padding:6px 10px;text-align:center">
         <input type="number" min="0" step="0.01" placeholder="0,00"
-          value="${p.custo||''}"
-          onchange="if(!D.precos['${n.replace(/'/g,"\\'")}'])D.precos['${n.replace(/'/g,"\\'")}']={};D.precos['${n.replace(/'/g,"\\'")}'].custo=this.value?Number(this.value):null"
+          value="${pr.custo||''}"
+          onchange="if(!D.precos['${nEsc}'])D.precos['${nEsc}']={};D.precos['${nEsc}'].custo=this.value?Number(this.value):null"
           style="width:90px;text-align:center;font-size:12px;padding:4px 6px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius)">
       </div>
       <div style="padding:6px 10px;text-align:center">
         <input type="number" min="0" step="0.01" placeholder="0,00"
-          value="${p.revenda||''}"
-          onchange="if(!D.precos['${n.replace(/'/g,"\\'")}'])D.precos['${n.replace(/'/g,"\\'")}']={};D.precos['${n.replace(/'/g,"\\'")}'].revenda=this.value?Number(this.value):null"
+          value="${pr.revenda||''}"
+          onchange="if(!D.precos['${nEsc}'])D.precos['${nEsc}']={};D.precos['${nEsc}'].revenda=this.value?Number(this.value):null"
           style="width:90px;text-align:center;font-size:12px;padding:4px 6px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius)">
       </div>
     </div>`;
