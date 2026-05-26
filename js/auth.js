@@ -1,10 +1,10 @@
 ﻿// ─── LOGIN / AUTENTICAÇÃO ───────────────────────────────
 // ═══════════════════════════════════════════════════════
+// As senhas ficam em D.senhas (Firebase) — não estão no código.
 
-var SENHAS = { '2002': 'admin', '0035': 'financeiro', '0040': 'operacional' };
 var ACESSO = {
-  admin:       ['estoque','contratos','produtos','regras','producao','separacao','agenda','financeiro','analise'],
-  financeiro:  ['contratos','produtos','producao','separacao','agenda','financeiro','analise'],
+  admin:       ['estoque','contratos','produtos','regras','producao','separacao','agenda','financeiro','analise','equipe','orcamento'],
+  financeiro:  ['estoque','contratos','produtos','producao','separacao','agenda','equipe','orcamento'],
   operacional: ['contratos','producao','separacao','agenda']
 };
 
@@ -12,10 +12,10 @@ let perfilAtual = null;
 
 function tentarLogin() {
   const s = document.getElementById('login-senha').value.trim();
-  const p = SENHAS[s];
-  if (!p) { 
-    document.getElementById('login-erro').textContent = 'Senha incorreta'; 
-    return; 
+  const p = (D.senhas || {})[s];
+  if (!p) {
+    document.getElementById('login-erro').textContent = 'Senha incorreta';
+    return;
   }
   perfilAtual = p;
   sessionStorage.setItem('perfil', p);

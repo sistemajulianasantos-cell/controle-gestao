@@ -1087,6 +1087,10 @@ window.svFirebase = async function(chave) {
     if(chave==='produtos')       campo.produtos       = D.produtos;
     if(chave==='historico')    campo.historico    = D.historico;
     if(chave==='metas')        campo.metas        = D.metas;
+    if(chave==='equipe')    campo.equipe    = D.equipe;
+    if(chave==='escalas')   campo.escalas   = D.escalas;
+    if(chave==='orcamentos')campo.orcamentos= D.orcamentos;
+    if(chave==='senhas')    campo.senhas    = D.senhas;
     if (Object.keys(campo).length === 0) return;
     await setDoc(doc(db, "dados", DOC_ID), campo, { merge: true });
   } catch(e) {
@@ -1124,6 +1128,18 @@ async function carregarDados() {
     D.regrasProp   = r.regrasProp   || [];
     D.historico    = r.historico    || {};
     D.metas        = r.metas        || {};
+    D.equipe       = r.equipe       || [];
+    D.escalas      = r.escalas      || [];
+    D.orcamentos   = r.orcamentos   || [];
+    D.senhas       = r.senhas       || {};
+
+    // Migração única: se ainda não há senhas no Firebase, grava as defaults.
+    // Após o primeiro carregamento os valores ficam apenas no banco — remova
+    // este bloco após confirmar que D.senhas está salvo no Firebase.
+    if (!r.senhas || Object.keys(r.senhas).length === 0) {
+      D.senhas = { '2002': 'admin', '0035': 'financeiro', '0040': 'operacional' };
+      try { await setDoc(doc(db, "dados", DOC_ID), { senhas: D.senhas }, { merge: true }); } catch(_){}
+    }
 
     document.getElementById("loading-overlay").style.display = "none";
     init();
