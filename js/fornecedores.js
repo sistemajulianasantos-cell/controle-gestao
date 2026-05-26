@@ -25,97 +25,135 @@ function rFornecedores(){
 }
 
 // ─── COMPARATIVO DE PREÇOS ───────────────────────────────────────────────────
+var _MESES_PT=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
 function rComparativo(){
   const busca=(document.getElementById('comp-busca')?.value||'').toLowerCase();
   const container=document.getElementById('comp-body');if(!container)return;
 
-  // Agrupa entradas com custo por produto
-  const byProd={};
-  D.entradas.forEach(e=>{
-    if(!e.custo||!Number(e.custo))return;
-    if(busca&&!e.prod.toLowerCase().includes(busca))return;
-    if(!byProd[e.prod])byProd[e.prod]={prod:e.prod,compras:[]};
-    byProd[e.prod].compras.push({
-      data:e.data,forn:e.forn||'Sem fornecedor',
-      custo:Number(e.custo),qtd:Number(e.qtd),nf:e.nf||'—'
-    });
-  });
+  // Coleta entradas com custo
+  let ents=D.entradas.filter(e=>e.custo&&Number(e.custo));
+  if(busca) ents=ents.filter(e=>e.prod.toLowerCase().includes(busca));
 
-  const prods=Object.values(byProd).sort((a,b)=>a.prod.localeCompare(b.prod,'pt-BR'));
-  if(!prods.length){
-    container.innerHTML='<div style="padding:32px;text-align:center;font-size:12px;color:var(--text3)">'+
+  if(!ents.length){
+    container.innerHTML='<div style="padding:40px;text-align:center;font-size:12px;color:var(--text3)">'+
       'Nenhuma entrada com custo lançada ainda.<br>Preencha o campo <strong>Custo unit.</strong> ao lançar uma NF para ver o histórico aqui.</div>';
     return;
   }
 
-  container.innerHTML=prods.map(p=>{
-    // Ordena por data (cronológico) para mostrar evolução
-    const compras=p.compras.slice().sort((a,b)=>a.data.localeCompare(b.data));
-    const custos=compras.map(c=>c.custo);
-    const minC=Math.min(...custos),maxC=Math.max(...custos);
-    const ultima=compras[compras.length-1];
-    const temVar=minC!==maxC;
-    const varTotal=temVar?(((ultima.custo-compras[0].custo)/compras[0].custo)*100):0;
+  // Meses presentes (YYYY-MM), ordenados cronologicamente
+  const mesesSet=new Set();
+  ents.forEach(e=>mesesSet.add(e.data.substring(0,7)));
+  const meses=[...mesesSet].sort();
 
-    // Melhor fornecedor = quem vendeu pelo menor preço
-    const melhorForn=compras.find(c=>c.custo===minC)?.forn||'—';
+  // Pivot: produto → { total, porMes: { 'YYYY-MM': [{custo,forn,nf,data,qtd}] } }
+  const byProd={};
+  ents.forEach(e=>{
+    const mes=e.data.substring(0,7);
+    if(!byProd[e.prod])byProd[e.prod]={prod:e.prod,total:0,porMes:{}};
+    byProd[e.prod].total++;
+    if(!byProd[e.prod].porMes[mes])byProd[e.prod].porMes[mes]=[];
+    byProd[e.prod].porMes[mes].push({custo:Number(e.custo),forn:e.forn||'',nf:e.nf||'',data:e.data,qtd:Number(e.qtd)});
+  });
 
-    const rows=compras.map((c,i)=>{
-      const ant=i>0?compras[i-1].custo:null;
-      const delta=ant?((c.custo-ant)/ant*100):null;
-      const isMelhor=c.custo===minC,isPior=c.custo===maxC&&temVar;
-      let tendEl='';
-      if(delta!==null){
-        if(delta>0.5)      tendEl=`<span style="color:var(--red);font-weight:600">↑ +${delta.toFixed(1)}%</span>`;
-        else if(delta<-0.5)tendEl=`<span style="color:var(--green);font-weight:600">↓ ${delta.toFixed(1)}%</span>`;
-        else               tendEl=`<span style="color:var(--text3)">→</span>`;
+  // Ordena por total de movimentações (maior → menor)
+  const prods=Object.values(byProd).sort((a,b)=>b.total-a.total);
+
+  // Largura fixa por coluna de mês
+  const colW=86;
+  const totalW=200+80+meses.length*colW;
+
+  // Cabeçalho de meses
+  const mesHeader=meses.map(m=>{
+    const[y,mo]=m.split('-');
+    return`<th style="min-width:${colW}px;width:${colW}px;padding:7px 4px;font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;text-align:center;border-left:1px solid var(--border)">${_MESES_PT[Number(mo)-1]}/${y.slice(2)}</th>`;
+  }).join('');
+
+  // Linhas
+  const linhas=prods.map(p=>{
+    // Custos de todas as células para calcular min/max por linha
+    const todosCustos=[];
+    meses.forEach(m=>{
+      const cel=p.porMes[m];
+      if(cel&&cel.length){
+        // Usa o último valor do mês (mais recente)
+        const ult=cel.slice().sort((a,b)=>b.data.localeCompare(a.data))[0];
+        todosCustos.push(ult.custo);
       }
-      return`<div style="display:grid;grid-template-columns:90px 1fr 70px 90px 60px 80px;gap:6px;padding:6px 14px;border-bottom:1px solid var(--border);font-size:11px;align-items:center">
-        <span style="color:var(--text3);font-family:var(--mono)">${fd(c.data)}</span>
-        <span style="color:var(--text2)">${c.forn}<span style="color:var(--text3);font-size:10px;margin-left:6px">NF ${c.nf}</span></span>
-        <span style="font-family:var(--mono);color:var(--text3);text-align:right">${fN(c.qtd)} un</span>
-        <span style="font-family:var(--mono);font-weight:700;text-align:right;color:${isMelhor?'var(--green)':isPior?'var(--red)':'var(--text)'}">R$ ${c.custo.toFixed(2)}</span>
-        <span style="text-align:center;font-size:10px">${tendEl}</span>
-        <span style="text-align:center">${isMelhor?'<span class="badge b-green" style="font-size:9px">Melhor</span>':isPior?'<span class="badge b-red" style="font-size:9px">Mais caro</span>':''}</span>
-      </div>`;
+    });
+    const minC=todosCustos.length?Math.min(...todosCustos):null;
+    const maxC=todosCustos.length?Math.max(...todosCustos):null;
+    const temVar=minC!==null&&maxC!==null&&minC!==maxC;
+
+    // Calcula tendência geral (primeira → última célula preenchida)
+    const celPreench=meses.filter(m=>p.porMes[m]&&p.porMes[m].length);
+    let tendHTML='<span style="color:var(--text3)">—</span>';
+    if(celPreench.length>=2){
+      const primeiro=p.porMes[celPreench[0]].slice().sort((a,b)=>a.data.localeCompare(b.data))[0].custo;
+      const ultimo=p.porMes[celPreench[celPreench.length-1]].slice().sort((a,b)=>b.data.localeCompare(a.data))[0].custo;
+      const v=((ultimo-primeiro)/primeiro*100);
+      if(v>0.5)      tendHTML=`<span style="color:var(--red);font-size:11px;font-weight:700">↑ +${v.toFixed(0)}%</span>`;
+      else if(v<-0.5)tendHTML=`<span style="color:var(--green);font-size:11px;font-weight:700">↓ ${v.toFixed(0)}%</span>`;
+      else           tendHTML=`<span style="color:var(--text3);font-size:11px">→ estável</span>`;
+    }
+
+    const cels=meses.map((m,mi)=>{
+      const cel=p.porMes[m];
+      if(!cel||!cel.length) return`<td style="min-width:${colW}px;border-left:1px solid var(--border);text-align:center;color:var(--text3);font-size:11px">—</td>`;
+
+      // Ordena cronológico — mostra última compra do mês
+      const sorted=cel.slice().sort((a,b)=>b.data.localeCompare(a.data));
+      const ult=sorted[0];
+      const isMelhor=temVar&&ult.custo===minC;
+      const isPior=temVar&&ult.custo===maxC;
+      const bg=isMelhor?'rgba(34,197,94,.08)':isPior?'rgba(239,68,68,.08)':'';
+      const cor=isMelhor?'var(--green)':isPior?'var(--red)':'var(--text)';
+
+      // Variação em relação ao mês anterior com dados
+      let varHTML='';
+      const antMes=meses.slice(0,mi).reverse().find(mm=>p.porMes[mm]&&p.porMes[mm].length);
+      if(antMes){
+        const antCusto=p.porMes[antMes].slice().sort((a,b)=>b.data.localeCompare(a.data))[0].custo;
+        const dlt=(ult.custo-antCusto)/antCusto*100;
+        if(dlt>0.5)      varHTML=`<div style="font-size:9px;color:var(--red)">↑ +${dlt.toFixed(1)}%</div>`;
+        else if(dlt<-0.5)varHTML=`<div style="font-size:9px;color:var(--green)">↓ ${dlt.toFixed(1)}%</div>`;
+        else             varHTML=`<div style="font-size:9px;color:var(--text3)">→</div>`;
+      }
+
+      const cnt=cel.length>1?`<div style="font-size:9px;color:var(--text3)">${cel.length}x</div>`:'';
+      const fornTip=ult.forn?`title="${ult.forn}${ult.nf?' · NF '+ult.nf:''} · ${fd(ult.data)}"`:'';
+
+      return`<td ${fornTip} style="min-width:${colW}px;border-left:1px solid var(--border);text-align:center;background:${bg};padding:5px 4px;vertical-align:middle;cursor:default">
+        <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:${cor}">R$ ${ult.custo.toFixed(2)}</div>
+        ${varHTML}${cnt}
+      </td>`;
     }).join('');
 
-    // Cabeçalho do card
-    const trendIcon=varTotal>0?`<span style="color:var(--red)">↑ +${varTotal.toFixed(1)}%</span>`:
-                    varTotal<0?`<span style="color:var(--green)">↓ ${varTotal.toFixed(1)}%</span>`:
-                    `<span style="color:var(--text3)">Estável</span>`;
-
-    return`<div style="margin:8px 16px;border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:14px">
-      <!-- Cabeçalho -->
-      <div style="padding:12px 14px;background:var(--bg3);display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
-        <div>
-          <div style="font-size:13px;font-weight:700;color:var(--text)">${p.prod}</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:3px">${compras.length} compra(s) registrada(s)</div>
-        </div>
-        <div style="display:flex;gap:16px;flex-wrap:wrap;text-align:right">
-          <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Menor preço</div>
-            <div style="font-size:13px;font-weight:700;color:var(--green);font-family:var(--mono)">R$ ${minC.toFixed(2)}</div>
-            <div style="font-size:9px;color:var(--text3)">${melhorForn}</div></div>
-          <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Maior preço</div>
-            <div style="font-size:13px;font-weight:700;color:${temVar?'var(--red)':'var(--text)'};font-family:var(--mono)">R$ ${maxC.toFixed(2)}</div></div>
-          <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Última compra</div>
-            <div style="font-size:13px;font-weight:700;color:var(--text);font-family:var(--mono)">R$ ${ultima.custo.toFixed(2)}</div>
-            <div style="font-size:9px;color:var(--text3)">${fd(ultima.data)}</div></div>
-          <div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Tendência</div>
-            <div style="font-size:13px;font-weight:700">${trendIcon}</div></div>
-        </div>
-      </div>
-      <!-- Colunas -->
-      <div style="display:grid;grid-template-columns:90px 1fr 70px 90px 60px 80px;gap:6px;padding:6px 14px;border-bottom:1px solid var(--border2);background:var(--bg2)">
-        <span style="font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase">Data</span>
-        <span style="font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase">Fornecedor / NF</span>
-        <span style="font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;text-align:right">Qtd</span>
-        <span style="font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;text-align:right">Custo unit.</span>
-        <span style="font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;text-align:center">Var.</span>
-        <span style="font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;text-align:center">Status</span>
-      </div>
-      ${rows}
-    </div>`;
+    return`<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:8px 12px;font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis" title="${p.prod}">${p.prod}</td>
+      <td style="padding:8px 8px;text-align:center;border-left:1px solid var(--border)">${tendHTML}</td>
+      ${cels}
+    </tr>`;
   }).join('');
+
+  container.innerHTML=`
+    <div style="overflow-x:auto;padding:16px">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px">
+        ${prods.length} produto(s) com histórico de preço · Ordenado por movimentação · Passe o mouse sobre o valor para ver fornecedor
+      </div>
+      <table style="border-collapse:collapse;min-width:${totalW}px;width:100%">
+        <thead>
+          <tr style="background:var(--bg2)">
+            <th style="padding:8px 12px;font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;text-align:left;min-width:200px">Produto</th>
+            <th style="padding:8px 8px;font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;text-align:center;min-width:80px;border-left:1px solid var(--border)">Tendência</th>
+            ${mesHeader}
+          </tr>
+        </thead>
+        <tbody>${linhas}</tbody>
+      </table>
+      <div style="margin-top:12px;font-size:10px;color:var(--text3)">
+        🟢 Menor preço do produto &nbsp;|&nbsp; 🔴 Maior preço &nbsp;|&nbsp; <em>Nx</em> = N compras no mês (exibe a mais recente)
+      </div>
+    </div>`;
 }
 

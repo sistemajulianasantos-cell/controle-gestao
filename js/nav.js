@@ -50,7 +50,7 @@ function go(page){
   const pageEl=document.getElementById('page-'+page);if(!pageEl)return;
   pageEl.classList.add('active');
   const items=[...document.querySelectorAll('.nav-item')];
-  const map={fechamento:0,'est-mar':1,'est-abr':2,contagens:3,precos:4,fornecedores:5,entrada:6,comparativo:7,festas:8,relatorio:9};
+  const map={fechamento:0,'est-mar':1,'est-abr':2,contagens:3,precos:4,fornecedores:5,produtos:6,entrada:7,comparativo:8,festas:9,relatorio:10};
   if(items[map[page]])items[map[page]].classList.add('active');
   const[t,s]=pageInfo[page]||['',''];
   document.getElementById('ptitle').textContent=t;
