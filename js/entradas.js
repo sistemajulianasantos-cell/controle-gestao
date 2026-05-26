@@ -109,6 +109,24 @@ function regEnt(){
   const forn=document.getElementById('eforn').value;
   nfEntItens.forEach(i=>{D.entradas.push({prod:i.prod,data,qtd:i.qtd,custo:i.custo||'',nf,forn,obs});});
   sv('entradas');
+
+  // ── Atualiza D.precos com o custo mais recente de cada produto que teve valor informado
+  let precosAtualizados=false;
+  if(!D.precos) D.precos={};
+  nfEntItens.forEach(i=>{
+    if(!i.custo) return;
+    if(!D.precos[i.prod]) D.precos[i.prod]={};
+    // Só sobrescreve se esta data for >= à última compra registrada
+    const ultData=D.precos[i.prod].ultimaCompra||'';
+    if(!ultData||data>=ultData){
+      D.precos[i.prod].custo=i.custo;
+      D.precos[i.prod].ultimaCompra=data;
+      D.precos[i.prod].ultimoFornecedor=forn||'';
+      precosAtualizados=true;
+    }
+  });
+  if(precosAtualizados) sv('precos');
+
   alert2(`${nfEntItens.length} produto(s) lançado(s) com sucesso!`);
   limparNFEnt();
   rEntradas();
