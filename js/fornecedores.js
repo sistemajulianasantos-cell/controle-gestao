@@ -28,11 +28,12 @@ function rFornecedores(){
 var _MESES_PT=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
 function rComparativo(){
+  try{
   const busca=(document.getElementById('comp-busca')?.value||'').toLowerCase();
   const container=document.getElementById('comp-body');if(!container)return;
 
-  // Coleta entradas com custo
-  let ents=D.entradas.filter(e=>e.custo&&Number(e.custo));
+  // Coleta entradas com custo e data válidos
+  let ents=(D.entradas||[]).filter(e=>e.custo&&Number(e.custo)&&e.data&&e.prod);
   if(busca) ents=ents.filter(e=>e.prod.toLowerCase().includes(busca));
 
   if(!ents.length){
@@ -155,5 +156,11 @@ function rComparativo(){
         🟢 Menor preço do produto &nbsp;|&nbsp; 🔴 Maior preço &nbsp;|&nbsp; <em>Nx</em> = N compras no mês (exibe a mais recente)
       </div>
     </div>`;
+  }catch(err){
+    console.error('rComparativo:',err);
+    if(document.getElementById('comp-body'))
+      document.getElementById('comp-body').innerHTML=
+        '<div style="padding:32px;text-align:center;font-size:12px;color:var(--text3)">Erro ao carregar comparativo. Recarregue a página.</div>';
+  }
 }
 
