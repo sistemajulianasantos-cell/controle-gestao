@@ -284,12 +284,15 @@ function salvarProdutoRapido() {
   if (!nome) { alert('Informe o nome do produto.'); return; }
   if (!D.produtos) D.produtos = [];
 
-  // Se já existe, apenas seleciona sem duplicar
-  var jaExiste = D.produtos.find(function(p){ return p.nome === nome; });
+  // Verificação case-insensitive: evita duplicar produto que já existe
+  var jaExiste = D.produtos.find(function(p){
+    return (p.nome||'').toUpperCase() === nome;
+  });
   if (jaExiste) {
-    _selecionarProdutoNaNF(nome);
+    _selecionarProdutoNaNF(jaExiste.nome); // usa o nome exato do cadastro
     document.getElementById('m-quick-produto').style.display = 'none';
-    if (typeof alert2 === 'function') alert2('Produto já cadastrado — selecionado na NF.');
+    if (typeof alert2 === 'function') alert2('⚠️ "' + jaExiste.nome + '" já está cadastrado e foi selecionado.');
+    else alert('"' + jaExiste.nome + '" já existe no cadastro — foi selecionado.');
     return;
   }
 
