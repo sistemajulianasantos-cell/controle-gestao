@@ -445,19 +445,17 @@ function populateSels(){
   populateEprodList();
 }
 
-// Popula o datalist do campo de produto na NF a partir de D.produtos.
-// Fallback para MAR se D.produtos ainda estiver vazio.
+// Popula o <select id="eprod"> na NF a partir de D.produtos.
+// Fallback para nomes do MAR se D.produtos ainda estiver vazio.
 function populateEprodList(){
-  const dl=document.getElementById('eprod-list');
-  if(!dl) return;
+  const sel=document.getElementById('eprod');
+  if(!sel) return;
   const prods=(D.produtos||[]);
-  if(prods.length){
-    dl.innerHTML=prods.slice().sort((a,b)=>(a.nome||'').localeCompare(b.nome||''))
-      .map(p=>`<option value="${p.nome.replace(/"/g,'&quot;')}">`).join('');
-  } else {
-    // Sem produtos cadastrados ainda: usa nomes do MAR como fallback
-    dl.innerHTML=nomes.map(n=>`<option value="${n}">`).join('');
-  }
+  const opts=prods.length
+    ? prods.slice().sort((a,b)=>(a.nome||'').localeCompare(b.nome||''))
+           .map(p=>`<option value="${p.nome.replace(/"/g,'&quot;')}">${p.nome}</option>`).join('')
+    : nomes.map(n=>`<option value="${n}">${n}</option>`).join('');
+  sel.innerHTML='<option value="">Selecionar produto...</option>'+opts;
 }
 
 // ─── ENTRADAS ────────────────────────────────────────────────────────────────
