@@ -115,7 +115,7 @@ function rEquipeLista() {
                       `<div style="width:28px;height:28px;border-radius:50%;background:var(--bg3);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--text3);flex-shrink:0">${(c.nome||'?')[0].toUpperCase()}</div>`}
                     <div>
                       <div style="font-weight:600;color:var(--text)">${c.nome}</div>
-                      ${c.cpf?`<div style="font-size:10px;color:var(--text3)">${c.cpf}</div>`:''}
+                      ${c.chave_pix?`<div style="font-size:10px;color:var(--green);font-family:monospace">PIX: ${c.chave_pix}</div>`:c.cpf?`<div style="font-size:10px;color:var(--text3)">${c.cpf}</div>`:''}
                     </div>
                   </div>
                 </td>
@@ -186,6 +186,8 @@ function rEquipePerfil() {
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;flex:1">
           <div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Cargo</div>
             <span class="badge b-blue">${c.cargo||'—'}</span></div>
+          ${c.chave_pix?`<div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Chave PIX</div>
+            <div style="color:var(--green);font-family:monospace;font-size:12px">${c.chave_pix}</div></div>`:''}
           <div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Nível</div>
             <div style="font-weight:600;color:${c.nivel==='Novato'?'var(--amber)':c.nivel==='Sênior'?'var(--green)':'var(--text)'}">${c.nivel||'—'}</div></div>
           <div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:3px">CPF</div>
@@ -273,6 +275,8 @@ function uploadFotoColab(colabId, input) {
 
 // ─── ESCALA POR EVENTO ────────────────────────────────────────────────────────
 
+let _mostrarHistoricoEscala = false;
+
 function rEscalaEventos() {
   equipeView = 'eventos';
   const el = document.getElementById('eq-content');
@@ -280,50 +284,34 @@ function rEscalaEventos() {
 
   const hoje = new Date().toISOString().slice(0,10);
 
-  // Eventos: contratos ativos futuros + passados recentes (30 dias)
-  const limite = new Date(); limite.setDate(limite.getDate() - 30);
-  const limiteStr = limite.toISOString().slice(0,10);
+  const todos    = (D.contratos||[]).filter(c=>(c.status||'ativo')!=='cancelado').sort((a,b)=>a.data.localeCompare(b.data));
+  const futuros  = todos.filter(c => c.data >= hoje);
+  const passados = todos.filter(c => c.data <  hoje).reverse(); // mais recente primeiro
 
-  const eventos = (D.contratos||[])
-    .filter(c => c.data >= limiteStr && (c.status||'ativo') !== 'cancelado')
-    .sort((a,b) => a.data.localeCompare(b.data));
-
-  el.innerHTML = `
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
-      <button class="btn-sm" onclick="rEquipeLista()" style="background:var(--bg3)">← Colaboradores</button>
-      <span style="font-weight:600;font-size:15px;color:var(--text)">Escala por Evento</span>
-    </div>
-
-    ${!eventos.length ? `
-    <div style="text-align:center;padding:60px;color:var(--text3)">
-      <div style="font-size:32px;margin-bottom:10px">📅</div>
-      <div>Nenhum evento próximo encontrado em Contratos</div>
-    </div>` :
-    eventos.map(c => {
-      const escalas = _escalasDoEvento(c);
-      const passado = c.data < hoje;
-      return `
-      <div class="sec" style="margin-bottom:10px;${passado?'opacity:.7':''}">
-        <div class="sec-head" style="flex-wrap:wrap;gap:8px">
-          <div>
-            <span class="sec-title">${c.nome||'Sem nome'}</span>
-            <span style="font-size:11px;color:var(--text3);margin-left:8px">
-              ${fd(c.data)}${c.local?' · '+c.local.split(',')[0]:''}${c.convidados?' · '+c.convidados+' conv.':''}
-            </span>
-            ${passado?`<span style="background:var(--bg3);color:var(--text3);font-size:9px;padding:1px 6px;border-radius:3px;margin-left:6px">Realizado</span>`:''}
-          </div>
-          <button class="btn-sm btn-primary" onclick="abrirEscalaEvento('${c.id}','${(c.nome||'').replace(/'/g,"\\'").replace(/"/g,'&quot;')}','${c.data}')">
-            👥 Montar equipe
-          </button>
+  const _cardEvento = (c, passado=false) => {
+    const escalas = _escalasDoEvento(c);
+    const nomeEsc = (c.nome||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    return `
+    <div class="sec" style="margin-bottom:10px">
+      <div class="sec-head" style="flex-wrap:wrap;gap:8px">
+        <div>
+          <span class="sec-title">${c.nome||'Sem nome'}</span>
+          <span style="font-size:11px;color:var(--text3);margin-left:8px">
+            ${fd(c.data)}${c.local?' · '+c.local.split(',')[0]:''}${c.convidados?' · '+c.convidados+' conv.':''}
+          </span>
         </div>
-        ${!escalas.length ? `
-          <div style="padding:10px 14px;color:var(--text3);font-size:12px">Nenhum colaborador escalado</div>` :
-          `<div style="display:flex;flex-wrap:wrap;gap:8px;padding:10px 14px">
-            ${escalas.map(e => {
-              const col = (D.equipe||[]).find(x=>x.id===e.colaboradorId);
-              if (!col) return '';
-              return `
-              <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:7px 10px;display:flex;align-items:center;gap:7px">
+        <button class="btn-sm ${passado?'':'btn-primary'}" style="${passado?'background:var(--bg3)':''}"
+          onclick="abrirEscalaEvento('${c.id}','${nomeEsc}','${c.data}')">
+          👥 ${passado?'Ver equipe':'Montar equipe'}
+        </button>
+      </div>
+      ${!escalas.length
+        ? `<div style="padding:10px 14px;color:var(--text3);font-size:12px">Nenhum colaborador escalado</div>`
+        : `<div style="display:flex;flex-wrap:wrap;gap:8px;padding:10px 14px">
+            ${escalas.map(e=>{
+              const col=(D.equipe||[]).find(x=>x.id===e.colaboradorId);
+              if(!col) return '';
+              return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 10px;display:flex;align-items:center;gap:7px">
                 ${col.foto?`<img src="${col.foto}" style="width:22px;height:22px;border-radius:50%;object-fit:cover">`:
                   `<div style="width:22px;height:22px;border-radius:50%;background:var(--bg2);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--text3)">${(col.nome||'?')[0]}</div>`}
                 <div>
@@ -333,8 +321,35 @@ function rEscalaEventos() {
               </div>`;
             }).join('')}
           </div>`}
-      </div>`;
-    }).join('')}`;
+    </div>`;
+  };
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+      <button class="btn-sm" onclick="rEquipeLista()" style="background:var(--bg3)">← Colaboradores</button>
+      <span style="font-weight:600;font-size:15px;color:var(--text)">Escala por Evento</span>
+    </div>
+
+    ${!futuros.length ? `
+    <div style="text-align:center;padding:48px;color:var(--text3)">
+      <div style="font-size:32px;margin-bottom:10px">📅</div>
+      <div>Nenhum evento futuro em Contratos</div>
+    </div>` :
+    futuros.map(c => _cardEvento(c, false)).join('')}
+
+    <!-- Histórico -->
+    ${passados.length ? `
+    <div style="margin-top:8px">
+      <button onclick="_mostrarHistoricoEscala=!_mostrarHistoricoEscala;rEscalaEventos()"
+        style="width:100%;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);
+               color:var(--text3);font-size:12px;cursor:pointer;text-align:left">
+        ${_mostrarHistoricoEscala?'▲':'▼'} Histórico — ${passados.length} evento(s) realizado(s)
+      </button>
+      ${_mostrarHistoricoEscala ? `
+      <div style="margin-top:8px;opacity:.75">
+        ${passados.map(c=>_cardEvento(c,true)).join('')}
+      </div>` : ''}
+    </div>` : ''}`;
 }
 
 function _escalasDoEvento(contrato) {
@@ -497,10 +512,11 @@ function abrirNovoColab(id) {
   const c = id ? (D.equipe||[]).find(e=>e.id===id) : null;
   document.getElementById('eq-m-id').value        = id  || '';
   document.getElementById('eq-m-nome').value       = c?.nome       || '';
+  document.getElementById('eq-m-pix').value        = c?.chave_pix  || '';
+  document.getElementById('eq-m-cargo').value      = c?.cargo      || '';
   document.getElementById('eq-m-cpf').value        = c?.cpf        || '';
   document.getElementById('eq-m-telefone').value   = c?.telefone   || '';
   document.getElementById('eq-m-nascimento').value = c?.nascimento || '';
-  document.getElementById('eq-m-cargo').value      = c?.cargo      || '';
   document.getElementById('eq-m-nivel').value      = c?.nivel      || '';
   document.getElementById('eq-m-endereco').value   = c?.endereco   || '';
   document.getElementById('eq-m-obs').value        = c?.obs        || '';
@@ -517,10 +533,11 @@ function salvarColab() {
   const id    = document.getElementById('eq-m-id')?.value;
   const dados = {
     nome,
+    chave_pix:  document.getElementById('eq-m-pix')?.value?.trim()      || '',
+    cargo:      document.getElementById('eq-m-cargo')?.value            || '',
     cpf:        document.getElementById('eq-m-cpf')?.value?.trim()      || '',
     telefone:   document.getElementById('eq-m-telefone')?.value?.trim() || '',
     nascimento: document.getElementById('eq-m-nascimento')?.value       || '',
-    cargo:      document.getElementById('eq-m-cargo')?.value            || '',
     nivel:      document.getElementById('eq-m-nivel')?.value            || '',
     endereco:   document.getElementById('eq-m-endereco')?.value?.trim() || '',
     obs:        document.getElementById('eq-m-obs')?.value?.trim()      || '',
@@ -596,7 +613,7 @@ function abrirImportEquipe() {
   if (!el) return;
   document.getElementById('eq-imp-area').value = '';
   document.getElementById('eq-imp-preview').innerHTML = '';
-  document.getElementById('eq-imp-info').textContent = 'Cole os dados do Excel abaixo e clique em Visualizar';
+  document.getElementById('eq-imp-info').textContent = 'Cole os dados do Excel (Nome | Chave PIX | Cargo) e clique em Visualizar';
   el.style.display = 'flex';
 }
 
@@ -634,14 +651,9 @@ function _parsearLinhasEquipe() {
     const cols = linha.split('\t').map(c=>c.trim().replace(/^"|"$/g,''));
     if (!cols[0] || /^(nome|name|colaborador|collab)/i.test(cols[0])) return;
     result.push({
-      nome:       cols[0] || '',
-      cpf:        cols[1] || '',
-      telefone:   cols[2] || '',
-      nascimento: _parseDataBR(cols[3]),
-      cargo:      _normCargo(cols[4]),
-      nivel:      _normNivel(cols[5]),
-      endereco:   cols[6] || '',
-      obs:        cols[7] || '',
+      nome:      cols[0] || '',
+      chave_pix: cols[1] || '',
+      cargo:     _normCargo(cols[2]),
     });
   });
   return result;
@@ -664,22 +676,16 @@ function previewImportEquipe() {
         <thead>
           <tr style="background:var(--bg3);font-size:10px;text-transform:uppercase;color:var(--text3)">
             <th style="padding:6px 8px;text-align:left">Nome</th>
-            <th style="padding:6px 8px;text-align:left">CPF</th>
-            <th style="padding:6px 8px;text-align:left">Telefone</th>
+            <th style="padding:6px 8px;text-align:left">Chave PIX</th>
             <th style="padding:6px 8px;text-align:left">Cargo</th>
-            <th style="padding:6px 8px;text-align:left">Nível</th>
-            <th style="padding:6px 8px;text-align:left">Nascimento</th>
           </tr>
         </thead>
         <tbody>
           ${linhas.map(l=>`
           <tr style="border-bottom:1px solid var(--border)">
             <td style="padding:5px 8px;font-weight:600">${l.nome||'—'}</td>
-            <td style="padding:5px 8px;color:var(--text3)">${l.cpf||'—'}</td>
-            <td style="padding:5px 8px;color:var(--text3)">${l.telefone||'—'}</td>
+            <td style="padding:5px 8px;color:var(--green);font-family:monospace;font-size:10px">${l.chave_pix||'—'}</td>
             <td style="padding:5px 8px"><span class="badge b-blue" style="font-size:9px">${l.cargo||'—'}</span></td>
-            <td style="padding:5px 8px;font-size:10px;color:${l.nivel==='Novato'?'var(--amber)':l.nivel==='Sênior'?'var(--green)':'var(--text3)'}">${l.nivel||'—'}</td>
-            <td style="padding:5px 8px;color:var(--text3)">${l.nascimento?fd(l.nascimento):'—'}</td>
           </tr>`).join('')}
         </tbody>
       </table>
@@ -696,7 +702,7 @@ function confirmarImportEquipe() {
   linhas.forEach(l => {
     if (!l.nome) return;
     const idx = D.equipe.findIndex(e =>
-      (l.cpf && e.cpf && e.cpf === l.cpf) ||
+      (l.chave_pix && e.chave_pix && e.chave_pix === l.chave_pix) ||
       (e.nome||'').toLowerCase() === (l.nome||'').toLowerCase()
     );
     if (idx >= 0) {
