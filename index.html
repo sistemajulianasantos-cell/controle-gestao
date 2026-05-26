@@ -1019,31 +1019,31 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.39.0/docxtemplater.js"></script>
 
 <!-- ── Dados e configurações globais ── -->
-<script src="js/data.js?v=20260529"></script>
-<script src="js/globals.js?v=20260529"></script>
+<script src="js/data.js?v=20260530"></script>
+<script src="js/globals.js?v=20260530"></script>
 <!-- ── Módulos do sistema ── -->
-<script src="js/dashboard.js?v=20260529"></script>
-<script src="js/estoques.js?v=20260529"></script>
-<script src="js/contagens.js?v=20260529"></script>
-<script src="js/precos.js?v=20260529"></script>
-<script src="js/selects.js?v=20260529"></script>
-<script src="js/entradas.js?v=20260529"></script>
-<script src="js/quebras.js?v=20260529"></script>
-<script src="js/festas.js?v=20260529"></script>
-<script src="js/relatorio.js?v=20260529"></script>
-<script src="js/fornecedores.js?v=20260529"></script>
-<script src="js/nav.js?v=20260529"></script>
-<script src="js/auth.js?v=20260529"></script>
-<script src="js/contratos.js?v=20260529"></script>
-<script src="js/agenda.js?v=20260529"></script>
-<script src="js/producao.js?v=20260529"></script>
-<script src="js/financeiro.js?v=20260529"></script>
-<script src="js/producao2.js?v=20260529"></script>
-<script src="js/produtos.js?v=20260529"></script>
-<script src="js/regras.js?v=20260529"></script>
-<script src="js/separacao.js?v=20260529"></script>
-<script src="js/equipe.js?v=20260529"></script>
-<script src="js/orcamento.js?v=20260529"></script>
+<script src="js/dashboard.js?v=20260530"></script>
+<script src="js/estoques.js?v=20260530"></script>
+<script src="js/contagens.js?v=20260530"></script>
+<script src="js/precos.js?v=20260530"></script>
+<script src="js/selects.js?v=20260530"></script>
+<script src="js/entradas.js?v=20260530"></script>
+<script src="js/quebras.js?v=20260530"></script>
+<script src="js/festas.js?v=20260530"></script>
+<script src="js/relatorio.js?v=20260530"></script>
+<script src="js/fornecedores.js?v=20260530"></script>
+<script src="js/nav.js?v=20260530"></script>
+<script src="js/auth.js?v=20260530"></script>
+<script src="js/contratos.js?v=20260530"></script>
+<script src="js/agenda.js?v=20260530"></script>
+<script src="js/producao.js?v=20260530"></script>
+<script src="js/financeiro.js?v=20260530"></script>
+<script src="js/producao2.js?v=20260530"></script>
+<script src="js/produtos.js?v=20260530"></script>
+<script src="js/regras.js?v=20260530"></script>
+<script src="js/separacao.js?v=20260530"></script>
+<script src="js/equipe.js?v=20260530"></script>
+<script src="js/orcamento.js?v=20260530"></script>
 
 <script type="module">
 import { initializeApp }    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -1230,7 +1230,59 @@ document.head.appendChild(styleExtra);
   </div>
 </div>
 
-<!-- ═══ MODAL ESCALAR COLABORADOR ═══ -->
+<!-- ═══ MODAL ADICIONAR COLABORADOR AO EVENTO ═══ -->
+<div id="m-add-colab-evento" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5000;align-items:center;justify-content:center">
+  <div style="background:#161A26;border:1px solid #2A2F42;border-radius:12px;padding:28px 32px;width:100%;max-width:480px">
+    <div id="add-ev-titulo" style="font-size:15px;font-weight:600;color:#E8EAF0;margin-bottom:20px">Adicionar colaborador</div>
+    <div style="display:grid;gap:10px">
+      <div><label class="lbl">Colaborador *</label>
+        <select id="add-ev-lista" class="inp" style="width:100%"></select>
+      </div>
+      <div><label class="lbl">Cargo neste evento</label>
+        <select id="add-ev-cargo" class="inp">
+          <option value="">Mesmo do cadastro</option>
+          <option>Head Bartender</option>
+          <option>Bartender</option>
+          <option>Bar Back</option>
+          <option>Copeiro</option>
+          <option>Coordenador</option>
+          <option>Auxiliar</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
+      <button class="btn" onclick="document.getElementById('m-add-colab-evento').style.display='none'">Cancelar</button>
+      <button class="btn" style="background:#4F8EF7" onclick="confirmarAddColabEvento()">Adicionar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL IMPORTAR EQUIPE ═══ -->
+<div id="m-import-equipe" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5000;align-items:center;justify-content:center">
+  <div style="background:#161A26;border:1px solid #2A2F42;border-radius:12px;padding:28px 32px;width:100%;max-width:640px;max-height:90vh;overflow-y:auto">
+    <div style="font-size:16px;font-weight:600;color:#E8EAF0;margin-bottom:6px">📥 Importar Colaboradores da Planilha</div>
+    <div style="font-size:12px;color:#8B91A8;margin-bottom:16px">
+      Cole os dados copiados do Excel. Colunas esperadas (separadas por Tab):<br>
+      <code style="background:#0F1117;padding:4px 8px;border-radius:4px;font-size:11px;display:inline-block;margin-top:4px">
+        Nome &nbsp;|&nbsp; CPF &nbsp;|&nbsp; Telefone &nbsp;|&nbsp; Nascimento (DD/MM/AAAA) &nbsp;|&nbsp; Cargo &nbsp;|&nbsp; Nível &nbsp;|&nbsp; Endereço &nbsp;|&nbsp; Obs
+      </code>
+    </div>
+    <textarea id="eq-imp-area" rows="8"
+      style="width:100%;background:#0F1117;border:1px solid #2A2F42;border-radius:8px;color:#E8EAF0;font-size:11px;padding:10px;box-sizing:border-box;resize:vertical;font-family:monospace"
+      placeholder="Cole aqui os dados copiados do Excel (Ctrl+C na planilha, Ctrl+V aqui)..."></textarea>
+    <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+      <button class="btn" style="background:#2A2F42" onclick="previewImportEquipe()">👁 Visualizar</button>
+      <span id="eq-imp-info" style="font-size:12px;color:#8B91A8"></span>
+    </div>
+    <div id="eq-imp-preview" style="margin-top:10px"></div>
+    <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end">
+      <button class="btn" onclick="document.getElementById('m-import-equipe').style.display='none'">Cancelar</button>
+      <button class="btn" style="background:#4F8EF7" onclick="confirmarImportEquipe()">✅ Confirmar importação</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL ESCALAR COLABORADOR (legado) ═══ -->
 <div id="m-escalar-colab" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5000;align-items:center;justify-content:center">
   <div style="background:#161A26;border:1px solid #2A2F42;border-radius:12px;padding:28px 32px;width:100%;max-width:480px">
     <div style="font-size:16px;font-weight:600;color:#E8EAF0;margin-bottom:20px">📅 Escalar Colaborador</div>
