@@ -324,11 +324,23 @@
         </div>
         <div style="padding:12px 16px;border-top:1px solid var(--border)">
           <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Produtos da nota</div>
-          <div style="display:grid;grid-template-columns:1fr 110px 130px 36px;gap:8px;margin-bottom:10px;align-items:center">
-            <select id="eprod" style="font-size:12px"><option value="">Selecionar produto...</option></select>
-            <input type="number" id="eqtd" placeholder="Quantidade" step="0.01" style="font-size:12px" onkeydown="if(event.key==='Enter')addIE()">
-            <input type="number" id="ecusto" placeholder="Custo unit. (R$)" step="0.01" style="font-size:12px" onkeydown="if(event.key==='Enter')addIE()">
-            <button class="btn btn-primary btn-sm" onclick="addIE()" style="padding:0;height:36px;width:100%;font-size:18px;line-height:1">+</button>
+          <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;flex-wrap:wrap">
+            <div style="display:flex;gap:4px;flex:1;min-width:200px">
+              <input type="text" id="eprod" list="eprod-list" autocomplete="off" placeholder="Digite ou selecione o produto..."
+                style="font-size:12px;flex:1;padding:6px 10px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text)"
+                onchange="document.getElementById('eqtd').focus()"
+                onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('eqtd').focus();}">
+              <datalist id="eprod-list"></datalist>
+              <button class="btn-sm" onclick="abrirCadastroProdutoRapido()"
+                title="Cadastrar novo produto" style="background:var(--green);color:#fff;white-space:nowrap;padding:0 10px">+ Novo</button>
+            </div>
+            <input type="number" id="eqtd" placeholder="Quantidade" step="0.01"
+              style="font-size:12px;width:110px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text)"
+              onkeydown="if(event.key==='Enter')addIE()">
+            <input type="number" id="ecusto" placeholder="Custo unit. (R$)" step="0.01"
+              style="font-size:12px;width:130px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text)"
+              onkeydown="if(event.key==='Enter')addIE()">
+            <button class="btn btn-primary btn-sm" onclick="addIE()" style="padding:0;height:36px;width:36px;font-size:18px;line-height:1">+</button>
           </div>
           <div id="nf-ent-itens" style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg3);min-height:48px"></div>
           <div id="nf-ent-count" style="font-size:10px;color:var(--text3);margin-top:6px;text-align:right"></div>
@@ -1039,7 +1051,7 @@
 <script src="js/producao.js?v=20260530"></script>
 <script src="js/financeiro.js?v=20260530"></script>
 <script src="js/producao2.js?v=20260530"></script>
-<script src="js/produtos.js?v=20260530"></script>
+<script src="js/produtos.js?v=20260526b"></script>
 <script src="js/regras.js?v=20260530"></script>
 <script src="js/separacao.js?v=20260530"></script>
 <script src="js/equipe.js?v=20260526"></script>
@@ -1128,6 +1140,7 @@ async function carregarDados() {
     D.regrasProp   = r.regrasProp   || [];
     D.historico    = r.historico    || {};
     D.metas        = r.metas        || {};
+    D.produtos     = r.produtos     || [];
     D.equipe       = r.equipe       || [];
     D.escalas      = r.escalas      || [];
     D.orcamentos   = r.orcamentos   || [];
@@ -1199,6 +1212,56 @@ styleExtra.textContent = `
 document.head.appendChild(styleExtra);
 </script>
 
+
+<!-- ═══ MODAL CADASTRO RÁPIDO DE PRODUTO (a partir do lançamento NF) ═══ -->
+<div id="m-quick-produto" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:6000;align-items:center;justify-content:center">
+  <div style="background:#161A26;border:1px solid #2A2F42;border-radius:12px;padding:28px 32px;width:100%;max-width:480px">
+    <div style="font-size:16px;font-weight:600;color:#E8EAF0;margin-bottom:6px">📦 Cadastrar novo produto</div>
+    <div style="font-size:12px;color:#8B91A8;margin-bottom:16px">O produto será salvo no catálogo e selecionado automaticamente na NF.</div>
+    <div style="display:grid;gap:10px">
+      <div>
+        <label class="lbl">Nome *</label>
+        <input id="qp-nome" class="inp" type="text" placeholder="Ex: ÁGUA TÔNICA LATA 350ML" style="text-transform:uppercase">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <label class="lbl">Categoria</label>
+          <select id="qp-cat" class="inp">
+            <option value="OUTROS">OUTROS</option>
+            <option value="BEBIDAS ALCOÓLICAS">BEBIDAS ALCOÓLICAS</option>
+            <option value="BEBIDAS SEM ÁLCOOL">BEBIDAS SEM ÁLCOOL</option>
+            <option value="XAROPES">XAROPES</option>
+            <option value="ESPECIARIAS">ESPECIARIAS</option>
+            <option value="MIX ARTESANAL">MIX ARTESANAL</option>
+            <option value="HORTIFRUTI">HORTIFRUTI</option>
+            <option value="COPOS E TAÇAS">COPOS E TAÇAS</option>
+            <option value="DESCARTÁVEIS">DESCARTÁVEIS</option>
+            <option value="MATERIAL">MATERIAL</option>
+            <option value="PRODUÇÃO">PRODUÇÃO</option>
+            <option value="KIT BARTENDER">KIT BARTENDER</option>
+            <option value="GELO">GELO</option>
+          </select>
+        </div>
+        <div>
+          <label class="lbl">Unidade</label>
+          <select id="qp-unid" class="inp">
+            <option value="UN">UN</option>
+            <option value="CX">CX</option>
+            <option value="FARDO">FARDO</option>
+            <option value="KG">KG</option>
+            <option value="LT">LT</option>
+            <option value="ML">ML</option>
+            <option value="PCT">PCT</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
+      <button class="btn" onclick="document.getElementById('m-quick-produto').style.display='none'">Cancelar</button>
+      <button class="btn" style="background:var(--green)" onclick="salvarProdutoRapido()">💾 Salvar e selecionar</button>
+    </div>
+  </div>
+</div>
 
 <!-- ═══ MODAL NOVO COLABORADOR ═══ -->
 <div id="m-novo-colab" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5000;align-items:center;justify-content:center">

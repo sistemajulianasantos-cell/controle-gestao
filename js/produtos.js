@@ -265,4 +265,70 @@ function arredondarEmbalagem(qtd, produto) {
   return Math.ceil(qtdFinal / emb) * emb;
 }
 
+// ─── CADASTRO RÁPIDO DE PRODUTO (a partir do lançamento de NF) ────────────────
+
+function abrirCadastroProdutoRapido() {
+  var el = document.getElementById('m-quick-produto');
+  if (!el) return;
+  // Pré-preenche o nome com o que o usuário digitou no campo de produto
+  var nomePre = ((document.getElementById('eprod') || {}).value || '').trim().toUpperCase();
+  document.getElementById('qp-nome').value  = nomePre;
+  document.getElementById('qp-cat').value   = 'OUTROS';
+  document.getElementById('qp-unid').value  = 'UN';
+  el.style.display = 'flex';
+  setTimeout(function(){ document.getElementById('qp-nome').focus(); }, 80);
+}
+
+function salvarProdutoRapido() {
+  var nome = ((document.getElementById('qp-nome') || {}).value || '').trim().toUpperCase();
+  if (!nome) { alert('Informe o nome do produto.'); return; }
+  if (!D.produtos) D.produtos = [];
+
+  // Se já existe, apenas seleciona sem duplicar
+  var jaExiste = D.produtos.find(function(p){ return p.nome === nome; });
+  if (jaExiste) {
+    _selecionarProdutoNaNF(nome);
+    document.getElementById('m-quick-produto').style.display = 'none';
+    if (typeof alert2 === 'function') alert2('Produto já cadastrado — selecionado na NF.');
+    return;
+  }
+
+  var prod = {
+    id: 'PRO' + Date.now(),
+    nome: nome,
+    aliases: [],
+    categoria: (document.getElementById('qp-cat')  || {}).value || 'OUTROS',
+    unidade:   (document.getElementById('qp-unid') || {}).value || 'UN',
+    tamanhoEmbalagem: 1,
+    minimo: 0,
+    obs: '',
+    atualizadoEm: new Date().toISOString()
+  };
+
+  D.produtos.push(prod);
+  sv('produtos');
+
+  // Atualiza o datalist do campo de NF e seleciona o novo produto
+  if (typeof populateEprodList === 'function') populateEprodList();
+  _selecionarProdutoNaNF(nome);
+
+  document.getElementById('m-quick-produto').style.display = 'none';
+  if (typeof alert2 === 'function') alert2('✅ Produto "' + nome + '" cadastrado!');
+  else alert('Produto "' + nome + '" cadastrado!');
+
+  // Re-renderiza aba Produtos se estiver visível
+  var pag = document.getElementById('page-produtos');
+  if (pag && pag.classList.contains('active')) rProdutos();
+}
+
+function _selecionarProdutoNaNF(nome) {
+  var inp = document.getElementById('eprod');
+  if (inp) {
+    inp.value = nome;
+    // Foca no campo de quantidade para agilizar o lançamento
+    var qtdEl = document.getElementById('eqtd');
+    if (qtdEl) setTimeout(function(){ qtdEl.focus(); }, 80);
+  }
+}
+
 

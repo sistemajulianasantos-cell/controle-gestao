@@ -438,8 +438,26 @@ function populateSels(){
   });
   const fornOpts=D.fornecedores.map(f=>`<option value="${f.nome}">${f.nome}</option>`).join('');
   ['eforn'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='<option value="">Selecione ou deixe em branco</option>'+fornOpts;});
+  // selects legados (quebras, fi-prod etc.) continuam usando nomes do MAR
   const po=nomes.map(n=>`<option value="${n}">${n}</option>`).join('');
-  ['eprod','qprod','fi-prod'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='<option value="">Selecione...</option>'+po;});
+  ['qprod','fi-prod'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='<option value="">Selecione...</option>'+po;});
+  // #eprod agora é um input com datalist alimentado por D.produtos
+  populateEprodList();
+}
+
+// Popula o datalist do campo de produto na NF a partir de D.produtos.
+// Fallback para MAR se D.produtos ainda estiver vazio.
+function populateEprodList(){
+  const dl=document.getElementById('eprod-list');
+  if(!dl) return;
+  const prods=(D.produtos||[]);
+  if(prods.length){
+    dl.innerHTML=prods.slice().sort((a,b)=>(a.nome||'').localeCompare(b.nome||''))
+      .map(p=>`<option value="${p.nome.replace(/"/g,'&quot;')}">`).join('');
+  } else {
+    // Sem produtos cadastrados ainda: usa nomes do MAR como fallback
+    dl.innerHTML=nomes.map(n=>`<option value="${n}">`).join('');
+  }
 }
 
 // ─── ENTRADAS ────────────────────────────────────────────────────────────────
