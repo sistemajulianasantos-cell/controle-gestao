@@ -16,6 +16,8 @@ var pageInfo={
   separacao:['Folha de Separação','Geração automática da folha de separação'],
   agenda:['Agenda Operacional','Visão geral dos eventos por período'],
   financeiro:['Financeiro','Parcelas e status de pagamentos'],
+  equipe:['Equipe','Cadastro e escala de colaboradores'],
+  orcamento:['Orcamento vs Real','Comparativo custo orcado e real'],
 };
 // pageRenders como função para evitar referência antecipada
 var pageRenders={};
@@ -37,6 +39,8 @@ function initPageRenders(){
     agenda:rAgenda,
     financeiro:rFinanceiro,
     analise:rAnalise,
+    equipe:rEquipe,
+    orcamento:rOrcamento,
   };
 }
 function go(page){
