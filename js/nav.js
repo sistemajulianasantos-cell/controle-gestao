@@ -29,6 +29,7 @@ function initPageRenders(){
     contagens:()=>setContView('historico'),
     precos:()=>setPrecosView('lista'),
     entrada:rEntradas,
+    comparativo:rComparativo,
     festas:()=>setFestaView('geral'),
     relatorio:rRelatorio,
     contratos:()=>initContratos(),

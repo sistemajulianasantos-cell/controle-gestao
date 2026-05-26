@@ -1,5 +1,28 @@
 ﻿// ─── PREÇOS (CUSTO E REVENDA) ──────────────────────────────────────────────────
 let precosView='lista';
+
+// Varre D.entradas e popula D.precos com o custo mais recente por produto.
+// Roda automaticamente ao abrir a aba — garante retrocompatibilidade com NFs
+// lançadas antes do auto-update ser implementado.
+function sincronizarPrecosDeEntradas(){
+  if(!D.entradas||!D.entradas.length) return;
+  if(!D.precos) D.precos={};
+  let atualizado=false;
+  D.entradas.forEach(e=>{
+    if(!e.custo||!Number(e.custo)) return;
+    const n=e.prod; if(!n) return;
+    if(!D.precos[n]) D.precos[n]={};
+    const ultData=D.precos[n].ultimaCompra||'';
+    if(!ultData||e.data>=ultData){
+      D.precos[n].custo=Number(e.custo);
+      D.precos[n].ultimaCompra=e.data;
+      D.precos[n].ultimoFornecedor=e.forn||'';
+      atualizado=true;
+    }
+  });
+  if(atualizado) sv('precos');
+}
+
 function setPrecosView(v){
   precosView=v;
   ['lista','editar'].forEach(x=>{
@@ -8,8 +31,8 @@ function setPrecosView(v){
     const view=document.getElementById('pview-'+x);
     if(view)view.style.display=x===v?'block':'none';
   });
-  if(v==='lista')rPrecos();
-  if(v==='editar')rEditarPrecos();
+  if(v==='lista'){sincronizarPrecosDeEntradas();rPrecos();}
+  if(v==='editar'){sincronizarPrecosDeEntradas();rEditarPrecos();}
 }
 
 // Retorna lista unificada de produtos: D.produtos (se existir) + quaisquer
