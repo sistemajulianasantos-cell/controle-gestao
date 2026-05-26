@@ -320,12 +320,15 @@
           <div class="form-group"><label>Fornecedor</label><select id="eforn" style="font-size:12px"><option value="">Selecione ou deixe em branco</option></select></div>
           <div class="form-group">
             <label>NF / Número</label>
-            <input type="text" id="enf" placeholder="Nº da nota fiscal" oninput="verificarNFDuplicada()">
-            <div id="enf-aviso" style="display:none;font-size:10px;margin-top:4px;padding:5px 8px;background:#1A1300;border:1px solid #F7C84F;border-radius:4px;color:#F7C84F;line-height:1.5"></div>
+            <input type="text" id="enf" placeholder="Nº da nota fiscal" oninput="verificarNFDuplicada()" autocomplete="off">
           </div>
           <div class="form-group"><label>Data</label><input type="date" id="edata"></div>
           <div class="form-group"><label>Observação</label><input type="text" id="eobs" placeholder="Opcional"></div>
         </div>
+
+        <!-- Banner de NF duplicada — aparece logo abaixo dos campos, bem visível -->
+        <div id="enf-aviso" style="display:none;margin:0 16px 0;padding:10px 14px;background:#1A1200;border-left:4px solid #F7C84F;border-radius:4px;color:#F7C84F;font-size:12px;line-height:1.6"></div>
+
         <div style="padding:12px 16px;border-top:1px solid var(--border)">
           <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Produtos da nota</div>
           <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;flex-wrap:wrap">
@@ -1043,7 +1046,7 @@
 <script src="js/contagens.js?v=20260530"></script>
 <script src="js/precos.js?v=20260530"></script>
 <script src="js/selects.js?v=20260530"></script>
-<script src="js/entradas.js?v=20260530"></script>
+<script src="js/entradas.js?v=20260526c"></script>
 <script src="js/quebras.js?v=20260530"></script>
 <script src="js/festas.js?v=20260530"></script>
 <script src="js/relatorio.js?v=20260530"></script>

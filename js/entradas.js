@@ -36,19 +36,72 @@ function rNFEntItens(){
     ct.textContent=nfEntItens.length+' produto'+(nfEntItens.length>1?'s':'')+' · '+(totalNF>0?'Total: R$ '+totalNF.toLocaleString('pt-BR',{minimumFractionDigits:2}):'sem valores');
   }
 }
+// ─── VERIFICAÇÃO DE NF DUPLICADA ─────────────────────────────────────────────
+function verificarNFDuplicada(){
+  const nf=(document.getElementById('enf')?.value||'').trim();
+  const av=document.getElementById('enf-aviso');
+  const inp=document.getElementById('enf');
+  if(!av) return;
+
+  if(!nf){
+    av.style.display='none';
+    if(inp) inp.style.borderColor='';
+    return;
+  }
+
+  const dups=(D.entradas||[]).filter(e=>e.nf&&e.nf.trim()===nf);
+  if(!dups.length){
+    av.style.display='none';
+    if(inp) inp.style.borderColor='';
+    return;
+  }
+
+  // Agrupa por data para listar todas as ocorrências
+  const porData={};
+  dups.forEach(e=>{
+    if(!porData[e.data]) porData[e.data]={forn:e.forn||'',itens:0};
+    porData[e.data].itens++;
+  });
+  const linhas=Object.entries(porData)
+    .sort((a,b)=>b[0].localeCompare(a[0]))
+    .map(([dt,v])=>`${fd(dt)}${v.forn?' · '+v.forn:''} — ${v.itens} item${v.itens>1?'s':''}`)
+    .join('<br>');
+
+  // Destaca o campo de NF com borda laranja
+  if(inp) inp.style.borderColor='#F7C84F';
+
+  // Exibe o banner
+  av.style.display='block';
+  av.innerHTML=`⚠️ <strong>NF ${nf} já lançada no sistema</strong><br><span style="font-size:11px;opacity:.9">${linhas}</span>`;
+}
+
 function limparNFEnt(){
   nfEntItens=[];
-  ['enf','eobs'].forEach(id=>document.getElementById(id).value='');
-  const ef=document.getElementById('eforn');if(ef)ef.value='';
+  ['enf','eobs'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  const ef=document.getElementById('eforn'); if(ef) ef.value='';
   document.getElementById('edata').value=td();
+  // Limpa aviso e borda
+  const av=document.getElementById('enf-aviso'); if(av){av.style.display='none';av.innerHTML='';}
+  const inp=document.getElementById('enf'); if(inp) inp.style.borderColor='';
   rNFEntItens();
 }
+
 function regEnt(){
   const nf=document.getElementById('enf').value.trim();
   const data=document.getElementById('edata').value;
   const obs=document.getElementById('eobs').value;
   if(!data){alert2('Informe a data','error');return;}
   if(!nfEntItens.length){alert2('Adicione pelo menos um produto','error');return;}
+
+  // Bloqueia com confirmação se NF já existir
+  if(nf){
+    const dups=(D.entradas||[]).filter(e=>e.nf&&e.nf.trim()===nf);
+    if(dups.length){
+      const dtAnterior=dups.slice().sort((a,b)=>b.data.localeCompare(a.data))[0].data;
+      if(!confirm(`⚠ A NF "${nf}" já foi lançada em ${fd(dtAnterior)} com ${dups.length} item(s).\n\nDeseja lançar mesmo assim?`)) return;
+    }
+  }
+
   const forn=document.getElementById('eforn').value;
   nfEntItens.forEach(i=>{D.entradas.push({prod:i.prod,data,qtd:i.qtd,custo:i.custo||'',nf,forn,obs});});
   sv('entradas');
