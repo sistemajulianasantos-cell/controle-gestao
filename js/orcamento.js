@@ -1,8 +1,9 @@
 // ─── ORÇAMENTO vs REAL ─────────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════
 
-let orcView = 'lista';  // 'lista' | 'detalhe'
+let orcView    = 'lista';  // 'lista' | 'detalhe'
 let orcAtualId = null;
+let orcDetTab  = 'calc';   // 'calc' | 'real'
 
 function rOrcamento() {
   if (orcView === 'detalhe' && orcAtualId) rOrcDetalhe();
@@ -90,6 +91,12 @@ function rOrcLista() {
 function abrirOrcDetalhe(id) {
   orcView = 'detalhe';
   orcAtualId = id;
+  orcDetTab  = 'calc';
+  rOrcDetalhe();
+}
+
+function setOrcTab(tab) {
+  orcDetTab = tab;
   rOrcDetalhe();
 }
 
@@ -100,22 +107,19 @@ function rOrcDetalhe() {
   const orc = (D.orcamentos||[]).find(o => o.id === orcAtualId);
   if (!orc) { rOrcLista(); return; }
 
-  const itens     = orc.itens || [];
+  const itens     = orc.itens     || [];
+  const calcItens = orc.calcItens || [];
   const totalOrc  = itens.reduce((s,i) => s+(i.totalOrc||0), 0);
   const totalReal = itens.reduce((s,i) => s+(i.totalReal||0), 0);
   const diff      = totalReal - totalOrc;
+  const acima     = itens.filter(i => (i.totalReal||0) > (i.totalOrc||0));
 
-  // Resumo por categoria
-  const catMap = {};
-  itens.forEach(i => {
-    const c = i.categoria || 'Outros';
-    if (!catMap[c]) catMap[c] = { orc:0, real:0 };
-    catMap[c].orc  += i.totalOrc||0;
-    catMap[c].real += i.totalReal||0;
-  });
-
-  // Alertas: itens acima do orçado
-  const acima = itens.filter(i => (i.totalReal||0) > (i.totalOrc||0));
+  // Custo calculado para o card
+  const p         = orc.calcParams || {};
+  const custoCalc = calcItens.reduce((s,i) => s+(i.total||0), 0);
+  const margSeg   = Number(p.margemSeguranca != null ? p.margemSeguranca : 10);
+  const margLuc   = Number(p.margemLucro     != null ? p.margemLucro     : 30);
+  const valorCalc = custoCalc * (1 + margSeg/100) * (1 + margLuc/100);
 
   el.innerHTML = `
     <!-- Cabeçalho -->
@@ -129,17 +133,19 @@ function rOrcDetalhe() {
       </div>
       <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn-sm" onclick="abrirImportOrc('${orc.id}')"
-          style="background:var(--bg2);border:1px solid var(--green);color:var(--green)">
-          📥 Importar Excel
-        </button>
-        <button class="btn-sm btn-primary" onclick="abrirAddItemOrc('${orc.id}')">+ Produto</button>
+          style="background:var(--bg2);border:1px solid var(--green);color:var(--green)">📥 Importar Excel</button>
+        <button class="btn-sm btn-primary" onclick="abrirAddItemOrc('${orc.id}')">+ Item real</button>
       </div>
     </div>
 
     <!-- Cards -->
     <div class="cards" style="margin-bottom:14px">
       <div class="card">
-        <div class="card-label">Total Orçado</div>
+        <div class="card-label">Orçamento calculado</div>
+        <div class="card-val" style="color:var(--green)">${valorCalc > 0 ? fR(valorCalc) : '—'}</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Total orçado (manual)</div>
         <div class="card-val" style="color:#4F8EF7">${fR(totalOrc)}</div>
       </div>
       <div class="card">
@@ -154,13 +160,8 @@ function rOrcDetalhe() {
           ${totalReal>0 ? (diff>=0?'+':'')+fR(diff) : '—'}
         </div>
       </div>
-      <div class="card">
-        <div class="card-label">Itens</div>
-        <div class="card-val">${itens.length}</div>
-      </div>
     </div>
 
-    <!-- Alerta itens acima -->
     ${acima.length ? `
       <div style="background:#1A0808;border:1px solid var(--red);border-radius:var(--radius);
                   padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--red)">
@@ -168,14 +169,48 @@ function rOrcDetalhe() {
         ${acima.slice(0,3).map(i=>`<strong>${i.nome}</strong>`).join(', ')}${acima.length>3?'...':''}
       </div>` : ''}
 
-    ${!itens.length ? `
+    <!-- Abas -->
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <button class="sort-btn ${orcDetTab==='calc'?'active':''}" onclick="setOrcTab('calc')">📊 Calculadora</button>
+      <button class="sort-btn ${orcDetTab==='real'?'active':''}" onclick="setOrcTab('real')">📋 Orçado vs Real</button>
+    </div>
+
+    <div id="orc-det-content"></div>`;
+
+  if (orcDetTab === 'calc') rOrcCalc();
+  else _rOrcRealContent(orc);
+}
+
+// ─── ABA ORÇADO VS REAL ───────────────────────────────────────────────────────
+
+function _rOrcRealContent(orc) {
+  const el = document.getElementById('orc-det-content');
+  if (!el) return;
+
+  const itens     = orc.itens || [];
+  const totalOrc  = itens.reduce((s,i) => s+(i.totalOrc||0), 0);
+  const totalReal = itens.reduce((s,i) => s+(i.totalReal||0), 0);
+  const diff      = totalReal - totalOrc;
+
+  const catMap = {};
+  itens.forEach(i => {
+    const c = i.categoria || 'Outros';
+    if (!catMap[c]) catMap[c] = { orc:0, real:0 };
+    catMap[c].orc  += i.totalOrc||0;
+    catMap[c].real += i.totalReal||0;
+  });
+
+  if (!itens.length) {
+    el.innerHTML = `
       <div style="text-align:center;padding:48px;color:var(--text3)">
         <div style="font-size:28px;margin-bottom:10px">📥</div>
         <div style="margin-bottom:14px">Nenhum item. Importe o Excel ou adicione manualmente.</div>
         <button class="btn btn-primary" onclick="abrirImportOrc('${orc.id}')">📥 Importar orçamento do Excel</button>
-      </div>` : `
+      </div>`;
+    return;
+  }
 
-    <!-- Tabela principal -->
+  el.innerHTML = `
     <div class="sec">
       <div class="sec-head">
         <span class="sec-title">Itens — Orçado vs Real</span>
@@ -194,7 +229,7 @@ function rOrcDetalhe() {
               <th style="padding:8px 6px;text-align:right;font-weight:600;color:var(--green)">Preço Real</th>
               <th style="padding:8px 6px;text-align:right;font-weight:600;color:var(--green)">Total Real</th>
               <th style="padding:8px 6px;text-align:right;font-weight:500;color:var(--text3)">Diferença</th>
-              <th style="padding:8px 6px;text-align:center;font-weight:500;color:var(--text3)"></th>
+              <th style="padding:8px 6px"></th>
             </tr>
           </thead>
           <tbody>
@@ -206,32 +241,24 @@ function rOrcDetalhe() {
                 return `
                 <tr style="border-bottom:1px solid var(--border);${rowBg}">
                   <td style="padding:6px 10px;font-weight:500;color:var(--text);max-width:200px">${item.nome}</td>
-                  <td style="padding:6px 6px">
-                    <span class="badge b-blue" style="font-size:9px">${item.categoria||'—'}</span>
-                  </td>
+                  <td style="padding:6px 6px"><span class="badge b-blue" style="font-size:9px">${item.categoria||'—'}</span></td>
                   <td style="padding:6px 6px;text-align:right;font-family:var(--mono);color:#4F8EF7">${item.qtdOrc??'—'}</td>
                   <td style="padding:6px 6px;text-align:right;font-family:var(--mono);color:#4F8EF7">${item.precoUnitOrc?fR(item.precoUnitOrc):'—'}</td>
                   <td style="padding:6px 6px;text-align:right;font-family:var(--mono);font-weight:600;color:#4F8EF7">${item.totalOrc?fR(item.totalOrc):'—'}</td>
                   <td style="padding:4px 6px;text-align:right">
                     <input type="number" value="${item.qtdReal??''}" placeholder="—" min="0" step="0.01"
                       onchange="atualizarItemOrc('${orc.id}','${item.id}','qtdReal',this.value)"
-                      style="width:65px;text-align:right;font-family:var(--mono);font-size:12px;
-                             padding:4px 5px;background:var(--bg3);border:1px solid var(--border2);
-                             color:var(--green);border-radius:4px">
+                      style="width:65px;text-align:right;font-family:var(--mono);font-size:12px;padding:4px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--green);border-radius:4px">
                   </td>
                   <td style="padding:4px 6px;text-align:right">
                     <input type="number" value="${item.precoUnitReal??''}" placeholder="—" min="0" step="0.01"
                       onchange="atualizarItemOrc('${orc.id}','${item.id}','precoUnitReal',this.value)"
-                      style="width:80px;text-align:right;font-family:var(--mono);font-size:12px;
-                             padding:4px 5px;background:var(--bg3);border:1px solid var(--border2);
-                             color:var(--green);border-radius:4px">
+                      style="width:80px;text-align:right;font-family:var(--mono);font-size:12px;padding:4px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--green);border-radius:4px">
                   </td>
-                  <td style="padding:6px 6px;text-align:right;font-family:var(--mono);font-weight:600;
-                             color:${item.totalReal!=null&&item.totalReal>0?'var(--green)':'var(--text3)'}">
+                  <td style="padding:6px 6px;text-align:right;font-family:var(--mono);font-weight:600;color:${item.totalReal!=null&&item.totalReal>0?'var(--green)':'var(--text3)'}">
                     ${item.totalReal!=null ? fR(item.totalReal) : '—'}
                   </td>
-                  <td style="padding:6px 6px;text-align:right;font-family:var(--mono);font-weight:600;
-                             color:${d===null?'var(--text3)':d>0?'var(--red)':d<0?'var(--green)':'var(--text3)'}">
+                  <td style="padding:6px 6px;text-align:right;font-family:var(--mono);font-weight:600;color:${d===null?'var(--text3)':d>0?'var(--red)':d<0?'var(--green)':'var(--text3)'}">
                     ${d===null ? '—' : (d>=0?'+':'')+fR(d)}
                   </td>
                   <td style="padding:6px 6px;text-align:center">
@@ -239,16 +266,12 @@ function rOrcDetalhe() {
                   </td>
                 </tr>`;
               }).join('')}
-            <!-- Linha de totais -->
             <tr style="border-top:2px solid var(--border2);background:var(--bg3);font-weight:700">
               <td colspan="4" style="padding:8px 10px;font-size:11px;color:var(--text3);text-transform:uppercase">Total Geral</td>
               <td style="padding:8px 6px;text-align:right;font-family:var(--mono);color:#4F8EF7">${fR(totalOrc)}</td>
               <td colspan="2"></td>
-              <td style="padding:8px 6px;text-align:right;font-family:var(--mono);color:var(--green)">
-                ${totalReal>0?fR(totalReal):'—'}
-              </td>
-              <td style="padding:8px 6px;text-align:right;font-family:var(--mono);
-                         color:${diff>0?'var(--red)':diff<0?'var(--green)':'var(--text3)'}">
+              <td style="padding:8px 6px;text-align:right;font-family:var(--mono);color:var(--green)">${totalReal>0?fR(totalReal):'—'}</td>
+              <td style="padding:8px 6px;text-align:right;font-family:var(--mono);color:${diff>0?'var(--red)':diff<0?'var(--green)':'var(--text3)'}">
                 ${totalReal>0?(diff>=0?'+':'')+fR(diff):'—'}
               </td>
               <td></td>
@@ -258,7 +281,6 @@ function rOrcDetalhe() {
       </div>
     </div>
 
-    <!-- Resumo por categoria -->
     ${Object.keys(catMap).length > 1 ? `
     <div class="sec" style="margin-top:12px">
       <div class="sec-head"><span class="sec-title">Resumo por categoria</span></div>
@@ -272,49 +294,60 @@ function rOrcDetalhe() {
             <th style="padding:7px 10px;text-align:right;font-weight:500;color:var(--text3)">% do total orc</th>
           </tr></thead>
           <tbody>
-            ${Object.entries(catMap)
-              .sort((a,b) => b[1].orc - a[1].orc)
-              .map(([cat, v]) => {
-                const d = v.real - v.orc;
-                const pct = totalOrc > 0 ? ((v.orc/totalOrc)*100).toFixed(0) : 0;
-                return `<tr style="border-bottom:1px solid var(--border)">
-                  <td style="padding:7px 10px"><span class="badge b-blue" style="font-size:10px">${cat}</span></td>
-                  <td style="padding:7px 10px;text-align:right;font-family:var(--mono);color:#4F8EF7">${fR(v.orc)}</td>
-                  <td style="padding:7px 10px;text-align:right;font-family:var(--mono);color:var(--green)">${v.real>0?fR(v.real):'—'}</td>
-                  <td style="padding:7px 10px;text-align:right;font-family:var(--mono);font-weight:600;
-                             color:${d>0?'var(--red)':d<0?'var(--green)':'var(--text3)'}">
-                    ${v.real>0?(d>=0?'+':'')+fR(d):'—'}
-                  </td>
-                  <td style="padding:7px 10px;text-align:right;color:var(--text3)">${pct}%</td>
-                </tr>`;
-              }).join('')}
+            ${Object.entries(catMap).sort((a,b)=>b[1].orc-a[1].orc).map(([cat,v])=>{
+              const d = v.real - v.orc;
+              const pct = totalOrc > 0 ? ((v.orc/totalOrc)*100).toFixed(0) : 0;
+              return `<tr style="border-bottom:1px solid var(--border)">
+                <td style="padding:7px 10px"><span class="badge b-blue" style="font-size:10px">${cat}</span></td>
+                <td style="padding:7px 10px;text-align:right;font-family:var(--mono);color:#4F8EF7">${fR(v.orc)}</td>
+                <td style="padding:7px 10px;text-align:right;font-family:var(--mono);color:var(--green)">${v.real>0?fR(v.real):'—'}</td>
+                <td style="padding:7px 10px;text-align:right;font-family:var(--mono);font-weight:600;color:${d>0?'var(--red)':d<0?'var(--green)':'var(--text3)'}">
+                  ${v.real>0?(d>=0?'+':'')+fR(d):'—'}
+                </td>
+                <td style="padding:7px 10px;text-align:right;color:var(--text3)">${pct}%</td>
+              </tr>`;
+            }).join('')}
           </tbody>
         </table>
       </div>
-    </div>` : ''}
-    `}`;
+    </div>` : ''}`;
 }
 
 // ─── CRIAR ORÇAMENTO ─────────────────────────────────────────────────────────
 
 function criarOrcamento() {
   const nome = document.getElementById('orc-m-cliente')?.value?.trim();
-  if (!nome) { alert('Informe o nome do cliente/evento.'); return; }
+  if (!nome) { alert2('Informe o nome do cliente/evento.', 'error'); return; }
+  const conv = parseInt(document.getElementById('orc-m-conv')?.value) || 0;
+  if (!conv) { alert2('Informe o número de convidados.', 'error'); return; }
   if (!D.orcamentos) D.orcamentos = [];
   const id = 'ORC' + Date.now();
+  const local      = document.getElementById('orc-m-local')?.value || 'area_central';
+  const tipoEvento = document.getElementById('orc-m-tipo')?.value  || 'outros';
   D.orcamentos.push({
     id,
-    nomeCliente: nome,
-    dataEvento:  document.getElementById('orc-m-data')?.value || '',
-    convidados:  parseInt(document.getElementById('orc-m-conv')?.value) || 0,
-    valorVendido:parseFloat((document.getElementById('orc-m-valor')?.value||'').replace(',','.')) || 0,
-    criadoEm:    new Date().toISOString(),
-    itens: []
+    nomeCliente:  nome,
+    dataEvento:   document.getElementById('orc-m-data')?.value || '',
+    convidados:   conv,
+    valorVendido: parseFloat((document.getElementById('orc-m-valor')?.value||'').replace(',','.')) || 0,
+    criadoEm:     new Date().toISOString(),
+    itens:      [],
+    calcItens:  [],
+    calcParams: {
+      local,
+      tipoEvento,
+      cfVas:    'padrao',
+      cfCond:   'padrao',
+      cfCI:     'normal',
+      cfPerda:  'padrao',
+      margemSeguranca: 10,
+      margemLucro:     30,
+    }
   });
   sv('orcamentos');
   document.getElementById('m-novo-orc').style.display = 'none';
-  ['orc-m-cliente','orc-m-data','orc-m-conv','orc-m-valor'].forEach(id => {
-    const el = document.getElementById(id); if (el) el.value = '';
+  ['orc-m-cliente','orc-m-data','orc-m-conv','orc-m-valor'].forEach(fid => {
+    const el = document.getElementById(fid); if (el) el.value = '';
   });
   abrirOrcDetalhe(id);
 }
