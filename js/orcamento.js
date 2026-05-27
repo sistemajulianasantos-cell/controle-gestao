@@ -333,6 +333,7 @@ function criarOrcamento() {
     criadoEm:     new Date().toISOString(),
     itens:      [],
     calcItens:  [],
+    cardapio:   [],
     calcParams: {
       local,
       tipoEvento,

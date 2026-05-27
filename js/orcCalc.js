@@ -144,6 +144,61 @@ function calcAddItemPrompt(secao) {
   rOrcCalc();
 }
 
+// ─── CARDÁPIO (BEBIDAS) ───────────────────────────────────────────────────────
+
+function calcAddCardapioItem() {
+  const fichaId = document.getElementById('card-ficha')?.value || '';
+  const nomeInput = document.getElementById('card-nome')?.value?.trim();
+  const doses  = parseFloat(document.getElementById('card-doses')?.value) || 0;
+  const custo  = parseFloat(document.getElementById('card-custo')?.value) || 0;
+
+  // Nome: usa o da ficha se selecionado, senão o campo livre
+  const ficha = (D.fichas || []).find(f => f.id === fichaId);
+  const nome = ficha ? ficha.nome : nomeInput;
+  if (!nome) { alert2('Informe o nome do coquetel', 'error'); return; }
+  if (!doses) { alert2('Informe as doses por pessoa', 'error'); return; }
+
+  const orc = _calcGetOrc();
+  if (!orc) return;
+  if (!orc.cardapio) orc.cardapio = [];
+
+  orc.cardapio.push({
+    id: 'cd-' + Date.now() + Math.random().toString(36).slice(2, 4),
+    nome,
+    fichaId: ficha ? ficha.id : '',
+    dosesPorPessoa: doses,
+    custoPorDose: custo,
+  });
+  sv('orcamentos');
+  rOrcCalc();
+}
+
+function calcUpdateCardapio(itemId, campo, valor) {
+  const orc = _calcGetOrc();
+  if (!orc) return;
+  const item = (orc.cardapio || []).find(i => i.id === itemId);
+  if (!item) return;
+  item[campo] = parseFloat(valor) || 0;
+  sv('orcamentos');
+  rOrcCalc();
+}
+
+function calcRemoveCardapio(itemId) {
+  const orc = _calcGetOrc();
+  if (!orc) return;
+  orc.cardapio = (orc.cardapio || []).filter(i => i.id !== itemId);
+  sv('orcamentos');
+  rOrcCalc();
+}
+
+// Retorna os ingredientes de uma ficha como string de tags
+function _calcFichaIngredientes(fichaId) {
+  if (!fichaId) return '';
+  const f = (D.fichas || []).find(f => f.id === fichaId);
+  if (!f || !f.itens || !f.itens.length) return '';
+  return f.itens.map(i => i.nome).join(', ');
+}
+
 // ─── RENDER ───────────────────────────────────────────────────────────────────
 
 function rOrcCalc() {
@@ -155,8 +210,15 @@ function rOrcCalc() {
   const pax  = orc.convidados || 0;
   const autoS = _calcAutoStaff(pax);
   const itens = orc.calcItens || [];
+  const cardapio = orc.cardapio || [];
 
-  const custoPresente = itens.reduce((s, i) => s + (i.total || 0), 0);
+  // Custo do cardápio = soma de (doses/pessoa × pax × custo/dose)
+  const custoCardapio = cardapio.reduce((s, c) => {
+    const totalDoses = (c.dosesPorPessoa || 0) * pax;
+    return s + Math.round(totalDoses * (c.custoPorDose || 0) * 100) / 100;
+  }, 0);
+
+  const custoPresente = itens.reduce((s, i) => s + (i.total || 0), 0) + custoCardapio;
   const margSeg = Number(p.margemSeguranca != null ? p.margemSeguranca : 10);
   const margLuc = Number(p.margemLucro     != null ? p.margemLucro     : 30);
   const custoEst  = custoPresente * (1 + margSeg / 100);
@@ -166,12 +228,12 @@ function rOrcCalc() {
   const localKey = p.local || 'area_central';
 
   const secoes = [
-    { id:'equipe',    label:'👥 Equipe',           cor:'#4F8EF7' },
-    { id:'logistica', label:'🚚 Logística',         cor:'#F7A84F' },
-    { id:'custos',    label:'💸 Custos variáveis',  cor:'#8B5CF6' },
-    { id:'seguro',    label:'🛡️ Seguro',            cor:'#EC4899' },
-    { id:'copos',     label:'🥂 Vasilhames',        cor:'#14B8A6' },
-    { id:'extras',    label:'➕ Extras',             cor:'#94A3B8' },
+    { id:'equipe',    label:'👥 Equipe',             cor:'#4F8EF7' },
+    { id:'logistica', label:'🚚 Logística',           cor:'#F7A84F' },
+    { id:'custos',    label:'💸 Custos variáveis',    cor:'#8B5CF6' },
+    { id:'seguro',    label:'🛡️ Seguro',              cor:'#EC4899' },
+    { id:'copos',     label:'🥂 Vasilhames',          cor:'#14B8A6' },
+    { id:'extras',    label:'➕ Extras',               cor:'#94A3B8' },
   ];
 
   // ── Parâmetros ──────────────────────────────────────────────────────────────
@@ -363,12 +425,119 @@ function rOrcCalc() {
               </div>
             </div>`;
         }).join('')}
+        ${custoCardapio > 0 ? (() => {
+          const pct = Math.min(100, Math.round(custoCardapio / custoPresente * 100));
+          return `
+            <div style="margin-bottom:8px">
+              <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+                <span style="font-size:10px;color:#F97316">Cardápio (bebidas)</span>
+                <span style="font-size:10px;font-family:var(--mono);color:var(--text3)">${fR(custoCardapio)} · ${pct}%</span>
+              </div>
+              <div style="height:4px;background:var(--bg3);border-radius:2px">
+                <div style="width:${pct}%;height:4px;background:#F97316;border-radius:2px"></div>
+              </div>
+            </div>`;
+        })() : ''}
       </div>` : ''}
+    </div>`;
+
+  // ── Cardápio HTML ────────────────────────────────────────────────────────────
+  const fichasOpts = (D.fichas || []).map(f =>
+    `<option value="${f.id}">${f.nome}</option>`
+  ).join('');
+
+  const cardapioHtml = `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-left:3px solid #F97316;border-radius:var(--radius);margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)">
+        <span style="font-size:12px;font-weight:700;color:#F97316">🍹 Cardápio / Bebidas</span>
+        <span style="font-size:13px;font-weight:700;font-family:var(--mono);color:#F97316">${fR(custoCardapio)}</span>
+      </div>
+
+      ${cardapio.length ? `
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead>
+            <tr style="font-size:9px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border)">
+              <th style="padding:5px 10px;text-align:left;font-weight:500">Coquetel</th>
+              <th style="padding:5px 6px;text-align:right;font-weight:500">Doses/pax</th>
+              <th style="padding:5px 6px;text-align:right;font-weight:500">Total doses</th>
+              <th style="padding:5px 6px;text-align:right;font-weight:500">Custo/dose</th>
+              <th style="padding:5px 6px;text-align:right;font-weight:500">Total</th>
+              <th style="width:28px"></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${cardapio.map(c => {
+              const totalDoses = Math.round((c.dosesPorPessoa || 0) * pax * 10) / 10;
+              const total = Math.round(totalDoses * (c.custoPorDose || 0) * 100) / 100;
+              const ingredientes = _calcFichaIngredientes(c.fichaId);
+              return `
+                <tr style="border-bottom:1px solid var(--border)">
+                  <td style="padding:6px 10px">
+                    <div style="font-weight:500;color:var(--text)">${c.nome}</div>
+                    ${ingredientes ? `<div style="font-size:9px;color:var(--text3);margin-top:2px" title="${ingredientes}">
+                      ${ingredientes.split(', ').slice(0,4).map(i=>`<span style="background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:1px 4px;margin-right:2px">${i}</span>`).join('')}
+                      ${ingredientes.split(', ').length > 4 ? `<span style="color:var(--text3)">+${ingredientes.split(', ').length-4}</span>` : ''}
+                    </div>` : ''}
+                  </td>
+                  <td style="padding:4px 6px;text-align:right">
+                    <input type="number" value="${c.dosesPorPessoa}" min="0" step="0.5"
+                      onchange="calcUpdateCardapio('${c.id}','dosesPorPessoa',this.value)"
+                      style="width:55px;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono)">
+                  </td>
+                  <td style="padding:6px 6px;text-align:right;font-family:var(--mono);color:var(--text3)">${totalDoses}</td>
+                  <td style="padding:4px 6px;text-align:right">
+                    <input type="number" value="${c.custoPorDose || ''}" min="0" step="0.5" placeholder="0,00"
+                      onchange="calcUpdateCardapio('${c.id}','custoPorDose',this.value)"
+                      style="width:70px;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono)">
+                  </td>
+                  <td style="padding:6px 8px;text-align:right;font-family:var(--mono);font-weight:700;color:#F97316">${fR(total)}</td>
+                  <td style="padding:6px 8px;text-align:center">
+                    <span onclick="calcRemoveCardapio('${c.id}')" style="cursor:pointer;color:var(--red);font-size:15px;line-height:1" title="Remover">×</span>
+                  </td>
+                </tr>`;
+            }).join('')}
+          </tbody>
+        </table>` : ''}
+
+      <!-- Formulário inline para adicionar -->
+      <div style="padding:10px 14px;border-top:${cardapio.length?'1px solid var(--border)':'none'};background:var(--bg3);border-radius:0 0 var(--radius) var(--radius)">
+        <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:8px">+ Adicionar coquetel ao cardápio</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 110px 110px auto;gap:8px;align-items:flex-end">
+          <div>
+            <label style="font-size:9px;color:var(--text3);display:block;margin-bottom:2px">Ficha cadastrada</label>
+            <select id="card-ficha" onchange="
+              const f=(D.fichas||[]).find(x=>x.id===this.value);
+              const n=document.getElementById('card-nome');
+              if(n&&f)n.value=f.nome;
+            " style="width:100%;font-size:11px;padding:5px 7px;background:var(--bg4);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius)">
+              <option value="">— Selecionar ficha —</option>
+              ${fichasOpts}
+            </select>
+          </div>
+          <div>
+            <label style="font-size:9px;color:var(--text3);display:block;margin-bottom:2px">Nome (ou livre)</label>
+            <input id="card-nome" type="text" placeholder="Ex: Moscow Mule"
+              style="width:100%;font-size:11px;padding:5px 7px;background:var(--bg4);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius)">
+          </div>
+          <div>
+            <label style="font-size:9px;color:var(--text3);display:block;margin-bottom:2px">Doses/pessoa</label>
+            <input id="card-doses" type="number" min="0" step="0.5" placeholder="1.5"
+              style="width:100%;font-size:11px;padding:5px 7px;background:var(--bg4);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius);font-family:var(--mono)">
+          </div>
+          <div>
+            <label style="font-size:9px;color:var(--text3);display:block;margin-bottom:2px">Custo/dose (R$)</label>
+            <input id="card-custo" type="number" min="0" step="0.5" placeholder="0,00"
+              style="width:100%;font-size:11px;padding:5px 7px;background:var(--bg4);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius);font-family:var(--mono)">
+          </div>
+          <button onclick="calcAddCardapioItem()"
+            style="background:#F97316;border:none;color:white;border-radius:var(--radius);font-size:11px;padding:6px 14px;cursor:pointer;white-space:nowrap;font-weight:600">+ Adicionar</button>
+        </div>
+      </div>
     </div>`;
 
   el.innerHTML = paramHtml + `
     <div style="display:grid;grid-template-columns:1fr 270px;gap:14px;align-items:start">
-      <div>${secoesHtml}</div>
+      <div>${cardapioHtml}${secoesHtml}</div>
       ${resumoHtml}
     </div>`;
 }
