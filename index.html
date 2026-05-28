@@ -134,6 +134,10 @@
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v1.5M8 9.5V11M6 7a2 2 0 0 1 4 0c0 1.5-2 2-2 3"/></svg>
       Financeiro
     </div>
+    <div class="nav-item" data-modulo="financeiro" onclick="go('despesas')">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 13l3-5 3 3 3-6 3 4"/><path d="M1 1v14h14"/></svg>
+      Análise Financeira
+    </div>
     <div class="nav-section" data-modulo="analise">Análise</div>
     <div class="nav-item" data-modulo="analise" onclick="go('analise')">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 13l3-5 3 3 3-6 3 4"/><rect x="1" y="1" width="14" height="14" rx="1"/></svg>
@@ -888,6 +892,150 @@
       </div>
     </div>
 
+    <!-- ═══ ANÁLISE DE DESPESAS ═══ -->
+    <div id="page-despesas" class="page">
+      <input type="hidden" id="desp-sub-view" value="kpi">
+
+      <!-- Filtros + sub-navegação -->
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;justify-content:space-between">
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+          <div>
+            <label class="lbl">Mês</label>
+            <select id="desp-mes" class="inp" style="width:110px" onchange="rDespesas()">
+              <option value="">Todos</option>
+              <option value="01">Janeiro</option>
+              <option value="02">Fevereiro</option>
+              <option value="03">Março</option>
+              <option value="04">Abril</option>
+              <option value="05">Maio</option>
+              <option value="06">Junho</option>
+              <option value="07">Julho</option>
+              <option value="08">Agosto</option>
+              <option value="09">Setembro</option>
+              <option value="10">Outubro</option>
+              <option value="11">Novembro</option>
+              <option value="12">Dezembro</option>
+            </select>
+          </div>
+          <div>
+            <label class="lbl">Ano</label>
+            <select id="desp-ano" class="inp" style="width:90px" onchange="rDespesas()">
+              <option value="2025">2025</option>
+              <option value="2026" selected>2026</option>
+              <option value="2027">2027</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="sort-btn active" data-desp-tab="kpi" onclick="despSetView('kpi')">📊 Dashboard</button>
+          <button class="sort-btn" data-desp-tab="lancar" onclick="despSetView('lancar')">➕ Lançar</button>
+          <button class="sort-btn" data-desp-tab="lista" onclick="despSetView('lista')">📋 Despesas</button>
+          <button class="sort-btn" data-desp-tab="importar" onclick="despSetView('importar')">📥 Importar CSV</button>
+        </div>
+      </div>
+
+      <!-- Dashboard KPI -->
+      <div id="desp-view-kpi"></div>
+
+      <!-- Lançar Despesa -->
+      <div id="desp-view-lancar" style="display:none">
+        <div class="sec">
+          <div class="sec-head"><span class="sec-title">💸 Nova Despesa</span></div>
+          <div style="padding:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">
+            <div>
+              <label class="lbl">Data *</label>
+              <input id="desp-form-data" class="inp" type="date">
+            </div>
+            <div>
+              <label class="lbl">Categoria *</label>
+              <select id="desp-form-cat" class="inp">
+                <option value="">Selecione...</option>
+                <option>Pessoal</option>
+                <option>Fornecedores</option>
+                <option>Infraestrutura</option>
+                <option>Marketing</option>
+                <option>Operacional</option>
+                <option>Impostos</option>
+                <option>Outros</option>
+              </select>
+            </div>
+            <div style="grid-column:span 2">
+              <label class="lbl">Descrição *</label>
+              <input id="desp-form-desc" class="inp" type="text" placeholder="Ex: Salários equipe de maio">
+            </div>
+            <div>
+              <label class="lbl">Valor (R$) *</label>
+              <input id="desp-form-valor" class="inp" type="number" step="0.01" min="0" placeholder="0,00">
+            </div>
+            <div>
+              <label class="lbl">Observação</label>
+              <input id="desp-form-obs" class="inp" type="text" placeholder="Opcional">
+            </div>
+          </div>
+          <div style="padding:0 16px 16px">
+            <button class="btn" onclick="salvarDespesa()">💾 Salvar Despesa</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lista de Despesas -->
+      <div id="desp-view-lista" style="display:none">
+        <div class="sec">
+          <div class="sec-head" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span class="sec-title">📋 Despesas Lançadas</span>
+            <select id="desp-cat-filtro" class="inp" style="width:170px" onchange="rDespesasLista()">
+              <option value="">Todas as categorias</option>
+              <option>Pessoal</option>
+              <option>Fornecedores</option>
+              <option>Infraestrutura</option>
+              <option>Marketing</option>
+              <option>Operacional</option>
+              <option>Impostos</option>
+              <option>Outros</option>
+            </select>
+            <span style="margin-left:auto;color:#F74F6B;font-weight:600">Total: <span id="desp-lista-total">—</span></span>
+          </div>
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+              <thead>
+                <tr style="color:#8B91A8;border-bottom:1px solid #2A2F42">
+                  <th style="padding:10px 12px;text-align:left;font-weight:500">Data</th>
+                  <th style="padding:10px 12px;text-align:left;font-weight:500">Categoria</th>
+                  <th style="padding:10px 12px;text-align:left;font-weight:500">Descrição</th>
+                  <th style="padding:10px 12px;text-align:left;font-weight:500">Valor</th>
+                  <th style="padding:10px 12px;text-align:left;font-weight:500">Obs</th>
+                  <th style="padding:10px 12px;text-align:left;font-weight:500">Ação</th>
+                </tr>
+              </thead>
+              <tbody id="desp-lista-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Importar CSV -->
+      <div id="desp-view-importar" style="display:none">
+        <div class="sec">
+          <div class="sec-head"><span class="sec-title">📥 Importar Despesas via CSV</span></div>
+          <div style="padding:20px;display:flex;flex-direction:column;gap:20px">
+            <div style="background:#1E2235;border-radius:8px;padding:16px;font-size:13px;color:#CDD3E3;line-height:1.9">
+              <strong style="color:#F59E0B">Formato do arquivo (separado por ponto e vírgula):</strong><br>
+              <code style="background:#0D1117;padding:3px 8px;border-radius:4px;font-size:12px">DATA;CATEGORIA;DESCRICAO;VALOR;OBSERVACAO</code><br><br>
+              <strong>Datas:</strong> DD/MM/AAAA &nbsp;|&nbsp; <strong>Categorias:</strong> Pessoal, Fornecedores, Infraestrutura, Marketing, Operacional, Impostos, Outros<br>
+              <strong>Valores:</strong> Use vírgula para decimal — ex: <code style="background:#0D1117;padding:1px 5px;border-radius:3px">1500,00</code>
+            </div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+              <button class="btn" style="background:#2A2F42;color:#CDD3E3" onclick="baixarModeloDespesasCSV()">⬇️ Baixar Modelo CSV</button>
+              <label class="btn" style="cursor:pointer;margin:0">
+                📂 Selecionar Arquivo CSV
+                <input type="file" accept=".csv,.txt" style="display:none" onchange="importarDespesasCSV(this)">
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ═══ EQUIPE ═══ -->
     <div id="page-equipe" class="page">
       <div id="eq-content"></div>
@@ -1184,6 +1332,7 @@
 <script src="js/agenda.js?v=20260530"></script>
 <script src="js/producao.js?v=20260530"></script>
 <script src="js/financeiro.js?v=20260530"></script>
+<script src="js/despesas.js?v=20260528"></script>
 <script src="js/producao2.js?v=20260530"></script>
 <script src="js/produtos.js?v=20260526e"></script>
 <script src="js/regras.js?v=20260530"></script>
