@@ -160,7 +160,16 @@ function rDespesasKpi() {
 function rDespesasLista() {
   const mes = document.getElementById('desp-mes')?.value || '';
   const ano = document.getElementById('desp-ano')?.value || new Date().getFullYear().toString();
-  const catFiltro = document.getElementById('desp-cat-filtro')?.value || '';
+
+  // Atualiza o filtro de categorias dinamicamente (inclui categorias do PDF)
+  const catSelect = document.getElementById('desp-cat-filtro');
+  if (catSelect) {
+    const currentVal = catSelect.value;
+    const allCats = [...new Set((D.despesas || []).map(d => d.categoria).filter(Boolean))].sort();
+    catSelect.innerHTML = '<option value="">Todas as categorias</option>' +
+      allCats.map(c => `<option value="${c}"${c === currentVal ? ' selected' : ''}>${c}</option>`).join('');
+  }
+  const catFiltro = catSelect?.value || '';
 
   const lista = (D.despesas || []).filter(d => {
     const ref = d.data || '';
@@ -285,4 +294,138 @@ function importarDespesasCSV(input) {
     }
   };
   reader.readAsText(file, 'utf-8');
+}
+
+// ─── IMPORTAÇÃO DE PDF (Relatório de Contas a Pagar — Modelo 02) ─────────────
+
+function importarDespesasPDF(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  if (!window.pdfjsLib) {
+    alert('PDF.js não disponível. Tente recarregar a página.');
+    return;
+  }
+  if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    try {
+      const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(e.target.result) }).promise;
+
+      // Extrai todos os itens de texto com posição X/Y de todas as páginas
+      const allLines = [];
+      for (let p = 1; p <= pdf.numPages; p++) {
+        const page = await pdf.getPage(p);
+        const tc = await page.getTextContent();
+
+        // Agrupa itens por linha (tolerância 3px no eixo Y)
+        const yMap = new Map();
+        tc.items.filter(i => i.str.trim()).forEach(i => {
+          const y = i.transform[5];
+          let key = null;
+          for (const k of yMap.keys()) {
+            if (Math.abs(k - y) <= 3) { key = k; break; }
+          }
+          if (key === null) key = y;
+          if (!yMap.has(key)) yMap.set(key, []);
+          yMap.get(key).push({ text: i.str.trim(), x: i.transform[4] });
+        });
+
+        // Ordena linhas de cima para baixo (Y maior = mais acima no PDF)
+        [...yMap.entries()]
+          .sort((a, b) => b[0] - a[0])
+          .forEach(([, items]) => allLines.push(items.sort((a, b) => a.x - b.x)));
+      }
+
+      // Padrões de linhas a ignorar
+      const SKIP = [
+        /documento/i, /operação financeira.descrição/i, /venc\.\s*previsto/i,
+        /nome.historico/i, /total por operação financeira/i, /dt\s+emissão/i,
+        /valor nominal/i, /data de vencimento/i, /atividade financeira/i,
+        /quebra por/i, /romero coqueteis/i, /relatório de contas/i,
+        /^desconto$/, /^multa$/, /^juros$/, /^despesas$/, /valor a pagar/i,
+        /^vencimento$/, /página\s*\d/i,
+      ];
+
+      const despesas = [];
+      let currentCategoria = 'Outros';
+
+      for (const lineItems of allLines) {
+        const texts = lineItems.map(i => i.text);
+        const fullLine = texts.join(' ').trim();
+        if (!fullLine) continue;
+        if (SKIP.some(p => p.test(fullLine))) continue;
+
+        // Ignora linhas de contato/detalhe
+        if (/^(CEL:|CPF:|CNPJ:|EMAIL:|TEL:)/i.test(fullLine)) continue;
+
+        const hasDate = texts.some(t => /^\d{2}\/\d{2}\/\d{4}$/.test(t));
+        const hasNum  = texts.some(t => /^\d[\d.]*,\d{2}$/.test(t));
+
+        // Detecta cabeçalho de categoria (texto todo maiúsculo, sem datas/números)
+        if (!hasDate && !hasNum) {
+          const joined = texts.join(' ').trim();
+          if (joined.length > 1 && joined === joined.toUpperCase() && !/^\d/.test(joined)) {
+            currentCategoria = joined;
+            continue;
+          }
+        }
+
+        // Linha de lançamento: contém "CO " + tem data + tem valor
+        const hasCO = texts.some(t => /^CO\s+[A-ZÁÀÃÉÊÍÓÔÕÚ]/i.test(t));
+        if (!hasCO || !hasDate || !hasNum) continue;
+
+        const dateItems = lineItems.filter(i => /^\d{2}\/\d{2}\/\d{4}$/.test(i.text));
+        const numItems  = lineItems.filter(i => /^\d[\d.]*,\d{2}$/.test(i.text));
+
+        // Vencimento = segunda data da linha (coluna Vencimento); se só uma, usa ela
+        dateItems.sort((a, b) => a.x - b.x);
+        const vencStr = dateItems.length >= 2 ? dateItems[1].text : dateItems[0].text;
+        const mDate = vencStr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+        if (!mDate) continue;
+        const data = `${mDate[3]}-${mDate[2]}-${mDate[1]}`;
+
+        // Valor a Pagar = item numérico mais à direita (última coluna)
+        numItems.sort((a, b) => a.x - b.x);
+        const valorStr = numItems[numItems.length - 1].text;
+        const valor = parseFloat(valorStr.replace(/\./g, '').replace(',', '.'));
+        if (!valor || valor <= 0) continue;
+
+        // Descrição = itens que não são datas nem números
+        const descricao = lineItems
+          .filter(i => !/^\d{2}\/\d{2}\/\d{4}$/.test(i.text) && !/^\d[\d.]*,\d{2}$/.test(i.text))
+          .map(i => i.text).join(' ').trim();
+
+        despesas.push({
+          id: 'DESP' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+          data,
+          categoria: currentCategoria,
+          descricao: descricao || 'Sem descrição',
+          valor,
+          obs: 'PDF ' + file.name.replace(/\.pdf$/i, ''),
+        });
+      }
+
+      if (!despesas.length) {
+        alert('Nenhuma despesa encontrada no PDF.\nVerifique se o arquivo é o "Relatório de Contas a Pagar (Modelo 02)".');
+        return;
+      }
+
+      if (!D.despesas) D.despesas = [];
+      D.despesas.push(...despesas);
+      sv('despesas');
+      alert(`✅ ${despesas.length} despesa(s) importada(s) do PDF com sucesso!`);
+      input.value = '';
+      despSetView('lista');
+
+    } catch (err) {
+      alert('Erro ao processar o PDF: ' + err.message);
+      console.error('importarDespesasPDF:', err);
+    }
+  };
+  reader.readAsArrayBuffer(file);
 }

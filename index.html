@@ -1013,16 +1013,35 @@
         </div>
       </div>
 
-      <!-- Importar CSV -->
+      <!-- Importar -->
       <div id="desp-view-importar" style="display:none">
-        <div class="sec">
-          <div class="sec-head"><span class="sec-title">📥 Importar Despesas via CSV</span></div>
-          <div style="padding:20px;display:flex;flex-direction:column;gap:20px">
+
+        <!-- Importar PDF -->
+        <div class="sec" style="margin-bottom:16px">
+          <div class="sec-head"><span class="sec-title">📄 Importar PDF — Relatório de Contas a Pagar</span></div>
+          <div style="padding:20px;display:flex;flex-direction:column;gap:16px">
             <div style="background:#1E2235;border-radius:8px;padding:16px;font-size:13px;color:#CDD3E3;line-height:1.9">
-              <strong style="color:#F59E0B">Formato do arquivo (separado por ponto e vírgula):</strong><br>
+              <strong style="color:#10B981">Formato suportado:</strong> Relatório de Contas a Pagar — Modelo 02 (Romero Coqueteis)<br>
+              As categorias são lidas automaticamente do PDF (ex: PESSOAL/FUNCIONÁRIOS, MOTORISTA, etc.).<br>
+              A coluna <strong>Vencimento</strong> é usada como data e <strong>Valor a Pagar</strong> como valor.
+            </div>
+            <div>
+              <label class="btn" style="cursor:pointer;margin:0;background:#10B981">
+                📄 Selecionar PDF
+                <input type="file" accept=".pdf" style="display:none" onchange="importarDespesasPDF(this)">
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Importar CSV -->
+        <div class="sec">
+          <div class="sec-head"><span class="sec-title">📊 Importar CSV (lançamento manual)</span></div>
+          <div style="padding:20px;display:flex;flex-direction:column;gap:16px">
+            <div style="background:#1E2235;border-radius:8px;padding:16px;font-size:13px;color:#CDD3E3;line-height:1.9">
+              <strong style="color:#F59E0B">Formato (separado por ponto e vírgula):</strong><br>
               <code style="background:#0D1117;padding:3px 8px;border-radius:4px;font-size:12px">DATA;CATEGORIA;DESCRICAO;VALOR;OBSERVACAO</code><br><br>
-              <strong>Datas:</strong> DD/MM/AAAA &nbsp;|&nbsp; <strong>Categorias:</strong> Pessoal, Fornecedores, Infraestrutura, Marketing, Operacional, Impostos, Outros<br>
-              <strong>Valores:</strong> Use vírgula para decimal — ex: <code style="background:#0D1117;padding:1px 5px;border-radius:3px">1500,00</code>
+              <strong>Datas:</strong> DD/MM/AAAA &nbsp;|&nbsp; <strong>Valores:</strong> use vírgula — ex: <code style="background:#0D1117;padding:1px 5px;border-radius:3px">1500,00</code>
             </div>
             <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
               <button class="btn" style="background:#2A2F42;color:#CDD3E3" onclick="baixarModeloDespesasCSV()">⬇️ Baixar Modelo CSV</button>
