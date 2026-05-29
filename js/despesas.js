@@ -316,109 +316,118 @@ function importarDespesasPDF(input) {
     try {
       const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(e.target.result) }).promise;
 
-      // Extrai todos os itens de texto com posição X/Y de todas as páginas
       const allLines = [];
       for (let p = 1; p <= pdf.numPages; p++) {
         const page = await pdf.getPage(p);
         const tc = await page.getTextContent();
 
-        // Agrupa itens por linha (tolerância 3px no eixo Y)
-        const yMap = new Map();
+        // Agrupa itens por linha usando Y (tolerância 5px — robusta contra pequenas variações)
+        const pageLines = [];
         tc.items.filter(i => i.str.trim()).forEach(i => {
           const y = i.transform[5];
-          let key = null;
-          for (const k of yMap.keys()) {
-            if (Math.abs(k - y) <= 3) { key = k; break; }
+          // Busca a linha mais próxima dentro da tolerância
+          let closest = null, minDiff = 5;
+          for (const l of pageLines) {
+            const diff = Math.abs(l.y - y);
+            if (diff < minDiff) { minDiff = diff; closest = l; }
           }
-          if (key === null) key = y;
-          if (!yMap.has(key)) yMap.set(key, []);
-          yMap.get(key).push({ text: i.str.trim(), x: i.transform[4] });
+          if (!closest) { closest = { y, items: [] }; pageLines.push(closest); }
+          closest.items.push({ text: i.str.trim(), x: i.transform[4] });
         });
 
-        // Ordena linhas de cima para baixo (Y maior = mais acima no PDF)
-        [...yMap.entries()]
-          .sort((a, b) => b[0] - a[0])
-          .forEach(([, items]) => allLines.push(items.sort((a, b) => a.x - b.x)));
+        // Ordena linhas de cima para baixo e itens da esquerda para direita
+        pageLines
+          .sort((a, b) => b.y - a.y)
+          .forEach(l => {
+            l.items.sort((a, b) => a.x - b.x);
+            allLines.push(l.items);
+          });
       }
 
-      // Padrões de linhas a ignorar
+      // Linhas a ignorar completamente
       const SKIP = [
-        /documento/i, /operação financeira.descrição/i, /venc\.\s*previsto/i,
-        /nome.historico/i, /total por operação financeira/i, /dt\s+emissão/i,
-        /valor nominal/i, /data de vencimento/i, /atividade financeira/i,
-        /quebra por/i, /romero coqueteis/i, /relatório de contas/i,
-        /^desconto$/, /^multa$/, /^juros$/, /^despesas$/, /valor a pagar/i,
-        /^vencimento$/, /página\s*\d/i,
+        /documento/i, /venc\.?\s*previsto/i, /nome.historico/i,
+        /total por operação financeira/i, /dt\s+emissão/i, /valor nominal/i,
+        /data de vencimento/i, /atividade financeira/i, /quebra por/i,
+        /romero coqueteis/i, /relatório de contas/i, /valor a pagar/i,
+        /operação financeira.descrição/i, /^desconto$/, /^multa$/, /^juros$/,
+        /^vencimento$/, /^despesas$/, /página\s*\d/i,
       ];
 
       const despesas = [];
       let currentCategoria = 'Outros';
 
       for (const lineItems of allLines) {
-        const texts = lineItems.map(i => i.text);
-        const fullLine = texts.join(' ').trim();
+        // Junta todo o texto da linha em ordem (esquerda→direita = ordem da tabela)
+        const fullLine = lineItems.map(i => i.text).join(' ').trim();
         if (!fullLine) continue;
         if (SKIP.some(p => p.test(fullLine))) continue;
+        if (/^(CEL:|CPF:|CNPJ:|EMAIL:|TEL:|Venc\.)/i.test(fullLine)) continue;
 
-        // Ignora linhas de contato/detalhe
-        if (/^(CEL:|CPF:|CNPJ:|EMAIL:|TEL:)/i.test(fullLine)) continue;
+        // Extrai datas e valores monetários do texto completo da linha
+        const datas   = [...fullLine.matchAll(/\d{2}\/\d{2}\/\d{4}/g)].map(m => m[0]);
+        const valores = [...fullLine.matchAll(/\d{1,3}(?:\.\d{3})*,\d{2}/g)].map(m => m[0]);
 
-        const hasDate = texts.some(t => /^\d{2}\/\d{2}\/\d{4}$/.test(t));
-        const hasNum  = texts.some(t => /^\d[\d.]*,\d{2}$/.test(t));
-
-        // Detecta cabeçalho de categoria (texto todo maiúsculo, sem datas/números)
-        if (!hasDate && !hasNum) {
-          const joined = texts.join(' ').trim();
-          if (joined.length > 1 && joined === joined.toUpperCase() && !/^\d/.test(joined)) {
-            currentCategoria = joined;
-            continue;
+        // ── Cabeçalho de categoria: sem datas, sem valores, texto maiúsculo ──
+        if (!datas.length && !valores.length) {
+          const up = fullLine.toUpperCase();
+          if (fullLine === up && fullLine.length > 1 && !/^\d/.test(fullLine)
+              && !/relatório|página|emissão|atividade|quebra|operação/i.test(fullLine)) {
+            currentCategoria = fullLine;
           }
+          continue;
         }
 
-        // Linha de lançamento: contém "CO " + tem data + tem valor
-        const hasCO = texts.some(t => /^CO\s+[A-ZÁÀÃÉÊÍÓÔÕÚ]/i.test(t));
-        if (!hasCO || !hasDate || !hasNum) continue;
+        // ── Linha de lançamento: tem pelo menos 1 data e 1 valor ──
+        // (o "CO " pode vir em fragmentos no PDF, então não exigimos o padrão exato)
+        if (!datas.length || !valores.length) continue;
 
-        const dateItems = lineItems.filter(i => /^\d{2}\/\d{2}\/\d{4}$/.test(i.text));
-        const numItems  = lineItems.filter(i => /^\d[\d.]*,\d{2}$/.test(i.text));
+        // Filtra linhas de detalhe (sub-linhas com 1 data e sem CO)
+        // Linha real de despesa tem ≥ 2 datas (DtEmissão + Vencimento) ou "CO" no texto
+        const temCO   = /\bCO\b/.test(fullLine);
+        const temTraco = /\s-\s?\d+\/\d+/.test(fullLine); // padrão "- 1/1"
+        if (!temCO && !temTraco && datas.length < 2) continue;
 
-        // Vencimento = segunda data da linha (coluna Vencimento); se só uma, usa ela
-        dateItems.sort((a, b) => a.x - b.x);
-        const vencStr = dateItems.length >= 2 ? dateItems[1].text : dateItems[0].text;
+        // Vencimento = 2ª data na linha (ordem esquerda→direita); se só 1, usa ela
+        const vencStr = datas.length >= 2 ? datas[1] : datas[0];
         const mDate = vencStr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
         if (!mDate) continue;
         const data = `${mDate[3]}-${mDate[2]}-${mDate[1]}`;
 
-        // Valor a Pagar = item numérico mais à direita (última coluna)
-        numItems.sort((a, b) => a.x - b.x);
-        const valorStr = numItems[numItems.length - 1].text;
+        // Valor a Pagar = ÚLTIMO valor na linha (coluna mais à direita)
+        const valorStr = valores[valores.length - 1];
         const valor = parseFloat(valorStr.replace(/\./g, '').replace(',', '.'));
         if (!valor || valor <= 0) continue;
 
-        // Descrição = itens que não são datas nem números
-        const descricao = lineItems
-          .filter(i => !/^\d{2}\/\d{2}\/\d{4}$/.test(i.text) && !/^\d[\d.]*,\d{2}$/.test(i.text))
-          .map(i => i.text).join(' ').trim();
+        // Descrição = texto sem datas e sem valores
+        const descricao = fullLine
+          .replace(/\d{2}\/\d{2}\/\d{4}/g, '')
+          .replace(/\d{1,3}(?:\.\d{3})*,\d{2}/g, '')
+          .replace(/\s+/g, ' ').trim() || 'Sem descrição';
 
         despesas.push({
           id: 'DESP' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
           data,
           categoria: currentCategoria,
-          descricao: descricao || 'Sem descrição',
+          descricao,
           valor,
           obs: 'PDF ' + file.name.replace(/\.pdf$/i, ''),
         });
       }
 
       if (!despesas.length) {
-        alert('Nenhuma despesa encontrada no PDF.\nVerifique se o arquivo é o "Relatório de Contas a Pagar (Modelo 02)".');
+        alert(
+          'Nenhuma despesa encontrada no PDF.\n\n' +
+          'Verifique:\n• O arquivo é o "Relatório de Contas a Pagar (Modelo 02)"?\n' +
+          '• O PDF contém texto (não é imagem escaneada)?'
+        );
         return;
       }
 
       if (!D.despesas) D.despesas = [];
       D.despesas.push(...despesas);
       sv('despesas');
-      alert(`✅ ${despesas.length} despesa(s) importada(s) do PDF com sucesso!`);
+      alert(`✅ ${despesas.length} despesa(s) importada(s) do PDF!`);
       input.value = '';
       despSetView('lista');
 
