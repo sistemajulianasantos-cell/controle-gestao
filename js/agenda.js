@@ -98,7 +98,7 @@ function rAgenda() {
 
   // Mapa de variações → cargo canônico (singular/plural, maiúsc/minúsc)
   const CARGO_CANONICO = [
-    { variações: ['head bartender','head bartenders'], exibir: 'Head Bartender', ordem: 1 },
+    { variações: ['head bartender','head bartenders','coordenador','coordenadores','coordenador de eventos','head'], exibir: 'Head Bartender', ordem: 1 },
     { variações: ['bartender','bartenders'],           exibir: 'Bartender',      ordem: 2 },
     { variações: ['bar back','bar backs','barback','barbacks'], exibir: 'Bar Back', ordem: 3 },
     { variações: ['copeiro','copeiros'],               exibir: 'Copeiro',        ordem: 4 },
