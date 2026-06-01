@@ -90,7 +90,9 @@ function rAgenda() {
       const el = document.getElementById(id); if(el) el.textContent = '—';
     });
     const vBox = document.getElementById('ag-card-viagem-box');
-    if (vBox) vBox.style.borderColor = '#2A2F42';
+    if (vBox) { vBox.classList.remove('card-viagem-ativo'); vBox.style.borderColor = ''; vBox.style.background = ''; }
+    const vVal = document.getElementById('ag-card-viagem');
+    if (vVal) { vVal.classList.remove('card-viagem-val'); vVal.style.color = ''; }
     return;
   }
 
@@ -200,16 +202,13 @@ function rAgenda() {
 
   // Card viagem — destaque amarelo se houver
   const vBox = document.getElementById('ag-card-viagem-box');
+  const vVal = document.getElementById('ag-card-viagem');
   if (vBox) {
-    if (totalViagens > 0) {
-      vBox.style.borderColor = '#F7C84F';
-      vBox.style.background  = '#2E2A0D';
-      document.getElementById('ag-card-viagem').style.color = '#F7C84F';
-    } else {
-      vBox.style.borderColor = '#2A2F42';
-      vBox.style.background  = '';
-      document.getElementById('ag-card-viagem').style.color = '';
-    }
+    vBox.classList.toggle('card-viagem-ativo', totalViagens > 0);
+    if (vVal) vVal.classList.toggle('card-viagem-val', totalViagens > 0);
+    // Remove inline styles remanescentes de versões anteriores
+    vBox.style.borderColor = ''; vBox.style.background = '';
+    if (vVal) vVal.style.color = '';
   }
 
   // Detalhe equipe por cargo
@@ -223,7 +222,7 @@ function rAgenda() {
     const isViagem = ehViagem(ev);
     const tr = document.createElement('tr');
     tr.style.borderBottom = '1px solid #1E2333';
-    if (isViagem) tr.style.background = '#1A1800';
+    if (isViagem) tr.classList.add('tr-viagem');
     tr.innerHTML = `
       <td style="padding:8px 12px">${fd(ev.data)}</td>
       <td style="padding:8px 12px">

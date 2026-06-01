@@ -177,6 +177,16 @@ body.light-mode select option{background:#fff;color:#0F172A}
 .theme-toggle{background:none;border:1px solid var(--border);border-radius:var(--radius);padding:5px 10px;cursor:pointer;font-size:12px;color:var(--text2);transition:all .15s;font-family:var(--font)}
 .theme-toggle:hover{border-color:var(--border2);color:var(--text)}
 
+/* Linha de VIAGEM na agenda */
+.tr-viagem{background:#1A1800!important;}
+body.light-mode .tr-viagem{background:#FFFBEB!important;}
+
+/* Card "Eventos com Viagem" ativo */
+.card-viagem-ativo{background:#2E2A0D;border-color:#F7C84F!important;}
+body.light-mode .card-viagem-ativo{background:#FFFBEB;border-color:#D97706!important;}
+.card-viagem-val{color:#F7C84F}
+body.light-mode .card-viagem-val{color:#D97706}
+
 /* ── IMPRESSÃO ──────────────────────────────────────────────────────────── */
 @media print{
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact;
