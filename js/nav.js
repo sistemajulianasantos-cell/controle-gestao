@@ -16,6 +16,7 @@ var pageInfo={
   separacao:['Folha de Separação','Geração automática da folha de separação'],
   agenda:['Agenda Operacional','Visão geral dos eventos por período'],
   financeiro:['Financeiro','Parcelas e status de pagamentos'],
+  despesas:['Análise Financeira','Receita, despesas e KPIs financeiros'],
   equipe:['Equipe','Cadastro e escala de colaboradores'],
   orcamento:['Orcamento vs Real','Comparativo custo orcado e real'],
 };
@@ -39,6 +40,7 @@ function initPageRenders(){
     separacao:initSeparacao,
     agenda:rAgenda,
     financeiro:rFinanceiro,
+    despesas:rDespesas,
     analise:rAnalise,
     equipe:rEquipe,
     orcamento:rOrcamento,
@@ -58,6 +60,20 @@ function go(page){
   document.getElementById('psub').textContent=s;
   pageRenders[page]&&pageRenders[page]();
 }
+function toggleTheme(){
+  const isLight = document.body.classList.toggle('light-mode');
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+  const btn = document.getElementById('theme-toggle-btn');
+  if (btn) btn.textContent = isLight ? '🌙 Escuro' : '☀ Claro';
+}
+function applyTheme(){
+  const saved = localStorage.getItem('theme');
+  if (saved === 'light') {
+    document.body.classList.add('light-mode');
+    const btn = document.getElementById('theme-toggle-btn');
+    if (btn) btn.textContent = '🌙 Escuro';
+  }
+}
 function alert2(msg,t='success'){
   const el=document.getElementById('alertbox');
   el.textContent=msg;el.className='alert alert-'+t;el.style.display='block';
@@ -67,6 +83,7 @@ function openM(id){document.getElementById(id).classList.add('open')}
 function closeM(id){document.getElementById(id).classList.remove('open')}
 function init(){
   initPageRenders();
+  applyTheme();
   const now=new Date();
   document.getElementById('tdate').textContent=now.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
   document.getElementById('nav-date').textContent='v2.0 — '+now.getFullYear();

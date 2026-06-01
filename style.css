@@ -146,22 +146,84 @@ select option{background:var(--bg3)}
 ::-webkit-scrollbar{width:4px;height:4px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+
+/* ── MODO CLARO ─────────────────────────────────────────────────────────── */
+body.light-mode{
+  --bg:#F1F5F9;--bg2:#FFFFFF;--bg3:#F8FAFC;--bg4:#E2E8F0;
+  --border:#CBD5E1;--border2:#94A3B8;
+  --text:#0F172A;--text2:#334155;--text3:#64748B;
+  --blue:#2563EB;--blue-dim:#93C5FD;--blue-bg:#EFF6FF;
+  --green:#16A34A;--green-dim:#86EFAC;--green-bg:#F0FDF4;
+  --red:#DC2626;--red-dim:#FCA5A5;--red-bg:#FEF2F2;
+  --amber:#D97706;--amber-dim:#FCD34D;--amber-bg:#FFFBEB;
+  --purple:#7C3AED;--purple-dim:#C4B5FD;--purple-bg:#F5F3FF;
+  --teal:#0D9488;
+}
+/* Inverte os elementos com cores hardcoded inline (bg escuro → branco) */
+body.light-mode .page,
+body.light-mode .sec,
+body.light-mode .card,
+body.light-mode .modal{
+  color-scheme: light;
+}
+/* Input/select no modo claro */
+body.light-mode input,
+body.light-mode select,
+body.light-mode textarea{
+  background:#fff;color:#0F172A;border-color:#CBD5E1;
+}
+body.light-mode select option{background:#fff;color:#0F172A}
+/* Botão toggle */
+.theme-toggle{background:none;border:1px solid var(--border);border-radius:var(--radius);padding:5px 10px;cursor:pointer;font-size:12px;color:var(--text2);transition:all .15s;font-family:var(--font)}
+.theme-toggle:hover{border-color:var(--border2);color:var(--text)}
+
+/* ── IMPRESSÃO ──────────────────────────────────────────────────────────── */
 @media print{
-  *{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-  body{background:#fff!important;margin:0;padding:0;}
-  .sidebar,.topbar,.alertbox,.btn,.sort-btn,#rel-cards,.sec-head button,#rel-footer,select,input,button{display:none!important;}
-  .app{display:block!important;}
-  .content{margin:0!important;padding:0!important;}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact;
+     background:transparent!important;color:#000!important;
+     border-color:#ccc!important;box-shadow:none!important;}
+
+  /* Layout */
+  body{background:#fff!important;margin:0;padding:0;height:auto;overflow:visible;display:block;}
+  .sidebar,.topbar,#login-overlay,.alertbox,.theme-toggle,
+  .btn,.btn-sm,.sort-btn,button,select,input,
+  #rel-cards,.sec-head button,#rel-footer{display:none!important;}
+  .main,.content,.app{display:block!important;overflow:visible!important;height:auto!important;}
+  .content{padding:12px!important;margin:0!important;}
+
+  /* Páginas: só mostra a ativa */
   .page{display:none!important;}
+  .page.active{display:block!important;}
+
+  /* Tabelas */
+  table{width:100%;border-collapse:collapse;font-size:10px;}
+  th{background:#f0f0f0!important;color:#000!important;border:1px solid #ccc!important;padding:5px 8px;font-weight:700;font-size:10px;text-transform:uppercase;}
+  td{border:1px solid #ddd!important;padding:4px 8px;color:#333!important;font-size:10px;}
+  tr:hover td{background:transparent!important;}
+
+  /* Cards e seções */
+  .card,.sec{border:1px solid #ddd!important;border-radius:4px!important;margin-bottom:8px;}
+  .card-label{color:#555!important;font-size:9px!important;}
+  .card-val,.card-value{color:#000!important;font-size:18px!important;}
+  .sec-head{border-bottom:1px solid #ddd!important;padding:6px 10px!important;}
+  .sec-title{color:#000!important;font-size:11px!important;}
+
+  /* Tags e badges */
+  .tag,.badge{border:1px solid #ccc!important;background:#f5f5f5!important;color:#333!important;}
+  .tag-green{color:#16a34a!important;}
+  .tag-red{color:#dc2626!important;}
+  .tag-yellow{color:#d97706!important;}
+  .up{color:#16a34a!important;font-weight:600;}
+  .dn{color:#dc2626!important;font-weight:600;}
+  .neu{color:#888!important;}
+
+  /* Página de relatório (mantém compatibilidade) */
   #page-relatorio{display:none!important;}
   #print-area{display:block!important;padding:16px;}
-  #print-area table{width:100%;border-collapse:collapse;font-size:10px;}
-  #print-area th{background:#f0f0f0!important;color:#000!important;border:1px solid #ccc;padding:5px 8px;font-weight:700;text-align:left;font-size:10px;}
-  #print-area td{border:1px solid #ddd;padding:4px 8px;color:#000!important;font-size:10px;}
+  #print-area table{font-size:10px;}
+  #print-area th{background:#f0f0f0!important;color:#000!important;border:1px solid #ccc;padding:5px 8px;font-weight:700;}
+  #print-area td{border:1px solid #ddd;padding:4px 8px;color:#000!important;}
   #print-area .print-title{font-size:15px;font-weight:700;margin-bottom:3px;color:#000;}
   #print-area .print-sub{font-size:10px;color:#555;margin-bottom:4px;}
-  #print-area .print-info{font-size:9px;color:#777;margin-bottom:12px;display:flex;gap:16px;flex-wrap:wrap;}
-  #print-area .up{color:#16a34a!important;font-weight:600;}
-  #print-area .dn{color:#dc2626!important;font-weight:600;}
-  #print-area .neu{color:#888!important;}
+  #print-area .print-info{font-size:9px;color:#777;margin-bottom:12px;}
 }
