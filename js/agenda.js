@@ -50,19 +50,35 @@ function rAgenda() {
     .replace(/[áàã]/g,'a').replace(/[éê]/g,'e').replace(/[íi]/g,'i')
     .replace(/[óôõ]/g,'o').replace(/[úü]/g,'u').replace(/ç/g,'c');
 
+  // Prefixos de logradouro: se a cidade aparece logo após um desses, é nome de rua, não município
+  const PREFIX_RUA = /(?:^|,\s*)(?:r\.?\s*|rua\s+|av\.?\s*|avenida\s+|al\.?\s*|alameda\s+|tv\.?\s*|travessa\s+|pca\.?\s*|praca\s+|estrada\s+|rod\.?\s*|rodovia\s+|trav\.\s*)$/;
+
+  const cidadeNoLocal = (local, ci) => {
+    const ciN = normalizar(ci);
+    let pos = 0;
+    while (true) {
+      const idx = local.indexOf(ciN, pos);
+      if (idx === -1) return false;
+      // Ignora se precedida por prefixo de rua
+      if (!PREFIX_RUA.test(local.slice(0, idx))) return true;
+      pos = idx + 1;
+    }
+  };
+
   const ehViagem = ev => {
     const local = normalizar(ev.local||'');
-    if (CIDADES_VIAGEM_AG.some(ci => local.includes(normalizar(ci)))) return true;
+    // Endereço em Belo Horizonte nunca é viagem
+    if (local.includes('belo horizonte') || /\bbh\b/.test(local)) return false;
+    if (CIDADES_VIAGEM_AG.some(ci => cidadeNoLocal(local, ci))) return true;
     if (/mateus\s*leme/i.test(ev.local||'')) return true;
     if (/por conta da romero/i.test(ev.transporte||'')) return true;
-    // Cruzar com contrato salvo pelo nome+data — só verifica o local, não o transporte
-    // (transporte pode estar desatualizado de versões antigas do sistema)
     const contrato = (D.contratos||[]).find(c =>
       c.data === ev.data && (c.nome === ev.nome || (c.nomeEvento||'') === ev.nome)
     );
     if (contrato) {
       const locC = normalizar(contrato.local||'');
-      if (CIDADES_VIAGEM_AG.some(ci => locC.includes(normalizar(ci)))) return true;
+      if (locC.includes('belo horizonte') || /\bbh\b/.test(locC)) return false;
+      if (CIDADES_VIAGEM_AG.some(ci => cidadeNoLocal(locC, ci))) return true;
     }
     return false;
   };
