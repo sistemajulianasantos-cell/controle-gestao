@@ -5,7 +5,7 @@ let dadosContrato = {};
 
 function setContratoView(v) {
   if (v === 'importar') { setTimeout(initImportacao, 50); }
-  ['importar','lista'].forEach(k => {
+  ['importar','lista','manual'].forEach(k => {
     const el = document.getElementById('cview-'+k);
     if (el) el.style.display = v === k ? '' : 'none';
     const btn = document.getElementById('cv-'+k);
@@ -1422,6 +1422,112 @@ function novoContrato() {
   document.getElementById('contrato-form').style.display = 'none';
   document.getElementById('contrato-status').textContent = '';
   ['c-nome','c-cpf','c-endereco','c-hora-inicio','c-opcao'].forEach(id => { const el=document.getElementById(id);if(el)el.value='';});
+}
+
+// ─── CONTRATO MANUAL ──────────────────────────────────────────────────────────
+
+function salvarContratoManual() {
+  const nome  = document.getElementById('mn-nome')?.value?.trim();
+  const data  = document.getElementById('mn-data')?.value;
+  if (!nome || !data) { alert('Preencha pelo menos Nome e Data do evento.'); return; }
+
+  const tipo        = document.getElementById('mn-tipo')?.value || '';
+  const convidados  = document.getElementById('mn-conv')?.value?.trim() || '';
+  const local       = document.getElementById('mn-local')?.value?.trim() || '';
+  const hrInicio    = document.getElementById('mn-ini')?.value || '';
+  const hrFim       = document.getElementById('mn-fim')?.value || '';
+  const equipeTexto = document.getElementById('mn-equipe')?.value?.trim() || '';
+  const valorText   = document.getElementById('mn-valor')?.value?.trim() || '';
+  const sinalText   = document.getElementById('mn-sinal')?.value?.trim() || '';
+  const sinalVenc   = document.getElementById('mn-sinal-venc')?.value || new Date().toISOString().slice(0,10);
+  const restVenc    = document.getElementById('mn-rest-venc')?.value || '';
+  const status      = document.getElementById('mn-status')?.value || 'ativo';
+  const transporte  = document.getElementById('mn-transporte')?.value || 'Por conta do colaborador';
+  const cardapio    = document.getElementById('mn-cardapio')?.value?.trim() || '';
+  const bebidasRomero  = document.getElementById('mn-bebidas-romero')?.value?.trim() || '';
+  const bebidasCliente = document.getElementById('mn-bebidas-cliente')?.value?.trim() || '';
+  const obs         = document.getElementById('mn-obs')?.value?.trim() || '';
+
+  const valorNum = parseFloat((valorText||'0').replace(/\./g,'').replace(',','.')) || 0;
+
+  // Calcular parcelas
+  let parcelas = [];
+  if (valorNum > 0) {
+    const sinalNum = sinalText
+      ? (parseFloat(sinalText.replace(/\./g,'').replace(',','.')) || 0)
+      : valorNum * 0.2;
+    const restNum  = valorNum - sinalNum;
+    const fmt = v => v.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+    parcelas = [
+      { valor: fmt(sinalNum), descricao: 'Sinal — assinatura do contrato', vencimento: sinalVenc },
+      { valor: fmt(restNum),  descricao: 'Restante', vencimento: restVenc }
+    ];
+  }
+
+  // Parser de equipe (mesmo padrão do editor)
+  const equipeArray = (() => {
+    const res = [];
+    if (/[·,;]/.test(equipeTexto)) {
+      equipeTexto.split(/\s*[·,;]\s*/).forEach(parte => {
+        const m = parte.trim().match(/^(\d+)\.?\s+(.+)$/);
+        if (m && parseInt(m[1]) > 0) res.push({ qtd: parseInt(m[1]), cargo: m[2].trim() });
+      });
+      if (res.length) return res;
+    }
+    const re = /\b(\d+)\.?\s+([A-Za-zÀ-ú][A-Za-zÀ-ú ]*?)(?=\s+\d|\s*$)/g;
+    let m;
+    while ((m = re.exec(equipeTexto)) !== null) {
+      const qtd = parseInt(m[1]);
+      const cargo = m[2].trim();
+      if (qtd > 0 && cargo.length > 1) res.push({ qtd, cargo });
+    }
+    return res;
+  })();
+
+  // Duração automática se horários preenchidos
+  let duracao = '';
+  if (hrInicio && hrFim) {
+    const [hi, mi] = hrInicio.split(':').map(Number);
+    let [hf, mf]   = hrFim.split(':').map(Number);
+    if (hf < hi) hf += 24;
+    const mins = (hf * 60 + mf) - (hi * 60 + mi);
+    duracao = Math.floor(mins / 60) + 'h' + (mins % 60 ? (mins % 60) + 'min' : '');
+  }
+
+  const contrato = {
+    nome, cpf: document.getElementById('mn-cpf')?.value?.trim() || '',
+    tipo, nomeEvento: nome, data,
+    local, convidados, hrInicio, hrFim, duracao,
+    equipe: equipeArray,
+    equipeTexto: equipeTexto || equipeArray.map(e => `${e.qtd} ${e.cargo}`).join(' · '),
+    equipeTotal: equipeArray.reduce((s, e) => s + (e.qtd || 0), 0),
+    opcao: valorText, valorNum,
+    parcelas,
+    parc1: parcelas[0]?.valor || '',
+    parc2: parcelas[1]?.valor || '',
+    transporte, cardapio,
+    bebidasRomero, bebidasCliente,
+    obs, status,
+    origem: 'manual'
+  };
+
+  salvarContratoCompleto(contrato);
+  limparContratoManual();
+  alert('Contrato salvo! Agenda, financeiro e produção atualizados.');
+  setContratoView('lista');
+}
+
+function limparContratoManual() {
+  ['mn-nome','mn-cpf','mn-conv','mn-local','mn-equipe','mn-valor','mn-sinal',
+   'mn-sinal-venc','mn-rest-venc','mn-cardapio','mn-bebidas-romero','mn-bebidas-cliente','mn-obs'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  ['mn-tipo','mn-status','mn-ini','mn-fim','mn-data','mn-transporte'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = id === 'mn-status' ? 'ativo'
+                     : id === 'mn-transporte' ? 'Por conta do colaborador' : '';
+  });
 }
 
 

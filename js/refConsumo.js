@@ -29,6 +29,7 @@ const RC_ITEM_CAT = {
   'Nib Shot':'DESTILADOS SECUNDÁRIOS','Bananinha':'DESTILADOS SECUNDÁRIOS',
   'Ballena':'DESTILADOS SECUNDÁRIOS','Pisco':'DESTILADOS SECUNDÁRIOS','Martini':'DESTILADOS SECUNDÁRIOS',
   'Espuma de Gengibre':'ESPUMAS','Espuma de Siciliano':'ESPUMAS',
+  'Angostura':'NÃO ALCOÓLICOS',
   'Mix Frutas Vermelhas':'NÃO ALCOÓLICOS','Grapefruit':'NÃO ALCOÓLICOS','Ginger Ale':'NÃO ALCOÓLICOS',
   'Café':'NÃO ALCOÓLICOS','Suco de Limão':'NÃO ALCOÓLICOS','Xarope de Açucar':'NÃO ALCOÓLICOS',
   'Agua gasosa':'NÃO ALCOÓLICOS','Agua Tônica':'NÃO ALCOÓLICOS',

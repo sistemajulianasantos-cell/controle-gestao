@@ -626,7 +626,8 @@
       <!-- Tabs -->
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
         <button class="sort-btn active" id="cv-lista"    onclick="setContratoView('lista')">📋 Todos os contratos</button>
-        <button class="sort-btn"        id="cv-importar" onclick="setContratoView('importar')">📥 Importar contrato existente</button>
+        <button class="sort-btn"        id="cv-manual"   onclick="setContratoView('manual')">✏️ Novo contrato manual</button>
+        <button class="sort-btn"        id="cv-importar" onclick="setContratoView('importar')">📥 Importar via PDF</button>
         <button class="btn-sm" onclick="repararVinculosContratos()" style="margin-left:auto;background:#2A2F42;color:#F7C84F;border:1px solid #F7C84F" title="Corrige vínculos quebrados entre contratos, agenda, financeiro e produção">🔧 Reparar vínculos</button>
       </div>
 
@@ -708,6 +709,76 @@
             <div style="grid-column:1/-1;display:flex;gap:8px;margin-top:4px">
               <button class="btn" onclick="salvarImportacao()" style="background:#4F8EF7">✅ Confirmar e salvar</button>
               <button class="btn" onclick="limparImportacao()" style="background:#2A2F42">Limpar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── VIEW: Novo contrato manual ─────────────────────────────── -->
+      <div id="cview-manual" style="display:none">
+        <div class="sec">
+          <div class="sec-head"><span class="sec-title">✏️ Novo contrato manual</span></div>
+          <div style="padding:12px 16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">
+
+            <!-- Bloco: Dados do cliente -->
+            <div style="grid-column:1/-1;color:#8B91A8;font-size:11px;font-weight:600;letter-spacing:.06em;padding-top:4px">CLIENTE</div>
+            <div><label class="lbl">Nome completo *</label><input id="mn-nome" class="inp" type="text" placeholder="Nome do contratante"></div>
+            <div><label class="lbl">CPF</label><input id="mn-cpf" class="inp" type="text" placeholder="000.000.000-00"></div>
+
+            <!-- Bloco: Dados do evento -->
+            <div style="grid-column:1/-1;color:#8B91A8;font-size:11px;font-weight:600;letter-spacing:.06em;padding-top:8px">EVENTO</div>
+            <div><label class="lbl">Tipo de evento</label>
+              <select id="mn-tipo" class="inp">
+                <option value="">Selecionar...</option>
+                <option value="Casamento">Casamento</option>
+                <option value="Aniversário">Aniversário</option>
+                <option value="15 Anos">15 Anos</option>
+                <option value="Formatura">Formatura</option>
+                <option value="Noivado">Noivado</option>
+                <option value="Corporativo">Corporativo</option>
+                <option value="Outro">Outro</option>
+              </select>
+            </div>
+            <div><label class="lbl">Data do evento *</label><input id="mn-data" class="inp" type="date"></div>
+            <div><label class="lbl">Nº de convidados</label><input id="mn-conv" class="inp" type="number" placeholder="300" min="1"></div>
+            <div><label class="lbl">Horário início</label><input id="mn-ini" class="inp" type="time"></div>
+            <div><label class="lbl">Horário fim</label><input id="mn-fim" class="inp" type="time"></div>
+            <div style="grid-column:1/-1"><label class="lbl">Local</label><input id="mn-local" class="inp" type="text" placeholder="Nome do espaço / endereço"></div>
+
+            <!-- Bloco: Equipe -->
+            <div style="grid-column:1/-1;color:#8B91A8;font-size:11px;font-weight:600;letter-spacing:.06em;padding-top:8px">EQUIPE</div>
+            <div style="grid-column:1/-1"><label class="lbl">Composição da equipe</label><input id="mn-equipe" class="inp" type="text" placeholder="Ex: 1 Head Bartender · 4 Bartenders · 2 Bar Back"></div>
+
+            <!-- Bloco: Financeiro -->
+            <div style="grid-column:1/-1;color:#8B91A8;font-size:11px;font-weight:600;letter-spacing:.06em;padding-top:8px">FINANCEIRO</div>
+            <div><label class="lbl">Valor total (R$)</label><input id="mn-valor" class="inp" type="text" placeholder="Ex: 12.500,00"></div>
+            <div><label class="lbl">Valor do sinal (R$)</label><input id="mn-sinal" class="inp" type="text" placeholder="Deixe em branco para 20%"></div>
+            <div><label class="lbl">Vencimento do sinal</label><input id="mn-sinal-venc" class="inp" type="date"></div>
+            <div><label class="lbl">Vencimento do restante</label><input id="mn-rest-venc" class="inp" type="date"></div>
+            <div><label class="lbl">Status do contrato</label>
+              <select id="mn-status" class="inp">
+                <option value="ativo">Ativo</option>
+                <option value="concluido">Concluído</option>
+                <option value="cancelado">Cancelado</option>
+              </select>
+            </div>
+            <div><label class="lbl">Transporte</label>
+              <select id="mn-transporte" class="inp">
+                <option value="Por conta do colaborador">Por conta do colaborador</option>
+                <option value="Por conta da Romero">Por conta da Romero</option>
+              </select>
+            </div>
+
+            <!-- Bloco: Extras -->
+            <div style="grid-column:1/-1;color:#8B91A8;font-size:11px;font-weight:600;letter-spacing:.06em;padding-top:8px">EXTRAS (opcional)</div>
+            <div style="grid-column:1/-1"><label class="lbl">Cardápio / Coquetéis</label><textarea id="mn-cardapio" class="inp" rows="3" placeholder="Liste os coquetéis e itens do cardápio..." style="resize:vertical"></textarea></div>
+            <div style="grid-column:1/-1"><label class="lbl">Bebidas fornecidas pela Romero</label><textarea id="mn-bebidas-romero" class="inp" rows="2" placeholder="Ex: VODKA, GIN..." style="resize:vertical"></textarea></div>
+            <div style="grid-column:1/-1"><label class="lbl">Bebidas do cliente</label><textarea id="mn-bebidas-cliente" class="inp" rows="2" placeholder="Bebidas fornecidas pelo cliente..." style="resize:vertical"></textarea></div>
+            <div style="grid-column:1/-1"><label class="lbl">Observações</label><textarea id="mn-obs" class="inp" rows="2" placeholder="Observações gerais..." style="resize:vertical"></textarea></div>
+
+            <div style="grid-column:1/-1;display:flex;gap:8px;margin-top:8px">
+              <button class="btn" onclick="salvarContratoManual()" style="background:#4F8EF7">✅ Salvar contrato</button>
+              <button class="btn" onclick="limparContratoManual()" style="background:#2A2F42">Limpar</button>
             </div>
           </div>
         </div>
@@ -1369,9 +1440,9 @@
 <script src="js/separacao.js?v=20260530"></script>
 <script src="js/equipe.js?v=20260526"></script>
 <script src="js/orcamento.js?v=20260526c"></script>
-<script src="js/orcCalc.js?v=20260526b"></script>
+<script src="js/orcCalc.js?v=20260603"></script>
 <script src="js/_refConsumoData.js?v=20260601"></script>
-<script src="js/refConsumo.js?v=20260602"></script>
+<script src="js/refConsumo.js?v=20260603"></script>
 
 <script type="module">
 import { initializeApp }    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";

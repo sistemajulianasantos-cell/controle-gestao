@@ -1,6 +1,8 @@
 // ─── CALCULADORA DE ORÇAMENTO ─────────────────────────────────────────────────
 
-var _orcCardapioOpen = false;
+var _orcCardapioOpen  = false;
+var _orcCardapioFichaId = '';
+var _orcCardapioItems = []; // [{cat, nome, rcNome, qtd}]
 
 var CALC_LOCAIS = {
   area_central:  { label:'Área Central BH',         bt:320, bb:320, hb:230, cd:230, cp:230, la:35, rf:35, ca:400  },
@@ -447,8 +449,8 @@ function rOrcCalc() {
           <thead>
             <tr style="font-size:9px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border)">
               <th style="padding:5px 10px;text-align:left;font-weight:500">Insumo</th>
-              <th style="padding:5px 6px;text-align:right;font-weight:500">Qtd garrafas</th>
-              <th style="padding:5px 6px;text-align:right;font-weight:500">Custo/garrafa</th>
+              <th style="padding:5px 6px;text-align:right;font-weight:500">Qtd</th>
+              <th style="padding:5px 6px;text-align:right;font-weight:500">Custo/uni</th>
               <th style="padding:5px 6px;text-align:right;font-weight:500">Total</th>
               <th style="width:28px"></th>
             </tr>
@@ -458,9 +460,12 @@ function rOrcCalc() {
               <tr style="border-bottom:1px solid var(--border)">
                 <td style="padding:6px 10px;font-weight:500;color:var(--text)">${ins.nome}</td>
                 <td style="padding:4px 6px;text-align:right">
-                  <input type="number" value="${ins.qtdGarrafas}" min="0" step="1"
-                    onchange="calcUpdateInsumo('${ins.id}','qtdGarrafas',this.value)"
-                    style="width:65px;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono)">
+                  <div style="display:flex;align-items:center;justify-content:flex-end;gap:4px">
+                    <input type="number" value="${ins.qtdGarrafas}" min="0" step="1"
+                      onchange="calcUpdateInsumo('${ins.id}','qtdGarrafas',this.value)"
+                      style="width:65px;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono)">
+                    <span style="font-size:9px;color:var(--text3);white-space:nowrap">${_orcGetUnit(ins.nome)}</span>
+                  </div>
                 </td>
                 <td style="padding:4px 6px;text-align:right">
                   <input type="number" value="${ins.custoGarrafa || ''}" min="0" step="0.01" placeholder="0,00"
@@ -483,34 +488,48 @@ function rOrcCalc() {
         </div>
         ${_orcCardapioOpen ? `
           <div style="margin-top:12px">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:10px">
-              Selecione os coquetéis do evento — o sistema preencherá as quantidades com base na
-              <strong>quantidade máxima</strong> da Ref. Consumo para ${pax} convidados.
+            <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+              ${(D.fichas||[]).length
+                ? `<select id="orc-card-select" onchange="calcSelectCardapioFicha(this.value)"
+                    style="flex:1;min-width:180px;padding:7px 10px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:12px">
+                    <option value="">— Selecione uma ficha —</option>
+                    ${(D.fichas||[]).map(f=>`<option value="${f.id}"${f.id===_orcCardapioFichaId?' selected':''}>🍹 ${f.nome}${f.variantes?' ('+f.variantes+')':''}</option>`).join('')}
+                  </select>`
+                : '<span style="font-size:11px;color:var(--text3)">Nenhuma ficha cadastrada. Vá em Regras → Fichas de Coquetéis.</span>'
+              }
+              <span style="font-size:10px;color:var(--text3)">Ref.: <strong>${_calcTipoToGrupoRC(p.tipoEvento||'outros')}</strong> · ${pax} pax</span>
             </div>
-            <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px">
-              <div style="flex:1;min-width:200px">
-                <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:6px">Fichas de coquetel</div>
-                <div style="display:flex;flex-direction:column;gap:5px;max-height:200px;overflow-y:auto;padding:8px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px">
-                  ${(D.fichas||[]).length
-                    ? (D.fichas||[]).map(f=>`<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;color:var(--text2)"><input type="checkbox" class="orc-card-check" value="${f.id}"> 🍹 ${f.nome}${f.variantes?` <em style="color:var(--text3);font-size:10px">(${f.variantes})</em>`:''}</label>`).join('')
-                    : '<span style="font-size:11px;color:var(--text3)">Nenhuma ficha cadastrada. Vá em Regras → Fichas de Coquetéis.</span>'
-                  }
+
+            ${_orcCardapioItems.length ? `
+              <div style="border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:10px;font-size:12px">
+                <div style="padding:5px 12px;background:var(--bg3);border-bottom:1px solid var(--border);display:flex;justify-content:space-between">
+                  <span style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase">Item</span>
+                  <span style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase">Qtd</span>
                 </div>
+                ${_orcCardapioItems.map((item,idx)=>`
+                  <div style="display:grid;grid-template-columns:1fr 100px;gap:8px;align-items:center;padding:5px 12px;border-bottom:1px solid var(--border)">
+                    <div>
+                      <span style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-right:5px">${item.cat}</span>
+                      <span style="font-weight:500;color:var(--text)">${item.nome}</span>
+                      ${!item.rcNome?'<span style="font-size:9px;color:var(--text3);margin-left:4px">(sem ref.)</span>':''}
+                    </div>
+                    <div style="display:flex;align-items:center;gap:3px;justify-content:flex-end">
+                      <input type="number" id="orc-card-item-${idx}" value="${item.qtd}" min="0" step="1"
+                        onchange="calcUpdateCardapioItem(${idx},this.value)"
+                        style="width:55px;text-align:center;font-size:12px;font-weight:700;padding:3px 5px;border-radius:4px;border:1px solid ${item.qtd>0?'var(--green-dim)':'var(--border2)'};background:var(--bg);color:${item.qtd>0?'var(--green)':'var(--text3)'};font-family:var(--mono)">
+                      <span style="font-size:9px;color:var(--text3)">${_orcGetUnit(item.rcNome||'')}</span>
+                    </div>
+                  </div>`).join('')}
               </div>
-              <div>
-                <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:6px">Tipo de evento (Ref. Consumo)</div>
-                <select id="orc-card-grupo" style="padding:7px 10px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:12px;min-width:200px">
-                  ${(typeof RC_GRUPOS_CAT!=='undefined'?Object.entries(RC_GRUPOS_CAT):[]).map(([cat,gs])=>
-                    `<optgroup label="── ${cat}">${gs.map(g=>`<option value="${g}">${typeof _rcGrupoLabel==='function'?_rcGrupoLabel(g):g}</option>`).join('')}</optgroup>`
-                  ).join('')}
-                </select>
-                <div style="font-size:10px;color:var(--text3);margin-top:5px">${pax} convidados · Qtd = máx. histórico × PAX</div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <button onclick="calcPreencherPorCardapio()" style="background:#4F8EF7;border:none;color:white;border-radius:var(--radius);font-size:12px;padding:7px 18px;cursor:pointer;font-weight:600">⚡ Adicionar ao orçamento</button>
+                <button onclick="calcToggleCardapio()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:var(--radius);font-size:12px;padding:7px 12px;cursor:pointer">Cancelar</button>
               </div>
-            </div>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <button onclick="calcPreencherPorCardapio()" style="background:#4F8EF7;border:none;color:white;border-radius:var(--radius);font-size:12px;padding:8px 20px;cursor:pointer;font-weight:600">⚡ Preencher automaticamente</button>
-              <button onclick="calcToggleCardapio()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:var(--radius);font-size:12px;padding:8px 14px;cursor:pointer">Cancelar</button>
-            </div>
+            ` : `
+              <div style="display:flex;gap:8px;justify-content:flex-end">
+                <button onclick="calcToggleCardapio()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:var(--radius);font-size:12px;padding:7px 12px;cursor:pointer">Fechar</button>
+              </div>
+            `}
           </div>` : ''}
       </div>
 
@@ -550,7 +569,35 @@ function rOrcCalc() {
 
 function calcToggleCardapio() {
   _orcCardapioOpen = !_orcCardapioOpen;
+  if (!_orcCardapioOpen) { _orcCardapioFichaId = ''; _orcCardapioItems = []; }
   rOrcCalc();
+}
+
+function calcSelectCardapioFicha(fichaId) {
+  _orcCardapioFichaId = fichaId;
+  _orcCardapioItems = [];
+  if (!fichaId) { rOrcCalc(); return; }
+
+  const orc = _calcGetOrc();
+  const pax = orc ? (orc.convidados || 0) : 0;
+  const grupoRC = _calcTipoToGrupoRC(((orc && orc.calcParams) || {}).tipoEvento || 'outros');
+  const stats = (typeof _rcGetStats === 'function') ? _rcGetStats() : {};
+  const gd = stats[grupoRC] || {};
+
+  const ficha = (D.fichas || []).find(f => f.id === fichaId);
+  if (!ficha) { rOrcCalc(); return; }
+
+  (ficha.itens || []).forEach(item => {
+    const rc  = _rcMapFichaItemToRC(item.nome);
+    const d   = rc ? gd[rc] : null;
+    const qtd = (d && d.max != null) ? Math.ceil(d.max * pax) : 0;
+    _orcCardapioItems.push({ cat: item.cat, nome: item.nome, rcNome: rc, qtd });
+  });
+  rOrcCalc();
+}
+
+function calcUpdateCardapioItem(idx, val) {
+  if (_orcCardapioItems[idx]) _orcCardapioItems[idx].qtd = parseInt(val) || 0;
 }
 
 // Mapeia nome de item da ficha de coquetel para nome na Ref. Consumo
@@ -587,7 +634,8 @@ function _rcMapFichaItemToRC(nome) {
     [/ESPUMA.*SICIL/,               'Espuma de Siciliano'],
     [/MIX FRUTAS VERMELHAS/,        'Mix Frutas Vermelhas'],
     [/GRAPEFRUIT/,                  'Grapefruit'],
-    [/GINGER ALE/,                  'Ginger Ale'],
+    [/GINGER/,                      'Ginger Ale'],
+    [/ANGOSTURA/,                   'Angostura'],
     [/\bCAF[EÉ]\b/,                 'Café'],
     [/SUCO DE LIM[AÃ]O/,           'Suco de Limão'],
     [/XAROPE DE A[CÇ][UÚ]CAR/,    'Xarope de Açucar'],
@@ -618,52 +666,46 @@ function _rcMapFichaItemToRC(nome) {
   return null;
 }
 
+function _orcGetUnit(nome) {
+  const cat = (typeof RC_ITEM_CAT !== 'undefined') ? RC_ITEM_CAT[nome] : null;
+  if (cat === 'COPOS E TAÇAS') return 'uni';
+  if (['Espuma de Gengibre','Espuma de Siciliano','Suco de Limão','Xarope de Açucar',
+       'Ginger Ale','Grapefruit','Mix Frutas Vermelhas','Agua gasosa','Agua Tônica'].includes(nome)) return 'und';
+  return 'garrafas';
+}
+
+function _calcTipoToGrupoRC(tipo) {
+  return { casamento:'CASAMENTO', '15anos':'ANIVERSÁRIO 15 ANOS', formatura:'FORMATURA', outros:'CASAMENTO' }[tipo] || 'CASAMENTO';
+}
+
 function calcPreencherPorCardapio() {
   const orc = _calcGetOrc();
   if (!orc) return;
+  if (!_orcCardapioItems.length) { alert2('Selecione uma ficha de coquetel.', 'error'); return; }
 
-  const checkboxes = [...document.querySelectorAll('.orc-card-check:checked')];
-  if (!checkboxes.length) { alert2('Selecione ao menos uma ficha de coquetel.', 'error'); return; }
-
-  const fichaIds = checkboxes.map(cb => cb.value);
-  const fichas   = (D.fichas || []).filter(f => fichaIds.includes(f.id));
-  const grupoRC  = document.getElementById('orc-card-grupo')?.value || 'CASAMENTO';
-  const pax      = orc.convidados || 0;
-  if (!pax) { alert2('Defina o número de convidados no orçamento.', 'error'); return; }
-
-  const stats = (typeof _rcGetStats === 'function') ? _rcGetStats() : {};
-  const gd    = stats[grupoRC] || {};
-
-  // Coleta todos os insumos das fichas selecionadas → mapeia para RC
-  const mapa = new Map(); // rcNome → Set<nomeFicha>
-  fichas.forEach(ficha => {
-    (ficha.itens || []).forEach(item => {
-      const rc = _rcMapFichaItemToRC(item.nome);
-      if (!rc) return;
-      if (!mapa.has(rc)) mapa.set(rc, new Set());
-      mapa.get(rc).add(ficha.nome);
-    });
+  // Sync quantities from live inputs before saving
+  _orcCardapioItems.forEach((item, idx) => {
+    const inp = document.getElementById('orc-card-item-' + idx);
+    if (inp) item.qtd = parseInt(inp.value) || 0;
   });
-
-  if (!mapa.size) { alert2('Nenhum insumo reconhecido nestas fichas. Verifique os itens cadastrados.', 'error'); return; }
 
   if (!orc.insumos) orc.insumos = [];
   let adicionados = 0, atualizados = 0;
 
-  mapa.forEach((fichasUsam, rcNome) => {
-    const d   = gd[rcNome];
-    const qtd = (d && d.max != null) ? Math.ceil(d.max * pax) : 0;
+  _orcCardapioItems.forEach(item => {
+    const nome = item.rcNome || item.nome;
+    const qtd  = item.qtd;
 
-    const existing = orc.insumos.find(i => i.nome === rcNome);
+    const existing = orc.insumos.find(i => i.nome === nome);
     if (existing) {
       existing.qtdGarrafas = qtd;
       existing.total = Math.round(qtd * (existing.custoGarrafa || 0) * 100) / 100;
       atualizados++;
     } else {
-      const precoRef = D.precos?.[rcNome]?.custo || 0;
+      const precoRef = (D.precos && D.precos[nome]) ? (D.precos[nome].custo || 0) : 0;
       orc.insumos.push({
-        id: 'ins-' + Date.now() + Math.random().toString(36).slice(2, 4),
-        nome: rcNome,
+        id: 'ins-' + Date.now() + '-' + Math.random().toString(36).slice(2, 4),
+        nome,
         qtdGarrafas: qtd,
         custoGarrafa: precoRef,
         total: Math.round(qtd * precoRef * 100) / 100,
@@ -674,6 +716,8 @@ function calcPreencherPorCardapio() {
 
   sv('orcamentos');
   _orcCardapioOpen = false;
-  alert2(`✅ ${adicionados} insumo(s) adicionado(s)${atualizados ? ' · ' + atualizados + ' atualizado(s)' : ''} para ${pax} convidados.`);
+  _orcCardapioFichaId = '';
+  _orcCardapioItems = [];
+  alert2(`✅ ${adicionados} insumo(s) adicionado(s)${atualizados ? ' · ' + atualizados + ' atualizado(s)' : ''} para ${orc.convidados||0} convidados.`);
   rOrcCalc();
 }
