@@ -130,9 +130,10 @@ function _rcBuildTabela() {
     <div>
       <div style="font-size:18px;font-weight:600;color:var(--text)">Referência de Consumo</div>
       <div style="font-size:12px;color:var(--text3);margin-top:2px">
-        ${total ? `<span style="color:var(--green)">${total} evento${total>1?'s':''} na base</span>` : '<span style="color:var(--text3)">Base padrão (sem eventos importados)</span>'}
-        ${imp.length    ? ` · ${imp.length} importados` : ''}
-        ${manual.length ? ` · ${manual.length} lançados manualmente` : ''}
+        ${total
+          ? `<span style="color:var(--green)">${total} evento${total>1?'s':''} na base</span>${imp.length ? ` · ${imp.length} importados` : ''}${manual.length ? ` · ${manual.length} manuais` : ''}`
+          : `<span style="color:#F5A623">Usando base padrão histórica</span> <span style="color:var(--text3)">· importe seus eventos para substituir</span>`
+        }
       </div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
