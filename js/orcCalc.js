@@ -1,5 +1,7 @@
 // ─── CALCULADORA DE ORÇAMENTO ─────────────────────────────────────────────────
 
+var _orcCardapioOpen = false;
+
 var CALC_LOCAIS = {
   area_central:  { label:'Área Central BH',         bt:320, bb:320, hb:230, cd:230, cp:230, la:35, rf:35, ca:400  },
   jardim_canada: { label:'Jardim Canadá / C.Nova',  bt:320, bb:320, hb:250, cd:250, cp:250, la:35, rf:35, ca:600  },
@@ -473,6 +475,45 @@ function rOrcCalc() {
           </tbody>
         </table>` : ''}
 
+      <!-- Preencher via cardápio -->
+      <div style="padding:10px 14px;border-top:1px solid var(--border);background:rgba(79,142,247,.04)">
+        <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none" onclick="calcToggleCardapio()">
+          <span style="font-size:11px;font-weight:600;color:#4F8EF7">🍹 Preencher insumos via cardápio de coquetel</span>
+          <span style="color:#4F8EF7;font-size:13px">${_orcCardapioOpen?'▲':'▼'}</span>
+        </div>
+        ${_orcCardapioOpen ? `
+          <div style="margin-top:12px">
+            <div style="font-size:10px;color:var(--text3);margin-bottom:10px">
+              Selecione os coquetéis do evento — o sistema preencherá as quantidades com base na
+              <strong>quantidade máxima</strong> da Ref. Consumo para ${pax} convidados.
+            </div>
+            <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px">
+              <div style="flex:1;min-width:200px">
+                <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:6px">Fichas de coquetel</div>
+                <div style="display:flex;flex-direction:column;gap:5px;max-height:200px;overflow-y:auto;padding:8px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px">
+                  ${(D.fichas||[]).length
+                    ? (D.fichas||[]).map(f=>`<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;color:var(--text2)"><input type="checkbox" class="orc-card-check" value="${f.id}"> 🍹 ${f.nome}${f.variantes?` <em style="color:var(--text3);font-size:10px">(${f.variantes})</em>`:''}</label>`).join('')
+                    : '<span style="font-size:11px;color:var(--text3)">Nenhuma ficha cadastrada. Vá em Regras → Fichas de Coquetéis.</span>'
+                  }
+                </div>
+              </div>
+              <div>
+                <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:6px">Tipo de evento (Ref. Consumo)</div>
+                <select id="orc-card-grupo" style="padding:7px 10px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:12px;min-width:200px">
+                  ${(typeof RC_GRUPOS_CAT!=='undefined'?Object.entries(RC_GRUPOS_CAT):[]).map(([cat,gs])=>
+                    `<optgroup label="── ${cat}">${gs.map(g=>`<option value="${g}">${typeof _rcGrupoLabel==='function'?_rcGrupoLabel(g):g}</option>`).join('')}</optgroup>`
+                  ).join('')}
+                </select>
+                <div style="font-size:10px;color:var(--text3);margin-top:5px">${pax} convidados · Qtd = máx. histórico × PAX</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <button onclick="calcPreencherPorCardapio()" style="background:#4F8EF7;border:none;color:white;border-radius:var(--radius);font-size:12px;padding:8px 20px;cursor:pointer;font-weight:600">⚡ Preencher automaticamente</button>
+              <button onclick="calcToggleCardapio()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:var(--radius);font-size:12px;padding:8px 14px;cursor:pointer">Cancelar</button>
+            </div>
+          </div>` : ''}
+      </div>
+
       <!-- Formulário inline para adicionar -->
       <div style="padding:10px 14px;border-top:${insumos.length?'1px solid var(--border)':'none'};background:var(--bg3);border-radius:0 0 var(--radius) var(--radius)">
         <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:8px">+ Adicionar insumo</div>
@@ -503,4 +544,136 @@ function rOrcCalc() {
       <div>${insumosHtml}${secoesHtml}</div>
       ${resumoHtml}
     </div>`;
+}
+
+// ─── PREENCHER INSUMOS VIA CARDÁPIO ──────────────────────────────────────────
+
+function calcToggleCardapio() {
+  _orcCardapioOpen = !_orcCardapioOpen;
+  rOrcCalc();
+}
+
+// Mapeia nome de item da ficha de coquetel para nome na Ref. Consumo
+function _rcMapFichaItemToRC(nome) {
+  const n = nome.toUpperCase();
+  const checks = [
+    [/VODKA/,                       'Vodka'],
+    [/GIM|GIN|BEEFEATER|TANQUERAY/, 'Gim'],
+    [/APEROL/,                      'Aperol'],
+    [/CAMPARI/,                     'Campari'],
+    [/VERMU|VERMUTE|CARPANO/,       'Vermouth'],
+    [/TEQUILA/,                     'Tequila'],
+    [/\bRUM\b/,                     'Rum'],
+    [/ESPUMANTE|LE BLANC/,          'Espumante'],
+    [/LICOR 43/,                    'Licor 43'],
+    [/WHISKEY|WHISKY|JAMESON/,      'Whisky'],
+    [/CACHA[CÇ]A|SPIRAL/,          'Cachaça'],
+    [/FERNET/,                      'Fernet'],
+    [/BANANINHA/,                   'Bananinha'],
+    [/FIREBALL/,                    'Fireball'],
+    [/MANZA/,                       'Manzza'],
+    [/LILLET/,                      'Lillet'],
+    [/\bSAKE\b/,                    'Sake'],
+    [/\bVINHO\b/,                   'Vinho'],
+    [/\bPISCO\b/,                   'Pisco'],
+    [/NEGRONI ROMERO/,              'Negroni Romero'],
+    [/LIMONCHELL|LIMONCELL/,        'Limonchello'],
+    [/NIB SHOT/,                    'Nib Shot'],
+    [/LICOR DOCE DE LEITE/,         'Licor Doce de Leite'],
+    [/BALLENA/,                     'Ballena'],
+    [/LICOR DE CAF[EÉ]/,            'Licor 43'],
+    // Espumas / mixes
+    [/ESPUMA.*GENGIB/,              'Espuma de Gengibre'],
+    [/ESPUMA.*SICIL/,               'Espuma de Siciliano'],
+    [/MIX FRUTAS VERMELHAS/,        'Mix Frutas Vermelhas'],
+    [/GRAPEFRUIT/,                  'Grapefruit'],
+    [/GINGER ALE/,                  'Ginger Ale'],
+    [/\bCAF[EÉ]\b/,                 'Café'],
+    [/SUCO DE LIM[AÃ]O/,           'Suco de Limão'],
+    [/XAROPE DE A[CÇ][UÚ]CAR/,    'Xarope de Açucar'],
+    [/[AÁ]GUA.*GAS/,               'Agua gasosa'],
+    [/[AÁ]GUA.*T[OÔ]N/,           'Agua Tônica'],
+    // Copos e taças
+    [/LONGO LISO|LONG LISO/,        'Long liso'],
+    [/LONGO REVEL|LONG DRINK/,      'Long Drink'],
+    [/LONGO ELYSIA/,                'Long Xtra'],
+    [/XTRA BAIXO|BAIXO ELYSIA|BAIXO TIMELL/, 'Xtra Baixo'],
+    [/BAIXO LISO/,                  'Baixo Liso'],
+    [/WHISKY XTAR|WHISKEY XTAR/,    'Taça Xtar'],
+    [/TAÇA.*VINHO|VINHO.*TAÇA/,    'Taça de Vinho'],
+    [/\bCANECA\b/,                  'Caneca'],
+    [/\bCOUPE\b/,                   'Coupe'],
+    [/TAÇA XTAR/,                   'Taça Xtar'],
+    [/TAÇA FLUTE|FLUTE/,            'Taça Flute'],
+    [/\bCALISE\b/,                  'Calise'],
+    [/RECEPTIVO/,                   'Receptivo'],
+    [/LAMPADA/,                     'Lampada'],
+    [/BUNELLO/,                     'Bunello'],
+    [/TIMELESS|TIMELES/,            'Whiskey Timeles'],
+    [/WHISKEY.*ELYSIA|ELYSIA.*WHISKEY/, 'Whiskey Elysia'],
+  ];
+  for (const [re, rc] of checks) {
+    if (re.test(n)) return rc;
+  }
+  return null;
+}
+
+function calcPreencherPorCardapio() {
+  const orc = _calcGetOrc();
+  if (!orc) return;
+
+  const checkboxes = [...document.querySelectorAll('.orc-card-check:checked')];
+  if (!checkboxes.length) { alert2('Selecione ao menos uma ficha de coquetel.', 'error'); return; }
+
+  const fichaIds = checkboxes.map(cb => cb.value);
+  const fichas   = (D.fichas || []).filter(f => fichaIds.includes(f.id));
+  const grupoRC  = document.getElementById('orc-card-grupo')?.value || 'CASAMENTO';
+  const pax      = orc.convidados || 0;
+  if (!pax) { alert2('Defina o número de convidados no orçamento.', 'error'); return; }
+
+  const stats = (typeof _rcGetStats === 'function') ? _rcGetStats() : {};
+  const gd    = stats[grupoRC] || {};
+
+  // Coleta todos os insumos das fichas selecionadas → mapeia para RC
+  const mapa = new Map(); // rcNome → Set<nomeFicha>
+  fichas.forEach(ficha => {
+    (ficha.itens || []).forEach(item => {
+      const rc = _rcMapFichaItemToRC(item.nome);
+      if (!rc) return;
+      if (!mapa.has(rc)) mapa.set(rc, new Set());
+      mapa.get(rc).add(ficha.nome);
+    });
+  });
+
+  if (!mapa.size) { alert2('Nenhum insumo reconhecido nestas fichas. Verifique os itens cadastrados.', 'error'); return; }
+
+  if (!orc.insumos) orc.insumos = [];
+  let adicionados = 0, atualizados = 0;
+
+  mapa.forEach((fichasUsam, rcNome) => {
+    const d   = gd[rcNome];
+    const qtd = (d && d.max != null) ? Math.ceil(d.max * pax) : 0;
+
+    const existing = orc.insumos.find(i => i.nome === rcNome);
+    if (existing) {
+      existing.qtdGarrafas = qtd;
+      existing.total = Math.round(qtd * (existing.custoGarrafa || 0) * 100) / 100;
+      atualizados++;
+    } else {
+      const precoRef = D.precos?.[rcNome]?.custo || 0;
+      orc.insumos.push({
+        id: 'ins-' + Date.now() + Math.random().toString(36).slice(2, 4),
+        nome: rcNome,
+        qtdGarrafas: qtd,
+        custoGarrafa: precoRef,
+        total: Math.round(qtd * precoRef * 100) / 100,
+      });
+      adicionados++;
+    }
+  });
+
+  sv('orcamentos');
+  _orcCardapioOpen = false;
+  alert2(`✅ ${adicionados} insumo(s) adicionado(s)${atualizados ? ' · ' + atualizados + ' atualizado(s)' : ''} para ${pax} convidados.`);
+  rOrcCalc();
 }
