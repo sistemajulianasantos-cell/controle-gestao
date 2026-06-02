@@ -177,9 +177,14 @@ function rAgenda() {
     return true;
   });
 
+  console.log('[AGENDA DEBUG] filtro:', filtroI, '→', filtroF);
+  console.log('[AGENDA DEBUG] contratos no período:', contratosNoPeriodo.length);
   contratosNoPeriodo.forEach(c => {
+    console.log('[AGENDA DEBUG] contrato:', c.data, c.nome||c.nomeEvento, '| equipeTexto:', JSON.stringify(c.equipeTexto), '| equipe:', JSON.stringify(c.equipe));
     if (c.equipeTexto) {
-      parsearTextoEquipe(c.equipeTexto).forEach(p => adicionarCargo(p.cargo, p.qtd));
+      const parsed = parsearTextoEquipe(c.equipeTexto);
+      console.log('[AGENDA DEBUG]   parsed:', JSON.stringify(parsed));
+      parsed.forEach(p => adicionarCargo(p.cargo, p.qtd));
     } else {
       (c.equipe||[]).forEach(e => { if ((e.qtd||0) > 0) adicionarCargo(e.cargo, e.qtd); });
     }
@@ -201,6 +206,8 @@ function rAgenda() {
       (ev.equipe||[]).forEach(e => { if ((e.qtd||0) > 0) adicionarCargo(e.cargo, e.qtd); });
     }
   });
+
+  console.log('[AGENDA DEBUG] totCargos:', JSON.stringify(totCargos));
 
   const totalGeral = Object.values(totCargos).reduce((s,v)=>s+v,0);
   const totStr = Object.entries(totCargos)
