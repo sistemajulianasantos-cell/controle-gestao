@@ -350,7 +350,7 @@ function extrairDadosContratoRomero(txt) {
     'poços de caldas','três pontas','varginha','passos','patos de minas',
     'teófilo otoni','muriaé','viçosa','barbacena','são joão del rei',
     'coronel fabriciano','timóteo','caratinga','manhuaçu',
-    'mateus leme','matheus leme'
+    'mateus leme','matheus leme','funilândia'
   ];
   const normExt = s => s.toLowerCase()
     .replace(/pte\.?\s*/g,'ponte ')
@@ -781,7 +781,7 @@ function rAnalise() {
     'poços de caldas','três pontas','varginha','passos','patos de minas',
     'teófilo otoni','muriaé','viçosa','barbacena','são joão del rei',
     'coronel fabriciano','timóteo','caratinga','manhuaçu',
-    'mateus leme','matheus leme'
+    'mateus leme','matheus leme','funilândia'
   ];
   const normAn = s => s.toLowerCase()
     .replace(/pte\.?\s*/g,'ponte ')
