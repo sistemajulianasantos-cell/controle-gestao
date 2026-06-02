@@ -41,7 +41,7 @@ function rAgenda() {
     'teófilo otoni','muriaé','viçosa','barbacena','são joão del rei',
     'coronel fabriciano','timóteo','caratinga','manhuaçu',
     'oliveira','itaúna','piumhi','campo belo','bom despacho',
-    'mateus leme','matheus leme','funilândia'
+    'mateus leme','matheus leme','funilândia','florestal'
   ];
 
   const normalizar = s => s.toLowerCase()
