@@ -348,6 +348,7 @@ function _rcDeleteEvento(i) {
 
 function _rcLimparManuais()    { if (!confirm('Apagar todos os eventos lançados manualmente?')) return; _rcSaveEventos([]); rRefConsumo(); }
 function _rcLimparImportados() { if (!confirm('Apagar toda a base importada?')) return; _rcSaveEventosImp([]); localStorage.removeItem('refConsumoMeta'); rRefConsumo(); }
+function _rcLimparTudo()       { if (!confirm('Apagar TODA a base (importados + manuais)?')) return; D.rcEventos=[]; D.rcEventosImportados=[]; sv('rcEventos'); sv('rcEventosImportados'); localStorage.removeItem('refConsumoMeta'); rRefConsumo(); }
 
 
 // ── VIEW: NOVO EVENTO ─────────────────────────────────────────────────────────
@@ -461,14 +462,16 @@ function _rcNovoStatus(msg, err) {
 
 // ── VIEW: IMPORTAR ────────────────────────────────────────────────────────────
 function _rcBuildImport() {
-  const imp  = _rcGetEventosImportados();
-  const meta = _rcGetMeta();
-  const info = imp.length
-    ? `<div style="padding:10px 14px;background:rgba(61,220,132,.08);border:1px solid rgba(61,220,132,.25);border-radius:8px;font-size:12px;color:var(--green);margin-bottom:16px">
-        ${imp.length} eventos importados ${meta?'em '+meta.data:''}
-        <button onclick="_rcLimparImportados()" style="margin-left:12px;background:none;border:none;color:var(--red);cursor:pointer;font-size:11px;text-decoration:underline">Remover</button>
-       </div>`
-    : '';
+  const imp    = _rcGetEventosImportados();
+  const manual = _rcGetEventos();
+  const meta   = _rcGetMeta();
+
+  const statusImp = imp.length
+    ? `<span style="color:var(--green);font-weight:600">${imp.length} eventos importados${meta?' · '+meta.data:''}</span>`
+    : `<span style="color:var(--text3)">Nenhum evento importado</span>`;
+  const statusMan = manual.length
+    ? `<span style="color:#4F8EF7;font-weight:600">${manual.length} lançados manualmente</span>`
+    : `<span style="color:var(--text3)">Nenhum lançado manualmente</span>`;
 
   return `
 <div style="padding:20px 24px;max-width:860px">
@@ -479,7 +482,27 @@ function _rcBuildImport() {
       <div style="font-size:12px;color:var(--text3)">Cada linha da planilha vira um evento no histórico</div>
     </div>
   </div>
-  ${info}
+
+  <!-- Situação atual + limpeza -->
+  <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:20px">
+    <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">Base atual (Firebase)</div>
+    <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center">
+      <div style="flex:1;min-width:160px">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:3px">Importados da planilha</div>
+        <div>${statusImp}</div>
+      </div>
+      <div style="flex:1;min-width:160px">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:3px">Lançados manualmente</div>
+        <div>${statusMan}</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${imp.length ? `<button class="btn" style="color:var(--red);border-color:var(--red);font-size:12px;padding:6px 12px" onclick="_rcLimparImportados()">🗑 Apagar importados</button>` : ''}
+        ${manual.length ? `<button class="btn" style="color:var(--red);border-color:var(--red);font-size:12px;padding:6px 12px" onclick="_rcLimparManuais()">🗑 Apagar manuais</button>` : ''}
+        ${(imp.length || manual.length) ? `<button class="btn" style="color:var(--red);border-color:var(--red);font-size:12px;padding:6px 12px;font-weight:600" onclick="_rcLimparTudo()">🗑 Limpar tudo</button>` : ''}
+      </div>
+    </div>
+  </div>
+
   <div style="margin-bottom:12px;font-size:12px;color:var(--text3);line-height:1.7">
     <strong style="color:var(--text2)">Como exportar da planilha:</strong> selecione tudo (Ctrl+A) → copie (Ctrl+C) → cole abaixo.<br>
     Colunas obrigatórias: <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">GRUPO</code> e <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">Convidados</code>.
@@ -489,7 +512,7 @@ function _rcBuildImport() {
     style="width:100%;height:220px;padding:12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;font-family:var(--mono);resize:vertical;box-sizing:border-box"></textarea>
   <div style="display:flex;gap:10px;margin-top:12px;align-items:center;flex-wrap:wrap">
     <button class="btn" style="background:#4F8EF7;border-color:#4F8EF7;color:#fff;padding:9px 20px" onclick="_rcProcessarImport()">Processar e salvar</button>
-    <button class="btn" onclick="document.getElementById('rc-tsv-input').value=''">Limpar</button>
+    <button class="btn" onclick="document.getElementById('rc-tsv-input').value=''">Limpar campo</button>
     <span id="rc-import-status" style="font-size:12px;color:var(--text3)"></span>
   </div>
 </div>`;
