@@ -169,45 +169,31 @@ function rAgenda() {
     if (ehViagem(ev)) totalViagens++;
   });
 
-  // Totais de equipe: direto dos contratos no período (fonte mais confiável)
-  const contratosNoPeriodo = (D.contratos||[]).filter(c => {
-    if (!c.data) return false;
-    if (filtroI && c.data < filtroI) return false;
-    if (filtroF && c.data > filtroF) return false;
-    return true;
-  });
-
-  console.log('[AGENDA DEBUG] filtro:', filtroI, '→', filtroF);
-  console.log('[AGENDA DEBUG] contratos no período:', contratosNoPeriodo.length);
-  contratosNoPeriodo.forEach(c => {
-    console.log('[AGENDA DEBUG] contrato:', c.data, c.nome||c.nomeEvento, '| equipeTexto:', JSON.stringify(c.equipeTexto), '| equipe:', JSON.stringify(c.equipe));
-    if (c.equipeTexto) {
-      const parsed = parsearTextoEquipe(c.equipeTexto);
-      console.log('[AGENDA DEBUG]   parsed:', JSON.stringify(parsed));
-      parsed.forEach(p => adicionarCargo(p.cargo, p.qtd));
-    } else {
-      (c.equipe||[]).forEach(e => { if ((e.qtd||0) > 0) adicionarCargo(e.cargo, e.qtd); });
-    }
-  });
-
-  // Eventos da agenda sem contrato vinculado: usar equipe da agenda
+  // Totais de equipe: soma diretamente de cada evento visível na lista
+  // (garante que o cabeçalho seja sempre igual à soma das linhas exibidas)
   lista.forEach(ev => {
-    const temContrato = contratosNoPeriodo.some(c =>
-      (ev.contratoId && c.id === ev.contratoId) ||
-      (c.data === ev.data && (
-        (c.nome||'').toLowerCase() === (ev.nome||'').toLowerCase() ||
-        (c.nomeEvento||'').toLowerCase() === (ev.nome||'').toLowerCase()
-      ))
-    );
-    if (temContrato) return;
     if (ev.equipeTexto) {
       parsearTextoEquipe(ev.equipeTexto).forEach(p => adicionarCargo(p.cargo, p.qtd));
+    } else if (ev.equipe && ev.equipe.length > 0) {
+      ev.equipe.forEach(e => { if ((e.qtd||0) > 0) adicionarCargo(e.cargo, e.qtd); });
     } else {
-      (ev.equipe||[]).forEach(e => { if ((e.qtd||0) > 0) adicionarCargo(e.cargo, e.qtd); });
+      // Evento sem equipe na agenda: busca no contrato vinculado
+      const contrato = (D.contratos||[]).find(c =>
+        (ev.contratoId && c.id === ev.contratoId) ||
+        (c.data === ev.data && (
+          (c.nome||'').toLowerCase() === (ev.nome||'').toLowerCase() ||
+          (c.nomeEvento||'').toLowerCase() === (ev.nome||'').toLowerCase()
+        ))
+      );
+      if (contrato) {
+        if (contrato.equipeTexto) {
+          parsearTextoEquipe(contrato.equipeTexto).forEach(p => adicionarCargo(p.cargo, p.qtd));
+        } else {
+          (contrato.equipe||[]).forEach(e => { if ((e.qtd||0) > 0) adicionarCargo(e.cargo, e.qtd); });
+        }
+      }
     }
   });
-
-  console.log('[AGENDA DEBUG] totCargos:', JSON.stringify(totCargos));
 
   const totalGeral = Object.values(totCargos).reduce((s,v)=>s+v,0);
   const totStr = Object.entries(totCargos)
