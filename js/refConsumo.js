@@ -1,6 +1,11 @@
 // ─── REFERÊNCIA DE CONSUMO ────────────────────────────────────────────────────
 
-const RC_GRUPOS_LIST = ['CASAMENTO','ANIVERSÁRIO','CORPORATIVO','CONFRATERNIZAÇÃO','FORMATURA','NOIVADO','ALMOÇO'];
+const RC_GRUPOS_CAT = {
+  'CELEBRAÇÃO':  ['CASAMENTO', 'CASAMENTO CIVIL', 'NOIVADO'],
+  'ANIVERSÁRIO': ['ANIVERSÁRIO', 'ANIVERSÁRIO 15 ANOS', 'ANIVERSÁRIO 18 ANOS', 'ANIVERSÁRIO 30-50 ANOS', 'ANIVERSÁRIO 51-90 ANOS'],
+  'DIVERSOS':    ['CORPORATIVO', 'CONFRATERNIZAÇÃO', 'FORMATURA', 'ALMOÇO'],
+};
+const RC_GRUPOS_LIST = Object.values(RC_GRUPOS_CAT).flat();
 
 // ── Categorias de insumo ──────────────────────────────────────────────────────
 const RC_CATEGORIAS_ORDEM = [
@@ -153,9 +158,15 @@ function _rcBuildTabela() {
   const stats  = _rcGetStats();
   const total  = imp.length + manual.length;
 
-  const grupoToggles = RC_GRUPOS_LIST.map(g => {
-    const on = _rcGruposVisiveis.includes(g);
-    return `<button class="rc-tab${on?' active':''}" onclick="_rcToggleGrupo('${g}')">${_rcGrupoLabel(g)}</button>`;
+  const grupoToggles = Object.entries(RC_GRUPOS_CAT).map(([cat, gs]) => {
+    const btns = gs.map(g => {
+      const on = _rcGruposVisiveis.includes(g);
+      return `<button class="rc-tab${on?' active':''}" onclick="_rcToggleGrupo('${g}')">${_rcGrupoLabel(g)}</button>`;
+    }).join('');
+    return `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 10px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)">
+      <span style="font-size:9px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.8px;white-space:nowrap;margin-right:2px">${cat}</span>
+      ${btns}
+    </div>`;
   }).join('');
 
   return `
@@ -439,9 +450,12 @@ function _rcBuildNovo() {
   const fil   = (_rcNovoBev||'').toLowerCase().trim();
   const lista = fil ? todas.filter(b=>b.toLowerCase().includes(fil)) : todas;
 
-  const grupoOpts = RC_GRUPOS_LIST.map(g =>
-    `<option value="${g}"${(f.grupo||'CASAMENTO')===g?' selected':''}>${g}</option>`
-  ).join('');
+  const grupoOpts = Object.entries(RC_GRUPOS_CAT).map(([cat, gs]) => {
+    const opts = gs.map(g =>
+      `<option value="${g}"${(f.grupo||'CASAMENTO')===g?' selected':''}>${_rcGrupoLabel(g)}</option>`
+    ).join('');
+    return `<optgroup label="── ${cat}">${opts}</optgroup>`;
+  }).join('');
 
   const nPreench = Object.values(f.consumo||{}).filter(v=>parseFloat(v)>0).length;
 
@@ -664,7 +678,11 @@ function _rcBebidaDoGrupo(stats, grupo) {
   const d = stats[grupo] || {};
   return Object.keys(d).filter(b=>{const v=d[b];return v&&(v.count>0||(v.mediaGeral!=null));});
 }
-function _rcGrupoLabel(g){const m={CASAMENTO:'💍',ANIVERSÁRIO:'🎂',CORPORATIVO:'🏢',CONFRATERNIZAÇÃO:'🥂',FORMATURA:'🎓',NOIVADO:'💐',ALMOÇO:'🍽️'};return (m[g]||'')+' '+g.charAt(0)+g.slice(1).toLowerCase();}
+function _rcGrupoLabel(g) {
+  const ico   = {'CASAMENTO':'💍','CASAMENTO CIVIL':'💍','NOIVADO':'💐','ANIVERSÁRIO':'🎂','ANIVERSÁRIO 15 ANOS':'🎂','ANIVERSÁRIO 18 ANOS':'🎂','ANIVERSÁRIO 30-50 ANOS':'🎂','ANIVERSÁRIO 51-90 ANOS':'🎂','CORPORATIVO':'🏢','CONFRATERNIZAÇÃO':'🥂','FORMATURA':'🎓','ALMOÇO':'🍽️'};
+  const label = {'CASAMENTO':'Casamento','CASAMENTO CIVIL':'Casamento Civil','NOIVADO':'Noivado','ANIVERSÁRIO':'Aniversário','ANIVERSÁRIO 15 ANOS':'15 anos','ANIVERSÁRIO 18 ANOS':'18 anos','ANIVERSÁRIO 30-50 ANOS':'30-50 anos','ANIVERSÁRIO 51-90 ANOS':'51-90 anos','CORPORATIVO':'Corporativo','CONFRATERNIZAÇÃO':'Confraternização','FORMATURA':'Formatura','ALMOÇO':'Almoço'};
+  return (ico[g]||'') + ' ' + (label[g] || g.charAt(0)+g.slice(1).toLowerCase());
+}
 function _rcSetView(v)   { _rcView=v; rRefConsumo(); }
 function _rcSetGrupo(g)  { _rcGrupo=g; rRefConsumo(); }
 function _rcToggleGrupo(g) {
