@@ -232,6 +232,8 @@ if (!D.despesas) D.despesas = [];
 if (!D.equipe) D.equipe = [];
 if (!D.escalas) D.escalas = [];
 if (!D.orcamentos) D.orcamentos = [];
+if (!D.rcEventos) D.rcEventos = [];
+if (!D.rcEventosImportados) D.rcEventosImportados = [];
 
 function baixarModeloCSV() {
   const linhas = [

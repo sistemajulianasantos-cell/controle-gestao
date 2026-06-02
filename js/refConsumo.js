@@ -13,12 +13,31 @@ var _rcHistPage  = 0;        // paginação do histórico
 var _rcHistGrupo = '';       // filtro de grupo no histórico
 const RC_HIST_PER_PAGE = 50;
 
-// ── Storage ───────────────────────────────────────────────────────────────────
-function _rcGetEventos()          { return _rcLS('rcEventos'); }
-function _rcGetEventosImportados(){ return _rcLS('rcEventosImportados'); }
-function _rcSaveEventos(l)        { localStorage.setItem('rcEventos', JSON.stringify(l)); }
-function _rcSaveEventosImp(l)     { localStorage.setItem('rcEventosImportados', JSON.stringify(l)); }
-function _rcLS(key) { try { return JSON.parse(localStorage.getItem(key)||'[]'); } catch(e) { return []; } }
+// ── Storage (Firebase via D) ──────────────────────────────────────────────────
+function _rcGetEventos()           { return D.rcEventos || []; }
+function _rcGetEventosImportados() { return D.rcEventosImportados || []; }
+function _rcSaveEventos(l)         { D.rcEventos = l; sv('rcEventos'); }
+function _rcSaveEventosImp(l)      { D.rcEventosImportados = l; sv('rcEventosImportados'); }
+
+// Migração única: se houver dados no localStorage, move para Firebase
+function _rcMigrarLocalStorage() {
+  try {
+    const lsEvt = localStorage.getItem('rcEventos');
+    const lsImp = localStorage.getItem('rcEventosImportados');
+    let migrou = false;
+    if (lsEvt) {
+      const evts = JSON.parse(lsEvt);
+      if (evts.length && !D.rcEventos.length) { D.rcEventos = evts; sv('rcEventos'); migrou = true; }
+      localStorage.removeItem('rcEventos');
+    }
+    if (lsImp) {
+      const imps = JSON.parse(lsImp);
+      if (imps.length && !D.rcEventosImportados.length) { D.rcEventosImportados = imps; sv('rcEventosImportados'); migrou = true; }
+      localStorage.removeItem('rcEventosImportados');
+    }
+    if (migrou) rRefConsumo();
+  } catch(e) {}
+}
 
 // ── Cálculo de stats a partir de todos os eventos ─────────────────────────────
 function _rcGetStats() {
@@ -329,6 +348,7 @@ function _rcDeleteEvento(i) {
 
 function _rcLimparManuais()    { if (!confirm('Apagar todos os eventos lançados manualmente?')) return; _rcSaveEventos([]); rRefConsumo(); }
 function _rcLimparImportados() { if (!confirm('Apagar toda a base importada?')) return; _rcSaveEventosImp([]); localStorage.removeItem('refConsumoMeta'); rRefConsumo(); }
+
 
 // ── VIEW: NOVO EVENTO ─────────────────────────────────────────────────────────
 function _rcBuildNovo() {

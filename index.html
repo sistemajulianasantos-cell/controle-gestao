@@ -1417,8 +1417,10 @@ window.svFirebase = async function(chave) {
     if(chave==='metas')        campo.metas        = D.metas;
     if(chave==='equipe')    campo.equipe    = D.equipe;
     if(chave==='escalas')   campo.escalas   = D.escalas;
-    if(chave==='orcamentos')campo.orcamentos= D.orcamentos;
-    if(chave==='senhas')    campo.senhas    = D.senhas;
+    if(chave==='orcamentos')         campo.orcamentos          = D.orcamentos;
+    if(chave==='senhas')             campo.senhas              = D.senhas;
+    if(chave==='rcEventos')          campo.rcEventos           = D.rcEventos;
+    if(chave==='rcEventosImportados')campo.rcEventosImportados = D.rcEventosImportados;
     if (Object.keys(campo).length === 0) return;
     await setDoc(doc(db, "dados", DOC_ID), campo, { merge: true });
   } catch(e) {
@@ -1459,8 +1461,10 @@ async function carregarDados() {
     D.produtos     = r.produtos     || [];
     D.equipe       = r.equipe       || [];
     D.escalas      = r.escalas      || [];
-    D.orcamentos   = r.orcamentos   || [];
-    D.senhas       = r.senhas       || {};
+    D.orcamentos            = r.orcamentos            || [];
+    D.senhas                = r.senhas                || {};
+    D.rcEventos             = r.rcEventos             || [];
+    D.rcEventosImportados   = r.rcEventosImportados   || [];
 
     // Seed/atualização de senhas: roda sempre que a configuração estiver
     // desatualizada (nova chave admin '1225' ainda não gravada no banco).
@@ -1484,6 +1488,7 @@ async function carregarDados() {
     }
     // Re-render página ativa após dados chegarem
     window._dadosCarregados = true;
+    if (typeof _rcMigrarLocalStorage === 'function') _rcMigrarLocalStorage();
     setTimeout(() => {
       try {
         const pa = document.querySelector('.page.active');
