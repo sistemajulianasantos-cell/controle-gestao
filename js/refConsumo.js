@@ -163,8 +163,9 @@ function _rcBuildTabela() {
       const on = _rcGruposVisiveis.includes(g);
       return `<button class="rc-tab${on?' active':''}" onclick="_rcToggleGrupo('${g}')">${_rcGrupoLabel(g)}</button>`;
     }).join('');
-    return `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 10px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)">
-      <span style="font-size:9px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.8px;white-space:nowrap;margin-right:2px">${cat}</span>
+    return `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+      <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;white-space:nowrap;min-width:96px">${cat}</span>
+      <div style="width:1px;height:20px;background:var(--border);flex-shrink:0"></div>
       ${btns}
     </div>`;
   }).join('');
@@ -203,7 +204,7 @@ function _rcBuildTabela() {
     </div>
   </div>
 
-  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">${grupoToggles}</div>
+  <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">${grupoToggles}</div>
 
   <div style="overflow-x:auto">
     ${_rcBuildTabelaComparativa(stats)}
@@ -679,9 +680,10 @@ function _rcBebidaDoGrupo(stats, grupo) {
   return Object.keys(d).filter(b=>{const v=d[b];return v&&(v.count>0||(v.mediaGeral!=null));});
 }
 function _rcGrupoLabel(g) {
-  const ico   = {'CASAMENTO':'💍','CASAMENTO CIVIL':'💍','NOIVADO':'💐','ANIVERSÁRIO':'🎂','ANIVERSÁRIO 15 ANOS':'🎂','ANIVERSÁRIO 18 ANOS':'🎂','ANIVERSÁRIO 30-50 ANOS':'🎂','ANIVERSÁRIO 51-90 ANOS':'🎂','CORPORATIVO':'🏢','CONFRATERNIZAÇÃO':'🥂','FORMATURA':'🎓','ALMOÇO':'🍽️'};
-  const label = {'CASAMENTO':'Casamento','CASAMENTO CIVIL':'Casamento Civil','NOIVADO':'Noivado','ANIVERSÁRIO':'Aniversário','ANIVERSÁRIO 15 ANOS':'15 anos','ANIVERSÁRIO 18 ANOS':'18 anos','ANIVERSÁRIO 30-50 ANOS':'30-50 anos','ANIVERSÁRIO 51-90 ANOS':'51-90 anos','CORPORATIVO':'Corporativo','CONFRATERNIZAÇÃO':'Confraternização','FORMATURA':'Formatura','ALMOÇO':'Almoço'};
-  return (ico[g]||'') + ' ' + (label[g] || g.charAt(0)+g.slice(1).toLowerCase());
+  const ico   = {'CASAMENTO':'💍','CASAMENTO CIVIL':'💍','NOIVADO':'💐','ANIVERSÁRIO':'🎂','CORPORATIVO':'🏢','CONFRATERNIZAÇÃO':'🥂','FORMATURA':'🎓','ALMOÇO':'🍽️'};
+  const label = {'CASAMENTO':'Casamento','CASAMENTO CIVIL':'Casamento Civil','NOIVADO':'Noivado','ANIVERSÁRIO':'Aniversário','ANIVERSÁRIO 15 ANOS':'15 anos','ANIVERSÁRIO 18 ANOS':'18 anos','ANIVERSÁRIO 30-50 ANOS':'30–50 anos','ANIVERSÁRIO 51-90 ANOS':'51–90 anos','CORPORATIVO':'Corporativo','CONFRATERNIZAÇÃO':'Confraternização','FORMATURA':'Formatura','ALMOÇO':'Almoço'};
+  const i = ico[g] ? ico[g] + ' ' : '';
+  return i + (label[g] || g.charAt(0)+g.slice(1).toLowerCase());
 }
 function _rcSetView(v)   { _rcView=v; rRefConsumo(); }
 function _rcSetGrupo(g)  { _rcGrupo=g; rRefConsumo(); }
