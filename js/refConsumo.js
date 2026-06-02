@@ -230,12 +230,13 @@ function _rcBuildRows(bevList, stats) {
   const data   = stats || _rcGetStats();
   const gd     = data[_rcGrupo] || {};
   const ceil   = v => v == null ? '—' : Math.ceil(v * pax);
+  const list   = bevList || _rcBebidaDoGrupo(data, _rcGrupo);
 
   // Agrupa itens com dados por categoria
   const porCat = {};
   RC_CATEGORIAS_ORDEM.forEach(c => { porCat[c] = []; });
 
-  (bevList || [])
+  list
     .filter(b => !filtro || b.toLowerCase().includes(filtro))
     .forEach(b => {
       const d = gd[b];
