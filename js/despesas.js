@@ -22,7 +22,19 @@ function rDespesasKpi() {
   const mes = document.getElementById('desp-mes')?.value || '';
   const ano = document.getElementById('desp-ano')?.value || new Date().getFullYear().toString();
 
-  // Receita: parcelas pagas com vencimento (ou data do evento) no mês/ano
+  // Faturamento: soma dos contratos do período (igual à aba Análise)
+  const contratosKpi = (D.contratos || []).filter(c => {
+    if (!c.data) return false;
+    if (!c.data.startsWith(ano)) return false;
+    if (mes && !c.data.startsWith(`${ano}-${mes}`)) return false;
+    return true;
+  });
+  const receita = contratosKpi.reduce((s, c) => {
+    const v = parseFloat((c.opcao || '0').toString().replace(/[^\d,]/g, '').replace(',', '.')) || 0;
+    return s + v;
+  }, 0);
+
+  // Recebido em caixa: parcelas pagas no período
   const parcelas = (D.financeiro || []).filter(f => {
     if (f.status !== 'pago') return false;
     const ref = f.vencimento || f.data || '';
@@ -31,7 +43,7 @@ function rDespesasKpi() {
     if (mes && !ref.startsWith(`${ano}-${mes}`)) return false;
     return true;
   });
-  const receita = parcelas.reduce((s, f) => s + (f.valorNum || 0), 0);
+  const recebidoCaixa = parcelas.reduce((s, f) => s + (f.valorNum || 0), 0);
 
   // Despesas: lançamentos do mês/ano
   const despesasFiltradas = (D.despesas || []).filter(d => {
@@ -43,13 +55,16 @@ function rDespesasKpi() {
   const totalDespesas = despesasFiltradas.reduce((s, d) => s + (d.valor || 0), 0);
 
   // Meta de faturamento do período
-  const mKey = mes ? `${ano}-${mes}` : ano;
-  const meta = parseFloat((D.metas || {})[mKey]?.fat || 0);
+  const MESES_KPI = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+  const meta = mes
+    ? parseFloat((D.metas || {})[`${ano}-${mes}`]?.fat || 0)
+    : MESES_KPI.reduce((s, m) => s + parseFloat((D.metas || {})[`${ano}-${m}`]?.fat || 0), 0);
 
   const resultado = receita - totalDespesas;
   const margem = receita > 0 ? ((resultado / receita) * 100).toFixed(1) : 0;
   const percDespVsRec = receita > 0 ? Math.min(100, (totalDespesas / receita) * 100).toFixed(0) : 0;
   const percRecVsMeta = meta > 0 ? Math.min(100, (receita / meta) * 100).toFixed(0) : 0;
+  const aReceberKpi = receita - recebidoCaixa;
 
   // Breakdown por categoria
   const byCategoria = {};
@@ -67,9 +82,9 @@ function rDespesasKpi() {
   el.innerHTML = `
     <div class="cards" style="margin-bottom:20px">
       <div class="card">
-        <div class="card-label">💰 Receita (caixa)</div>
+        <div class="card-label">💰 Faturamento</div>
         <div class="card-val" style="color:#10B981">${fR(receita)}</div>
-        <div style="font-size:11px;color:#8B91A8;margin-top:4px">${parcelas.length} parcela(s) paga(s)</div>
+        <div style="font-size:11px;color:#8B91A8;margin-top:4px">${contratosKpi.length} contrato(s) • recebido: <span style="color:#4FC78E">${fR(recebidoCaixa)}</span>${aReceberKpi > 0 ? ` • a receber: <span style="color:#F7C84F">${fR(aReceberKpi)}</span>` : ''}</div>
       </div>
       <div class="card">
         <div class="card-label">💸 Total de Despesas</div>
