@@ -195,6 +195,22 @@ function rAgenda() {
       });
     }
 
+    // Prioridade 3: buscar no contrato vinculado (agenda desatualizada)
+    if (!adicionou && ev.contratoId) {
+      const c = (D.contratos||[]).find(x => x.id === ev.contratoId);
+      if (c) {
+        if (c.equipeTexto) {
+          const partes = parsearTextoEquipe(c.equipeTexto);
+          partes.forEach(p => { adicionarCargo(p.cargo, p.qtd); });
+          if (partes.length) adicionou = true;
+        }
+        if (!adicionou) {
+          (c.equipe||[]).forEach(e => { if (e.qtd > 0) adicionarCargo(e.cargo, e.qtd); });
+          if ((c.equipe||[]).length) adicionou = true;
+        }
+      }
+    }
+
     // Último recurso: total genérico
     if (!adicionou && ev.equipeTotal) {
       adicionarCargo('Colaboradores', ev.equipeTotal);
