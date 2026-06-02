@@ -195,9 +195,15 @@ function rAgenda() {
       });
     }
 
-    // Prioridade 3: buscar no contrato vinculado (agenda desatualizada)
-    if (!adicionou && ev.contratoId) {
-      const c = (D.contratos||[]).find(x => x.id === ev.contratoId);
+    // Prioridade 3: buscar no contrato vinculado — por ID ou por nome+data
+    if (!adicionou) {
+      const c = (D.contratos||[]).find(x =>
+        (ev.contratoId && x.id === ev.contratoId) ||
+        (x.data === ev.data && (
+          (x.nome||'').toLowerCase() === (ev.nome||'').toLowerCase() ||
+          (x.nomeEvento||'').toLowerCase() === (ev.nome||'').toLowerCase()
+        ))
+      );
       if (c) {
         if (c.equipeTexto) {
           const partes = parsearTextoEquipe(c.equipeTexto);
