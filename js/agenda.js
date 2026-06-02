@@ -98,34 +98,48 @@ function rAgenda() {
 
   // Mapa de variações → cargo canônico (singular/plural, maiúsc/minúsc)
   const CARGO_CANONICO = [
-    { variações: ['head bartender','head bartenders','coordenador','coordenadores','coordenador de eventos','head'], exibir: 'Head Bartender', ordem: 1 },
-    { variações: ['bartender','bartenders'],           exibir: 'Bartender',      ordem: 2 },
-    { variações: ['bar back','bar backs','barback','barbacks'], exibir: 'Bar Back', ordem: 3 },
-    { variações: ['copeiro','copeiros'],               exibir: 'Copeiro',        ordem: 4 },
+    { key: 'head',      variações: ['head bartender','head bartenders','coordenador','coordenadores','coordenadora','coordenadoras','coordenador de eventos','head'], exibir: 'Head Bartender', ordem: 1 },
+    { key: 'bartender', variações: ['bartender','bartenders','barman','barmans'],                                                                                    exibir: 'Bartender',      ordem: 2 },
+    { key: 'barback',   variações: ['bar back','bar backs','barback','barbacks','bar-back'],                                                                         exibir: 'Bar Back',       ordem: 3 },
+    { key: 'copeiro',   variações: ['copeiro','copeiros'],                                                                                                           exibir: 'Copeiro',        ordem: 4 },
+    { key: 'garcom',    variações: ['garçom','garçons','garcom','garcons','garçon','garcon'],                                                                        exibir: 'Garçom',         ordem: 5 },
+    { key: 'auxiliar',  variações: ['auxiliar','auxiliares'],                                                                                                       exibir: 'Auxiliar',       ordem: 6 },
   ];
+
+  const normCargo = s => (s||'')
+    .replace(/[­​‌‍﻿   ⁠]/g, ' ')
+    .toLowerCase().trim().replace(/\s+/g, ' ');
+
   function resolverCargo(nome) {
-    const n = (nome||'').toLowerCase().trim().replace(/\s+/g,' ');
+    const n = normCargo(nome);
+    // 1. Correspondência exata
     for (const c of CARGO_CANONICO) {
       if (c.variações.includes(n)) return c;
     }
-    return { variações: [n], exibir: (nome||'').trim(), ordem: 99 };
+    // 2. Correspondência parcial — n começa com ou contém uma variação conhecida
+    for (const c of CARGO_CANONICO) {
+      if (c.variações.some(v => n.startsWith(v) || v.startsWith(n))) return c;
+    }
+    return { key: n, variações: [n], exibir: (nome||'').trim(), ordem: 99 };
   }
 
   // Parseia texto livre: "2 Bartenders 1 Bar back" ou "1 Head · 4 Bartender · 1 Bar Back"
-  // → [{cargo:'Bartenders', qtd:2}, {cargo:'Bar back', qtd:1}]
   function parsearTextoEquipe(texto) {
     const resultado = [];
-    const limpo = (texto||'').replace(/\([^)]*\)/g,'').replace(/\s+/g,' ').trim();
-    // Tenta separadores explícitos: ·  ,  ;  ou " . " (ponto com espaços, formato legado)
-    if (/[·,;]|\s\.\s/.test(limpo)) {
-      limpo.split(/\s*[·,;]\s*|\s+\.\s+/).forEach(parte => {
+    // Normaliza espaços invisíveis e separa em texto limpo
+    const limpo = (texto||'')
+      .replace(/[­​‌‍﻿   ⁠]/g, ' ')
+      .replace(/\([^)]*\)/g, '').replace(/\s+/g, ' ').trim();
+    // Separadores explícitos: · • , ; ou " . "
+    if (/[·••,;]|\s\.\s/.test(limpo)) {
+      limpo.split(/\s*[·••,;]\s*|\s+\.\s+/).forEach(parte => {
         const m = parte.trim().match(/^(\d+)\.?\s+(.+)$/);
         if (m && parseInt(m[1]) > 0) resultado.push({ qtd: parseInt(m[1]), cargo: m[2].trim() });
       });
       if (resultado.length) return resultado;
     }
-    // Sem separadores: extrai pares "número[.] nome" até o próximo número ou fim
-    const re = /\b(\d+)\.?\s+([A-Za-zÀ-ú][A-Za-zÀ-ú ]*?)(?=\s+\d|\s*$)/g;
+    // Sem separadores explícitos: extrai pares "número[.] nome" até o próximo número ou fim
+    const re = /\b(\d+)\.?\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ ]*?)(?=\s+\d|\s*$)/g;
     let m;
     while ((m = re.exec(limpo)) !== null) {
       const qtd = parseInt(m[1]);
@@ -144,7 +158,7 @@ function rAgenda() {
   const adicionarCargo = (cargoNome, qtd) => {
     if (!qtd || qtd <= 0) return;
     const canon = resolverCargo(cargoNome);
-    const chave = canon.variações[0];
+    const chave = canon.key || canon.variações[0];
     if (!cargoMeta[chave]) cargoMeta[chave] = { exibir: canon.exibir || cargoNome, ordem: canon.ordem };
     totCargos[chave] = (totCargos[chave]||0) + qtd;
   };
