@@ -169,52 +169,41 @@ function rAgenda() {
 
     let adicionou = false;
 
-    // Prioridade 1: equipeTexto — fonte mais confiável (é o que aparece na tabela)
-    if (ev.equipeTexto) {
+    // Busca o contrato vinculado (por ID ou nome+data)
+    const cVinc = (D.contratos||[]).find(x =>
+      (ev.contratoId && x.id === ev.contratoId) ||
+      (x.data === ev.data && (
+        (x.nome||'').toLowerCase() === (ev.nome||'').toLowerCase() ||
+        (x.nomeEvento||'').toLowerCase() === (ev.nome||'').toLowerCase()
+      ))
+    );
+
+    // Prioridade 1: equipeTexto do CONTRATO (fonte mais confiável)
+    if (!adicionou && cVinc && cVinc.equipeTexto) {
+      const partes = parsearTextoEquipe(cVinc.equipeTexto);
+      partes.forEach(p => { adicionarCargo(p.cargo, p.qtd); });
+      if (partes.length) adicionou = true;
+    }
+
+    // Prioridade 2: equipe[] do CONTRATO
+    if (!adicionou && cVinc && (cVinc.equipe||[]).length) {
+      (cVinc.equipe||[]).forEach(e => { if ((e.qtd||0) > 0) adicionarCargo(e.cargo, e.qtd); });
+      adicionou = true;
+    }
+
+    // Prioridade 3: equipeTexto da AGENDA (fallback)
+    if (!adicionou && ev.equipeTexto) {
       const partes = parsearTextoEquipe(ev.equipeTexto);
       partes.forEach(p => { adicionarCargo(p.cargo, p.qtd); });
       if (partes.length) adicionou = true;
     }
 
-    // Prioridade 2: equipe[] estruturado (quando equipeTexto não retornou nada)
+    // Prioridade 4: equipe[] da AGENDA
     if (!adicionou) {
       (ev.equipe||[]).forEach(e => {
-        const cargoNome = (e.cargo||'').trim();
-        const canon = resolverCargo(cargoNome);
-        if (canon.ordem < 99) {
-          adicionarCargo(cargoNome, e.qtd||0);
-          adicionou = true;
-        } else {
-          const textoBase = /^\d/.test(cargoNome)
-            ? cargoNome
-            : ((e.qtd||0) > 0 ? `${e.qtd} ${cargoNome}` : cargoNome);
-          const partes = parsearTextoEquipe(textoBase.trim());
-          partes.forEach(p => { adicionarCargo(p.cargo, p.qtd); });
-          if (partes.length) adicionou = true;
-        }
+        if ((e.qtd||0) > 0) adicionarCargo(e.cargo, e.qtd);
       });
-    }
-
-    // Prioridade 3: buscar no contrato vinculado — por ID ou por nome+data
-    if (!adicionou) {
-      const c = (D.contratos||[]).find(x =>
-        (ev.contratoId && x.id === ev.contratoId) ||
-        (x.data === ev.data && (
-          (x.nome||'').toLowerCase() === (ev.nome||'').toLowerCase() ||
-          (x.nomeEvento||'').toLowerCase() === (ev.nome||'').toLowerCase()
-        ))
-      );
-      if (c) {
-        if (c.equipeTexto) {
-          const partes = parsearTextoEquipe(c.equipeTexto);
-          partes.forEach(p => { adicionarCargo(p.cargo, p.qtd); });
-          if (partes.length) adicionou = true;
-        }
-        if (!adicionou) {
-          (c.equipe||[]).forEach(e => { if (e.qtd > 0) adicionarCargo(e.cargo, e.qtd); });
-          if ((c.equipe||[]).length) adicionou = true;
-        }
-      }
+      if ((ev.equipe||[]).some(e => (e.qtd||0) > 0)) adicionou = true;
     }
 
     // Último recurso: total genérico
