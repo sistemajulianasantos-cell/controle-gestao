@@ -163,52 +163,42 @@ function rAgenda() {
     totCargos[chave] = (totCargos[chave]||0) + qtd;
   };
 
+  // Totais de convidados e viagens: da agenda (inclui eventos sem contrato)
   lista.forEach(ev => {
     totalConv += parseInt(ev.convidados||0);
     if (ehViagem(ev)) totalViagens++;
+  });
 
-    let adicionou = false;
+  // Totais de equipe: direto dos contratos no período (fonte mais confiável)
+  const contratosNoPeriodo = (D.contratos||[]).filter(c => {
+    if (!c.data) return false;
+    if (filtroI && c.data < filtroI) return false;
+    if (filtroF && c.data > filtroF) return false;
+    return true;
+  });
 
-    // Busca o contrato vinculado (por ID ou nome+data)
-    const cVinc = (D.contratos||[]).find(x =>
-      (ev.contratoId && x.id === ev.contratoId) ||
-      (x.data === ev.data && (
-        (x.nome||'').toLowerCase() === (ev.nome||'').toLowerCase() ||
-        (x.nomeEvento||'').toLowerCase() === (ev.nome||'').toLowerCase()
+  contratosNoPeriodo.forEach(c => {
+    if (c.equipeTexto) {
+      parsearTextoEquipe(c.equipeTexto).forEach(p => adicionarCargo(p.cargo, p.qtd));
+    } else {
+      (c.equipe||[]).forEach(e => { if ((e.qtd||0) > 0) adicionarCargo(e.cargo, e.qtd); });
+    }
+  });
+
+  // Eventos da agenda sem contrato vinculado: usar equipe da agenda
+  lista.forEach(ev => {
+    const temContrato = contratosNoPeriodo.some(c =>
+      (ev.contratoId && c.id === ev.contratoId) ||
+      (c.data === ev.data && (
+        (c.nome||'').toLowerCase() === (ev.nome||'').toLowerCase() ||
+        (c.nomeEvento||'').toLowerCase() === (ev.nome||'').toLowerCase()
       ))
     );
-
-    // Prioridade 1: equipeTexto do CONTRATO (fonte mais confiável)
-    if (!adicionou && cVinc && cVinc.equipeTexto) {
-      const partes = parsearTextoEquipe(cVinc.equipeTexto);
-      partes.forEach(p => { adicionarCargo(p.cargo, p.qtd); });
-      if (partes.length) adicionou = true;
-    }
-
-    // Prioridade 2: equipe[] do CONTRATO
-    if (!adicionou && cVinc && (cVinc.equipe||[]).length) {
-      (cVinc.equipe||[]).forEach(e => { if ((e.qtd||0) > 0) adicionarCargo(e.cargo, e.qtd); });
-      adicionou = true;
-    }
-
-    // Prioridade 3: equipeTexto da AGENDA (fallback)
-    if (!adicionou && ev.equipeTexto) {
-      const partes = parsearTextoEquipe(ev.equipeTexto);
-      partes.forEach(p => { adicionarCargo(p.cargo, p.qtd); });
-      if (partes.length) adicionou = true;
-    }
-
-    // Prioridade 4: equipe[] da AGENDA
-    if (!adicionou) {
-      (ev.equipe||[]).forEach(e => {
-        if ((e.qtd||0) > 0) adicionarCargo(e.cargo, e.qtd);
-      });
-      if ((ev.equipe||[]).some(e => (e.qtd||0) > 0)) adicionou = true;
-    }
-
-    // Último recurso: total genérico
-    if (!adicionou && ev.equipeTotal) {
-      adicionarCargo('Colaboradores', ev.equipeTotal);
+    if (temContrato) return;
+    if (ev.equipeTexto) {
+      parsearTextoEquipe(ev.equipeTexto).forEach(p => adicionarCargo(p.cargo, p.qtd));
+    } else {
+      (ev.equipe||[]).forEach(e => { if ((e.qtd||0) > 0) adicionarCargo(e.cargo, e.qtd); });
     }
   });
 
