@@ -13,7 +13,7 @@ const RC_CATEGORIAS_ORDEM = [
 ];
 
 const RC_ITEM_CAT = {
-  'Vodka':'DESTILADOS PRINCIPAIS','Gim':'DESTILADOS PRINCIPAIS','Gim2':'DESTILADOS PRINCIPAIS',
+  'Vodka':'DESTILADOS PRINCIPAIS','Gim':'DESTILADOS PRINCIPAIS',
   'Aperol':'DESTILADOS PRINCIPAIS','Campari':'DESTILADOS PRINCIPAIS','Vermouth':'DESTILADOS PRINCIPAIS',
   'Espumante':'DESTILADOS PRINCIPAIS','Whisky':'DESTILADOS PRINCIPAIS','Lillet':'DESTILADOS PRINCIPAIS',
   'Tequila':'DESTILADOS PRINCIPAIS','Cachaça':'DESTILADOS PRINCIPAIS',
@@ -32,7 +32,7 @@ const RC_ITEM_CAT = {
   'Taça Flute':'COPOS E TAÇAS','Suprema Multicristal':'COPOS E TAÇAS','Calise':'COPOS E TAÇAS',
   'Baixo Liso':'COPOS E TAÇAS','Lampada':'COPOS E TAÇAS','Long Xtra':'COPOS E TAÇAS',
   'Xtra Baixo':'COPOS E TAÇAS','Bunello':'COPOS E TAÇAS','Taça Xtar':'COPOS E TAÇAS',
-  'Whiskey Elysia':'COPOS E TAÇAS','Whiskey Timeles':'COPOS E TAÇAS',
+  'Whiskey Elysia':'COPOS E TAÇAS','Whiskey Timeles':'COPOS E TAÇAS','Gim2':'COPOS E TAÇAS',
 };
 
 // ── Estado ────────────────────────────────────────────────────────────────────
@@ -42,8 +42,9 @@ var _rcPax       = 100;
 var _rcFiltro    = '';
 var _rcNovoBev   = '';
 var _rcNovoForm  = {};
-var _rcHistPage  = 0;        // paginação do histórico
-var _rcHistGrupo = '';       // filtro de grupo no histórico
+var _rcHistPage   = 0;        // paginação do histórico
+var _rcHistGrupo  = '';       // filtro de grupo no histórico
+var _rcHistInsumo = '';       // busca por insumo no histórico
 const RC_HIST_PER_PAGE = 50;
 
 // ── Storage (Firebase via D) ──────────────────────────────────────────────────
@@ -296,9 +297,15 @@ function _rcBuildEventos() {
     `<option value="${g}"${_rcHistGrupo===g?' selected':''}>${g||'Todos os tipos'}</option>`
   ).join('');
 
-  const filtrados = _rcHistGrupo
+  let filtrados = _rcHistGrupo
     ? todos.filter(e => (e.grupo||'').toUpperCase() === _rcHistGrupo)
     : todos;
+  if (_rcHistInsumo.trim()) {
+    const term = _rcHistInsumo.toLowerCase().trim();
+    filtrados = filtrados.filter(e =>
+      Object.keys(e.consumo||{}).some(k => k.toLowerCase().includes(term))
+    );
+  }
 
   const total  = filtrados.length;
   const inicio = _rcHistPage * RC_HIST_PER_PAGE;
@@ -338,15 +345,22 @@ function _rcBuildEventos() {
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
     <button class="btn" onclick="_rcSetView('tabela')">← Tabela</button>
     <div style="font-size:18px;font-weight:600;color:var(--text)">Histórico de Eventos</div>
-    <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <select style="padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px" onchange="_rcHistFiltrar(this.value)">${grupoOpts}</select>
+      <input type="text" placeholder="Buscar por insumo..." value="${_rcHistInsumo}"
+        style="width:160px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px"
+        oninput="_rcHistFiltrarInsumo(this.value)">
       <button class="btn" style="background:#3DDC84;border-color:#3DDC84;color:#000;font-weight:600" onclick="_rcSetView('novo')">+ Lançar</button>
     </div>
   </div>
 
   <div id="rc-evt-detalhe"></div>
 
-  <div style="font-size:12px;color:var(--text3);margin-bottom:10px">${total} evento${total!==1?'s':''} ${_rcHistGrupo?'· filtrado por '+_rcHistGrupo:''}</div>
+  <div style="font-size:12px;color:var(--text3);margin-bottom:10px">
+    ${total} evento${total!==1?'s':''}
+    ${_rcHistGrupo ? ' · tipo: '+_rcHistGrupo : ''}
+    ${_rcHistInsumo.trim() ? ` · insumo: <strong style="color:var(--text2)">${_rcHistInsumo}</strong>` : ''}
+  </div>
 
   <div style="overflow-x:auto">
     <table style="width:100%;border-collapse:collapse;font-size:12px">
@@ -373,8 +387,9 @@ function _rcBuildEventos() {
 </div>`;
 }
 
-function _rcHistSetPage(p)   { _rcHistPage = p; rRefConsumo(); }
-function _rcHistFiltrar(g)   { _rcHistGrupo = g; _rcHistPage = 0; rRefConsumo(); }
+function _rcHistSetPage(p)        { _rcHistPage = p; rRefConsumo(); }
+function _rcHistFiltrar(g)        { _rcHistGrupo = g; _rcHistPage = 0; rRefConsumo(); }
+function _rcHistFiltrarInsumo(v)  { _rcHistInsumo = v; _rcHistPage = 0; rRefConsumo(); }
 
 function _rcVerEvento(i) {
   const todos = [..._rcGetEventos().reverse().map(e=>({...e,_fonte:'manual'})), ..._rcGetEventosImportados().slice().reverse().map(e=>({...e,_fonte:'importado'}))];
