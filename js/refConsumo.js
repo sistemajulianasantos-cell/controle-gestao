@@ -205,23 +205,23 @@ function _rcBuildRows(bevList, stats) {
       const hasData    = d.count > 0;
       const isFallback = !hasData && d.mediaGeral != null;
       if (!hasData && !isFallback) return '';
-      const fmt  = v => v == null ? '—' : (v * pax).toFixed(1);
-      const rate = v => v == null ? '' : `<br><span style="font-size:10px;color:var(--text3)">${v.toFixed(4)}/pax</span>`;
+      const ceil  = v => v == null ? '—' : Math.ceil(v * pax);
+      const rate  = v => v == null ? '' : `<br><span style="font-size:10px;color:var(--text3)">${v.toFixed(4)}/pax</span>`;
       if (isFallback) {
         return `<tr style="opacity:.6">
           <td style="padding:8px 12px;color:var(--text2)">${b} <em style="font-size:10px;color:var(--text3)">sem histórico aqui</em></td>
           <td style="padding:8px 12px;text-align:right;color:var(--text3)" colspan="3">—</td>
-          <td style="padding:8px 12px;text-align:right;font-weight:600;color:#4F8EF7;background:rgba(79,142,247,.04)">${fmt(d.mediaGeral)}${rate(d.mediaGeral)}</td>
+          <td style="padding:8px 12px;text-align:right;font-weight:600;color:#4F8EF7;background:rgba(79,142,247,.04)">${ceil(d.mediaGeral)}${rate(d.mediaGeral)}</td>
           <td style="padding:8px 12px;text-align:right;color:var(--text3)">—</td>
         </tr>`;
       }
       const badge = d.count===1 ? ' <span style="font-size:9px;color:#F5A623;background:rgba(245,166,35,.12);padding:1px 5px;border-radius:4px;border:1px solid rgba(245,166,35,.3)">1 reg.</span>' : '';
       return `<tr>
         <td style="padding:8px 12px;color:var(--text);font-weight:500">${b}${badge}</td>
-        <td style="padding:8px 12px;text-align:right;color:var(--text2)">${fmt(d.min)}${rate(d.min)}</td>
-        <td style="padding:8px 12px;text-align:right;color:var(--text2)">${fmt(d.avg)}${rate(d.avg)}</td>
-        <td style="padding:8px 12px;text-align:right;color:var(--text2)">${fmt(d.max)}${rate(d.max)}</td>
-        <td style="padding:8px 12px;text-align:right;font-weight:700;color:#4F8EF7;font-size:13px;background:rgba(79,142,247,.04)">${d.avg!=null?(d.avg*pax).toFixed(1):'—'}</td>
+        <td style="padding:8px 12px;text-align:right;color:var(--text2)">${ceil(d.min)}${rate(d.min)}</td>
+        <td style="padding:8px 12px;text-align:right;color:var(--text2)">${ceil(d.avg)}${rate(d.avg)}</td>
+        <td style="padding:8px 12px;text-align:right;color:var(--text2)">${ceil(d.max)}${rate(d.max)}</td>
+        <td style="padding:8px 12px;text-align:right;font-weight:700;color:#4F8EF7;font-size:13px;background:rgba(79,142,247,.04)">${d.avg!=null?Math.ceil(d.avg*pax):'—'}</td>
         <td style="padding:8px 12px;text-align:right;color:var(--text3)">${d.count}</td>
       </tr>`;
     }).join('');
