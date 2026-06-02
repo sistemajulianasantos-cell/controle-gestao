@@ -2,6 +2,39 @@
 
 const RC_GRUPOS_LIST = ['CASAMENTO','ANIVERSÁRIO','CORPORATIVO','CONFRATERNIZAÇÃO','FORMATURA','NOIVADO','ALMOÇO'];
 
+// ── Categorias de insumo ──────────────────────────────────────────────────────
+const RC_CATEGORIAS_ORDEM = [
+  'DESTILADOS PRINCIPAIS',
+  'DESTILADOS SECUNDÁRIOS',
+  'ESPUMAS',
+  'NÃO ALCOÓLICOS',
+  'COPOS E TAÇAS',
+  'OUTROS',
+];
+
+const RC_ITEM_CAT = {
+  'Vodka':'DESTILADOS PRINCIPAIS','Gim':'DESTILADOS PRINCIPAIS','Gim2':'DESTILADOS PRINCIPAIS',
+  'Aperol':'DESTILADOS PRINCIPAIS','Campari':'DESTILADOS PRINCIPAIS','Vermouth':'DESTILADOS PRINCIPAIS',
+  'Espumante':'DESTILADOS PRINCIPAIS','Whisky':'DESTILADOS PRINCIPAIS','Lillet':'DESTILADOS PRINCIPAIS',
+  'Tequila':'DESTILADOS PRINCIPAIS','Cachaça':'DESTILADOS PRINCIPAIS',
+  'Fernet':'DESTILADOS SECUNDÁRIOS','Fireball':'DESTILADOS SECUNDÁRIOS','Rum':'DESTILADOS SECUNDÁRIOS',
+  'Manzza':'DESTILADOS SECUNDÁRIOS','Sake':'DESTILADOS SECUNDÁRIOS','Vinho':'DESTILADOS SECUNDÁRIOS',
+  'Licor 43':'DESTILADOS SECUNDÁRIOS','Licor Doce de Leite':'DESTILADOS SECUNDÁRIOS',
+  'Negroni Romero':'DESTILADOS SECUNDÁRIOS','Limonchello':'DESTILADOS SECUNDÁRIOS',
+  'Nib Shot':'DESTILADOS SECUNDÁRIOS','Bananinha':'DESTILADOS SECUNDÁRIOS',
+  'Ballena':'DESTILADOS SECUNDÁRIOS','Pisco':'DESTILADOS SECUNDÁRIOS','Martini':'DESTILADOS SECUNDÁRIOS',
+  'Espuma de Gengibre':'ESPUMAS','Espuma de Siciliano':'ESPUMAS',
+  'Mix Frutas Vermelhas':'NÃO ALCOÓLICOS','Grapefruit':'NÃO ALCOÓLICOS','Ginger Ale':'NÃO ALCOÓLICOS',
+  'Café':'NÃO ALCOÓLICOS','Suco de Limão':'NÃO ALCOÓLICOS','Xarope de Açucar':'NÃO ALCOÓLICOS',
+  'Agua gasosa':'NÃO ALCOÓLICOS','Agua Tônica':'NÃO ALCOÓLICOS',
+  'Long Drink':'COPOS E TAÇAS','Long liso':'COPOS E TAÇAS','Taça de Vinho':'COPOS E TAÇAS',
+  'Caneca':'COPOS E TAÇAS','Coupe':'COPOS E TAÇAS','Receptivo':'COPOS E TAÇAS',
+  'Taça Flute':'COPOS E TAÇAS','Suprema Multicristal':'COPOS E TAÇAS','Calise':'COPOS E TAÇAS',
+  'Baixo Liso':'COPOS E TAÇAS','Lampada':'COPOS E TAÇAS','Long Xtra':'COPOS E TAÇAS',
+  'Xtra Baixo':'COPOS E TAÇAS','Bunello':'COPOS E TAÇAS','Taça Xtar':'COPOS E TAÇAS',
+  'Whiskey Elysia':'COPOS E TAÇAS','Whiskey Timeles':'COPOS E TAÇAS',
+};
+
 // ── Estado ────────────────────────────────────────────────────────────────────
 var _rcView      = 'tabela';
 var _rcGrupo     = 'CASAMENTO';
@@ -196,34 +229,59 @@ function _rcBuildRows(bevList, stats) {
   const filtro = _rcFiltro.toLowerCase().trim();
   const data   = stats || _rcGetStats();
   const gd     = data[_rcGrupo] || {};
+  const ceil   = v => v == null ? '—' : Math.ceil(v * pax);
 
-  return (bevList || [])
+  // Agrupa itens com dados por categoria
+  const porCat = {};
+  RC_CATEGORIAS_ORDEM.forEach(c => { porCat[c] = []; });
+
+  (bevList || [])
     .filter(b => !filtro || b.toLowerCase().includes(filtro))
-    .map(b => {
+    .forEach(b => {
       const d = gd[b];
-      if (!d) return '';
-      const hasData    = d.count > 0;
-      const isFallback = !hasData && d.mediaGeral != null;
-      if (!hasData && !isFallback) return '';
-      const ceil  = v => v == null ? '—' : Math.ceil(v * pax);
-      if (isFallback) {
-        return `<tr style="opacity:.6">
-          <td style="padding:8px 12px;color:var(--text2)">${b} <em style="font-size:10px;color:var(--text3)">sem histórico aqui</em></td>
-          <td style="padding:8px 12px;text-align:right;color:var(--text3)" colspan="3">—</td>
-          <td style="padding:8px 12px;text-align:right;font-weight:600;color:#4F8EF7;background:rgba(79,142,247,.04)">${ceil(d.mediaGeral)}</td>
-          <td style="padding:8px 12px;text-align:right;color:var(--text3)">—</td>
-        </tr>`;
+      if (!d) return;
+      if (d.count <= 0 && d.mediaGeral == null) return;
+      const cat = RC_ITEM_CAT[b] || 'OUTROS';
+      porCat[cat].push(b);
+    });
+
+  const html = [];
+  RC_CATEGORIAS_ORDEM.forEach(cat => {
+    const itens = porCat[cat];
+    if (!itens.length) return;
+
+    html.push(`<tr>
+      <td colspan="6" style="padding:10px 12px 5px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;background:var(--bg3);border-top:2px solid var(--border)">${cat}</td>
+    </tr>`);
+
+    itens.forEach(b => {
+      const d        = gd[b];
+      const hasData  = d.count > 0;
+      if (!hasData && d.mediaGeral != null) {
+        html.push(`<tr style="opacity:.65">
+          <td style="padding:7px 12px 7px 20px;color:var(--text2)">${b} <em style="font-size:10px;color:var(--text3)">sem histórico aqui</em></td>
+          <td style="padding:7px 12px;text-align:right;color:var(--text3)" colspan="3">—</td>
+          <td style="padding:7px 12px;text-align:right;font-weight:600;color:#4F8EF7;background:rgba(79,142,247,.04)">${ceil(d.mediaGeral)}</td>
+          <td style="padding:7px 12px;text-align:right;color:var(--text3)">—</td>
+        </tr>`);
+        return;
       }
       const badge = d.count===1 ? ' <span style="font-size:9px;color:#F5A623;background:rgba(245,166,35,.12);padding:1px 5px;border-radius:4px;border:1px solid rgba(245,166,35,.3)">1 reg.</span>' : '';
-      return `<tr>
-        <td style="padding:8px 12px;color:var(--text);font-weight:500">${b}${badge}</td>
-        <td style="padding:8px 12px;text-align:right;color:var(--text2)">${ceil(d.min)}</td>
-        <td style="padding:8px 12px;text-align:right;color:var(--text2)">${ceil(d.avg)}</td>
-        <td style="padding:8px 12px;text-align:right;color:var(--text2)">${ceil(d.max)}</td>
-        <td style="padding:8px 12px;text-align:right;font-weight:700;color:#4F8EF7;font-size:13px;background:rgba(79,142,247,.04)">${d.avg!=null?Math.ceil(d.avg*pax):'—'}</td>
-        <td style="padding:8px 12px;text-align:right;color:var(--text3)">${d.count}</td>
-      </tr>`;
-    }).join('');
+      html.push(`<tr>
+        <td style="padding:7px 12px 7px 20px;color:var(--text);font-weight:500">${b}${badge}</td>
+        <td style="padding:7px 12px;text-align:right;color:var(--text2)">${ceil(d.min)}</td>
+        <td style="padding:7px 12px;text-align:right;color:var(--text2)">${ceil(d.avg)}</td>
+        <td style="padding:7px 12px;text-align:right;color:var(--text2)">${ceil(d.max)}</td>
+        <td style="padding:7px 12px;text-align:right;font-weight:700;color:#4F8EF7;font-size:13px;background:rgba(79,142,247,.04)">${d.avg!=null?Math.ceil(d.avg*pax):'—'}</td>
+        <td style="padding:7px 12px;text-align:right;color:var(--text3)">${d.count}</td>
+      </tr>`);
+    });
+  });
+
+  if (!html.length) {
+    return `<tr><td colspan="6" style="padding:32px;text-align:center;color:var(--text3)">Nenhum insumo encontrado para este tipo de evento.</td></tr>`;
+  }
+  return html.join('');
 }
 
 // ── VIEW: HISTÓRICO ───────────────────────────────────────────────────────────
