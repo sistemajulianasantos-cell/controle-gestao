@@ -329,11 +329,10 @@ function criarOrcamento() {
     nomeCliente:  nome,
     dataEvento:   document.getElementById('orc-m-data')?.value || '',
     convidados:   conv,
-    valorVendido: parseFloat((document.getElementById('orc-m-valor')?.value||'').replace(',','.')) || 0,
     criadoEm:     new Date().toISOString(),
     itens:      [],
     calcItens:  [],
-    cardapio:   [],
+    insumos:    [],
     calcParams: {
       local,
       tipoEvento,
@@ -347,7 +346,7 @@ function criarOrcamento() {
   });
   sv('orcamentos');
   document.getElementById('m-novo-orc').style.display = 'none';
-  ['orc-m-cliente','orc-m-data','orc-m-conv','orc-m-valor'].forEach(fid => {
+  ['orc-m-cliente','orc-m-data','orc-m-conv'].forEach(fid => {
     const el = document.getElementById(fid); if (el) el.value = '';
   });
   abrirOrcDetalhe(id);

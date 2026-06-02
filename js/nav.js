@@ -19,6 +19,7 @@ var pageInfo={
   despesas:['Análise Financeira','Receita, despesas e KPIs financeiros'],
   equipe:['Equipe','Cadastro e escala de colaboradores'],
   orcamento:['Orcamento vs Real','Comparativo custo orcado e real'],
+  refconsumo:['Referência de Consumo','Estatísticas históricas por tipo de evento e insumo'],
 };
 // pageRenders como função para evitar referência antecipada
 var pageRenders={};
@@ -44,6 +45,7 @@ function initPageRenders(){
     analise:rAnalise,
     equipe:rEquipe,
     orcamento:rOrcamento,
+    refconsumo:rRefConsumo,
   };
 }
 function go(page){
@@ -53,7 +55,7 @@ function go(page){
   const pageEl=document.getElementById('page-'+page);if(!pageEl)return;
   pageEl.classList.add('active');
   const items=[...document.querySelectorAll('.nav-item')];
-  const map={fechamento:0,'est-mar':1,'est-abr':2,contagens:3,precos:4,fornecedores:5,produtos:6,entrada:7,comparativo:8,festas:9,relatorio:10,contratos:11,orcamento:12};
+  const map={fechamento:0,'est-mar':1,'est-abr':2,contagens:3,precos:4,fornecedores:5,produtos:6,entrada:7,comparativo:8,festas:9,relatorio:10,contratos:11,orcamento:12,refconsumo:13};
   if(items[map[page]])items[map[page]].classList.add('active');
   const[t,s]=pageInfo[page]||['',''];
   document.getElementById('ptitle').textContent=t;

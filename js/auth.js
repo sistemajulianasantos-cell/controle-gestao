@@ -3,8 +3,8 @@
 // As senhas ficam em D.senhas (Firebase) — não estão no código.
 
 var ACESSO = {
-  admin:       ['estoque','contratos','produtos','regras','producao','separacao','agenda','financeiro','analise','equipe','orcamento'],
-  financeiro:  ['estoque','contratos','produtos','producao','separacao','agenda','equipe','orcamento'],
+  admin:       ['estoque','contratos','produtos','regras','producao','separacao','agenda','financeiro','analise','equipe','orcamento','refconsumo'],
+  financeiro:  ['estoque','contratos','produtos','producao','separacao','agenda','equipe','orcamento','refconsumo'],
   operacional: ['contratos','producao','separacao','agenda']
 };
 
