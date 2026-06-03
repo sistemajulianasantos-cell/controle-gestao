@@ -1487,9 +1487,7 @@ function imprimirPagamentosEquipe() {
 
   const fmtR = v => `R$ ${(v||0).toFixed(2).replace('.',',')}`;
   const fmtD = d => d ? d.split('-').reverse().join('/') : '—';
-  const totalGeral = lista.reduce((a,p)=>a+p.total,0);
-  const totalPend  = lista.filter(p=>p.status==='pendente').reduce((a,p)=>a+p.total,0);
-  const totalPago  = lista.filter(p=>p.status==='pago').reduce((a,p)=>a+p.total,0);
+  const totalGeral  = lista.reduce((a,p)=>a+p.total,0);
   const filtroLabel = _pgFiltro === 'pendente' ? 'Pendentes' : _pgFiltro === 'pago' ? 'Pagos' : 'Todos';
 
   let corpo = '';
@@ -1497,7 +1495,6 @@ function imprimirPagamentosEquipe() {
     const contrato    = (D.contratos||[]).find(c=>c.id===cid);
     const regiaoLabel = REGIOES_PAGAMENTO.find(r=>r.key===ev.regiao)?.label || ev.regiao || '';
     const totalEv     = ev.itens.reduce((a,p)=>a+p.total,0);
-    const todosPago   = ev.itens.every(p=>p.status==='pago');
 
     corpo += `
       <div class="ev-block">
@@ -1506,13 +1503,10 @@ function imprimirPagamentosEquipe() {
             <strong>${ev.nome}</strong>
             <span class="ev-meta">${fmtD(ev.data)}${regiaoLabel?' · '+regiaoLabel:''}${contrato?.convidados?' · '+contrato.convidados+' conv.':''}${contrato?.local?' · '+contrato.local:''}</span>
           </div>
-          <div style="text-align:right">
-            <strong>${fmtR(totalEv)}</strong>
-            <span class="ev-status">${todosPago?'✅ Pagos':'⏳ Pendente'}</span>
-          </div>
+          <strong style="white-space:nowrap">${fmtR(totalEv)}</strong>
         </div>
         <table>
-          <thead><tr><th>Colaborador</th><th>Cargo</th><th>Nível</th><th>Total</th><th>Chave PIX</th><th>Status</th></tr></thead>
+          <thead><tr><th>Colaborador</th><th>Cargo</th><th>Nível</th><th style="text-align:right">Total</th><th>Chave PIX</th></tr></thead>
           <tbody>
             ${ev.itens.map(p=>`
             <tr>
@@ -1521,7 +1515,6 @@ function imprimirPagamentosEquipe() {
               <td>${p.nivel||'—'}</td>
               <td style="text-align:right;font-weight:700">${fmtR(p.total)}</td>
               <td style="font-family:monospace;font-size:10px">${p.chave_pix||'—'}</td>
-              <td style="text-align:center;font-weight:600;color:${p.status==='pago'?'#166534':'#92400e'}">${p.status==='pago'?'✅ Pago':'⏳ Pendente'}</td>
             </tr>`).join('')}
           </tbody>
         </table>
@@ -1533,32 +1526,31 @@ function imprimirPagamentosEquipe() {
   <title>Pagamentos da Equipe</title>
   <style>
     body{font-family:Arial,sans-serif;font-size:11px;margin:20px;color:#111}
-    h2{font-size:15px;margin:0 0 2px}
-    .sub{font-size:11px;color:#555;margin-bottom:4px}
-    .totais{display:flex;gap:24px;margin:10px 0 16px;border:1px solid #ddd;border-radius:4px;padding:8px 14px;background:#f9f9f9}
-    .tot-item{font-size:11px}.tot-val{font-weight:700;font-size:13px}
-    .ev-block{margin-bottom:18px;page-break-inside:avoid}
-    .ev-head{display:flex;justify-content:space-between;align-items:flex-start;background:#111;color:#fff;padding:6px 10px;border-radius:3px 3px 0 0;font-size:11px}
-    .ev-meta{display:block;font-size:9px;color:#aaa;margin-top:2px;font-weight:400}
-    .ev-status{display:block;font-size:9px;margin-top:3px}
+    h2{font-size:15px;margin:0 0 2px;font-weight:700}
+    .sub{font-size:10px;color:#666;margin-bottom:12px}
+    .totais{display:inline-flex;gap:32px;margin:10px 0 18px;border:1px solid #ddd;border-radius:4px;padding:10px 16px;background:#f9f9f9}
+    .tot-item .lbl{font-size:10px;color:#666;margin-bottom:2px}
+    .tot-item .val{font-weight:700;font-size:14px}
+    .ev-block{margin-bottom:16px;page-break-inside:avoid}
+    .ev-head{display:flex;justify-content:space-between;align-items:center;background:#222;color:#fff;padding:7px 10px;border-radius:3px 3px 0 0;font-size:12px}
+    .ev-meta{display:block;font-size:9px;color:#bbb;margin-top:2px;font-weight:400}
     table{width:100%;border-collapse:collapse;margin:0}
-    th{background:#f0f0f0;color:#333;padding:5px 8px;text-align:left;font-size:10px;text-transform:uppercase;border:1px solid #ddd}
-    td{padding:4px 8px;border-bottom:1px solid #eee;font-size:11px}
-    tr:nth-child(even) td{background:#fafafa}
-    .rodape{margin-top:20px;font-size:9px;color:#888;border-top:1px solid #ddd;padding-top:8px}
+    th{background:#f4f4f4;color:#444;padding:5px 8px;text-align:left;font-size:10px;text-transform:uppercase;border:1px solid #ddd;font-weight:600}
+    td{padding:5px 8px;border-bottom:1px solid #eee;font-size:11px}
+    tr:last-child td{border-bottom:1px solid #ccc}
+    .rodape{margin-top:24px;font-size:9px;color:#999;border-top:1px solid #ddd;padding-top:6px}
     @media print{
       body{margin:10px}
       .totais,.ev-head{-webkit-print-color-adjust:exact;print-color-adjust:exact}
     }
   </style>
   </head><body>
-  <h2>💳 PAGAMENTOS DA EQUIPE — ${filtroLabel.toUpperCase()}</h2>
+  <h2>PAGAMENTOS DA EQUIPE — ${filtroLabel.toUpperCase()}</h2>
   <div class="sub">Impresso em: ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}</div>
   <div class="totais">
-    <div class="tot-item"><div>Total geral</div><div class="tot-val">${fmtR(totalGeral)}</div></div>
-    <div class="tot-item"><div>Pendente</div><div class="tot-val" style="color:#92400e">${fmtR(totalPend)}</div></div>
-    <div class="tot-item"><div>Pago</div><div class="tot-val" style="color:#166534">${fmtR(totalPago)}</div></div>
-    <div class="tot-item"><div>Eventos</div><div class="tot-val">${Object.keys(porEvento).length}</div></div>
+    <div class="tot-item"><div class="lbl">Total a pagar</div><div class="val">${fmtR(totalGeral)}</div></div>
+    <div class="tot-item"><div class="lbl">Eventos</div><div class="val">${Object.keys(porEvento).length}</div></div>
+    <div class="tot-item"><div class="lbl">Colaboradores</div><div class="val">${lista.length}</div></div>
   </div>
   ${corpo}
   <div class="rodape">Controle e Gestão — Juliana Santos · ${new Date().toLocaleDateString('pt-BR')}</div>
