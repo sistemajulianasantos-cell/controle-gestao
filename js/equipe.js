@@ -12,10 +12,10 @@ const REGIOES_PAGAMENTO = [
   { key: 'area_central',  label: 'Área Central BH' },
   { key: 'jardim_canada', label: 'Jardim Canadá / C. Nova' },
   { key: 'reg_metro',     label: 'Região Metropolitana' },
-  { key: 'viagem_60',     label: 'Viagem até 60 km' },
-  { key: 'viagem_100',    label: 'Viagem até 100 km' },
-  { key: 'viagem_200',    label: 'Viagem até 200 km' },
-  { key: 'viagem_300',    label: 'Viagem até 300 km' },
+  { key: 'viagem_100',    label: 'Viagem 50 a 100 km' },
+  { key: 'viagem_250',    label: 'Viagem 101 a 250 km' },
+  { key: 'viagem_400',    label: 'Viagem 251 a 400 km' },
+  { key: 'viagem_mais',   label: 'Viagem acima de 400 km' },
 ];
 
 const CARGOS_PAGAMENTO = [
@@ -764,8 +764,9 @@ function rEquipeRegras() {
 
   const rg  = D.regrasEquipe || {};
   const base = rg.base || {};
-  const he   = rg.horaExtra || {};
-  const bc   = rg.bonusConvidados || {};
+  const he   = rg.horaExtra        || {};
+  const hev  = rg.horaExtraViagem  || {};
+  const bc   = rg.bonusConvidados  || {};
 
   const thStyle = 'padding:6px 8px;font-weight:500;color:var(--text3);font-size:10px;text-transform:uppercase;';
   const tdStyle = 'padding:4px 5px;text-align:center;';
@@ -803,27 +804,54 @@ function rEquipeRegras() {
     </div>`;
 
   // Tabela 2 — hora extra
-  const heAntN = (he.antecipada||{}).novato; const heAntA = (he.antecipada||{}).antigo;
-  const heNhN  = (he.naHora||{}).novato;     const heNhA  = (he.naHora||{}).antigo;
+  const heAntN  = (he.antecipada||{}).novato;  const heAntA  = (he.antecipada||{}).antigo;
+  const heNhN   = (he.naHora||{}).novato;       const heNhA   = (he.naHora||{}).antigo;
+  const hevAntN = (hev.antecipada||{}).novato;  const hevAntA = (hev.antecipada||{}).antigo;
+  const hevNhN  = (hev.naHora||{}).novato;      const hevNhA  = (hev.naHora||{}).antigo;
+
+  const _thHE = txt => `<th style="${thStyle}text-align:left;min-width:220px">${txt}</th>`;
+  const _thNv = txt => `<th style="${thStyle}text-align:center;color:#6EE7B7;min-width:110px">${txt}</th>`;
+  const _thAt = txt => `<th style="${thStyle}text-align:center;color:#93C5FD;min-width:110px">${txt}</th>`;
+
   const tabelaHE = `
-    <table style="border-collapse:collapse;font-size:12px">
+    <table style="border-collapse:collapse;font-size:12px;width:100%">
       <thead>
         <tr style="border-bottom:2px solid var(--border2)">
-          <th style="${thStyle}text-align:left;min-width:200px">Tipo de hora extra</th>
-          <th style="${thStyle}text-align:center;color:#6EE7B7;min-width:100px">Novato</th>
-          <th style="${thStyle}text-align:center;color:#93C5FD;min-width:100px">Antigo</th>
+          ${_thHE('Tipo de hora extra')}
+          ${_thNv('Novato')}
+          ${_thAt('Antigo')}
         </tr>
       </thead>
       <tbody>
+        <tr style="background:var(--bg3)">
+          <td colspan="3" style="padding:5px 10px;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text3);letter-spacing:.06em">
+            Eventos locais (BH e Região Metropolitana)
+          </td>
+        </tr>
         <tr style="border-bottom:1px solid var(--border)">
           <td style="padding:7px 10px;color:var(--text)">Contratada com antecedência</td>
           <td style="${tdStyle}">${_rpInp('rp-he-ant-n', heAntN)}</td>
           <td style="${tdStyle}">${_rpInp('rp-he-ant-a', heAntA)}</td>
         </tr>
-        <tr>
+        <tr style="border-bottom:1px solid var(--border)">
           <td style="padding:7px 10px;color:var(--text)">Contratada na hora</td>
           <td style="${tdStyle}">${_rpInp('rp-he-nh-n', heNhN)}</td>
           <td style="${tdStyle}">${_rpInp('rp-he-nh-a', heNhA)}</td>
+        </tr>
+        <tr style="background:var(--bg3)">
+          <td colspan="3" style="padding:5px 10px;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text3);letter-spacing:.06em">
+            Viagem (valor fixo — qualquer distância)
+          </td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:7px 10px;color:var(--text)">Contratada com antecedência</td>
+          <td style="${tdStyle}">${_rpInp('rp-hev-ant-n', hevAntN)}</td>
+          <td style="${tdStyle}">${_rpInp('rp-hev-ant-a', hevAntA)}</td>
+        </tr>
+        <tr>
+          <td style="padding:7px 10px;color:var(--text)">Contratada na hora</td>
+          <td style="${tdStyle}">${_rpInp('rp-hev-nh-n', hevNhN)}</td>
+          <td style="${tdStyle}">${_rpInp('rp-hev-nh-a', hevNhA)}</td>
         </tr>
       </tbody>
     </table>`;
@@ -923,6 +951,17 @@ function salvarRegrasEquipe() {
     naHora: {
       novato: parseFloat(document.getElementById('rp-he-nh-n')?.value) || 0,
       antigo: parseFloat(document.getElementById('rp-he-nh-a')?.value) || 0,
+    },
+  };
+
+  D.regrasEquipe.horaExtraViagem = {
+    antecipada: {
+      novato: parseFloat(document.getElementById('rp-hev-ant-n')?.value) || 0,
+      antigo: parseFloat(document.getElementById('rp-hev-ant-a')?.value) || 0,
+    },
+    naHora: {
+      novato: parseFloat(document.getElementById('rp-hev-nh-n')?.value) || 0,
+      antigo: parseFloat(document.getElementById('rp-hev-nh-a')?.value) || 0,
     },
   };
 
