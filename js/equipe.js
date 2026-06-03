@@ -922,11 +922,18 @@ function abrirAddColabEvento() {
     ? contrato.equipe.reduce((s,e)=>s+(e.qtd||0),0)
     : (contrato?.equipeTotal || 0);
   if (maxEquipe) {
-    const jaEscaladosCount = (D.escalas||[]).filter(e =>
+    const escalasDoEvento = (D.escalas||[]).filter(e =>
       e.contratoId===escalaEventoAtual.id || (e.nomeEvento===escalaEventoAtual.nome && e.dataEvento===escalaEventoAtual.data)
-    ).length;
-    if (jaEscaladosCount >= maxEquipe) {
-      alert(`Limite atingido: este evento contratou ${maxEquipe} colaborador${maxEquipe!==1?'es':''} e já há ${jaEscaladosCount} escalado${jaEscaladosCount!==1?'s':''}.`);
+    );
+    // Conta apenas slots regulares preenchidos (extras além da cota por cargo não bloqueiam vagas abertas)
+    const preenchidos = contrato?.equipe?.length
+      ? contrato.equipe.reduce((s, slot) => {
+          const qtdDoCargo = escalasDoEvento.filter(e => e.cargo === slot.cargo).length;
+          return s + Math.min(qtdDoCargo, slot.qtd || 0);
+        }, 0)
+      : escalasDoEvento.length;
+    if (preenchidos >= maxEquipe) {
+      alert(`Limite atingido: este evento contratou ${maxEquipe} colaborador${maxEquipe!==1?'es':''} e já há ${preenchidos} escalado${preenchidos!==1?'s':''}.`);
       return;
     }
   }
