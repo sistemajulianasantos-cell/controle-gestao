@@ -543,6 +543,25 @@ const _EQ_CARGOS_CB = [
   { id: 'cp', val: 'Copeiro' },
 ];
 
+function eqPreviewFoto(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('eq-m-foto').value = e.target.result;
+    const prev = document.getElementById('eq-m-foto-preview');
+    if (prev) {
+      prev.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover">`;
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function eqAtualizarInicial(nome) {
+  const el = document.getElementById('eq-m-foto-inicial');
+  if (el) el.textContent = (nome||'?')[0].toUpperCase();
+}
+
 function eqToggleCargo(cb) {
   const lbl = document.getElementById('eq-lbl-' + cb.id.replace('eq-m-cargo-',''));
   if (lbl) {
@@ -557,6 +576,21 @@ function abrirNovoColab(id) {
   document.getElementById('eq-m-id').value        = id  || '';
   document.getElementById('eq-m-nome').value       = c?.nome       || '';
   document.getElementById('eq-m-pix').value        = c?.chave_pix  || '';
+  document.getElementById('eq-m-foto').value       = c?.foto       || '';
+  document.getElementById('eq-m-foto-file').value  = '';
+
+  // Preview foto ou inicial
+  const prev = document.getElementById('eq-m-foto-preview');
+  const ini  = document.getElementById('eq-m-foto-inicial');
+  if (prev) {
+    if (c?.foto) {
+      prev.innerHTML = `<img src="${c.foto}" style="width:100%;height:100%;object-fit:cover">`;
+    } else {
+      prev.innerHTML = `<span id="eq-m-foto-inicial">${(c?.nome||'?')[0].toUpperCase()}</span>`;
+    }
+  } else if (ini) {
+    ini.textContent = (c?.nome||'?')[0].toUpperCase();
+  }
   document.getElementById('eq-m-cpf').value        = c?.cpf        || '';
   document.getElementById('eq-m-telefone').value   = c?.telefone   || '';
   document.getElementById('eq-m-nascimento').value = c?.nascimento || '';
@@ -588,6 +622,7 @@ function salvarColab() {
   const dados = {
     nome,
     chave_pix:  document.getElementById('eq-m-pix')?.value?.trim()      || '',
+    foto:       document.getElementById('eq-m-foto')?.value             || '',
     cargos,
     cargo:      cargos[0] || '',  // cargo principal (compatibilidade)
     cpf:        document.getElementById('eq-m-cpf')?.value?.trim()      || '',
