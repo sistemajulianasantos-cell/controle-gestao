@@ -5,8 +5,8 @@ let equipeView    = 'lista'; // 'lista' | 'perfil' | 'eventos' | 'evento-detalhe
 let equipeAtualId = null;
 let escalaEventoAtual = null; // { id, nome, data }
 
-const CARGOS_EQUIPE = ['Head Bartender','Bartender','Bar Back','Copeiro','Coordenador','Auxiliar'];
-const NIVEIS_EQUIPE = ['Novato','Experiente','Sênior'];
+const CARGOS_EQUIPE = ['Head Bartender','Bartender','Bar Back','Copeiro','Coordenador'];
+const NIVEIS_EQUIPE = ['Novato','Antigo'];
 
 const REGIOES_PAGAMENTO = [
   { key: 'area_central',  label: 'Área Central BH' },
@@ -144,7 +144,7 @@ function rEquipeLista() {
                   ${(c.cargos && c.cargos.length ? c.cargos : (c.cargo ? [c.cargo] : ['—']))
                     .map(g=>`<span class="badge b-blue" style="font-size:10px;margin-right:3px">${g}</span>`).join('')}
                 </td>
-                <td style="padding:8px 8px;font-size:11px;color:${c.nivel==='Novato'?'var(--amber)':c.nivel==='Sênior'?'var(--green)':'var(--text3)'}">${c.nivel||'—'}</td>
+                <td style="padding:8px 8px;font-size:11px;color:${c.nivel==='Novato'?'var(--amber)':c.nivel==='Antigo'?'var(--green)':'var(--text3)'}">${c.nivel||'—'}</td>
                 <td style="padding:8px 8px;font-size:11px;color:var(--text3)">${c.telefone||'—'}</td>
                 <td style="padding:8px 8px;text-align:center;font-size:11px;color:var(--text3)">${c.nascimento?fd(c.nascimento)+(isAniv?' 🎂':''):'—'}</td>
                 <td style="padding:8px 8px;text-align:center;font-size:12px">${totalEsc}</td>
@@ -216,7 +216,7 @@ function rEquipePerfil() {
           ${c.chave_pix?`<div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Chave PIX</div>
             <div style="color:var(--green);font-family:monospace;font-size:12px">${c.chave_pix}</div></div>`:''}
           <div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Nível</div>
-            <div style="font-weight:600;color:${c.nivel==='Novato'?'var(--amber)':c.nivel==='Sênior'?'var(--green)':'var(--text)'}">${c.nivel||'—'}</div></div>
+            <div style="font-weight:600;color:${c.nivel==='Novato'?'var(--amber)':c.nivel==='Antigo'?'var(--green)':'var(--text)'}">${c.nivel||'—'}</div></div>
           <div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:3px">CPF</div>
             <div style="color:var(--text2)">${c.cpf||'—'}</div></div>
           <div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Telefone</div>
@@ -541,7 +541,6 @@ const _EQ_CARGOS_CB = [
   { id: 'bt', val: 'Bartender' },
   { id: 'bb', val: 'Bar Back' },
   { id: 'cp', val: 'Copeiro' },
-  { id: 'ax', val: 'Auxiliar' },
 ];
 
 function eqToggleCargo(cb) {
