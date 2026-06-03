@@ -425,7 +425,10 @@ function _calcPagamento(cargoKey, nivel, regiao, horas, tipoHE, convidados) {
   const tabHE      = ehViagem ? (rg.horaExtraViagem||{}) : (rg.horaExtra||{});
   const chHE       = tipoHE === 'nh' ? 'naHora' : 'antecipada';
   const valorHE    = ((tabHE[chHE]||{})[nk]||0) * horasExtra;
-  const valorBonus = ((rg.bonusConvidados||{})[cargoKey]||0) * Math.floor((convidados||0)/100);
+  const paxUnits   = cargoKey === 'hb'
+    ? Math.max(1, (convidados||0) / 100)
+    : Math.floor((convidados||0) / 100);
+  const valorBonus = ((rg.bonusConvidados||{})[cargoKey]||0) * paxUnits;
   return { valorBase, horasExtra, valorHE, valorBonus, total: valorBase+valorHE+valorBonus };
 }
 
