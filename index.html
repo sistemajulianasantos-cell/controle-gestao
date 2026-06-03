@@ -1663,18 +1663,33 @@ document.head.appendChild(styleExtra);
     <div id="eq-m-titulo" style="font-size:16px;font-weight:600;color:#E8EAF0;margin-bottom:20px">+ Novo Colaborador</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:10px">
       <div style="grid-column:1/-1"><label class="lbl">Nome completo *</label><input id="eq-m-nome" class="inp" type="text" placeholder="Nome do colaborador"></div>
-      <div><label class="lbl">Chave PIX</label><input id="eq-m-pix" class="inp" type="text" placeholder="CPF, e-mail, telefone ou chave aleatória"></div>
-      <div><label class="lbl">Cargo</label>
-        <select id="eq-m-cargo" class="inp">
-          <option value="">Selecione...</option>
-          <option>Head Bartender</option>
-          <option>Bartender</option>
-          <option>Bar Back</option>
-          <option>Copeiro</option>
-          <option>Coordenador</option>
-          <option>Auxiliar</option>
-        </select>
+
+      <!-- Funções (múltiplas) -->
+      <div style="grid-column:1/-1">
+        <label class="lbl">Funções (pode marcar mais de uma)</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+          <label id="eq-lbl-hb" style="display:flex;align-items:center;gap:5px;padding:5px 12px;border:1px solid var(--border2);border-radius:20px;cursor:pointer;font-size:12px;color:var(--text2);transition:.15s">
+            <input type="checkbox" id="eq-m-cargo-hb" value="Head Bartender" style="accent-color:#4F8EF7" onchange="eqToggleCargo(this)"> Head Bartender
+          </label>
+          <label id="eq-lbl-cd" style="display:flex;align-items:center;gap:5px;padding:5px 12px;border:1px solid var(--border2);border-radius:20px;cursor:pointer;font-size:12px;color:var(--text2);transition:.15s">
+            <input type="checkbox" id="eq-m-cargo-cd" value="Coordenador" style="accent-color:#4F8EF7" onchange="eqToggleCargo(this)"> Coordenador
+          </label>
+          <label id="eq-lbl-bt" style="display:flex;align-items:center;gap:5px;padding:5px 12px;border:1px solid var(--border2);border-radius:20px;cursor:pointer;font-size:12px;color:var(--text2);transition:.15s">
+            <input type="checkbox" id="eq-m-cargo-bt" value="Bartender" style="accent-color:#4F8EF7" onchange="eqToggleCargo(this)"> Bartender
+          </label>
+          <label id="eq-lbl-bb" style="display:flex;align-items:center;gap:5px;padding:5px 12px;border:1px solid var(--border2);border-radius:20px;cursor:pointer;font-size:12px;color:var(--text2);transition:.15s">
+            <input type="checkbox" id="eq-m-cargo-bb" value="Bar Back" style="accent-color:#4F8EF7" onchange="eqToggleCargo(this)"> Bar Back
+          </label>
+          <label id="eq-lbl-cp" style="display:flex;align-items:center;gap:5px;padding:5px 12px;border:1px solid var(--border2);border-radius:20px;cursor:pointer;font-size:12px;color:var(--text2);transition:.15s">
+            <input type="checkbox" id="eq-m-cargo-cp" value="Copeiro" style="accent-color:#4F8EF7" onchange="eqToggleCargo(this)"> Copeiro
+          </label>
+          <label id="eq-lbl-ax" style="display:flex;align-items:center;gap:5px;padding:5px 12px;border:1px solid var(--border2);border-radius:20px;cursor:pointer;font-size:12px;color:var(--text2);transition:.15s">
+            <input type="checkbox" id="eq-m-cargo-ax" value="Auxiliar" style="accent-color:#4F8EF7" onchange="eqToggleCargo(this)"> Auxiliar
+          </label>
+        </div>
       </div>
+
+      <!-- Dados pessoais -->
       <div><label class="lbl">CPF</label><input id="eq-m-cpf" class="inp" type="text" placeholder="000.000.000-00"></div>
       <div><label class="lbl">Telefone / WhatsApp</label><input id="eq-m-telefone" class="inp" type="text" placeholder="(31) 9 0000-0000"></div>
       <div><label class="lbl">Data de nascimento</label><input id="eq-m-nascimento" class="inp" type="date"></div>
@@ -1694,6 +1709,13 @@ document.head.appendChild(styleExtra);
       </div>
       <div style="grid-column:1/-1"><label class="lbl">Endereço</label><input id="eq-m-endereco" class="inp" type="text" placeholder="Rua, número, bairro, cidade"></div>
       <div style="grid-column:1/-1"><label class="lbl">Observações</label><textarea id="eq-m-obs" class="inp" rows="2" placeholder="Observações gerais, restrições, etc." style="resize:vertical"></textarea></div>
+
+      <!-- Chave PIX destacada -->
+      <div style="grid-column:1/-1;border:1px solid #2ECC7180;border-radius:8px;padding:12px 14px;background:#0d1f14">
+        <label class="lbl" style="color:#4ade80;font-size:10px;letter-spacing:.08em">CHAVE PIX</label>
+        <input id="eq-m-pix" class="inp" type="text" placeholder="CPF, e-mail, telefone ou chave aleatória"
+          style="background:#0a1910;border-color:#2ECC7160;color:#86efac;font-family:monospace;margin-top:4px">
+      </div>
     </div>
     <input type="hidden" id="eq-m-id">
     <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">

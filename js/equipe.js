@@ -140,7 +140,10 @@ function rEquipeLista() {
                     </div>
                   </div>
                 </td>
-                <td style="padding:8px 8px"><span class="badge b-blue" style="font-size:10px">${c.cargo||'—'}</span></td>
+                <td style="padding:8px 8px">
+                  ${(c.cargos && c.cargos.length ? c.cargos : (c.cargo ? [c.cargo] : ['—']))
+                    .map(g=>`<span class="badge b-blue" style="font-size:10px;margin-right:3px">${g}</span>`).join('')}
+                </td>
                 <td style="padding:8px 8px;font-size:11px;color:${c.nivel==='Novato'?'var(--amber)':c.nivel==='Sênior'?'var(--green)':'var(--text3)'}">${c.nivel||'—'}</td>
                 <td style="padding:8px 8px;font-size:11px;color:var(--text3)">${c.telefone||'—'}</td>
                 <td style="padding:8px 8px;text-align:center;font-size:11px;color:var(--text3)">${c.nascimento?fd(c.nascimento)+(isAniv?' 🎂':''):'—'}</td>
@@ -205,8 +208,11 @@ function rEquipePerfil() {
         </div>
         <!-- Dados -->
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;flex:1">
-          <div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Cargo</div>
-            <span class="badge b-blue">${c.cargo||'—'}</span></div>
+          <div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Funções</div>
+            <div style="display:flex;flex-wrap:wrap;gap:4px">
+              ${(c.cargos && c.cargos.length ? c.cargos : (c.cargo ? [c.cargo] : ['—']))
+                .map(g=>`<span class="badge b-blue">${g}</span>`).join('')}
+            </div></div>
           ${c.chave_pix?`<div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Chave PIX</div>
             <div style="color:var(--green);font-family:monospace;font-size:12px">${c.chave_pix}</div></div>`:''}
           <div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Nível</div>
@@ -529,12 +535,29 @@ function confirmarAddColabEvento() {
 
 // ─── CRUD COLABORADOR ─────────────────────────────────────────────────────────
 
+const _EQ_CARGOS_CB = [
+  { id: 'hb', val: 'Head Bartender' },
+  { id: 'cd', val: 'Coordenador' },
+  { id: 'bt', val: 'Bartender' },
+  { id: 'bb', val: 'Bar Back' },
+  { id: 'cp', val: 'Copeiro' },
+  { id: 'ax', val: 'Auxiliar' },
+];
+
+function eqToggleCargo(cb) {
+  const lbl = document.getElementById('eq-lbl-' + cb.id.replace('eq-m-cargo-',''));
+  if (lbl) {
+    lbl.style.borderColor   = cb.checked ? '#4F8EF7' : '';
+    lbl.style.background    = cb.checked ? '#1a2540' : '';
+    lbl.style.color         = cb.checked ? '#93C5FD' : '';
+  }
+}
+
 function abrirNovoColab(id) {
   const c = id ? (D.equipe||[]).find(e=>e.id===id) : null;
   document.getElementById('eq-m-id').value        = id  || '';
   document.getElementById('eq-m-nome').value       = c?.nome       || '';
   document.getElementById('eq-m-pix').value        = c?.chave_pix  || '';
-  document.getElementById('eq-m-cargo').value      = c?.cargo      || '';
   document.getElementById('eq-m-cpf').value        = c?.cpf        || '';
   document.getElementById('eq-m-telefone').value   = c?.telefone   || '';
   document.getElementById('eq-m-nascimento').value = c?.nascimento || '';
@@ -542,6 +565,14 @@ function abrirNovoColab(id) {
   document.getElementById('eq-m-endereco').value   = c?.endereco   || '';
   document.getElementById('eq-m-obs').value        = c?.obs        || '';
   document.getElementById('eq-m-status').value     = c?.status     || 'ativo';
+
+  // Cargos: suporta array (cargos) ou string legada (cargo)
+  const selecionados = c ? (c.cargos && c.cargos.length ? c.cargos : (c.cargo ? [c.cargo] : [])) : [];
+  _EQ_CARGOS_CB.forEach(({ id: cbId, val }) => {
+    const cb = document.getElementById('eq-m-cargo-' + cbId);
+    if (cb) { cb.checked = selecionados.includes(val); eqToggleCargo(cb); }
+  });
+
   document.getElementById('eq-m-titulo').textContent = id ? '✏️ Editar Colaborador' : '+ Novo Colaborador';
   document.getElementById('m-novo-colab').style.display = 'flex';
 }
@@ -552,10 +583,14 @@ function salvarColab() {
   if (!D.equipe) D.equipe = [];
 
   const id    = document.getElementById('eq-m-id')?.value;
+  const cargos = _EQ_CARGOS_CB
+    .filter(({ id: cbId }) => document.getElementById('eq-m-cargo-' + cbId)?.checked)
+    .map(({ val }) => val);
   const dados = {
     nome,
     chave_pix:  document.getElementById('eq-m-pix')?.value?.trim()      || '',
-    cargo:      document.getElementById('eq-m-cargo')?.value            || '',
+    cargos,
+    cargo:      cargos[0] || '',  // cargo principal (compatibilidade)
     cpf:        document.getElementById('eq-m-cpf')?.value?.trim()      || '',
     telefone:   document.getElementById('eq-m-telefone')?.value?.trim() || '',
     nascimento: document.getElementById('eq-m-nascimento')?.value       || '',
