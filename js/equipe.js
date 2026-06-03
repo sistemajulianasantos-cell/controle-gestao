@@ -393,6 +393,120 @@ function abrirEscalaEvento(contratoId, nomeEvento, dataEvento) {
   rEscalaEvento();
 }
 
+// Mapeamento cargo → chave nas regras de pagamento
+const _CARGO_PAG_KEY = {
+  'Head Bartender': 'hb', 'Coordenador': 'cd',
+  'Bartender': 'bt', 'Bar Back': 'bb', 'Copeiro': 'cp',
+};
+
+function _calcHorasEvento(ini, fim) {
+  try {
+    const [hi, mi] = ini.split(':').map(Number);
+    let [hf, mf]   = fim.split(':').map(Number);
+    let diff = (hf*60+mf) - (hi*60+mi);
+    if (diff < 0) diff += 1440; // cruza meia-noite
+    return Math.round(diff/60*10)/10;
+  } catch { return null; }
+}
+
+function _calcPagamento(cargoKey, nivel, regiao, horas, tipoHE, convidados) {
+  const rg = D.regrasEquipe || {};
+  const nk = (nivel||'').toLowerCase().includes('novato') ? 'novato' : 'antigo';
+  const valorBase  = (((rg.base||{})[regiao]||{})[cargoKey]||{})[nk] || 0;
+  const horasBase  = rg.horasBase || 6;
+  const horasExtra = Math.max(0, horas - horasBase);
+  const ehViagem   = (regiao||'').startsWith('viagem');
+  const tabHE      = ehViagem ? (rg.horaExtraViagem||{}) : (rg.horaExtra||{});
+  const chHE       = tipoHE === 'nh' ? 'naHora' : 'antecipada';
+  const valorHE    = ((tabHE[chHE]||{})[nk]||0) * horasExtra;
+  const valorBonus = ((rg.bonusConvidados||{})[cargoKey]||0) * Math.floor((convidados||0)/100);
+  return { valorBase, horasExtra, valorHE, valorBonus, total: valorBase+valorHE+valorBonus };
+}
+
+function calcularFolhaPagamento() {
+  const regiao  = document.getElementById('eq-fp-regiao')?.value  || '';
+  const horas   = parseFloat(document.getElementById('eq-fp-horas')?.value)  || (D.regrasEquipe?.horasBase||6);
+  const tipoHE  = document.getElementById('eq-fp-tipo-he')?.value || 'antecipada';
+  const el      = document.getElementById('eq-folha-resultado');
+  if (!el) return;
+
+  if (!regiao) {
+    el.innerHTML = '<div style="padding:14px;color:var(--text3);font-size:12px">Selecione a região do evento para calcular.</div>';
+    return;
+  }
+
+  const ev       = escalaEventoAtual;
+  const contrato = (D.contratos||[]).find(c=>c.id===ev?.id);
+  const escalas  = _escalasDoEvento(contrato||{id:ev?.id,nome:ev?.nome,data:ev?.data});
+  const convidados = parseInt(contrato?.convidados||0);
+  const horasBase  = D.regrasEquipe?.horasBase || 6;
+  const temHE      = horas > horasBase;
+
+  const linhas = [];
+  let totalGeral = 0;
+  escalas.forEach(e => {
+    const col = (D.equipe||[]).find(x=>x.id===e.colaboradorId);
+    if (!col) return;
+    const cargo    = e.cargo || col.cargo || '';
+    const cargoKey = _CARGO_PAG_KEY[cargo];
+    if (!cargoKey) return;
+    const pag = _calcPagamento(cargoKey, col.nivel, regiao, horas, tipoHE, convidados);
+    linhas.push({ col, cargo, ...pag });
+    totalGeral += pag.total;
+  });
+
+  if (!linhas.length) {
+    el.innerHTML = '<div style="padding:14px;color:var(--text3);font-size:12px">Nenhum colaborador com cargo mapeado nas regras.</div>';
+    return;
+  }
+
+  const fmt = v => v ? `R$ ${v.toFixed(2).replace('.',',')}` : '—';
+  const cspan = temHE ? 7 : 6;
+
+  el.innerHTML = `
+    <div style="overflow-x:auto">
+      <table style="border-collapse:collapse;font-size:12px;width:100%">
+        <thead>
+          <tr style="border-bottom:2px solid var(--border2);font-size:10px;text-transform:uppercase;color:var(--text3)">
+            <th style="padding:7px 10px;text-align:left;min-width:160px">Colaborador</th>
+            <th style="padding:7px 10px;text-align:left">Cargo</th>
+            <th style="padding:7px 10px;text-align:left">Nível</th>
+            <th style="padding:7px 10px;text-align:right">Valor base</th>
+            ${temHE?`<th style="padding:7px 10px;text-align:right">H. extra (${horas-horasBase}h)</th>`:''}
+            <th style="padding:7px 10px;text-align:right">Bônus</th>
+            <th style="padding:7px 10px;text-align:right;color:var(--green)">Total</th>
+            <th style="padding:7px 10px;text-align:center;min-width:130px">Chave PIX</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${linhas.map(l=>`
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:7px 10px;font-weight:600">${l.col.nome}</td>
+            <td style="padding:7px 10px;color:var(--text2)">${l.cargo}</td>
+            <td style="padding:7px 10px;color:${l.col.nivel==='Novato'?'var(--amber)':'var(--green)'}">${l.col.nivel||'—'}</td>
+            <td style="padding:7px 10px;text-align:right">${fmt(l.valorBase)}</td>
+            ${temHE?`<td style="padding:7px 10px;text-align:right;color:var(--amber)">${fmt(l.valorHE)}</td>`:''}
+            <td style="padding:7px 10px;text-align:right;color:var(--text3)">${l.valorBonus>0?fmt(l.valorBonus):'—'}</td>
+            <td style="padding:7px 10px;text-align:right;font-weight:700;color:var(--green)">${fmt(l.total)}</td>
+            <td style="padding:7px 10px;text-align:center;font-size:10px;color:#4ade80;font-family:monospace">${l.col.chave_pix||'—'}</td>
+          </tr>`).join('')}
+        </tbody>
+        <tfoot>
+          <tr style="border-top:2px solid var(--border2);background:var(--bg3)">
+            <td colspan="${cspan}" style="padding:9px 10px;font-weight:600;color:var(--text3);font-size:11px;text-transform:uppercase">Total geral</td>
+            <td style="padding:9px 10px;text-align:right;font-weight:700;font-size:15px;color:var(--green)">R$ ${totalGeral.toFixed(2).replace('.',',')}</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>`;
+}
+
+function alterarCargoEscala(escalaId, novoCargo) {
+  const e = (D.escalas||[]).find(x=>x.id===escalaId);
+  if (e) { e.cargo = novoCargo; sv('escalas'); calcularFolhaPagamento(); }
+}
+
 function rEscalaEvento() {
   const el = document.getElementById('eq-content');
   if (!el || !escalaEventoAtual) return;
@@ -400,79 +514,120 @@ function rEscalaEvento() {
   const contrato = (D.contratos||[]).find(c=>c.id===escalaEventoAtual.id);
   const ev       = escalaEventoAtual;
   const escalas  = _escalasDoEvento(contrato || { id: ev.id, nome: ev.nome, data: ev.data });
-  const hoje     = new Date().toISOString().slice(0,10);
 
-  // Montar equipe por cargo
-  const porCargo = {};
-  escalas.forEach(e => {
-    const col  = (D.equipe||[]).find(x=>x.id===e.colaboradorId);
-    if (!col) return;
-    const cargo = e.cargo || col.cargo || 'Outros';
-    if (!porCargo[cargo]) porCargo[cargo] = [];
-    porCargo[cargo].push({ ...col, cargo, escalaId: e.id, status: e.status });
-  });
+  const horasAuto = contrato?.hrInicio && contrato?.hrFim
+    ? _calcHorasEvento(contrato.hrInicio, contrato.hrFim)
+    : null;
+  const horasDefault = horasAuto || D.regrasEquipe?.horasBase || 6;
 
-  const ordemCargos = ['Coordenador','Head Bartender','Bartender','Bar Back','Copeiro','Auxiliar','Outros'];
-  const cargosOrdenados = Object.keys(porCargo).sort((a,b)=>{
-    const ia = ordemCargos.indexOf(a); const ib = ordemCargos.indexOf(b);
-    return (ia<0?99:ia)-(ib<0?99:ib);
-  });
+  const ordemCargos = ['Coordenador','Head Bartender','Bartender','Bar Back','Copeiro','Outros'];
+  const avatar = col => col.foto
+    ? `<img src="${col.foto}" style="width:30px;height:30px;border-radius:50%;object-fit:cover;flex-shrink:0">`
+    : `<div style="width:30px;height:30px;border-radius:50%;background:var(--bg3);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--text3);flex-shrink:0">${(col.nome||'?')[0].toUpperCase()}</div>`;
+
+  const cargoSelect = (escalaId, atual) =>
+    `<select onchange="alterarCargoEscala('${escalaId}',this.value)"
+      style="padding:3px 6px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-size:11px">
+      ${['Head Bartender','Coordenador','Bartender','Bar Back','Copeiro']
+        .map(c=>`<option value="${c}" ${c===atual?'selected':''}>${c}</option>`).join('')}
+    </select>`;
 
   el.innerHTML = `
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
       <button class="btn-sm" onclick="equipeView='eventos';rEscalaEventos()" style="background:var(--bg3)">← Eventos</button>
       <div>
         <div style="font-weight:600;font-size:15px;color:var(--text)">${ev.nome}</div>
-        <div style="font-size:11px;color:var(--text3)">${fd(ev.data)}${contrato?.local?' · '+contrato.local.split(',')[0]:''}</div>
+        <div style="font-size:11px;color:var(--text3)">${fd(ev.data)}${contrato?.hrInicio?' · '+contrato.hrInicio+(contrato.hrFim?' – '+contrato.hrFim:''):''}${horasAuto?' ('+horasAuto+'h)':''}</div>
       </div>
-      <button class="btn btn-primary btn-sm" onclick="abrirAddColabEvento()" style="margin-left:auto">+ Adicionar colaborador</button>
+      <button class="btn btn-primary btn-sm" onclick="abrirAddColabEvento()" style="margin-left:auto">+ Adicionar</button>
     </div>
 
-    <!-- Resumo contrato -->
     ${contrato ? `
-    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 16px;margin-bottom:12px;font-size:12px;display:flex;gap:20px;flex-wrap:wrap">
-      ${contrato.tipo?`<div><span style="color:var(--text3)">Tipo:</span> ${contrato.tipo}</div>`:''}
-      ${contrato.convidados?`<div><span style="color:var(--text3)">Convidados:</span> ${contrato.convidados}</div>`:''}
-      ${contrato.hrInicio?`<div><span style="color:var(--text3)">Horário:</span> ${contrato.hrInicio}${contrato.hrFim?' – '+contrato.hrFim:''}</div>`:''}
-      ${contrato.local?`<div><span style="color:var(--text3)">Local:</span> ${contrato.local.split(',').slice(0,2).join(',')}</div>`:''}
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:8px 14px;margin-bottom:12px;font-size:12px;display:flex;gap:18px;flex-wrap:wrap">
+      ${contrato.tipo?`<span><span style="color:var(--text3)">Tipo: </span>${contrato.tipo}</span>`:''}
+      ${contrato.convidados?`<span><span style="color:var(--text3)">Convidados: </span>${contrato.convidados}</span>`:''}
+      ${contrato.local?`<span><span style="color:var(--text3)">Local: </span>${contrato.local.split(',').slice(0,2).join(',')}</span>`:''}
     </div>` : ''}
 
-    <div class="cards" style="margin-bottom:14px">
-      <div class="card"><div class="card-label">Colaboradores escalados</div><div class="card-val">${escalas.length}</div></div>
-      ${cargosOrdenados.map(cargo=>`
-      <div class="card">
-        <div class="card-label">${cargo}</div>
-        <div class="card-val">${porCargo[cargo].length}</div>
-      </div>`).join('')}
+    <!-- Tabela equipe -->
+    <div class="sec" style="margin-bottom:14px">
+      <div class="sec-head">
+        <span class="sec-title">👥 Equipe escalada — ${escalas.length} pessoa${escalas.length!==1?'s':''}</span>
+      </div>
+      ${!escalas.length
+        ? `<div style="text-align:center;padding:40px;color:var(--text3)">
+             <div style="margin-bottom:12px">Nenhum colaborador escalado ainda.</div>
+             <button class="btn btn-primary btn-sm" onclick="abrirAddColabEvento()">+ Adicionar colaborador</button>
+           </div>`
+        : `<div style="overflow-x:auto">
+           <table style="border-collapse:collapse;font-size:12px;width:100%">
+             <thead>
+               <tr style="border-bottom:2px solid var(--border2);font-size:10px;text-transform:uppercase;color:var(--text3)">
+                 <th style="padding:7px 12px;text-align:left">Colaborador</th>
+                 <th style="padding:7px 10px;text-align:left">Cargo no evento</th>
+                 <th style="padding:7px 10px;text-align:left">Nível</th>
+                 <th style="padding:7px 10px;text-align:center">Chave PIX</th>
+                 <th style="padding:7px 10px"></th>
+               </tr>
+             </thead>
+             <tbody>
+               ${escalas.slice().sort((a,b)=>{
+                 const ia=ordemCargos.indexOf(a.cargo); const ib=ordemCargos.indexOf(b.cargo);
+                 return (ia<0?99:ia)-(ib<0?99:ib);
+               }).map(e => {
+                 const col = (D.equipe||[]).find(x=>x.id===e.colaboradorId);
+                 if (!col) return '';
+                 return `<tr style="border-bottom:1px solid var(--border)">
+                   <td style="padding:7px 12px">
+                     <div style="display:flex;align-items:center;gap:8px">
+                       ${avatar(col)}
+                       <div>
+                         <div style="font-weight:600">${col.nome}</div>
+                         ${col.telefone?`<div style="font-size:10px;color:var(--text3)">${col.telefone}</div>`:''}
+                       </div>
+                     </div>
+                   </td>
+                   <td style="padding:7px 10px">${cargoSelect(e.id, e.cargo||col.cargo||'')}</td>
+                   <td style="padding:7px 10px;color:${col.nivel==='Novato'?'var(--amber)':'var(--green)'}">${col.nivel||'—'}</td>
+                   <td style="padding:7px 10px;text-align:center;font-size:10px;color:#4ade80;font-family:monospace">${col.chave_pix||'—'}</td>
+                   <td style="padding:7px 10px;text-align:center">
+                     <button class="btn-sm btn-red" onclick="removerEscala('${e.id}');equipeView='evento-detalhe';setTimeout(rEscalaEvento,80)" title="Remover">✕</button>
+                   </td>
+                 </tr>`;
+               }).join('')}
+             </tbody>
+           </table>
+           </div>`}
     </div>
 
-    ${!escalas.length ? `
-    <div style="text-align:center;padding:48px;color:var(--text3)">
-      <div style="font-size:28px;margin-bottom:10px">👥</div>
-      <div style="margin-bottom:14px">Nenhum colaborador escalado para este evento</div>
-      <button class="btn btn-primary" onclick="abrirAddColabEvento()">+ Adicionar colaborador</button>
-    </div>` :
-
-    cargosOrdenados.map(cargo => `
-    <div class="sec" style="margin-bottom:10px">
-      <div class="sec-head">
-        <span class="sec-title">${cargo}</span>
-        <span style="font-size:11px;color:var(--text3)">${porCargo[cargo].length} pessoa${porCargo[cargo].length>1?'s':''}</span>
+    <!-- Folha de pagamento -->
+    <div class="sec">
+      <div class="sec-head"><span class="sec-title">💰 Folha de Pagamento</span></div>
+      <div style="padding:12px 14px;display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;border-bottom:1px solid var(--border)">
+        <div>
+          <label class="lbl">Região do evento</label>
+          <select id="eq-fp-regiao" class="inp" style="width:200px" onchange="calcularFolhaPagamento()">
+            <option value="">Selecione...</option>
+            ${REGIOES_PAGAMENTO.map(r=>`<option value="${r.key}">${r.label}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label class="lbl">Horas trabalhadas</label>
+          <input type="number" id="eq-fp-horas" class="inp" style="width:90px" min="1" max="24" step="0.5"
+            value="${horasDefault}" onchange="calcularFolhaPagamento()">
+        </div>
+        <div>
+          <label class="lbl">Hora extra (se houver)</label>
+          <select id="eq-fp-tipo-he" class="inp" style="width:200px" onchange="calcularFolhaPagamento()">
+            <option value="antecipada">Contratada com antecedência</option>
+            <option value="nh">Contratada na hora</option>
+          </select>
+        </div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;padding:10px 14px">
-        ${porCargo[cargo].map(col=>`
-        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;display:flex;align-items:center;gap:10px;position:relative">
-          ${col.foto?`<img src="${col.foto}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0">`:
-            `<div style="width:36px;height:36px;border-radius:50%;background:var(--bg2);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--text3);flex-shrink:0">${(col.nome||'?')[0].toUpperCase()}</div>`}
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:600;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${col.nome}</div>
-            <div style="font-size:10px;color:var(--text3)">${col.nivel||''} ${col.telefone?'· '+col.telefone:''}</div>
-          </div>
-          <button class="btn-sm btn-red" onclick="removerEscala('${col.escalaId}');equipeView='evento-detalhe';setTimeout(rEscalaEvento,100)"
-            style="position:absolute;top:6px;right:6px;padding:1px 5px;font-size:9px" title="Remover">✕</button>
-        </div>`).join('')}
+      <div id="eq-folha-resultado" style="padding:0">
+        <div style="padding:14px;color:var(--text3);font-size:12px">Selecione a região do evento para calcular.</div>
       </div>
-    </div>`).join('')}`;
+    </div>`;
 }
 
 // ─── MODAL: ADICIONAR COLABORADOR AO EVENTO ──────────────────────────────────
