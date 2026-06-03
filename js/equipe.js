@@ -329,7 +329,7 @@ function rEscalaEventos() {
         <div>
           <span class="sec-title">${c.nome||'Sem nome'}</span>
           <span style="font-size:11px;color:var(--text3);margin-left:8px">
-            ${fd(c.data)}${c.local?' · '+c.local.split(',')[0]:''}${c.convidados?' · '+c.convidados+' conv.':''}
+            ${fd(c.data)}${c.local?' · '+c.local:''}${c.convidados?' · '+c.convidados+' conv.':''}
           </span>
         </div>
         <button class="btn-sm ${passado?'':'btn-primary'}" style="${passado?'background:var(--bg3)':''}"
@@ -584,7 +584,7 @@ function rEscalaEvento() {
     <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:8px 14px;margin-bottom:12px;font-size:12px;display:flex;gap:18px;flex-wrap:wrap">
       ${contrato.tipo?`<span><span style="color:var(--text3)">Tipo: </span>${contrato.tipo}</span>`:''}
       ${contrato.convidados?`<span><span style="color:var(--text3)">Convidados: </span>${contrato.convidados}</span>`:''}
-      ${contrato.local?`<span><span style="color:var(--text3)">Local: </span>${contrato.local.split(',').slice(0,2).join(',')}</span>`:''}
+      ${contrato.local?`<span><span style="color:var(--text3)">Local: </span>${contrato.local}</span>`:''}
     </div>` : ''}
 
     <!-- Tabela equipe -->
@@ -1397,7 +1397,7 @@ function rEquipePagamentos() {
           const totalEv   = ev.itens.reduce((a,p)=>a+p.total,0);
           const todosPago = pendEv.length === 0;
           const contrato  = (D.contratos||[]).find(c=>c.id===cid);
-          const localEv   = contrato?.local ? contrato.local.split(',').slice(0,2).join(',') : '';
+          const localEv   = contrato?.local || '';
           const convEv    = contrato?.convidados || '';
           return `
           <div class="sec" style="margin-bottom:12px">
