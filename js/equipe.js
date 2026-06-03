@@ -1392,16 +1392,21 @@ function rEquipePagamentos() {
              : 'Nenhum registro encontrado.'}</div>
          </div>`
       : eventosSorted.map(([cid, ev]) => {
-          const todosEv = (D.pagamentosEquipe||[]).filter(p=>p.contratoId===cid);
-          const pendEv  = todosEv.filter(p=>p.status==='pendente');
-          const totalEv = ev.itens.reduce((a,p)=>a+p.total,0);
+          const todosEv   = (D.pagamentosEquipe||[]).filter(p=>p.contratoId===cid);
+          const pendEv    = todosEv.filter(p=>p.status==='pendente');
+          const totalEv   = ev.itens.reduce((a,p)=>a+p.total,0);
           const todosPago = pendEv.length === 0;
+          const contrato  = (D.contratos||[]).find(c=>c.id===cid);
+          const localEv   = contrato?.local ? contrato.local.split(',').slice(0,2).join(',') : '';
+          const convEv    = contrato?.convidados || '';
           return `
           <div class="sec" style="margin-bottom:12px">
             <div class="sec-head" style="flex-wrap:wrap;gap:8px">
               <div>
                 <span class="sec-title">${ev.nome}</span>
                 <span style="font-size:11px;color:var(--text3);margin-left:8px">${fd(ev.data)}</span>
+                ${convEv ? `<span style="font-size:11px;color:var(--text3);margin-left:6px">· ${convEv} conv.</span>` : ''}
+                ${localEv ? `<span style="font-size:11px;color:var(--text3);margin-left:6px">· ${localEv}</span>` : ''}
                 ${todosPago && todosEv.length > 0
                   ? `<span class="tag tag-green" style="font-size:9px;margin-left:6px">✅ Todos pagos</span>`
                   : `<span class="tag tag-yellow" style="font-size:9px;margin-left:6px">${pendEv.length} pendente(s)</span>`}
