@@ -1,16 +1,37 @@
 // ─── EQUIPE ────────────────────────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════════
 
-let equipeView    = 'lista'; // 'lista' | 'perfil' | 'eventos' | 'evento-detalhe'
+let equipeView    = 'lista'; // 'lista' | 'perfil' | 'eventos' | 'evento-detalhe' | 'regras'
 let equipeAtualId = null;
 let escalaEventoAtual = null; // { id, nome, data }
 
 const CARGOS_EQUIPE = ['Head Bartender','Bartender','Bar Back','Copeiro','Coordenador','Auxiliar'];
 const NIVEIS_EQUIPE = ['Novato','Experiente','Sênior'];
 
+const REGIOES_PAGAMENTO = [
+  { key: 'area_central',  label: 'Área Central BH' },
+  { key: 'jardim_canada', label: 'Jardim Canadá / C. Nova' },
+  { key: 'reg_metro',     label: 'Região Metropolitana' },
+  { key: 'viagem_60',     label: 'Viagem até 60 km' },
+  { key: 'viagem_100',    label: 'Viagem até 100 km' },
+  { key: 'viagem_200',    label: 'Viagem até 200 km' },
+  { key: 'viagem_300',    label: 'Viagem até 300 km' },
+];
+
+const CARGOS_PAGAMENTO = [
+  { key: 'hb', label: 'Head Bartender' },
+  { key: 'cd', label: 'Coordenador' },
+  { key: 'bt', label: 'Bartender' },
+  { key: 'bb', label: 'Bar Back' },
+  { key: 'cp', label: 'Copeiro' },
+  { key: 'gc', label: 'Garçom' },
+  { key: 'ax', label: 'Auxiliar' },
+];
+
 function rEquipe() {
-  if      (equipeView === 'perfil'         && equipeAtualId)  rEquipePerfil();
-  else if (equipeView === 'eventos')                          rEscalaEventos();
+  if      (equipeView === 'regras')                            rEquipeRegras();
+  else if (equipeView === 'perfil' && equipeAtualId)           rEquipePerfil();
+  else if (equipeView === 'eventos')                           rEscalaEventos();
   else if (equipeView === 'evento-detalhe' && escalaEventoAtual) rEscalaEvento();
   else rEquipeLista();
 }
@@ -57,6 +78,8 @@ function rEquipeLista() {
         <option value="todos"   ${fStatus==='todos'  ?'selected':''}>Todos</option>
       </select>
       <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-sm" onclick="equipeView='regras';rEquipeRegras()"
+          style="background:var(--bg2);border:1px solid var(--border2)">💰 Regras de Pagamento</button>
         <button class="btn-sm" onclick="equipeView='eventos';rEscalaEventos()"
           style="background:var(--bg2);border:1px solid var(--border2)">📅 Escala por Evento</button>
         <button class="btn-sm" onclick="abrirImportEquipe()"
@@ -726,6 +749,68 @@ function escalarDeContrato(contratoId, nomeEvento, dataEvento) {
   escalaEventoAtual = { id: contratoId, nome: nomeEvento, data: dataEvento };
   equipeView = 'evento-detalhe';
   go('equipe');
+}
+
+// ─── REGRAS DE PAGAMENTO ──────────────────────────────────────────────────────
+
+function rEquipeRegras() {
+  equipeView = 'regras';
+  const el = document.getElementById('eq-content');
+  if (!el) return;
+
+  const regras = D.regrasEquipe || {};
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+      <button class="btn-sm" onclick="rEquipeLista()" style="background:var(--bg3)">← Colaboradores</button>
+      <span style="font-weight:600;font-size:15px;color:var(--text)">Regras de Pagamento</span>
+      <button class="btn btn-primary btn-sm" onclick="salvarRegrasEquipe()" style="margin-left:auto">Salvar regras</button>
+    </div>
+
+    <div class="sec">
+      <div class="sec-head"><span class="sec-title">💰 Valor a pagar por cargo e região (R$)</span></div>
+      <div style="overflow-x:auto;padding:14px 12px">
+        <table style="border-collapse:collapse;font-size:12px;width:100%">
+          <thead>
+            <tr style="border-bottom:2px solid var(--border2)">
+              <th style="padding:8px 12px;text-align:left;font-weight:500;color:var(--text3);font-size:10px;text-transform:uppercase;min-width:170px">Região / Local</th>
+              ${CARGOS_PAGAMENTO.map(c=>`<th style="padding:8px 10px;text-align:center;font-weight:500;color:var(--text3);font-size:10px;text-transform:uppercase;min-width:105px">${c.label}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            ${REGIOES_PAGAMENTO.map(r => {
+              const rv = regras[r.key] || {};
+              return `<tr style="border-bottom:1px solid var(--border)">
+                <td style="padding:8px 12px;font-weight:600;color:var(--text);white-space:nowrap">${r.label}</td>
+                ${CARGOS_PAGAMENTO.map(c=>`
+                <td style="padding:5px 6px;text-align:center">
+                  <input type="number" min="0" step="10" id="rp-${r.key}-${c.key}"
+                    value="${rv[c.key] || ''}" placeholder="—"
+                    style="width:88px;text-align:center;padding:5px 6px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-size:12px">
+                </td>`).join('')}
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div style="font-size:11px;color:var(--text3);margin-top:6px;padding:0 4px">
+      Esses valores são usados para calcular o custo de pagamento da equipe em cada evento, conforme a região selecionada no orçamento.
+    </div>`;
+}
+
+function salvarRegrasEquipe() {
+  if (!D.regrasEquipe) D.regrasEquipe = {};
+  REGIOES_PAGAMENTO.forEach(r => {
+    if (!D.regrasEquipe[r.key]) D.regrasEquipe[r.key] = {};
+    CARGOS_PAGAMENTO.forEach(c => {
+      const val = parseFloat(document.getElementById(`rp-${r.key}-${c.key}`)?.value) || 0;
+      D.regrasEquipe[r.key][c.key] = val;
+    });
+  });
+  sv('regrasEquipe');
+  alert2('Regras de pagamento salvas!');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
