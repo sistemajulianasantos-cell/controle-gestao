@@ -24,8 +24,6 @@ const CARGOS_PAGAMENTO = [
   { key: 'bt', label: 'Bartender' },
   { key: 'bb', label: 'Bar Back' },
   { key: 'cp', label: 'Copeiro' },
-  { key: 'gc', label: 'Garçom' },
-  { key: 'ax', label: 'Auxiliar' },
 ];
 
 function rEquipe() {
