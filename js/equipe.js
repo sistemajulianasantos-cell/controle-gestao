@@ -448,7 +448,8 @@ function calcularFolhaPagamento() {
 
   // Persiste o estado da folha para restaurar ao voltar à tela
   if (escalaEventoAtual?.id) {
-    _folhaState[escalaEventoAtual.id] = { regiao, temHE: temHEck, horasExtra, tipoHE };
+    const prev = _folhaState[escalaEventoAtual.id] || {};
+    _folhaState[escalaEventoAtual.id] = { ...prev, regiao, temHE: temHEck, horasExtra, tipoHE };
   }
 
   if (!regiao) {
@@ -463,8 +464,10 @@ function calcularFolhaPagamento() {
   const horasBase  = D.regrasEquipe?.horasBase || 6;
   const temHE      = horas > horasBase;
 
+  const overrides = _folhaState[ev.id] || {};
+  if (!overrides.totalOverride) overrides.totalOverride = {};
+
   const linhas = [];
-  let totalGeral = 0;
   escalas.forEach(e => {
     const col = (D.equipe||[]).find(x=>x.id===e.colaboradorId);
     if (!col) return;
@@ -472,11 +475,30 @@ function calcularFolhaPagamento() {
     const cargoKey = _CARGO_PAG_KEY[cargo];
     if (!cargoKey) return;
     const pag = _calcPagamento(cargoKey, col.nivel, regiao, horas, tipoHE, convidados);
-    linhas.push({ col, cargo, ...pag });
-    totalGeral += pag.total;
+    const totalFinal = overrides.totalOverride[col.id] !== undefined ? overrides.totalOverride[col.id] : pag.total;
+    linhas.push({ col, cargo, ...pag, total: totalFinal, totalEditado: overrides.totalOverride[col.id] !== undefined });
   });
 
-  if (!linhas.length) {
+  // Calcular vagas ausentes (slots esperados não preenchidos)
+  const contrato2 = (D.contratos||[]).find(c=>c.id===ev?.id);
+  const vagasAusentes = [];
+  if (contrato2?.equipe?.length) {
+    const escalasGrupadas2 = {};
+    escalas.forEach(e => { const c=e.cargo||''; if(!escalasGrupadas2[c]) escalasGrupadas2[c]=[]; escalasGrupadas2[c].push(e); });
+    contrato2.equipe.forEach(item => {
+      const preenchidos = (escalasGrupadas2[item.cargo]||[]).length;
+      const faltando = (item.qtd||0) - preenchidos;
+      if (faltando > 0) {
+        const cargoKey = _CARGO_PAG_KEY[item.cargo];
+        if (cargoKey) {
+          const pag = _calcPagamento(cargoKey, 'Antigo', regiao, horas, tipoHE, convidados);
+          for (let i=0; i<faltando; i++) vagasAusentes.push({ cargo: item.cargo, cargoKey, valorCalc: pag.total });
+        }
+      }
+    });
+  }
+
+  if (!linhas.length && !vagasAusentes.length) {
     _folhaLinhas = [];
     el.innerHTML = '<div style="padding:14px;color:var(--text3);font-size:12px">Nenhum colaborador com cargo mapeado nas regras.</div>';
     return;
@@ -484,7 +506,8 @@ function calcularFolhaPagamento() {
 
   _folhaLinhas = linhas.map(l => ({ ...l }));
 
-  const fmt = v => v ? `R$ ${v.toFixed(2).replace('.',',')}` : '—';
+  let totalGeral = linhas.reduce((s,l)=>s+l.total,0);
+  const fmt = v => v !== undefined && v !== null ? `R$ ${Number(v).toFixed(2).replace('.',',')}` : '—';
   const cspan = temHE ? 7 : 6;
 
   const pagExist = (D.pagamentosEquipe||[]).filter(p => p.contratoId === ev?.id);
@@ -507,7 +530,7 @@ function calcularFolhaPagamento() {
           </tr>
         </thead>
         <tbody>
-          ${linhas.map(l=>`
+          ${linhas.map((l,idx)=>`
           <tr style="border-bottom:1px solid var(--border)">
             <td style="padding:7px 10px;font-weight:600">${l.col.nome}</td>
             <td style="padding:7px 10px;color:var(--text2)">${l.cargo}</td>
@@ -515,7 +538,15 @@ function calcularFolhaPagamento() {
             <td style="padding:7px 10px;text-align:right">${fmt(l.valorBase)}</td>
             ${temHE?`<td style="padding:7px 10px;text-align:right;color:var(--amber)">${fmt(l.valorHE)}</td>`:''}
             <td style="padding:7px 10px;text-align:right;color:var(--text3)">${l.valorBonus>0?fmt(l.valorBonus):'—'}</td>
-            <td style="padding:7px 10px;text-align:right;font-weight:700;color:var(--green)">${fmt(l.total)}</td>
+            <td style="padding:4px 10px;text-align:right">
+              <div style="display:flex;align-items:center;justify-content:flex-end;gap:4px">
+                ${l.totalEditado?`<button onclick="resetarTotalFolha('${l.col.id}')" title="Restaurar valor original" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:0 2px;line-height:1">↺</button>`:''}
+                <input type="number" value="${l.total.toFixed(2)}" step="0.01" min="0"
+                  style="width:80px;text-align:right;padding:3px 5px;background:var(--bg3);border:1px solid ${l.totalEditado?'var(--amber)':'var(--border2)'};border-radius:var(--radius);color:${l.totalEditado?'var(--amber)':'var(--green)'};font-weight:700;font-size:12px"
+                  onchange="salvarTotalFolha('${l.col.id}',this.value)"
+                  onkeydown="if(event.key==='Enter')this.blur()">
+              </div>
+            </td>
             <td style="padding:7px 10px;text-align:center;font-size:10px;color:#4ade80;font-family:monospace">${l.col.chave_pix||'—'}</td>
           </tr>`).join('')}
         </tbody>
@@ -528,14 +559,145 @@ function calcularFolhaPagamento() {
         </tfoot>
       </table>
     </div>
+    ${vagasAusentes.length ? `
+    <div style="padding:10px 14px;border-top:1px solid var(--border);background:rgba(251,191,36,.05)">
+      <div style="font-size:11px;font-weight:600;color:var(--amber);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Vagas não preenchidas</div>
+      ${vagasAusentes.map((v,i)=>`
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:5px;font-size:12px">
+        <span style="color:var(--text3);min-width:140px">${v.cargo} (ausente)</span>
+        <span style="color:var(--amber);font-weight:600">${fmt(v.valorCalc)}</span>
+        <button class="btn-sm" onclick="distribuirValorAusente(${v.valorCalc})"
+          style="font-size:10px;padding:2px 8px;background:var(--bg3);border:1px solid var(--amber);color:var(--amber)">
+          ÷ Distribuir entre presentes
+        </button>
+      </div>`).join('')}
+      <div style="font-size:10px;color:var(--text3);margin-top:4px">Valor calculado para nível Antigo. Clique "Distribuir" para repartir igualmente entre os presentes.</div>
+    </div>` : ''}
     <div style="padding:12px 14px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       ${jaAutorizado
         ? `<span style="font-size:12px;color:var(--green)">✅ Autorizado em ${fd(dataAut)}</span>
            <button class="btn-sm" onclick="autorizarPagamentosEvento()" style="background:var(--bg3);border:1px solid var(--border2)">🔄 Reautorizar</button>`
         : `<button class="btn btn-primary btn-sm" onclick="autorizarPagamentosEvento()">💳 Autorizar Pagamentos</button>`}
+      <button class="btn-sm" onclick="imprimirFolhaEvento()"
+        style="background:var(--bg2);border:1px solid var(--border2)">🖨️ Imprimir folha</button>
       <button class="btn-sm" onclick="equipeView='pagamentos';rEquipePagamentos()"
         style="background:var(--bg2);border:1px solid var(--border2);margin-left:auto">📋 Ver todos os pagamentos</button>
     </div>`;
+}
+
+function imprimirFolhaEvento() {
+  if (!_folhaLinhas.length) { alert('Calcule a folha antes de imprimir.'); return; }
+  const ev = escalaEventoAtual;
+  const contrato = (D.contratos||[]).find(c=>c.id===ev?.id);
+  const regiao = document.getElementById('eq-fp-regiao')?.value || '';
+  const regiaoLabel = REGIOES_PAGAMENTO.find(r=>r.key===regiao)?.label || regiao || '';
+  const temHE = _folhaLinhas.some(l=>l.horasExtra>0);
+  const fmtR = v => `R$ ${(v||0).toFixed(2).replace('.',',')}`;
+  const fmtD = d => d ? d.split('-').reverse().join('/') : '—';
+  const totalGeral = _folhaLinhas.reduce((s,l)=>s+l.total,0);
+
+  const linhasHtml = _folhaLinhas.map(l => `
+    <tr>
+      <td>${l.col.nome}</td>
+      <td>${l.cargo}</td>
+      <td>${l.col.nivel||'—'}</td>
+      <td style="text-align:right">${fmtR(l.valorBase)}</td>
+      <td style="text-align:right">${l.valorHE>0?'<span style="color:#b45309">'+fmtR(l.valorHE)+(l.horasExtra?' <span style="font-size:9px;color:#999">(+'+l.horasExtra+'h)</span>':'')+'</span>':'—'}</td>
+      <td style="text-align:right">${l.valorBonus>0?fmtR(l.valorBonus):'—'}</td>
+      <td style="text-align:right;font-weight:700;color:#1a6b1a">${fmtR(l.total)}</td>
+      <td style="font-family:monospace;font-size:10px">${l.col.chave_pix||'—'}</td>
+    </tr>`).join('');
+
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Folha de Pagamento — ${ev?.nome||''}</title>
+  <style>
+    body{font-family:Arial,sans-serif;font-size:11px;margin:20px;color:#111}
+    h2{font-size:15px;margin:0 0 2px;font-weight:700}
+    .sub{font-size:10px;color:#666;margin-bottom:12px}
+    .totais{display:inline-flex;gap:32px;margin:10px 0 18px;border:1px solid #ddd;border-radius:4px;padding:10px 16px;background:#f9f9f9}
+    .tot-item .lbl{font-size:10px;color:#666;margin-bottom:2px}
+    .tot-item .val{font-weight:700;font-size:14px}
+    .ev-head{background:#222;color:#fff;padding:7px 10px;border-radius:3px 3px 0 0;font-size:12px;display:flex;justify-content:space-between;align-items:center}
+    .ev-meta{display:block;font-size:9px;color:#bbb;margin-top:2px;font-weight:400}
+    table{width:100%;border-collapse:collapse;margin:0}
+    th{background:#f4f4f4;color:#444;padding:5px 8px;text-align:left;font-size:10px;text-transform:uppercase;border:1px solid #ddd;font-weight:600}
+    td{padding:5px 8px;border-bottom:1px solid #eee;font-size:11px}
+    tr:last-child td{border-bottom:1px solid #ccc}
+    tfoot td{background:#f4f4f4;font-weight:700;border-top:2px solid #ccc;padding:6px 8px}
+    .rodape{margin-top:24px;font-size:9px;color:#999;border-top:1px solid #ddd;padding-top:6px}
+    @media print{body{margin:10px}.totais,.ev-head{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+  </style>
+  </head><body>
+  <h2>FOLHA DE PAGAMENTO</h2>
+  <div class="sub">Impresso em: ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}</div>
+  <div class="totais">
+    <div class="tot-item"><div class="lbl">Total geral</div><div class="val" style="color:#1a6b1a">${fmtR(totalGeral)}</div></div>
+    <div class="tot-item"><div class="lbl">Colaboradores</div><div class="val">${_folhaLinhas.length}</div></div>
+    ${regiaoLabel?`<div class="tot-item"><div class="lbl">Região</div><div class="val" style="font-size:11px">${regiaoLabel}</div></div>`:''}
+  </div>
+  <div class="ev-head">
+    <div>
+      <strong>${ev?.nome||''}</strong>
+      <span class="ev-meta">${fmtD(ev?.data||'')}${contrato?.hrInicio?' · '+contrato.hrInicio+(contrato.hrFim?' – '+contrato.hrFim:''):''}${contrato?.convidados?' · '+contrato.convidados+' convidados':''}${contrato?.local?' · '+contrato.local:''}</span>
+    </div>
+    <strong>${fmtR(totalGeral)}</strong>
+  </div>
+  <table>
+    <thead><tr>
+      <th>Colaborador</th>
+      <th>Cargo</th>
+      <th>Nível</th>
+      <th style="text-align:right">Valor base</th>
+      <th style="text-align:right">H. extra</th>
+      <th style="text-align:right">Bônus</th>
+      <th style="text-align:right;color:#1a6b1a">Total</th>
+      <th>Chave PIX</th>
+    </tr></thead>
+    <tbody>${linhasHtml}</tbody>
+    <tfoot><tr>
+      <td colspan="6" style="text-align:right;text-transform:uppercase;font-size:10px;color:#555">Total geral</td>
+      <td style="text-align:right;color:#1a6b1a;font-size:13px">${fmtR(totalGeral)}</td>
+      <td></td>
+    </tr></tfoot>
+  </table>
+  <div class="rodape">Controle e Gestão — Juliana Santos · ${new Date().toLocaleDateString('pt-BR')}</div>
+  <script>window.onload=function(){window.print()};<\/script>
+  </body></html>`);
+  w.document.close();
+}
+
+function salvarTotalFolha(colId, valor) {
+  const v = parseFloat(valor);
+  if (isNaN(v) || v < 0) { calcularFolhaPagamento(); return; }
+  const ev = escalaEventoAtual;
+  if (!ev) return;
+  if (!_folhaState[ev.id]) _folhaState[ev.id] = {};
+  if (!_folhaState[ev.id].totalOverride) _folhaState[ev.id].totalOverride = {};
+  _folhaState[ev.id].totalOverride[colId] = v;
+  calcularFolhaPagamento();
+}
+
+function resetarTotalFolha(colId) {
+  const ev = escalaEventoAtual;
+  if (!ev || !_folhaState[ev.id]?.totalOverride) return;
+  delete _folhaState[ev.id].totalOverride[colId];
+  calcularFolhaPagamento();
+}
+
+function distribuirValorAusente(valor) {
+  if (!_folhaLinhas.length) return;
+  const partes = Math.round((valor / _folhaLinhas.length) * 100) / 100;
+  const ev = escalaEventoAtual;
+  if (!ev) return;
+  if (!_folhaState[ev.id]) _folhaState[ev.id] = {};
+  if (!_folhaState[ev.id].totalOverride) _folhaState[ev.id].totalOverride = {};
+  _folhaLinhas.forEach(l => {
+    const atual = _folhaState[ev.id].totalOverride[l.col.id] !== undefined
+      ? _folhaState[ev.id].totalOverride[l.col.id] : l.total;
+    _folhaState[ev.id].totalOverride[l.col.id] = Math.round((atual + partes) * 100) / 100;
+  });
+  calcularFolhaPagamento();
 }
 
 function alterarCargoEscala(escalaId, novoCargo) {
@@ -578,7 +740,7 @@ function rEscalaEvento() {
         <div style="font-weight:600;font-size:15px;color:var(--text)">${ev.nome}</div>
         <div style="font-size:11px;color:var(--text3)">${fd(ev.data)}${contrato?.hrInicio?' · '+contrato.hrInicio+(contrato.hrFim?' – '+contrato.hrFim:''):''}${horasAuto?' ('+horasAuto+'h)':''}</div>
       </div>
-      ${(()=>{const tot=contrato?.equipeTotal||0;const cheia=tot&&escalas.length>=tot;return `<button class="btn btn-primary btn-sm" onclick="abrirAddColabEvento()" style="margin-left:auto${cheia?';opacity:.45;cursor:not-allowed':''}">+ Adicionar</button>`})()}
+      ${(()=>{const tot=contrato?.equipe?.length?contrato.equipe.reduce((s,e)=>s+(e.qtd||0),0):(contrato?.equipeTotal||0);const cheia=tot&&escalas.length>=tot;return `<button class="btn btn-primary btn-sm" onclick="abrirAddColabEvento()" style="margin-left:auto${cheia?';opacity:.45;cursor:not-allowed':''}">+ Adicionar</button>`})()}
     </div>
 
     ${contrato ? `
@@ -592,22 +754,63 @@ function rEscalaEvento() {
     <div class="sec" style="margin-bottom:14px">
       <div class="sec-head">
         ${(()=>{
-          const tot = contrato?.equipeTotal || 0;
+          const tot = contrato?.equipe?.length ? contrato.equipe.reduce((s,e)=>s+(e.qtd||0),0) : (contrato?.equipeTotal||0);
+          const textoBreakdown = contrato?.equipe?.length ? contrato.equipe.map(e=>`${e.qtd} ${e.cargo}`).join(' · ') : (contrato?.equipeTexto||'');
           const cor = !tot ? 'var(--text)' : escalas.length >= tot ? 'var(--red)' : escalas.length > 0 ? 'var(--amber)' : 'var(--text)';
           const label = tot ? `${escalas.length} / ${tot} pessoa${tot!==1?'s':''}` : `${escalas.length} pessoa${escalas.length!==1?'s':''}`;
-          const breakdown = contrato?.equipeTexto ? `<span style="font-size:10px;color:var(--text3);margin-left:8px">(${contrato.equipeTexto})</span>` : '';
+          const breakdown = textoBreakdown ? `<span style="font-size:10px;color:var(--text3);margin-left:8px">(${textoBreakdown})</span>` : '';
           return `<span class="sec-title">👥 Equipe escalada — <span style="color:${cor}">${label}</span>${breakdown}</span>`;
         })()}
       </div>
-      ${!escalas.length
-        ? `<div style="text-align:center;padding:40px;color:var(--text3)">
+      ${(()=>{
+        // Build expected slots from contrato.equipe
+        const slotsCargos = ['Coordenador','Head Bartender','Bartender','Bar Back','Copeiro'];
+        const slotsEsperados = [];
+        if (contrato?.equipe?.length) {
+          const eq = [...contrato.equipe].sort((a,b)=>(slotsCargos.indexOf(a.cargo)<0?99:slotsCargos.indexOf(a.cargo))-(slotsCargos.indexOf(b.cargo)<0?99:slotsCargos.indexOf(b.cargo)));
+          eq.forEach(item => {
+            for (let i=1;i<=(item.qtd||0);i++) slotsEsperados.push({ cargo: item.cargo, num: i, total: item.qtd });
+          });
+        }
+
+        // Group escalas by cargo (in order they appear)
+        const escalasGrupadas = {};
+        escalas.slice().sort((a,b)=>(ordemCargos.indexOf(a.cargo)<0?99:ordemCargos.indexOf(a.cargo))-(ordemCargos.indexOf(b.cargo)<0?99:ordemCargos.indexOf(b.cargo)))
+          .forEach(e => { const c=e.cargo||''; if(!escalasGrupadas[c]) escalasGrupadas[c]=[]; escalasGrupadas[c].push(e); });
+
+        // Build display rows: expected slots first, then overflow escalas
+        const rows = [];
+        if (slotsEsperados.length) {
+          const usados = {};
+          slotsEsperados.forEach(slot => {
+            const grupo = escalasGrupadas[slot.cargo]||[];
+            const used  = usados[slot.cargo]||0;
+            const escala = grupo[used];
+            usados[slot.cargo] = used+1;
+            const label = slot.total > 1 ? `${slot.cargo} ${slot.num}` : slot.cargo;
+            rows.push(escala ? { tipo:'filled', escala, label } : { tipo:'vaga', cargo:slot.cargo, label });
+          });
+          // overflow: escalas beyond expected count
+          Object.entries(escalasGrupadas).forEach(([cargo, grupo]) => {
+            const esperado = slotsEsperados.filter(s=>s.cargo===cargo).length;
+            grupo.slice(esperado).forEach(e => rows.push({ tipo:'filled', escala:e, label:cargo+' (extra)' }));
+          });
+        } else {
+          escalas.slice().sort((a,b)=>(ordemCargos.indexOf(a.cargo)<0?99:ordemCargos.indexOf(a.cargo))-(ordemCargos.indexOf(b.cargo)<0?99:ordemCargos.indexOf(b.cargo)))
+            .forEach(e => rows.push({ tipo:'filled', escala:e, label:e.cargo }));
+        }
+
+        const temRows = rows.length > 0;
+        if (!temRows) return `<div style="text-align:center;padding:40px;color:var(--text3)">
              <div style="margin-bottom:12px">Nenhum colaborador escalado ainda.</div>
              <button class="btn btn-primary btn-sm" onclick="abrirAddColabEvento()">+ Adicionar colaborador</button>
-           </div>`
-        : `<div style="overflow-x:auto">
+           </div>`;
+
+        return `<div style="overflow-x:auto">
            <table style="border-collapse:collapse;font-size:12px;width:100%">
              <thead>
                <tr style="border-bottom:2px solid var(--border2);font-size:10px;text-transform:uppercase;color:var(--text3)">
+                 <th style="padding:7px 12px;text-align:left;min-width:80px">Vaga</th>
                  <th style="padding:7px 12px;text-align:left">Colaborador</th>
                  <th style="padding:7px 10px;text-align:left">Cargo no evento</th>
                  <th style="padding:7px 10px;text-align:left">Nível</th>
@@ -616,13 +819,25 @@ function rEscalaEvento() {
                </tr>
              </thead>
              <tbody>
-               ${escalas.slice().sort((a,b)=>{
-                 const ia=ordemCargos.indexOf(a.cargo); const ib=ordemCargos.indexOf(b.cargo);
-                 return (ia<0?99:ia)-(ib<0?99:ib);
-               }).map(e => {
+               ${rows.map(row => {
+                 if (row.tipo === 'vaga') {
+                   return `<tr style="border-bottom:1px solid var(--border);opacity:.5">
+                     <td style="padding:7px 12px;font-size:11px;color:var(--text3);font-style:italic">${row.label}</td>
+                     <td style="padding:7px 12px" colspan="4">
+                       <div style="display:flex;align-items:center;gap:8px">
+                         <div style="width:30px;height:30px;border-radius:50%;background:var(--bg3);border:1px dashed var(--border2);flex-shrink:0"></div>
+                         <span style="color:var(--text3);font-style:italic">— Vaga em aberto —</span>
+                         <button class="btn-sm" onclick="abrirAddColabEvento()" style="margin-left:8px;font-size:10px;padding:2px 7px">+ Adicionar</button>
+                       </div>
+                     </td>
+                     <td></td>
+                   </tr>`;
+                 }
+                 const e = row.escala;
                  const col = (D.equipe||[]).find(x=>x.id===e.colaboradorId);
                  if (!col) return '';
                  return `<tr style="border-bottom:1px solid var(--border)">
+                   <td style="padding:7px 12px;font-size:11px;color:var(--text3)">${row.label}</td>
                    <td style="padding:7px 12px">
                      <div style="display:flex;align-items:center;gap:8px">
                        ${avatar(col)}
@@ -642,7 +857,8 @@ function rEscalaEvento() {
                }).join('')}
              </tbody>
            </table>
-           </div>`}
+           </div>`;
+      })()}
     </div>
 
     <!-- Folha de pagamento -->
@@ -702,7 +918,9 @@ function abrirAddColabEvento() {
   if (!escalaEventoAtual) return;
 
   const contrato = (D.contratos||[]).find(c=>c.id===escalaEventoAtual.id);
-  const maxEquipe = contrato?.equipeTotal || 0;
+  const maxEquipe = contrato?.equipe?.length
+    ? contrato.equipe.reduce((s,e)=>s+(e.qtd||0),0)
+    : (contrato?.equipeTotal || 0);
   if (maxEquipe) {
     const jaEscaladosCount = (D.escalas||[]).filter(e =>
       e.contratoId===escalaEventoAtual.id || (e.nomeEvento===escalaEventoAtual.nome && e.dataEvento===escalaEventoAtual.data)
@@ -1375,6 +1593,30 @@ function excluirPagamentosEvento(contratoId) {
   rEquipePagamentos();
 }
 
+function sincronizarDadosColaboradores() {
+  const pagamentos = D.pagamentosEquipe || [];
+  if (!pagamentos.length) { alert('Nenhum pagamento cadastrado.'); return; }
+
+  let atualizados = 0;
+  pagamentos.forEach(p => {
+    const col = (D.equipe || []).find(c => c.id === p.colaboradorId);
+    if (!col) return;
+    const pixNovo  = col.chave_pix || '';
+    const nomeNovo = col.nome || p.nomeColab;
+    if (p.chave_pix !== pixNovo || p.nomeColab !== nomeNovo) {
+      p.chave_pix = pixNovo;
+      p.nomeColab = nomeNovo;
+      atualizados++;
+    }
+  });
+
+  sv('pagamentosEquipe');
+  rEquipePagamentos();
+  alert2(atualizados > 0
+    ? `${atualizados} registro${atualizados>1?'s':''} atualizado${atualizados>1?'s':''} com os dados atuais dos colaboradores.`
+    : 'Todos os registros já estão atualizados.', 'success');
+}
+
 let _pgFiltro = 'pendente';
 
 function rEquipePagamentos() {
@@ -1413,6 +1655,8 @@ function rEquipePagamentos() {
         <input id="eq-pg-busca" type="text" placeholder="Buscar evento ou colaborador..."
           value="${busca}" oninput="rEquipePagamentos()"
           style="padding:6px 10px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-size:12px;width:220px">
+        <button class="btn-sm" onclick="sincronizarDadosColaboradores()"
+          style="background:var(--bg2);border:1px solid var(--border2)" title="Atualiza chave PIX e nome de todos os pagamentos com os dados atuais do cadastro">🔄 Atualizar cadastro</button>
         <button class="btn-sm" onclick="imprimirPagamentosEquipe()"
           style="background:var(--bg2);border:1px solid var(--border2)">🖨️ Imprimir</button>
       </div>
@@ -1550,15 +1794,27 @@ function imprimirPagamentosEquipe() {
           <strong style="white-space:nowrap">${fmtR(totalEv)}</strong>
         </div>
         <table>
-          <thead><tr><th>Colaborador</th><th>Cargo</th><th>Nível</th><th style="text-align:right">Total</th><th>Chave PIX</th></tr></thead>
+          <thead><tr>
+            <th style="width:24%">Colaborador</th>
+            <th style="width:13%">Cargo</th>
+            <th style="width:8%">Nível</th>
+            <th style="text-align:right;width:10%">Valor base</th>
+            <th style="text-align:right;width:10%">H. extra</th>
+            <th style="text-align:right;width:8%">Bônus</th>
+            <th style="text-align:right;color:#1a6b1a;width:10%">Total</th>
+            <th style="width:17%">Chave PIX</th>
+          </tr></thead>
           <tbody>
             ${ev.itens.map(p=>`
             <tr>
               <td>${p.nomeColab}</td>
               <td>${p.cargo}</td>
               <td>${p.nivel||'—'}</td>
-              <td style="text-align:right;font-weight:700">${fmtR(p.total)}</td>
-              <td style="font-family:monospace;font-size:10px">${p.chave_pix||'—'}</td>
+              <td style="text-align:right;white-space:nowrap">${fmtR(p.valorBase||0)}</td>
+              <td style="text-align:right;white-space:nowrap">${(p.valorHE&&p.valorHE>0)?'<span style="color:#b45309">'+fmtR(p.valorHE)+(p.horasExtras?' <span style="font-size:9px;color:#999">(+'+p.horasExtras+'h)</span>':'')+'</span>':'—'}</td>
+              <td style="text-align:right;white-space:nowrap">${(p.valorBonus&&p.valorBonus>0)?fmtR(p.valorBonus):'—'}</td>
+              <td style="text-align:right;font-weight:700;color:#1a6b1a;white-space:nowrap">${fmtR(p.total)}</td>
+              <td style="font-family:monospace;font-size:9px;word-break:break-all">${p.chave_pix||'—'}</td>
             </tr>`).join('')}
           </tbody>
         </table>
@@ -1578,9 +1834,9 @@ function imprimirPagamentosEquipe() {
     .ev-block{margin-bottom:16px;page-break-inside:avoid}
     .ev-head{display:flex;justify-content:space-between;align-items:center;background:#222;color:#fff;padding:7px 10px;border-radius:3px 3px 0 0;font-size:12px}
     .ev-meta{display:block;font-size:9px;color:#bbb;margin-top:2px;font-weight:400}
-    table{width:100%;border-collapse:collapse;margin:0}
-    th{background:#f4f4f4;color:#444;padding:5px 8px;text-align:left;font-size:10px;text-transform:uppercase;border:1px solid #ddd;font-weight:600}
-    td{padding:5px 8px;border-bottom:1px solid #eee;font-size:11px}
+    table{width:100%;border-collapse:collapse;margin:0;table-layout:fixed}
+    th{background:#f4f4f4;color:#444;padding:4px 6px;text-align:left;font-size:9px;text-transform:uppercase;border:1px solid #ddd;font-weight:600;overflow:hidden}
+    td{padding:4px 6px;border:1px solid #eee;font-size:10px;word-break:break-word}
     tr:last-child td{border-bottom:1px solid #ccc}
     .rodape{margin-top:24px;font-size:9px;color:#999;border-top:1px solid #ddd;padding-top:6px}
     @media print{
