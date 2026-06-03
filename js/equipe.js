@@ -917,7 +917,7 @@ function abrirImportEquipe() {
   if (!el) return;
   document.getElementById('eq-imp-area').value = '';
   document.getElementById('eq-imp-preview').innerHTML = '';
-  document.getElementById('eq-imp-info').textContent = 'Cole os dados do Excel (Nome | Chave PIX | Cargo) e clique em Visualizar';
+  document.getElementById('eq-imp-info').textContent = 'Cole os dados do Excel (Nome | Endereço | Telefone) e clique em Visualizar';
   el.style.display = 'flex';
 }
 
@@ -955,9 +955,9 @@ function _parsearLinhasEquipe() {
     const cols = linha.split('\t').map(c=>c.trim().replace(/^"|"$/g,''));
     if (!cols[0] || /^(nome|name|colaborador|collab)/i.test(cols[0])) return;
     result.push({
-      nome:      cols[0] || '',
-      chave_pix: cols[1] || '',
-      cargo:     _normCargo(cols[2]),
+      nome:     cols[0] || '',
+      endereco: cols[1] || '',
+      telefone: cols[2] || '',
     });
   });
   return result;
@@ -980,16 +980,16 @@ function previewImportEquipe() {
         <thead>
           <tr style="background:var(--bg3);font-size:10px;text-transform:uppercase;color:var(--text3)">
             <th style="padding:6px 8px;text-align:left">Nome</th>
-            <th style="padding:6px 8px;text-align:left">Chave PIX</th>
-            <th style="padding:6px 8px;text-align:left">Cargo</th>
+            <th style="padding:6px 8px;text-align:left">Endereço</th>
+            <th style="padding:6px 8px;text-align:left">Telefone</th>
           </tr>
         </thead>
         <tbody>
           ${linhas.map(l=>`
           <tr style="border-bottom:1px solid var(--border)">
             <td style="padding:5px 8px;font-weight:600">${l.nome||'—'}</td>
-            <td style="padding:5px 8px;color:var(--green);font-family:monospace;font-size:10px">${l.chave_pix||'—'}</td>
-            <td style="padding:5px 8px"><span class="badge b-blue" style="font-size:9px">${l.cargo||'—'}</span></td>
+            <td style="padding:5px 8px;color:var(--text2);font-size:10px">${l.endereco||'—'}</td>
+            <td style="padding:5px 8px;font-family:monospace;font-size:10px">${l.telefone||'—'}</td>
           </tr>`).join('')}
         </tbody>
       </table>
@@ -1006,7 +1006,6 @@ function confirmarImportEquipe() {
   linhas.forEach(l => {
     if (!l.nome) return;
     const idx = D.equipe.findIndex(e =>
-      (l.chave_pix && e.chave_pix && e.chave_pix === l.chave_pix) ||
       (e.nome||'').toLowerCase() === (l.nome||'').toLowerCase()
     );
     if (idx >= 0) {
