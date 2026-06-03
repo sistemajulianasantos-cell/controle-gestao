@@ -5,8 +5,9 @@ const D={
   entradas:[],
   quebras:[],
   festas:[],
-  contagens:[],   // ← NOVO: histórico de contagens semanais
-  precos:{}       // ← NOVO: preços de custo e revenda por produto
+  contagens:[],        // histórico de contagens semanais
+  precos:{},           // preços de custo e revenda por produto
+  pagamentosEquipe:[]  // pagamentos autorizados da equipe por evento
 };
 
 function sv(k){if(window.svFirebase)window.svFirebase(k);}

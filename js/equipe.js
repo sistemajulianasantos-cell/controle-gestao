@@ -1,9 +1,11 @@
 // ─── EQUIPE ────────────────────────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════════
 
-let equipeView    = 'lista'; // 'lista' | 'perfil' | 'eventos' | 'evento-detalhe' | 'regras'
+let equipeView    = 'lista'; // 'lista' | 'perfil' | 'eventos' | 'evento-detalhe' | 'regras' | 'pagamentos'
 let equipeAtualId = null;
 let escalaEventoAtual = null; // { id, nome, data }
+const _folhaState = {}; // persiste estado da folha por evento durante a sessão
+let _folhaLinhas  = []; // última folha calculada (para autorização)
 
 const CARGOS_EQUIPE = ['Head Bartender','Bartender','Bar Back','Copeiro','Coordenador'];
 const NIVEIS_EQUIPE = ['Novato','Antigo'];
@@ -31,6 +33,7 @@ function rEquipe() {
   else if (equipeView === 'perfil' && equipeAtualId)           rEquipePerfil();
   else if (equipeView === 'eventos')                           rEscalaEventos();
   else if (equipeView === 'evento-detalhe' && escalaEventoAtual) rEscalaEvento();
+  else if (equipeView === 'pagamentos')                        rEquipePagamentos();
   else rEquipeLista();
 }
 
@@ -80,6 +83,8 @@ function rEquipeLista() {
           style="background:var(--bg2);border:1px solid var(--border2)">💰 Regras de Pagamento</button>
         <button class="btn-sm" onclick="equipeView='eventos';rEscalaEventos()"
           style="background:var(--bg2);border:1px solid var(--border2)">📅 Escala por Evento</button>
+        <button class="btn-sm" onclick="equipeView='pagamentos';rEquipePagamentos()"
+          style="background:var(--bg2);border:1px solid var(--border2)">💳 Pagamentos</button>
         <button class="btn-sm" onclick="abrirImportEquipe()"
           style="background:var(--bg2);border:1px solid var(--border2)">📥 Importar planilha</button>
         <button class="btn btn-primary btn-sm" onclick="abrirNovoColab()">+ Novo colaborador</button>
@@ -423,12 +428,27 @@ function _calcPagamento(cargoKey, nivel, regiao, horas, tipoHE, convidados) {
   return { valorBase, horasExtra, valorHE, valorBonus, total: valorBase+valorHE+valorBonus };
 }
 
+function toggleHoraExtraEvento() {
+  const checked = document.getElementById('eq-fp-tem-he')?.checked;
+  const det = document.getElementById('eq-fp-he-detalhes');
+  if (det) det.style.display = checked ? 'flex' : 'none';
+  calcularFolhaPagamento();
+}
+
 function calcularFolhaPagamento() {
-  const regiao  = document.getElementById('eq-fp-regiao')?.value  || '';
-  const horas   = parseFloat(document.getElementById('eq-fp-horas')?.value)  || (D.regrasEquipe?.horasBase||6);
-  const tipoHE  = document.getElementById('eq-fp-tipo-he')?.value || 'antecipada';
-  const el      = document.getElementById('eq-folha-resultado');
+  const regiao     = document.getElementById('eq-fp-regiao')?.value || '';
+  const horasContr = parseFloat(document.getElementById('eq-fp-horas-base')?.value) || (D.regrasEquipe?.horasBase||6);
+  const temHEck    = document.getElementById('eq-fp-tem-he')?.checked || false;
+  const horasExtra = temHEck ? (parseFloat(document.getElementById('eq-fp-horas-extra')?.value)||0) : 0;
+  const horas      = horasContr + horasExtra;
+  const tipoHE     = document.getElementById('eq-fp-tipo-he')?.value || 'antecipada';
+  const el         = document.getElementById('eq-folha-resultado');
   if (!el) return;
+
+  // Persiste o estado da folha para restaurar ao voltar à tela
+  if (escalaEventoAtual?.id) {
+    _folhaState[escalaEventoAtual.id] = { regiao, temHE: temHEck, horasExtra, tipoHE };
+  }
 
   if (!regiao) {
     el.innerHTML = '<div style="padding:14px;color:var(--text3);font-size:12px">Selecione a região do evento para calcular.</div>';
@@ -456,12 +476,19 @@ function calcularFolhaPagamento() {
   });
 
   if (!linhas.length) {
+    _folhaLinhas = [];
     el.innerHTML = '<div style="padding:14px;color:var(--text3);font-size:12px">Nenhum colaborador com cargo mapeado nas regras.</div>';
     return;
   }
 
+  _folhaLinhas = linhas.map(l => ({ ...l }));
+
   const fmt = v => v ? `R$ ${v.toFixed(2).replace('.',',')}` : '—';
   const cspan = temHE ? 7 : 6;
+
+  const pagExist = (D.pagamentosEquipe||[]).filter(p => p.contratoId === ev?.id);
+  const jaAutorizado = pagExist.length > 0;
+  const dataAut = jaAutorizado ? pagExist[0].dataAutorizacao : null;
 
   el.innerHTML = `
     <div style="overflow-x:auto">
@@ -472,7 +499,7 @@ function calcularFolhaPagamento() {
             <th style="padding:7px 10px;text-align:left">Cargo</th>
             <th style="padding:7px 10px;text-align:left">Nível</th>
             <th style="padding:7px 10px;text-align:right">Valor base</th>
-            ${temHE?`<th style="padding:7px 10px;text-align:right">H. extra (${horas-horasBase}h)</th>`:''}
+            ${temHE?`<th style="padding:7px 10px;text-align:right">H. extra (+${horasExtra||horas-horasBase}h)</th>`:''}
             <th style="padding:7px 10px;text-align:right">Bônus</th>
             <th style="padding:7px 10px;text-align:right;color:var(--green)">Total</th>
             <th style="padding:7px 10px;text-align:center;min-width:130px">Chave PIX</th>
@@ -499,6 +526,14 @@ function calcularFolhaPagamento() {
           </tr>
         </tfoot>
       </table>
+    </div>
+    <div style="padding:12px 14px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      ${jaAutorizado
+        ? `<span style="font-size:12px;color:var(--green)">✅ Autorizado em ${fd(dataAut)}</span>
+           <button class="btn-sm" onclick="autorizarPagamentosEvento()" style="background:var(--bg3);border:1px solid var(--border2)">🔄 Reautorizar</button>`
+        : `<button class="btn btn-primary btn-sm" onclick="autorizarPagamentosEvento()">💳 Autorizar Pagamentos</button>`}
+      <button class="btn-sm" onclick="equipeView='pagamentos';rEquipePagamentos()"
+        style="background:var(--bg2);border:1px solid var(--border2);margin-left:auto">📋 Ver todos os pagamentos</button>
     </div>`;
 }
 
@@ -519,6 +554,9 @@ function rEscalaEvento() {
     ? _calcHorasEvento(contrato.hrInicio, contrato.hrFim)
     : null;
   const horasDefault = horasAuto || D.regrasEquipe?.horasBase || 6;
+
+  // Recupera estado salvo da folha para este evento
+  const _sf = _folhaState[ev.id] || {};
 
   const ordemCargos = ['Coordenador','Head Bartender','Bartender','Bar Back','Copeiro','Outros'];
   const avatar = col => col.foto
@@ -603,31 +641,52 @@ function rEscalaEvento() {
     <!-- Folha de pagamento -->
     <div class="sec">
       <div class="sec-head"><span class="sec-title">💰 Folha de Pagamento</span></div>
+      <input type="hidden" id="eq-fp-horas-base" value="${horasDefault}">
       <div style="padding:12px 14px;display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;border-bottom:1px solid var(--border)">
         <div>
           <label class="lbl">Região do evento</label>
           <select id="eq-fp-regiao" class="inp" style="width:200px" onchange="calcularFolhaPagamento()">
             <option value="">Selecione...</option>
-            ${REGIOES_PAGAMENTO.map(r=>`<option value="${r.key}">${r.label}</option>`).join('')}
+            ${REGIOES_PAGAMENTO.map(r=>`<option value="${r.key}" ${r.key===_sf.regiao?'selected':''}>${r.label}</option>`).join('')}
           </select>
         </div>
         <div>
-          <label class="lbl">Horas trabalhadas</label>
-          <input type="number" id="eq-fp-horas" class="inp" style="width:90px" min="1" max="24" step="0.5"
-            value="${horasDefault}" onchange="calcularFolhaPagamento()">
+          <label class="lbl">Horas do evento (contrato)</label>
+          <div style="padding:6px 10px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);font-size:13px;font-weight:600;color:var(--text);min-width:90px">
+            ${horasDefault}h${contrato?.hrInicio&&contrato?.hrFim?' <span style="font-size:10px;font-weight:400;color:var(--text3)">('+contrato.hrInicio+' – '+contrato.hrFim+')</span>':''}
+          </div>
         </div>
-        <div>
-          <label class="lbl">Hora extra (se houver)</label>
-          <select id="eq-fp-tipo-he" class="inp" style="width:200px" onchange="calcularFolhaPagamento()">
-            <option value="antecipada">Contratada com antecedência</option>
-            <option value="nh">Contratada na hora</option>
-          </select>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label class="lbl">Hora extra?</label>
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;padding:6px 0;font-size:13px;color:var(--text)">
+            <input type="checkbox" id="eq-fp-tem-he" onchange="toggleHoraExtraEvento()"
+              style="width:15px;height:15px;cursor:pointer;accent-color:var(--amber)"
+              ${_sf.temHE?'checked':''}>
+            Houve hora extra
+          </label>
+        </div>
+        <div id="eq-fp-he-detalhes" style="display:${_sf.temHE?'flex':'none'};gap:14px;flex-wrap:wrap;align-items:flex-end">
+          <div>
+            <label class="lbl">Horas extras</label>
+            <input type="number" id="eq-fp-horas-extra" class="inp" style="width:90px" min="0.5" max="12" step="0.5"
+              value="${_sf.horasExtra||1}" onchange="calcularFolhaPagamento()">
+          </div>
+          <div>
+            <label class="lbl">Tipo de hora extra</label>
+            <select id="eq-fp-tipo-he" class="inp" style="width:200px" onchange="calcularFolhaPagamento()">
+              <option value="antecipada" ${(_sf.tipoHE||'antecipada')==='antecipada'?'selected':''}>Contratada com antecedência</option>
+              <option value="nh" ${_sf.tipoHE==='nh'?'selected':''}>Contratada na hora</option>
+            </select>
+          </div>
         </div>
       </div>
       <div id="eq-folha-resultado" style="padding:0">
         <div style="padding:14px;color:var(--text3);font-size:12px">Selecione a região do evento para calcular.</div>
       </div>
     </div>`;
+
+  // Se havia região salva, recalcula automaticamente
+  if (_sf.regiao) setTimeout(calcularFolhaPagamento, 0);
 }
 
 // ─── MODAL: ADICIONAR COLABORADOR AO EVENTO ──────────────────────────────────
@@ -1196,6 +1255,203 @@ function salvarRegrasEquipe() {
 
   sv('regrasEquipe');
   alert2('Regras de pagamento salvas!');
+}
+
+// ─── PAGAMENTOS DA EQUIPE ────────────────────────────────────────────────────
+
+function autorizarPagamentosEvento() {
+  if (!_folhaLinhas.length || !escalaEventoAtual) {
+    alert('Calcule a folha antes de autorizar os pagamentos.');
+    return;
+  }
+  const ev          = escalaEventoAtual;
+  const regiao      = document.getElementById('eq-fp-regiao')?.value || '';
+  const horasContr  = parseFloat(document.getElementById('eq-fp-horas-base')?.value) || 6;
+  const temHEck     = document.getElementById('eq-fp-tem-he')?.checked || false;
+  const horasExtra  = temHEck ? (parseFloat(document.getElementById('eq-fp-horas-extra')?.value)||0) : 0;
+  const tipoHE      = document.getElementById('eq-fp-tipo-he')?.value || 'antecipada';
+  const hoje        = new Date().toISOString().slice(0,10);
+
+  if (!D.pagamentosEquipe) D.pagamentosEquipe = [];
+  D.pagamentosEquipe = D.pagamentosEquipe.filter(p => p.contratoId !== ev.id);
+
+  _folhaLinhas.forEach(l => {
+    D.pagamentosEquipe.push({
+      id:               `PE_${ev.id}_${l.col.id}`,
+      contratoId:       ev.id,
+      nomeEvento:       ev.nome,
+      dataEvento:       ev.data,
+      colaboradorId:    l.col.id,
+      nomeColab:        l.col.nome,
+      cargo:            l.cargo,
+      nivel:            l.col.nivel || '',
+      chave_pix:        l.col.chave_pix || '',
+      valorBase:        l.valorBase,
+      valorHE:          l.valorHE,
+      valorBonus:       l.valorBonus,
+      total:            l.total,
+      regiao,
+      horasContratadas: horasContr,
+      horasExtras:      horasExtra,
+      tipoHE,
+      dataAutorizacao:  hoje,
+      status:           'pendente',
+      dataPagamento:    null,
+    });
+  });
+
+  sv('pagamentosEquipe');
+  alert2('Pagamentos autorizados! Acesse "💳 Pagamentos" para marcar como pagos.', 'success');
+  calcularFolhaPagamento();
+}
+
+function marcarPagamentoPago(id) {
+  const p = (D.pagamentosEquipe||[]).find(x => x.id === id);
+  if (!p) return;
+  p.status = p.status === 'pago' ? 'pendente' : 'pago';
+  p.dataPagamento = p.status === 'pago' ? new Date().toISOString().slice(0,10) : null;
+  sv('pagamentosEquipe');
+  rEquipePagamentos();
+}
+
+function marcarTodosEventoPago(contratoId, novoStatus) {
+  const hoje = new Date().toISOString().slice(0,10);
+  (D.pagamentosEquipe||[]).filter(p => p.contratoId === contratoId).forEach(p => {
+    p.status = novoStatus;
+    p.dataPagamento = novoStatus === 'pago' ? hoje : null;
+  });
+  sv('pagamentosEquipe');
+  rEquipePagamentos();
+}
+
+function excluirPagamentosEvento(contratoId) {
+  if (!confirm('Remover todos os pagamentos autorizados deste evento?')) return;
+  D.pagamentosEquipe = (D.pagamentosEquipe||[]).filter(p => p.contratoId !== contratoId);
+  sv('pagamentosEquipe');
+  rEquipePagamentos();
+}
+
+let _pgFiltro = 'pendente';
+
+function rEquipePagamentos() {
+  equipeView = 'pagamentos';
+  const el = document.getElementById('eq-content');
+  if (!el) return;
+
+  const todos = D.pagamentosEquipe || [];
+  const busca = (document.getElementById('eq-pg-busca')?.value || '').toLowerCase();
+
+  const lista = todos.filter(p => {
+    if (_pgFiltro !== 'todos' && p.status !== _pgFiltro) return false;
+    if (busca && !(p.nomeEvento||'').toLowerCase().includes(busca) &&
+                 !(p.nomeColab||'').toLowerCase().includes(busca)) return false;
+    return true;
+  });
+
+  const porEvento = {};
+  lista.forEach(p => {
+    if (!porEvento[p.contratoId]) porEvento[p.contratoId] = { nome: p.nomeEvento, data: p.dataEvento, itens: [] };
+    porEvento[p.contratoId].itens.push(p);
+  });
+
+  const totalPendente = todos.filter(p=>p.status==='pendente').reduce((a,p)=>a+p.total,0);
+  const totalPago     = todos.filter(p=>p.status==='pago').reduce((a,p)=>a+p.total,0);
+  const fmtR = v => `R$ ${(v||0).toFixed(2).replace('.',',')}`;
+
+  const eventosSorted = Object.entries(porEvento)
+    .sort((a,b) => (b[1].data||'').localeCompare(a[1].data||''));
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+      <button class="btn-sm" onclick="rEquipeLista()" style="background:var(--bg3)">← Colaboradores</button>
+      <span style="font-weight:600;font-size:15px;color:var(--text)">💳 Pagamentos da Equipe</span>
+      <input id="eq-pg-busca" type="text" placeholder="Buscar evento ou colaborador..."
+        value="${busca}" oninput="rEquipePagamentos()"
+        style="padding:6px 10px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-size:12px;width:220px;margin-left:auto">
+    </div>
+
+    <div class="cards" style="margin-bottom:14px">
+      <div class="card amber"><div class="card-label">Total pendente</div><div class="card-val">${fmtR(totalPendente)}</div></div>
+      <div class="card green"><div class="card-label">Total pago</div><div class="card-val">${fmtR(totalPago)}</div></div>
+      <div class="card"><div class="card-label">Registros</div><div class="card-val">${todos.length}</div></div>
+    </div>
+
+    <div style="display:flex;gap:6px;margin-bottom:14px">
+      ${[['pendente','⏳ Pendentes'],['pago','✅ Pagos'],['todos','Todos']].map(([k,l])=>`
+        <button onclick="_pgFiltro='${k}';rEquipePagamentos()"
+          style="padding:5px 12px;border-radius:var(--radius);border:1px solid var(--border2);font-size:12px;cursor:pointer;
+                 background:${_pgFiltro===k?'var(--blue)':'var(--bg3)'};color:${_pgFiltro===k?'#fff':'var(--text)'}">${l}</button>
+      `).join('')}
+    </div>
+
+    ${!eventosSorted.length
+      ? `<div style="text-align:center;padding:48px;color:var(--text3)">
+           <div style="font-size:32px;margin-bottom:10px">💳</div>
+           <div>${_pgFiltro==='todos'&&!busca
+             ? 'Nenhum pagamento autorizado ainda. Acesse a Escala por Evento, calcule a folha e clique em "Autorizar Pagamentos".'
+             : 'Nenhum registro encontrado.'}</div>
+         </div>`
+      : eventosSorted.map(([cid, ev]) => {
+          const todosEv = (D.pagamentosEquipe||[]).filter(p=>p.contratoId===cid);
+          const pendEv  = todosEv.filter(p=>p.status==='pendente');
+          const totalEv = ev.itens.reduce((a,p)=>a+p.total,0);
+          const todosPago = pendEv.length === 0;
+          return `
+          <div class="sec" style="margin-bottom:12px">
+            <div class="sec-head" style="flex-wrap:wrap;gap:8px">
+              <div>
+                <span class="sec-title">${ev.nome}</span>
+                <span style="font-size:11px;color:var(--text3);margin-left:8px">${fd(ev.data)}</span>
+                ${todosPago && todosEv.length > 0
+                  ? `<span class="tag tag-green" style="font-size:9px;margin-left:6px">✅ Todos pagos</span>`
+                  : `<span class="tag tag-yellow" style="font-size:9px;margin-left:6px">${pendEv.length} pendente(s)</span>`}
+              </div>
+              <div style="display:flex;gap:6px;align-items:center">
+                <span style="font-size:12px;font-weight:600;color:var(--green)">${fmtR(totalEv)}</span>
+                ${!todosPago
+                  ? `<button class="btn-sm btn-primary" style="font-size:10px"
+                       onclick="marcarTodosEventoPago('${cid}','pago')">✅ Pagar todos</button>`
+                  : `<button class="btn-sm" style="font-size:10px;background:var(--bg3)"
+                       onclick="marcarTodosEventoPago('${cid}','pendente')">↩ Desfazer</button>`}
+                <button class="btn-sm btn-red" style="font-size:10px"
+                  onclick="excluirPagamentosEvento('${cid}')" title="Remover">✕</button>
+              </div>
+            </div>
+            <div style="overflow-x:auto">
+              <table style="border-collapse:collapse;font-size:12px;width:100%">
+                <thead>
+                  <tr style="border-bottom:1px solid var(--border2);font-size:10px;text-transform:uppercase;color:var(--text3)">
+                    <th style="padding:6px 10px;text-align:left">Colaborador</th>
+                    <th style="padding:6px 10px;text-align:left">Cargo</th>
+                    <th style="padding:6px 10px;text-align:left">Nível</th>
+                    <th style="padding:6px 10px;text-align:right">Total</th>
+                    <th style="padding:6px 10px;text-align:center">Chave PIX</th>
+                    <th style="padding:6px 10px;text-align:center">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${ev.itens.map(p=>`
+                  <tr style="border-bottom:1px solid var(--border);${p.status==='pago'?'opacity:.6':''}">
+                    <td style="padding:6px 10px;font-weight:600">${p.nomeColab}</td>
+                    <td style="padding:6px 10px;color:var(--text2)">${p.cargo}</td>
+                    <td style="padding:6px 10px;color:${p.nivel==='Novato'?'var(--amber)':'var(--green)'}">${p.nivel||'—'}</td>
+                    <td style="padding:6px 10px;text-align:right;font-weight:700;color:var(--green)">${fmtR(p.total)}</td>
+                    <td style="padding:6px 10px;text-align:center;font-size:10px;color:#4ade80;font-family:monospace">${p.chave_pix||'—'}</td>
+                    <td style="padding:6px 10px;text-align:center">
+                      <button onclick="marcarPagamentoPago('${p.id}')"
+                        style="padding:3px 10px;border-radius:var(--radius);border:1px solid;font-size:10px;cursor:pointer;
+                               background:${p.status==='pago'?'#14532d':'var(--bg3)'};
+                               border-color:${p.status==='pago'?'var(--green)':'var(--border2)'};
+                               color:${p.status==='pago'?'var(--green)':'var(--text3)'}">
+                        ${p.status==='pago'?`✅ Pago${p.dataPagamento?' '+fd(p.dataPagamento):''}` : '⏳ Pendente'}
+                      </button>
+                    </td>
+                  </tr>`).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>`;
+        }).join('')}`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

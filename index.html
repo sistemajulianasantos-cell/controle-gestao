@@ -1415,7 +1415,7 @@
 
 <!-- ── Dados e configurações globais ── -->
 <script src="js/data.js?v=20260530"></script>
-<script src="js/globals.js?v=20260530"></script>
+<script src="js/globals.js?v=20260603b"></script>
 <!-- ── Módulos do sistema ── -->
 <script src="js/dashboard.js?v=20260530"></script>
 <script src="js/estoques.js?v=20260530"></script>
@@ -1438,7 +1438,7 @@
 <script src="js/produtos.js?v=20260526e"></script>
 <script src="js/regras.js?v=20260530"></script>
 <script src="js/separacao.js?v=20260530"></script>
-<script src="js/equipe.js?v=20260603"></script>
+<script src="js/equipe.js?v=20260603b"></script>
 <script src="js/orcamento.js?v=20260526c"></script>
 <script src="js/orcCalc.js?v=20260603"></script>
 <script src="js/_refConsumoData.js?v=20260601"></script>
@@ -1486,9 +1486,10 @@ window.svFirebase = async function(chave) {
     if(chave==='produtos')       campo.produtos       = D.produtos;
     if(chave==='historico')    campo.historico    = D.historico;
     if(chave==='metas')        campo.metas        = D.metas;
-    if(chave==='equipe')        campo.equipe        = D.equipe;
-    if(chave==='escalas')       campo.escalas       = D.escalas;
-    if(chave==='regrasEquipe')  campo.regrasEquipe  = D.regrasEquipe;
+    if(chave==='equipe')            campo.equipe            = D.equipe;
+    if(chave==='escalas')           campo.escalas           = D.escalas;
+    if(chave==='regrasEquipe')      campo.regrasEquipe      = D.regrasEquipe;
+    if(chave==='pagamentosEquipe')  campo.pagamentosEquipe  = D.pagamentosEquipe;
     if(chave==='orcamentos')         campo.orcamentos          = D.orcamentos;
     if(chave==='senhas')             campo.senhas              = D.senhas;
     if(chave==='rcEventos')          campo.rcEventos           = D.rcEventos;
@@ -1531,9 +1532,10 @@ async function carregarDados() {
     D.historico    = r.historico    || {};
     D.metas        = r.metas        || {};
     D.produtos     = r.produtos     || [];
-    D.equipe        = r.equipe        || [];
-    D.escalas       = r.escalas       || [];
-    D.regrasEquipe  = r.regrasEquipe  || {};
+    D.equipe           = r.equipe           || [];
+    D.escalas          = r.escalas          || [];
+    D.regrasEquipe     = r.regrasEquipe     || {};
+    D.pagamentosEquipe = r.pagamentosEquipe || [];
     D.orcamentos            = r.orcamentos            || [];
     D.senhas                = r.senhas                || {};
     D.rcEventos             = r.rcEventos             || [];
