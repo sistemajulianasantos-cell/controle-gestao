@@ -577,7 +577,7 @@ function rEscalaEvento() {
         <div style="font-weight:600;font-size:15px;color:var(--text)">${ev.nome}</div>
         <div style="font-size:11px;color:var(--text3)">${fd(ev.data)}${contrato?.hrInicio?' · '+contrato.hrInicio+(contrato.hrFim?' – '+contrato.hrFim:''):''}${horasAuto?' ('+horasAuto+'h)':''}</div>
       </div>
-      <button class="btn btn-primary btn-sm" onclick="abrirAddColabEvento()" style="margin-left:auto">+ Adicionar</button>
+      ${(()=>{const tot=contrato?.equipeTotal||0;const cheia=tot&&escalas.length>=tot;return `<button class="btn btn-primary btn-sm" onclick="abrirAddColabEvento()" style="margin-left:auto${cheia?';opacity:.45;cursor:not-allowed':''}">+ Adicionar</button>`})()}
     </div>
 
     ${contrato ? `
@@ -590,7 +590,13 @@ function rEscalaEvento() {
     <!-- Tabela equipe -->
     <div class="sec" style="margin-bottom:14px">
       <div class="sec-head">
-        <span class="sec-title">👥 Equipe escalada — ${escalas.length} pessoa${escalas.length!==1?'s':''}</span>
+        ${(()=>{
+          const tot = contrato?.equipeTotal || 0;
+          const cor = !tot ? 'var(--text)' : escalas.length >= tot ? 'var(--red)' : escalas.length > 0 ? 'var(--amber)' : 'var(--text)';
+          const label = tot ? `${escalas.length} / ${tot} pessoa${tot!==1?'s':''}` : `${escalas.length} pessoa${escalas.length!==1?'s':''}`;
+          const breakdown = contrato?.equipeTexto ? `<span style="font-size:10px;color:var(--text3);margin-left:8px">(${contrato.equipeTexto})</span>` : '';
+          return `<span class="sec-title">👥 Equipe escalada — <span style="color:${cor}">${label}</span>${breakdown}</span>`;
+        })()}
       </div>
       ${!escalas.length
         ? `<div style="text-align:center;padding:40px;color:var(--text3)">
@@ -693,6 +699,19 @@ function rEscalaEvento() {
 
 function abrirAddColabEvento() {
   if (!escalaEventoAtual) return;
+
+  const contrato = (D.contratos||[]).find(c=>c.id===escalaEventoAtual.id);
+  const maxEquipe = contrato?.equipeTotal || 0;
+  if (maxEquipe) {
+    const jaEscaladosCount = (D.escalas||[]).filter(e =>
+      e.contratoId===escalaEventoAtual.id || (e.nomeEvento===escalaEventoAtual.nome && e.dataEvento===escalaEventoAtual.data)
+    ).length;
+    if (jaEscaladosCount >= maxEquipe) {
+      alert(`Limite atingido: este evento contratou ${maxEquipe} colaborador${maxEquipe!==1?'es':''} e já há ${jaEscaladosCount} escalado${jaEscaladosCount!==1?'s':''}.`);
+      return;
+    }
+  }
+
   if (!(D.equipe||[]).filter(c=>(c.status||'ativo')!=='inativo').length) {
     alert('Nenhum colaborador ativo. Cadastre colaboradores primeiro.');
     return;
