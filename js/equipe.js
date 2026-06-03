@@ -751,12 +751,100 @@ function escalarDeContrato(contratoId, nomeEvento, dataEvento) {
 
 // ─── REGRAS DE PAGAMENTO ──────────────────────────────────────────────────────
 
+function _rpInp(id, val) {
+  return `<input type="number" min="0" step="5" id="${id}" value="${val||''}" placeholder="—"
+    style="width:76px;text-align:center;padding:4px 5px;background:var(--bg3);border:1px solid var(--border2);
+           border-radius:var(--radius);color:var(--text);font-size:12px">`;
+}
+
 function rEquipeRegras() {
   equipeView = 'regras';
   const el = document.getElementById('eq-content');
   if (!el) return;
 
-  const regras = D.regrasEquipe || {};
+  const rg  = D.regrasEquipe || {};
+  const base = rg.base || {};
+  const he   = rg.horaExtra || {};
+  const bc   = rg.bonusConvidados || {};
+
+  const thStyle = 'padding:6px 8px;font-weight:500;color:var(--text3);font-size:10px;text-transform:uppercase;';
+  const tdStyle = 'padding:4px 5px;text-align:center;';
+
+  // Tabela 1 — valor base: região × cargo × (novato | antigo)
+  const tabelaBase = `
+    <div style="overflow-x:auto">
+      <table style="border-collapse:collapse;font-size:12px">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border2)">
+            <th style="${thStyle}text-align:left;min-width:165px">Região</th>
+            ${CARGOS_PAGAMENTO.map(c=>`<th colspan="2" style="${thStyle}text-align:center;border-left:1px solid var(--border2);padding:6px 16px">${c.label}</th>`).join('')}
+          </tr>
+          <tr style="border-bottom:2px solid var(--border2)">
+            <th style="${thStyle}"></th>
+            ${CARGOS_PAGAMENTO.map(()=>`
+              <th style="${thStyle}border-left:1px solid var(--border2);color:#6EE7B7">Novato</th>
+              <th style="${thStyle}color:#93C5FD">Antigo</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${REGIOES_PAGAMENTO.map(r => {
+            const rv = base[r.key] || {};
+            return `<tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:6px 10px;font-weight:600;color:var(--text);white-space:nowrap">${r.label}</td>
+              ${CARGOS_PAGAMENTO.map(c => {
+                const cv = rv[c.key] || {};
+                return `<td style="${tdStyle}border-left:1px solid var(--border2)">${_rpInp(`rp-b-${r.key}-${c.key}-n`, cv.novato)}</td>
+                        <td style="${tdStyle}">${_rpInp(`rp-b-${r.key}-${c.key}-a`, cv.antigo)}</td>`;
+              }).join('')}
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+
+  // Tabela 2 — hora extra
+  const heAntN = (he.antecipada||{}).novato; const heAntA = (he.antecipada||{}).antigo;
+  const heNhN  = (he.naHora||{}).novato;     const heNhA  = (he.naHora||{}).antigo;
+  const tabelaHE = `
+    <table style="border-collapse:collapse;font-size:12px">
+      <thead>
+        <tr style="border-bottom:2px solid var(--border2)">
+          <th style="${thStyle}text-align:left;min-width:200px">Tipo de hora extra</th>
+          <th style="${thStyle}text-align:center;color:#6EE7B7;min-width:100px">Novato</th>
+          <th style="${thStyle}text-align:center;color:#93C5FD;min-width:100px">Antigo</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:7px 10px;color:var(--text)">Contratada com antecedência</td>
+          <td style="${tdStyle}">${_rpInp('rp-he-ant-n', heAntN)}</td>
+          <td style="${tdStyle}">${_rpInp('rp-he-ant-a', heAntA)}</td>
+        </tr>
+        <tr>
+          <td style="padding:7px 10px;color:var(--text)">Contratada na hora</td>
+          <td style="${tdStyle}">${_rpInp('rp-he-nh-n', heNhN)}</td>
+          <td style="${tdStyle}">${_rpInp('rp-he-nh-a', heNhA)}</td>
+        </tr>
+      </tbody>
+    </table>`;
+
+  // Tabela 3 — bônus por 100 convidados
+  const tabelaBonus = `
+    <table style="border-collapse:collapse;font-size:12px">
+      <thead>
+        <tr style="border-bottom:2px solid var(--border2)">
+          <th style="${thStyle}text-align:left;min-width:200px">Cargo</th>
+          <th style="${thStyle}text-align:center;min-width:130px">+ R$ a cada 100 convidados</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${CARGOS_PAGAMENTO.map(c=>`
+        <tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:7px 10px;color:var(--text)">${c.label}</td>
+          <td style="${tdStyle}">${_rpInp(`rp-bc-${c.key}`, bc[c.key])}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
 
   el.innerHTML = `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
@@ -765,48 +853,84 @@ function rEquipeRegras() {
       <button class="btn btn-primary btn-sm" onclick="salvarRegrasEquipe()" style="margin-left:auto">Salvar regras</button>
     </div>
 
-    <div class="sec">
-      <div class="sec-head"><span class="sec-title">💰 Valor a pagar por cargo e região (R$)</span></div>
-      <div style="overflow-x:auto;padding:14px 12px">
-        <table style="border-collapse:collapse;font-size:12px;width:100%">
-          <thead>
-            <tr style="border-bottom:2px solid var(--border2)">
-              <th style="padding:8px 12px;text-align:left;font-weight:500;color:var(--text3);font-size:10px;text-transform:uppercase;min-width:170px">Região / Local</th>
-              ${CARGOS_PAGAMENTO.map(c=>`<th style="padding:8px 10px;text-align:center;font-weight:500;color:var(--text3);font-size:10px;text-transform:uppercase;min-width:105px">${c.label}</th>`).join('')}
-            </tr>
-          </thead>
-          <tbody>
-            ${REGIOES_PAGAMENTO.map(r => {
-              const rv = regras[r.key] || {};
-              return `<tr style="border-bottom:1px solid var(--border)">
-                <td style="padding:8px 12px;font-weight:600;color:var(--text);white-space:nowrap">${r.label}</td>
-                ${CARGOS_PAGAMENTO.map(c=>`
-                <td style="padding:5px 6px;text-align:center">
-                  <input type="number" min="0" step="10" id="rp-${r.key}-${c.key}"
-                    value="${rv[c.key] || ''}" placeholder="—"
-                    style="width:88px;text-align:center;padding:5px 6px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-size:12px">
-                </td>`).join('')}
-              </tr>`;
-            }).join('')}
-          </tbody>
-        </table>
+    <!-- Config básica -->
+    <div class="sec" style="margin-bottom:12px">
+      <div class="sec-head"><span class="sec-title">⚙️ Configuração geral</span></div>
+      <div style="padding:12px 14px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+        <div>
+          <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Duração padrão do evento (horas)</label>
+          <input type="number" min="1" max="24" step="1" id="rp-horas-base"
+            value="${rg.horasBase || 6}"
+            style="width:80px;text-align:center;padding:6px 8px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-size:14px;font-weight:600">
+        </div>
+        <div style="font-size:11px;color:var(--text3);max-width:360px">
+          Horas adicionais acima desse valor serão calculadas como hora extra.
+        </div>
       </div>
     </div>
 
-    <div style="font-size:11px;color:var(--text3);margin-top:6px;padding:0 4px">
-      Esses valores são usados para calcular o custo de pagamento da equipe em cada evento, conforme a região selecionada no orçamento.
+    <!-- Valor base -->
+    <div class="sec" style="margin-bottom:12px">
+      <div class="sec-head"><span class="sec-title">💰 Valor base por cargo, região e nível (R$)</span></div>
+      <div style="padding:12px 14px">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:10px">
+          <span style="color:#6EE7B7">■</span> Novato &nbsp;&nbsp;
+          <span style="color:#93C5FD">■</span> Antigo / Experiente
+        </div>
+        ${tabelaBase}
+      </div>
+    </div>
+
+    <!-- Hora extra -->
+    <div class="sec" style="margin-bottom:12px">
+      <div class="sec-head"><span class="sec-title">⏱️ Adicional por hora extra (R$ / hora)</span></div>
+      <div style="padding:12px 14px">${tabelaHE}</div>
+    </div>
+
+    <!-- Bônus convidados -->
+    <div class="sec" style="margin-bottom:12px">
+      <div class="sec-head"><span class="sec-title">👥 Bônus por convidados (R$ a cada 100 convidados)</span></div>
+      <div style="padding:12px 14px">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:10px">
+          Coloque 0 para cargos que não recebem bônus por convidados.
+        </div>
+        ${tabelaBonus}
+      </div>
     </div>`;
 }
 
 function salvarRegrasEquipe() {
   if (!D.regrasEquipe) D.regrasEquipe = {};
+
+  D.regrasEquipe.horasBase = parseInt(document.getElementById('rp-horas-base')?.value) || 6;
+
+  if (!D.regrasEquipe.base) D.regrasEquipe.base = {};
   REGIOES_PAGAMENTO.forEach(r => {
-    if (!D.regrasEquipe[r.key]) D.regrasEquipe[r.key] = {};
+    if (!D.regrasEquipe.base[r.key]) D.regrasEquipe.base[r.key] = {};
     CARGOS_PAGAMENTO.forEach(c => {
-      const val = parseFloat(document.getElementById(`rp-${r.key}-${c.key}`)?.value) || 0;
-      D.regrasEquipe[r.key][c.key] = val;
+      D.regrasEquipe.base[r.key][c.key] = {
+        novato: parseFloat(document.getElementById(`rp-b-${r.key}-${c.key}-n`)?.value) || 0,
+        antigo: parseFloat(document.getElementById(`rp-b-${r.key}-${c.key}-a`)?.value) || 0,
+      };
     });
   });
+
+  D.regrasEquipe.horaExtra = {
+    antecipada: {
+      novato: parseFloat(document.getElementById('rp-he-ant-n')?.value) || 0,
+      antigo: parseFloat(document.getElementById('rp-he-ant-a')?.value) || 0,
+    },
+    naHora: {
+      novato: parseFloat(document.getElementById('rp-he-nh-n')?.value) || 0,
+      antigo: parseFloat(document.getElementById('rp-he-nh-a')?.value) || 0,
+    },
+  };
+
+  if (!D.regrasEquipe.bonusConvidados) D.regrasEquipe.bonusConvidados = {};
+  CARGOS_PAGAMENTO.forEach(c => {
+    D.regrasEquipe.bonusConvidados[c.key] = parseFloat(document.getElementById(`rp-bc-${c.key}`)?.value) || 0;
+  });
+
   sv('regrasEquipe');
   alert2('Regras de pagamento salvas!');
 }
