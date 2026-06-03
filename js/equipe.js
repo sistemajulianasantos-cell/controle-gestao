@@ -1399,6 +1399,8 @@ function rEquipePagamentos() {
           const contrato  = (D.contratos||[]).find(c=>c.id===cid);
           const localEv   = contrato?.local || '';
           const convEv    = contrato?.convidados || '';
+          const regiaoKey = ev.itens[0]?.regiao || '';
+          const regiaoLabel = REGIOES_PAGAMENTO.find(r=>r.key===regiaoKey)?.label || '';
           return `
           <div class="sec" style="margin-bottom:12px">
             <div class="sec-head" style="flex-wrap:wrap;gap:8px">
@@ -1407,9 +1409,10 @@ function rEquipePagamentos() {
                 <span style="font-size:11px;color:var(--text3);margin-left:8px">${fd(ev.data)}</span>
                 ${convEv ? `<span style="font-size:11px;color:var(--text3);margin-left:6px">· ${convEv} conv.</span>` : ''}
                 ${localEv ? `<span style="font-size:11px;color:var(--text3);margin-left:6px">· ${localEv}</span>` : ''}
+                ${regiaoLabel ? `<span class="badge b-blue" style="font-size:9px;margin-left:6px">${regiaoLabel}</span>` : ''}
                 ${todosPago && todosEv.length > 0
                   ? `<span class="tag tag-green" style="font-size:9px;margin-left:6px">✅ Todos pagos</span>`
-                  : `<span class="tag tag-yellow" style="font-size:9px;margin-left:6px">${pendEv.length} pendente(s)</span>`}
+                  : ''}
               </div>
               <div style="display:flex;gap:6px;align-items:center">
                 <span style="font-size:12px;font-weight:600;color:var(--green)">${fmtR(totalEv)}</span>
