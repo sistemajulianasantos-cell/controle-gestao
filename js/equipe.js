@@ -6,6 +6,7 @@ let equipeAtualId = null;
 let escalaEventoAtual = null; // { id, nome, data }
 const _folhaState = {}; // persiste estado da folha por evento durante a sessão
 let _folhaLinhas  = []; // última folha calculada (para autorização)
+let _novoColabFromEvento = false; // flag: novo colab aberto a partir do modal de evento
 
 const CARGOS_EQUIPE = ['Head Bartender','Bartender','Bar Back','Copeiro','Coordenador'];
 const NIVEIS_EQUIPE = ['Novato','Antigo'];
@@ -843,6 +844,12 @@ function abrirNovoColab(id) {
   document.getElementById('m-novo-colab').style.display = 'flex';
 }
 
+function abrirNovoColabFromEvento() {
+  _novoColabFromEvento = true;
+  document.getElementById('m-add-colab-evento').style.display = 'none';
+  abrirNovoColab();
+}
+
 function salvarColab() {
   const nome = document.getElementById('eq-m-nome')?.value?.trim();
   if (!nome) { alert('Informe o nome.'); return; }
@@ -876,6 +883,21 @@ function salvarColab() {
 
   sv('equipe');
   document.getElementById('m-novo-colab').style.display = 'none';
+
+  if (_novoColabFromEvento && !id) {
+    _novoColabFromEvento = false;
+    const novoId = D.equipe[D.equipe.length - 1]?.id;
+    rEscalaEvento();
+    abrirAddColabEvento();
+    if (novoId) setTimeout(() => {
+      const sel = document.getElementById('add-ev-lista');
+      if (sel) sel.value = novoId;
+    }, 50);
+    alert2('Colaborador cadastrado! Confirme para escalá-lo no evento.');
+    return;
+  }
+
+  _novoColabFromEvento = false;
   rEquipe();
   alert2(id ? 'Colaborador atualizado!' : 'Colaborador cadastrado!');
 }

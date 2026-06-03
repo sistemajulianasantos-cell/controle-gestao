@@ -1438,7 +1438,7 @@
 <script src="js/produtos.js?v=20260526e"></script>
 <script src="js/regras.js?v=20260530"></script>
 <script src="js/separacao.js?v=20260530"></script>
-<script src="js/equipe.js?v=20260603e"></script>
+<script src="js/equipe.js?v=20260603f"></script>
 <script src="js/orcamento.js?v=20260526c"></script>
 <script src="js/orcCalc.js?v=20260603"></script>
 <script src="js/_refConsumoData.js?v=20260601"></script>
@@ -1749,7 +1749,11 @@ document.head.appendChild(styleExtra);
   <div style="background:#161A26;border:1px solid #2A2F42;border-radius:12px;padding:28px 32px;width:100%;max-width:480px">
     <div id="add-ev-titulo" style="font-size:15px;font-weight:600;color:#E8EAF0;margin-bottom:20px">Adicionar colaborador</div>
     <div style="display:grid;gap:10px">
-      <div><label class="lbl">Colaborador *</label>
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <label class="lbl" style="margin-bottom:0">Colaborador *</label>
+          <button type="button" onclick="abrirNovoColabFromEvento()" style="background:none;border:none;color:#4F8EF7;font-size:11px;cursor:pointer;padding:0">+ Cadastrar novo</button>
+        </div>
         <select id="add-ev-lista" class="inp" style="width:100%"></select>
       </div>
       <div><label class="lbl">Cargo neste evento</label>
