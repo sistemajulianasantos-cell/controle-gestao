@@ -166,7 +166,7 @@ function rEntradas(){
     const totalQtd=g.itens.reduce((a,i)=>a+Number(i.qtd),0);
     const isDup=dupKeys.has(g.key);
     const dupBadge=isDup?`<span style="display:inline-block;margin-left:8px;padding:1px 7px;background:#2A1A00;border:1px solid #F7C84F;border-radius:20px;font-size:9px;font-weight:600;color:#F7C84F;vertical-align:middle">⚠ possível duplicata</span>`:'';
-    const keyJson=JSON.stringify(g.key);
+    const keyJson=JSON.stringify(g.key).replace(/"/g,'&quot;');
     const itensHtml=g.itens.map(i=>`
       <div style="display:grid;grid-template-columns:1fr 60px 90px 80px;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);font-size:11px;align-items:center">
         <span style="color:var(--text2)">${i.prod}</span>
