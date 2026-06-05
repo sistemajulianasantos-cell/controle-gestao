@@ -1,6 +1,6 @@
 ﻿// ─── LOGIN / AUTENTICAÇÃO ───────────────────────────────
 // ═══════════════════════════════════════════════════════
-// As senhas ficam em D.senhas (Firebase) — não estão no código.
+// As senhas ficam em D.senhas (Firebase) como hashes SHA-256.
 
 var ACESSO = {
   admin:       ['estoque','contratos','produtos','regras','producao','separacao','agenda','financeiro','analise','equipe','orcamento','refconsumo'],
@@ -10,9 +10,15 @@ var ACESSO = {
 
 let perfilAtual = null;
 
-function tentarLogin() {
+async function hashSenha(s) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+async function tentarLogin() {
   const s = document.getElementById('login-senha').value.trim();
-  const p = (D.senhas || {})[s];
+  const hash = await hashSenha(s);
+  const p = (D.senhas || {})[hash];
   if (!p) {
     document.getElementById('login-erro').textContent = 'Senha incorreta';
     return;

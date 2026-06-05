@@ -1428,7 +1428,7 @@
 <script src="js/relatorio.js?v=20260530"></script>
 <script src="js/fornecedores.js?v=20260526j"></script>
 <script src="js/nav.js?v=20260601"></script>
-<script src="js/auth.js?v=20260601"></script>
+<script src="js/auth.js?v=20260605"></script>
 <script src="js/contratos.js?v=20260530"></script>
 <script src="js/agenda.js?v=20260530"></script>
 <script src="js/producao.js?v=20260530"></script>
@@ -1541,11 +1541,22 @@ async function carregarDados() {
     D.rcEventos             = r.rcEventos             || [];
     D.rcEventosImportados   = r.rcEventosImportados   || [];
 
-    // Seed/atualização de senhas: roda sempre que a configuração estiver
-    // desatualizada (nova chave admin '1225' ainda não gravada no banco).
-    if (!r.senhas || !r.senhas['1225']) {
-      D.senhas = { '1225': 'admin', '0035': 'financeiro', '0040': 'operacional' };
-      try { await setDoc(doc(db, "dados", DOC_ID), { senhas: D.senhas }, { merge: true }); } catch(_){}
+    // Senhas: migra texto puro → SHA-256 e inicializa se vazio
+    const _isHashed = k => /^[0-9a-f]{64}$/.test(k);
+    const _senhasRaw = D.senhas || {};
+    if (Object.keys(_senhasRaw).length === 0) {
+      // Banco vazio: inicializa com hashes das senhas padrão
+      const _pad = { '1225':'admin', '0035':'financeiro', '0040':'operacional' };
+      const _novo = {};
+      for (const [k,v] of Object.entries(_pad)) _novo[await hashSenha(k)] = v;
+      D.senhas = _novo;
+      try { await setDoc(doc(db,"dados",DOC_ID),{senhas:D.senhas},{merge:true}); } catch(_){}
+    } else if (Object.keys(_senhasRaw).some(k => !_isHashed(k))) {
+      // Migração: converte chaves em texto puro para hash
+      const _novo = {};
+      for (const [k,v] of Object.entries(_senhasRaw)) _novo[_isHashed(k)?k:await hashSenha(k)] = v;
+      D.senhas = _novo;
+      try { await setDoc(doc(db,"dados",DOC_ID),{senhas:D.senhas},{merge:true}); } catch(_){}
     }
 
     document.getElementById("loading-overlay").style.display = "none";
