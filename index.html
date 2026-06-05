@@ -1862,6 +1862,51 @@ document.head.appendChild(styleExtra);
     </div>
   </div>
 </div>
+
+<!-- ═══ MODAL EDITAR NOTA FISCAL (ENTRADA) ═══ -->
+<div id="m-edit-ent" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:6000;align-items:center;justify-content:center">
+  <div style="background:#161A26;border:1px solid #2A2F42;border-radius:12px;padding:28px 32px;width:100%;max-width:580px;max-height:90vh;overflow-y:auto">
+    <div style="font-size:16px;font-weight:600;color:#E8EAF0;margin-bottom:20px">✏️ Editar Nota Fiscal</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+      <div>
+        <label class="lbl">Nº da NF</label>
+        <input id="ent-edit-nf" class="inp" type="text" placeholder="Número da nota">
+      </div>
+      <div>
+        <label class="lbl">Data *</label>
+        <input id="ent-edit-data" class="inp" type="date">
+      </div>
+      <div>
+        <label class="lbl">Fornecedor</label>
+        <input id="ent-edit-forn" class="inp" type="text" placeholder="Fornecedor">
+      </div>
+      <div>
+        <label class="lbl">Observação</label>
+        <input id="ent-edit-obs" class="inp" type="text" placeholder="Opcional">
+      </div>
+    </div>
+
+    <div style="font-size:11px;font-weight:600;color:#8B91A8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Produtos</div>
+    <div id="ent-edit-itens" style="border:1px solid #2A2F42;border-radius:8px;background:#0F1117;min-height:48px;margin-bottom:12px;max-height:240px;overflow-y:auto"></div>
+
+    <!-- Adicionar produto ao editar -->
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:10px;background:#0A0D16;border:1px solid #2A2F42;border-radius:8px;margin-bottom:20px">
+      <select id="ent-edit-addprod" class="inp" style="flex:1;min-width:160px;font-size:12px;padding:5px 8px">
+        <option value="">Selecione produto...</option>
+      </select>
+      <input id="ent-edit-addqtd" type="number" class="inp" placeholder="Qtd" min="0.01" step="0.01"
+        style="width:80px;font-size:12px;padding:5px 8px">
+      <input id="ent-edit-addcusto" type="number" class="inp" placeholder="Custo unit." min="0" step="0.01"
+        style="width:100px;font-size:12px;padding:5px 8px">
+      <button onclick="addIEEdit()" style="padding:5px 14px;background:#22C55E;border:none;border-radius:6px;color:#fff;font-size:12px;font-weight:600;cursor:pointer">+ Adicionar</button>
+    </div>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn" onclick="document.getElementById('m-edit-ent').style.display='none'">Cancelar</button>
+      <button class="btn" style="background:#4F8EF7" onclick="salvarEdicaoNFEnt()">Salvar alterações</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
 
