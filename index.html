@@ -1448,6 +1448,8 @@
 import { initializeApp }    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getAuth, signInAnonymously }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey:            "AIzaSyCSIMoj3cx0OddVWNgVuUz85Hwk32kRV3g",
@@ -1460,6 +1462,7 @@ const firebaseConfig = {
 
 const fbApp  = initializeApp(firebaseConfig);
 const db     = getFirestore(fbApp);
+const auth   = getAuth(fbApp);
 const DOC_ID = "principal";
 
 // ─── SALVAR ──────────────────────────────────────────────────────────────────
@@ -1592,7 +1595,14 @@ async function carregarDados() {
   }
 }
 
-carregarDados();
+// Autentica anonimamente antes de acessar o Firestore
+signInAnonymously(auth)
+  .then(() => carregarDados())
+  .catch(e => {
+    document.getElementById("loading-msg").textContent = "⚠ Falha na autenticação. Verifique sua internet.";
+    document.getElementById("loading-msg").style.color = "#F7625A";
+    console.error("Auth erro:", e);
+  });
 
 // ─── TEMPLATE B64 do contrato (embutido no momento do upload) ───────────────
 // O template será carregado dinamicamente — não embutido aqui para manter o arquivo leve
