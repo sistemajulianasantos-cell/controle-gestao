@@ -18,25 +18,23 @@ function fR(n){return n?'R$ '+Number(n).toLocaleString('pt-BR',{minimumFractionD
 function td(){return new Date().toISOString().slice(0,10)}
 function fd(d){return d?d.split('-').reverse().join('/'):'—'}
 
-// Preenche um <select> com os últimos N meses fechados
-function gerarMeses(selectId, n) {
+// Preenche um <select> de ano com os últimos N anos
+function gerarAnos(selectId, n) {
   const el = document.getElementById(selectId);
   if (!el) return;
-  const now = new Date();
-  el.innerHTML = '<option value="">Mês fechado...</option>';
+  const anoAtual = new Date().getFullYear();
+  el.innerHTML = '<option value="">Ano...</option>';
   for (let i = 0; i < n; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const val = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-    const label = d.toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
-    el.innerHTML += '<option value="' + val + '">' + label.charAt(0).toUpperCase() + label.slice(1) + '</option>';
+    const a = anoAtual - i;
+    el.innerHTML += '<option value="' + a + '">' + a + '</option>';
   }
 }
 
-// Aplica mês fechado preenchendo as datas de início e fim
-function aplicarMesFechado(val, iniId, fimId, fn) {
-  if (!val) return;
-  const parts = val.split('-');
-  const ano = Number(parts[0]), mes = Number(parts[1]);
+// Aplica mês fechado lendo os selects de ano e mês separados
+function aplicarMesFechado(anoId, mesId, iniId, fimId, fn) {
+  const ano = Number(document.getElementById(anoId).value);
+  const mes = Number(document.getElementById(mesId).value);
+  if (!ano || !mes) return;
   const ini = new Date(ano, mes - 1, 1);
   const fim = new Date(ano, mes, 0);
   document.getElementById(iniId).value = ini.toISOString().slice(0, 10);
