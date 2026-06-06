@@ -18,16 +18,18 @@ function fR(n){return n?'R$ '+Number(n).toLocaleString('pt-BR',{minimumFractionD
 function td(){return new Date().toISOString().slice(0,10)}
 function fd(d){return d?d.split('-').reverse().join('/'):'—'}
 
-// Preenche um <select> de ano com os últimos N anos
-function gerarAnos(selectId, n) {
+// Preenche select de ano com os anos encontrados nas datas do array fornecido
+function gerarAnosFromData(selectId, datas) {
   const el = document.getElementById(selectId);
   if (!el) return;
-  const anoAtual = new Date().getFullYear();
+  const anos = [...new Set(
+    (datas || []).filter(Boolean).map(d => d.slice(0, 4)).filter(Boolean)
+  )].sort((a, b) => b.localeCompare(a));
+  const prev = el.value;
   el.innerHTML = '<option value="">Ano...</option>';
-  for (let i = 0; i < n; i++) {
-    const a = anoAtual - i;
-    el.innerHTML += '<option value="' + a + '">' + a + '</option>';
-  }
+  anos.forEach(function(a) {
+    el.innerHTML += '<option value="' + a + '"' + (a === prev ? ' selected' : '') + '>' + a + '</option>';
+  });
 }
 
 // Aplica mês fechado lendo os selects de ano e mês separados

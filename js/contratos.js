@@ -1070,6 +1070,7 @@ function rContratos() {
   const dataIni = document.getElementById('ct-data-ini')?.value || '';
   const dataFim = document.getElementById('ct-data-fim')?.value || '';
   const todos = D.contratos || [];
+  gerarAnosFromData('ct-ano', todos.map(function(c){ return c.data; }));
   const lista = todos.filter(c => {
     if (!c.data) return true;
     if (dataIni && c.data < dataIni) return false;

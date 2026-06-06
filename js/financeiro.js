@@ -86,6 +86,7 @@ function rKpiFaturamento() {
 function rFinanceiro() {
   rKpiFaturamento();
   const fin = D.financeiro || [];
+  gerarAnosFromData('fin-ano', fin.map(function(f){ return f.vencimento; }));
   const tbody = document.getElementById('fin-body');
   if (!tbody) return;
 

@@ -17,6 +17,7 @@ function registrarEventoNaAgenda(ev) {
 
 function rAgenda() {
   const ag = D.agenda || [];
+  gerarAnosFromData('ag-ano', ag.map(function(ev){ return ev.data; }));
   const filtroI = document.getElementById('ag-data-ini')?.value;
   const filtroF = document.getElementById('ag-data-fim')?.value;
   const tbody = document.getElementById('ag-body');
