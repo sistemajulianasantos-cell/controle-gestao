@@ -52,10 +52,11 @@ function go(page){
   if(page==='nova-festa'){go('festas');setFestaView('novo');return;}
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.querySelectorAll('.nav-group').forEach(g=>g.classList.remove('open','active-group'));
   const pageEl=document.getElementById('page-'+page);if(!pageEl)return;
   pageEl.classList.add('active');
   const navItem=document.querySelector(`.nav-item[data-page="${page}"]`);
-  if(navItem){navItem.classList.add('active');const g=navItem.closest('.nav-group');if(g&&!g.classList.contains('open'))g.classList.add('open');}
+  if(navItem){navItem.classList.add('active');const g=navItem.closest('.nav-group');if(g){g.classList.add('open','active-group');}}
   const[t,s]=pageInfo[page]||['',''];
   document.getElementById('ptitle').textContent=t;
   document.getElementById('psub').textContent=s;

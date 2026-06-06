@@ -52,7 +52,7 @@
       Dashboard
     </div>
 
-    <div class="nav-group open">
+    <div class="nav-group">
       <div class="nav-group-header" onclick="toggleNavGroup(this)">
         <span>Comercial</span>
         <span class="nav-group-chevron">›</span>
@@ -77,7 +77,7 @@
       </div>
     </div>
 
-    <div class="nav-group open">
+    <div class="nav-group">
       <div class="nav-group-header" onclick="toggleNavGroup(this)">
         <span>Operacional</span>
         <span class="nav-group-chevron">›</span>
@@ -102,7 +102,7 @@
       </div>
     </div>
 
-    <div class="nav-group open">
+    <div class="nav-group">
       <div class="nav-group-header" onclick="toggleNavGroup(this)">
         <span>Estoque</span>
         <span class="nav-group-chevron">›</span>
@@ -131,7 +131,7 @@
       </div>
     </div>
 
-    <div class="nav-group open">
+    <div class="nav-group">
       <div class="nav-group-header" onclick="toggleNavGroup(this)">
         <span>Compras</span>
         <span class="nav-group-chevron">›</span>
@@ -156,7 +156,7 @@
       </div>
     </div>
 
-    <div class="nav-group open">
+    <div class="nav-group">
       <div class="nav-group-header" onclick="toggleNavGroup(this)">
         <span>Financeiro</span>
         <span class="nav-group-chevron">›</span>
@@ -831,10 +831,11 @@
           <div class="sec-head">
             <span class="sec-title">📋 Contratos cadastrados</span>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <input id="ct-data-ini" class="inp" type="date" style="width:140px" onchange="rContratos()" placeholder="De">
+              <select id="ct-mes-fechado" class="inp" style="width:160px" onchange="aplicarMesFechado(this.value,'ct-data-ini','ct-data-fim',rContratos)"></select>
+              <input id="ct-data-ini" class="inp" type="date" style="width:140px" onchange="document.getElementById('ct-mes-fechado').value='';rContratos()" placeholder="De">
               <span style="color:#8B91A8;font-size:12px">até</span>
-              <input id="ct-data-fim" class="inp" type="date" style="width:140px" onchange="rContratos()" placeholder="Até">
-              <button class="btn-sm" onclick="document.getElementById('ct-data-ini').value='';document.getElementById('ct-data-fim').value='';rContratos()">✕ Limpar</button>
+              <input id="ct-data-fim" class="inp" type="date" style="width:140px" onchange="document.getElementById('ct-mes-fechado').value='';rContratos()" placeholder="Até">
+              <button class="btn-sm" onclick="document.getElementById('ct-data-ini').value='';document.getElementById('ct-data-fim').value='';document.getElementById('ct-mes-fechado').value='';rContratos()">✕ Limpar</button>
             </div>
           </div>
           <div style="overflow-x:auto">
@@ -928,8 +929,9 @@
     <!-- ═══ AGENDA ═══ -->
     <div id="page-agenda" class="page">
       <div style="display:flex;gap:12px;align-items:flex-end;margin-bottom:14px;flex-wrap:wrap">
-        <div><label class="lbl">De</label><input id="ag-data-ini" class="inp" type="date" style="width:145px" onchange="rAgenda()"></div>
-        <div><label class="lbl">Até</label><input id="ag-data-fim" class="inp" type="date" style="width:145px" onchange="rAgenda()"></div>
+        <div><label class="lbl">Mês</label><select id="ag-mes-fechado" class="inp" style="width:160px" onchange="aplicarMesFechado(this.value,'ag-data-ini','ag-data-fim',rAgenda)"></select></div>
+        <div><label class="lbl">De</label><input id="ag-data-ini" class="inp" type="date" style="width:145px" onchange="document.getElementById('ag-mes-fechado').value='';rAgenda()"></div>
+        <div><label class="lbl">Até</label><input id="ag-data-fim" class="inp" type="date" style="width:145px" onchange="document.getElementById('ag-mes-fechado').value='';rAgenda()"></div>
         <button class="sort-btn active" onclick="rAgenda()">Filtrar</button>
       </div>
 
@@ -987,10 +989,11 @@
             <option value="pendente">Pendentes</option>
             <option value="pago">Pagos</option>
           </select>
+          <select id="fin-mes-fechado" class="inp" style="width:160px" onchange="aplicarMesFechado(this.value,'fin-data-ini','fin-data-fim',rFinanceiro)"></select>
           <label class="lbl" style="margin:0">De</label>
-          <input id="fin-data-ini" class="inp" type="date" style="width:140px" onchange="rFinanceiro()">
+          <input id="fin-data-ini" class="inp" type="date" style="width:140px" onchange="document.getElementById('fin-mes-fechado').value='';rFinanceiro()">
           <label class="lbl" style="margin:0">Até</label>
-          <input id="fin-data-fim" class="inp" type="date" style="width:140px" onchange="rFinanceiro()">
+          <input id="fin-data-fim" class="inp" type="date" style="width:140px" onchange="document.getElementById('fin-mes-fechado').value='';rFinanceiro()">
           <button class="btn-sm" onclick="limparFinanceiroOrfaos()" style="margin-left:auto;background:#2A2F42;color:#F74F6B;border:1px solid #F74F6B" title="Remove lançamentos cujo contrato foi excluído">🗑️ Limpar órfãos</button>
         </div>
         <div style="overflow-x:auto">
@@ -1969,6 +1972,13 @@ document.head.appendChild(styleExtra);
     </div>
   </div>
 </div>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    gerarMeses('ct-mes-fechado', 24);
+    gerarMeses('ag-mes-fechado', 24);
+    gerarMeses('fin-mes-fechado', 24);
+  });
+</script>
 </body>
 </html>
 
