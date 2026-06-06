@@ -37,6 +37,10 @@ function aplicarPerfil(p) {
     const m = el.getAttribute('data-modulo');
     el.style.display = (m === 'estoque' ? ac.includes('estoque') : ac.includes(m)) ? '' : 'none';
   });
+  document.querySelectorAll('.nav-group').forEach(g => {
+    const vis = [...g.querySelectorAll('.nav-item')].some(i => i.style.display !== 'none');
+    g.style.display = vis ? '' : 'none';
+  });
   // KPI de faturamento: só admin
   const kpiBox = document.getElementById('kpi-box');
   if (kpiBox) {

@@ -54,14 +54,14 @@ function go(page){
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   const pageEl=document.getElementById('page-'+page);if(!pageEl)return;
   pageEl.classList.add('active');
-  const items=[...document.querySelectorAll('.nav-item')];
-  const map={fechamento:0,'est-mar':1,'est-abr':2,contagens:3,precos:4,fornecedores:5,produtos:6,entrada:7,comparativo:8,festas:9,relatorio:10,contratos:11,orcamento:12,refconsumo:13};
-  if(items[map[page]])items[map[page]].classList.add('active');
+  const navItem=document.querySelector(`.nav-item[data-page="${page}"]`);
+  if(navItem){navItem.classList.add('active');const g=navItem.closest('.nav-group');if(g&&!g.classList.contains('open'))g.classList.add('open');}
   const[t,s]=pageInfo[page]||['',''];
   document.getElementById('ptitle').textContent=t;
   document.getElementById('psub').textContent=s;
   pageRenders[page]&&pageRenders[page]();
 }
+function toggleNavGroup(h){h.closest('.nav-group').classList.toggle('open');}
 function toggleTheme(){
   const isLight = document.body.classList.toggle('light-mode');
   localStorage.setItem('theme', isLight ? 'light' : 'dark');
