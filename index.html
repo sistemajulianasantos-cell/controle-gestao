@@ -1059,6 +1059,7 @@
           <button class="sort-btn" data-desp-tab="lancar" onclick="despSetView('lancar')">➕ Lançar</button>
           <button class="sort-btn" data-desp-tab="lista" onclick="despSetView('lista')">📋 Despesas</button>
           <button class="sort-btn" data-desp-tab="importar" onclick="despSetView('importar')">📥 Importar CSV</button>
+          <button class="sort-btn" data-desp-tab="categorias" onclick="despSetView('categorias')">🏷️ Categorias</button>
         </div>
       </div>
 
@@ -1078,13 +1079,16 @@
               <label class="lbl">Categoria *</label>
               <select id="desp-form-cat" class="inp">
                 <option value="">Selecione...</option>
-                <option>Pessoal</option>
-                <option>Fornecedores</option>
-                <option>Infraestrutura</option>
-                <option>Marketing</option>
-                <option>Operacional</option>
-                <option>Impostos</option>
-                <option>Outros</option>
+              </select>
+            </div>
+            <div>
+              <label class="lbl">Forma de Pagamento</label>
+              <select id="desp-form-forma" class="inp">
+                <option value="">Selecione...</option>
+                <option value="boleto">Boleto</option>
+                <option value="pix_manual">PIX Manual</option>
+                <option value="pix_nota">PIX c/ Nota</option>
+                <option value="outros">Outros</option>
               </select>
             </div>
             <div style="grid-column:span 2">
@@ -1129,6 +1133,7 @@
                 <tr style="color:#8B91A8;border-bottom:1px solid #2A2F42">
                   <th style="padding:10px 12px;text-align:left;font-weight:500">Data</th>
                   <th style="padding:10px 12px;text-align:left;font-weight:500">Categoria</th>
+                  <th style="padding:10px 12px;text-align:left;font-weight:500">Forma</th>
                   <th style="padding:10px 12px;text-align:left;font-weight:500">Descrição</th>
                   <th style="padding:10px 12px;text-align:left;font-weight:500">Valor</th>
                   <th style="padding:10px 12px;text-align:left;font-weight:500">Obs</th>
@@ -1140,6 +1145,9 @@
           </div>
         </div>
       </div>
+
+      <!-- Categorias -->
+      <div id="desp-view-categorias" style="display:none"></div>
 
       <!-- Importar -->
       <div id="desp-view-importar" style="display:none">
@@ -1808,6 +1816,52 @@ document.head.appendChild(styleExtra);
     <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
       <button class="btn" onclick="document.getElementById('m-novo-colab').style.display='none'">Cancelar</button>
       <button class="btn" style="background:#4F8EF7" onclick="salvarColab()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL EDITAR DESPESA ═══ -->
+<div id="m-edit-despesa" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5000;align-items:center;justify-content:center">
+  <div style="background:#161A26;border:1px solid #2A2F42;border-radius:12px;padding:28px 32px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto">
+    <div style="font-size:15px;font-weight:600;color:#E8EAF0;margin-bottom:20px">✏️ Editar Despesa</div>
+    <input type="hidden" id="desp-edit-id">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div>
+        <label class="lbl">Data *</label>
+        <input id="desp-edit-data" class="inp" type="date" style="width:100%;box-sizing:border-box">
+      </div>
+      <div>
+        <label class="lbl">Categoria *</label>
+        <select id="desp-edit-cat" class="inp" style="width:100%;box-sizing:border-box">
+          <option value="">Selecione...</option>
+        </select>
+      </div>
+      <div>
+        <label class="lbl">Forma de Pagamento</label>
+        <select id="desp-edit-forma" class="inp" style="width:100%;box-sizing:border-box">
+          <option value="">Selecione...</option>
+          <option value="boleto">Boleto</option>
+          <option value="pix_manual">PIX Manual</option>
+          <option value="pix_nota">PIX c/ Nota</option>
+          <option value="outros">Outros</option>
+        </select>
+      </div>
+      <div>
+        <label class="lbl">Valor (R$) *</label>
+        <input id="desp-edit-valor" class="inp" type="number" step="0.01" min="0" style="width:100%;box-sizing:border-box">
+      </div>
+      <div style="grid-column:span 2">
+        <label class="lbl">Descrição *</label>
+        <input id="desp-edit-desc" class="inp" type="text" style="width:100%;box-sizing:border-box">
+      </div>
+      <div style="grid-column:span 2">
+        <label class="lbl">Observação</label>
+        <input id="desp-edit-obs" class="inp" type="text" style="width:100%;box-sizing:border-box">
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
+      <button class="btn" onclick="document.getElementById('m-edit-despesa').style.display='none'">Cancelar</button>
+      <button class="btn" style="background:#4F8EF7" onclick="salvarEditDespesa()">💾 Salvar</button>
     </div>
   </div>
 </div>

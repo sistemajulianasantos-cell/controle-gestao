@@ -1,16 +1,61 @@
 // ─── ANÁLISE DE DESPESAS ─────────────────────────────────────────────────────
 
+const _CATS_DESP_DEFAULT = ['Pessoal','Fornecedores','Infraestrutura','Marketing','Operacional','Impostos','Outros'];
+
+function _getCategoriasDespesas() {
+  return (D.categoriasDespesas && D.categoriasDespesas.length) ? D.categoriasDespesas : [..._CATS_DESP_DEFAULT];
+}
+
+const _FORMAS_DESP = {
+  boleto:     { label: 'Boleto',   bg: '#1D3461', cor: '#3B82F6' },
+  pix_manual: { label: 'PIX',      bg: '#0A2E1A', cor: '#10B981' },
+  pix_nota:   { label: 'PIX+Nota', bg: '#0A2430', cor: '#06B6D4' },
+  outros:     { label: 'Outros',   bg: '#2A2F42', cor: '#8B91A8' },
+};
+
+function _detectarFormaDespesa(d) {
+  if (d.forma) return d.forma;
+  const desc = (d.descricao || '').toUpperCase();
+  if (desc.startsWith('BO ')) return 'boleto';
+  if (desc.startsWith('CO ')) return 'pix_manual';
+  if (desc.startsWith('PI ')) return 'pix_nota';
+  return '';
+}
+
+function _descricaoSemPrefixo(d) {
+  if (d.forma) return d.descricao || '';
+  return (d.descricao || '').replace(/^(BO|CO|PI)\s+/i, '');
+}
+
+function _formaTag(forma) {
+  if (!forma) return '<span style="color:#8B91A8;font-size:12px">—</span>';
+  const f = _FORMAS_DESP[forma] || _FORMAS_DESP.outros;
+  return `<span style="background:${f.bg};color:${f.cor};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;border:1px solid ${f.cor}40">${f.label}</span>`;
+}
+
+function _populateCategoriasSelects() {
+  const cats = _getCategoriasDespesas();
+  ['desp-form-cat', 'desp-edit-cat'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const val = el.value;
+    el.innerHTML = '<option value="">Selecione...</option>' + cats.map(c => `<option value="${c}" ${c===val?'selected':''}>${c}</option>`).join('');
+  });
+}
+
 function rDespesas() {
   const subView = document.getElementById('desp-sub-view')?.value || 'kpi';
-  ['kpi', 'lancar', 'lista', 'importar'].forEach(v => {
+  ['kpi', 'lancar', 'lista', 'importar', 'categorias'].forEach(v => {
     const el = document.getElementById('desp-view-' + v);
     if (el) el.style.display = v === subView ? '' : 'none';
   });
   document.querySelectorAll('[data-desp-tab]').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.despTab === subView);
   });
+  _populateCategoriasSelects();
   if (subView === 'kpi') rDespesasKpi();
   else if (subView === 'lista') rDespesasLista();
+  else if (subView === 'categorias') rDespesasCategorias();
 }
 
 function despSetView(v) {
@@ -203,21 +248,25 @@ function rDespesasLista() {
 
   tbody.innerHTML = '';
   if (!lista.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#8B91A8;padding:24px">Nenhuma despesa encontrada para este período.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#8B91A8;padding:24px">Nenhuma despesa encontrada para este período.</td></tr>';
     return;
   }
 
   lista.forEach(d => {
     const tr = document.createElement('tr');
     tr.style.borderBottom = '1px solid #1E2235';
+    const forma = _detectarFormaDespesa(d);
+    const desc  = _descricaoSemPrefixo(d);
     tr.innerHTML = `
       <td style="padding:10px 12px">${fd(d.data) || '—'}</td>
       <td style="padding:10px 12px"><span class="tag" style="background:#2A2F42;color:#CDD3E3;border:none">${d.categoria || '—'}</span></td>
-      <td style="padding:10px 12px">${d.descricao || '—'}</td>
+      <td style="padding:10px 12px">${_formaTag(forma)}</td>
+      <td style="padding:10px 12px">${desc || '—'}</td>
       <td style="padding:10px 12px;color:#F74F6B;font-weight:600">${fR(d.valor || 0)}</td>
       <td style="padding:10px 12px;color:#8B91A8;font-size:12px">${d.obs || '—'}</td>
-      <td style="padding:10px 12px">
-        <button class="btn-sm btn-red" onclick="excluirDespesa('${d.id}')">✕</button>
+      <td style="padding:10px 12px;white-space:nowrap;display:flex;gap:6px">
+        <button class="btn-sm" onclick="abrirEditDespesa('${d.id}')" style="background:var(--bg3);border:1px solid var(--border2)" title="Editar">✏️</button>
+        <button class="btn-sm btn-red" onclick="excluirDespesa('${d.id}')" title="Excluir">✕</button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -225,8 +274,9 @@ function rDespesasLista() {
 }
 
 function salvarDespesa() {
-  const data     = document.getElementById('desp-form-data')?.value;
+  const data      = document.getElementById('desp-form-data')?.value;
   const categoria = document.getElementById('desp-form-cat')?.value;
+  const forma     = document.getElementById('desp-form-forma')?.value || '';
   const descricao = document.getElementById('desp-form-desc')?.value?.trim();
   const valorStr  = document.getElementById('desp-form-valor')?.value;
   const obs       = document.getElementById('desp-form-obs')?.value?.trim() || '';
@@ -239,13 +289,15 @@ function salvarDespesa() {
   if (!valor || valor <= 0) { alert('Valor inválido.'); return; }
 
   if (!D.despesas) D.despesas = [];
-  D.despesas.push({ id: 'DESP' + Date.now(), data, categoria, descricao, valor, obs });
+  D.despesas.push({ id: 'DESP' + Date.now(), data, categoria, forma, descricao, valor, obs });
   sv('despesas');
 
   document.getElementById('desp-form-data').value = '';
   document.getElementById('desp-form-desc').value = '';
   document.getElementById('desp-form-valor').value = '';
   document.getElementById('desp-form-obs').value = '';
+  const formaEl = document.getElementById('desp-form-forma');
+  if (formaEl) formaEl.value = '';
 
   alert2('Despesa lançada com sucesso!');
   despSetView('lista');
@@ -452,4 +504,103 @@ function importarDespesasPDF(input) {
     }
   };
   reader.readAsArrayBuffer(file);
+}
+
+// ─── EDITAR DESPESA ───────────────────────────────────────────────────────────
+
+function abrirEditDespesa(id) {
+  const d = (D.despesas||[]).find(x=>x.id===id);
+  if (!d) return;
+  _populateCategoriasSelects();
+  document.getElementById('desp-edit-id').value    = id;
+  document.getElementById('desp-edit-data').value  = d.data || '';
+  document.getElementById('desp-edit-cat').value   = d.categoria || '';
+  document.getElementById('desp-edit-forma').value = d.forma || _detectarFormaDespesa(d);
+  document.getElementById('desp-edit-desc').value  = _descricaoSemPrefixo(d);
+  document.getElementById('desp-edit-valor').value = d.valor || '';
+  document.getElementById('desp-edit-obs').value   = d.obs || '';
+  document.getElementById('m-edit-despesa').style.display = 'flex';
+}
+
+function salvarEditDespesa() {
+  const id        = document.getElementById('desp-edit-id')?.value;
+  const d         = (D.despesas||[]).find(x=>x.id===id);
+  if (!d) return;
+  const data      = document.getElementById('desp-edit-data')?.value;
+  const categoria = document.getElementById('desp-edit-cat')?.value;
+  const forma     = document.getElementById('desp-edit-forma')?.value || '';
+  const descricao = document.getElementById('desp-edit-desc')?.value?.trim();
+  const valorStr  = document.getElementById('desp-edit-valor')?.value;
+  const obs       = document.getElementById('desp-edit-obs')?.value?.trim() || '';
+  if (!data || !categoria || !descricao || !valorStr) { alert('Preencha todos os campos obrigatórios.'); return; }
+  const valor = parseFloat(valorStr.toString().replace(',','.'));
+  if (!valor || valor <= 0) { alert('Valor inválido.'); return; }
+  d.data = data; d.categoria = categoria; d.forma = forma;
+  d.descricao = descricao; d.valor = valor; d.obs = obs;
+  sv('despesas');
+  document.getElementById('m-edit-despesa').style.display = 'none';
+  rDespesasLista();
+  alert2('Despesa atualizada!', 'success');
+}
+
+// ─── CATEGORIAS DE DESPESAS ───────────────────────────────────────────────────
+
+function rDespesasCategorias() {
+  const el = document.getElementById('desp-view-categorias');
+  if (!el) return;
+  const cats = _getCategoriasDespesas();
+
+  el.innerHTML = `
+    <div class="sec">
+      <div class="sec-head"><span class="sec-title">🏷️ Categorias de Despesas</span></div>
+      <div style="padding:16px">
+        <div style="display:flex;gap:8px;margin-bottom:20px;align-items:flex-end;flex-wrap:wrap">
+          <div>
+            <label class="lbl">Nova categoria</label>
+            <input id="desp-nova-cat" class="inp" type="text" placeholder="Nome da categoria" style="width:220px"
+              onkeydown="if(event.key==='Enter')adicionarCategoriaDespesa()">
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="adicionarCategoriaDespesa()">+ Adicionar</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          ${cats.map(c => {
+            const qtd = (D.despesas||[]).filter(d=>d.categoria===c).length;
+            return `<div style="display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:7px 12px">
+              <span style="font-size:13px;color:var(--text)">${c}</span>
+              ${qtd ? `<span style="font-size:10px;color:#8B91A8;background:var(--bg2);padding:1px 6px;border-radius:4px">${qtd}</span>` : ''}
+              <button onclick="excluirCategoriaDespesa('${c.replace(/'/g,"\\'")}')"
+                style="background:none;border:none;color:#F74F6B;cursor:pointer;padding:0;font-size:13px;line-height:1;margin-left:2px" title="Remover">✕</button>
+            </div>`;
+          }).join('')}
+        </div>
+        <div style="margin-top:14px;font-size:11px;color:#8B91A8">O número mostra quantas despesas usam cada categoria.</div>
+      </div>
+    </div>`;
+}
+
+function adicionarCategoriaDespesa() {
+  const inp  = document.getElementById('desp-nova-cat');
+  const nome = inp?.value?.trim();
+  if (!nome) { alert('Digite o nome da categoria.'); return; }
+  const cats = _getCategoriasDespesas();
+  if (cats.map(c=>c.toLowerCase()).includes(nome.toLowerCase())) { alert('Categoria já existe.'); return; }
+  if (!D.categoriasDespesas) D.categoriasDespesas = [...cats];
+  D.categoriasDespesas.push(nome);
+  sv('categoriasDespesas');
+  if (inp) inp.value = '';
+  _populateCategoriasSelects();
+  rDespesasCategorias();
+}
+
+function excluirCategoriaDespesa(nome) {
+  const qtd = (D.despesas||[]).filter(d=>d.categoria===nome).length;
+  const msg = qtd
+    ? `A categoria "${nome}" está em uso em ${qtd} despesa(s). Remover mesmo assim?`
+    : `Remover a categoria "${nome}"?`;
+  if (!confirm(msg)) return;
+  if (!D.categoriasDespesas) D.categoriasDespesas = _getCategoriasDespesas();
+  D.categoriasDespesas = D.categoriasDespesas.filter(c => c !== nome);
+  sv('categoriasDespesas');
+  _populateCategoriasSelects();
+  rDespesasCategorias();
 }
