@@ -4,7 +4,7 @@
 
 var ACESSO = {
   admin:       ['estoque','contratos','produtos','regras','producao','separacao','agenda','financeiro','analise','equipe','orcamento','refconsumo'],
-  financeiro:  ['estoque','contratos','produtos','producao','separacao','agenda','equipe','orcamento','refconsumo'],
+  financeiro:  ['estoque','contratos','produtos','producao','separacao','agenda','financeiro','equipe','orcamento','refconsumo'],
   operacional: ['contratos','producao','separacao','agenda']
 };
 
