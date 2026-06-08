@@ -608,13 +608,15 @@ function excluirCategoriaDespesa(nome) {
 // ─── IMPRESSÃO DE DESPESAS ────────────────────────────────────────────────────
 
 function imprimirDespesas() {
-  const mes      = document.getElementById('desp-mes')?.value || '';
-  const ano      = document.getElementById('desp-ano')?.value || new Date().getFullYear().toString();
+  const mes       = document.getElementById('desp-mes')?.value || '';
+  const ano       = document.getElementById('desp-ano')?.value || new Date().getFullYear().toString();
   const catFiltro = document.getElementById('desp-cat-filtro')?.value || '';
+  const ordem     = document.getElementById('desp-print-ordem')?.value || 'data';
 
   const NOMES_MESES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   const periodoLabel = mes ? `${NOMES_MESES[parseInt(mes)]}/${ano}` : ano;
-  const formaLabel = { boleto:'Boleto', pix_manual:'PIX Manual', pix_nota:'PIX c/ Nota', outros:'Outros' };
+  const formaLabel   = { boleto:'Boleto', pix_manual:'PIX Manual', pix_nota:'PIX c/ Nota', outros:'Outros' };
+  const formaColor   = { boleto:'#1d4ed8', pix_manual:'#15803d', pix_nota:'#0e7490', outros:'#555' };
 
   const lista = (D.despesas || []).filter(d => {
     const ref = d.data || '';
@@ -630,59 +632,105 @@ function imprimirDespesas() {
   const fmtR  = v => `R$ ${Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
   const fmtD  = d => d ? d.split('-').reverse().join('/') : '—';
 
-  // Resumo por categoria
+  // Resumo por categoria (sempre presente)
   const porCat = {};
   lista.forEach(d => { const c = d.categoria||'Outros'; porCat[c] = (porCat[c]||0)+(d.valor||0); });
   const catRows = Object.entries(porCat).sort((a,b)=>b[1]-a[1])
     .map(([c,v]) => `<tr><td>${c}</td><td style="text-align:right">${fmtR(v)}</td><td style="text-align:right;color:#888;font-size:9px">${((v/total)*100).toFixed(1)}%</td></tr>`).join('');
 
-  const linhasHtml = lista.map(d => {
-    const forma = _detectarFormaDespesa(d);
-    const desc  = _descricaoSemPrefixo(d);
-    return `<tr>
-      <td>${fmtD(d.data)}</td>
-      <td>${d.categoria||'—'}</td>
-      <td style="color:${forma==='boleto'?'#1d4ed8':forma==='pix_manual'?'#15803d':forma==='pix_nota'?'#0e7490':'#555'};font-weight:600;font-size:10px">${formaLabel[forma]||'—'}</td>
-      <td>${desc||'—'}</td>
-      <td style="text-align:right;font-weight:600;color:#b91c1c">${fmtR(d.valor||0)}</td>
-      <td style="color:#666;font-size:10px">${d.obs||'—'}</td>
-    </tr>`;
-  }).join('');
-
-  const w = window.open('', '_blank');
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-  <title>Despesas — ${periodoLabel}</title>
-  <style>
+  const CSS = `
     *{box-sizing:border-box}
     body{font-family:Arial,sans-serif;font-size:11px;margin:20px;color:#111}
     .cabecalho{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid #111}
-    .cabecalho h2{margin:0 0 3px;font-size:16px}
-    .cabecalho .sub{font-size:10px;color:#555}
-    .cabecalho .periodo{font-size:13px;font-weight:700;color:#b91c1c;text-align:right}
+    .cabecalho h2{margin:0 0 3px;font-size:16px;text-transform:uppercase}
+    .cabecalho .sub{font-size:10px;color:#555;margin-top:2px}
+    .cabecalho .periodo{font-size:13px;font-weight:700;color:#b91c1c}
     .resumo{display:flex;gap:16px;margin-bottom:18px;flex-wrap:wrap}
     .card-r{border:1px solid #ddd;border-radius:4px;padding:8px 14px;min-width:120px}
     .card-r .lbl{font-size:9px;color:#777;text-transform:uppercase;letter-spacing:.05em}
     .card-r .val{font-size:14px;font-weight:700;margin-top:2px}
-    .sec-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#444;margin:14px 0 6px;border-bottom:1px solid #eee;padding-bottom:4px}
-    table{width:100%;border-collapse:collapse}
+    .sec-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#222;margin:18px 0 6px;border-bottom:2px solid #222;padding-bottom:4px}
+    .grupo-titulo{background:#222;color:#fff;padding:5px 10px;font-size:11px;font-weight:700;display:flex;justify-content:space-between}
+    .grupo-subtotal td{background:#f4f4f4;font-weight:700;border-top:1px solid #ccc;font-size:10px;color:#333}
+    table{width:100%;border-collapse:collapse;margin-bottom:6px}
     th{background:#f4f4f4;color:#444;padding:5px 8px;text-align:left;font-size:10px;text-transform:uppercase;border:1px solid #ddd;font-weight:600}
     td{padding:5px 8px;border-bottom:1px solid #f0f0f0;vertical-align:top}
-    tr:hover td{background:#fafafa}
-    tfoot td{background:#f4f4f4;font-weight:700;border-top:2px solid #ccc}
+    tfoot td{background:#efefef;font-weight:700;border-top:2px solid #999}
     .t-cat td{padding:4px 8px}
     .rodape{margin-top:24px;font-size:9px;color:#aaa;border-top:1px solid #eee;padding-top:6px;display:flex;justify-content:space-between}
     @media print{
-      body{margin:10px}
-      .resumo,.cabecalho{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-      @page{size:A4;margin:15mm}
-    }
-  </style>
+      body{margin:8mm}
+      .grupo-titulo{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      @page{size:A4;margin:12mm}
+    }`;
+
+  // ── Detalhamento: por data (lista flat) ou por categoria (agrupado)
+  let detalheHtml = '';
+
+  if (ordem === 'categoria') {
+    const grupos = {};
+    lista.forEach(d => { const c = d.categoria||'Outros'; if (!grupos[c]) grupos[c]=[]; grupos[c].push(d); });
+    Object.keys(grupos).sort().forEach(cat => {
+      const itens  = grupos[cat].sort((a,b)=>(b.data||'').localeCompare(a.data||''));
+      const subTot = itens.reduce((s,d)=>s+(d.valor||0),0);
+      const linhas = itens.map(d => {
+        const forma = _detectarFormaDespesa(d);
+        const desc  = _descricaoSemPrefixo(d);
+        return `<tr>
+          <td style="width:80px">${fmtD(d.data)}</td>
+          <td style="color:${formaColor[forma]||'#555'};font-weight:600;width:80px">${formaLabel[forma]||'—'}</td>
+          <td>${desc||'—'}</td>
+          <td style="text-align:right;font-weight:600;color:#b91c1c;width:110px">${fmtR(d.valor||0)}</td>
+        </tr>`;
+      }).join('');
+      detalheHtml += `
+        <div class="grupo-titulo"><span>${cat}</span><span>${fmtR(subTot)}</span></div>
+        <table>
+          <thead><tr>
+            <th>Data</th><th>Forma</th><th>Descrição</th><th style="text-align:right">Valor</th>
+          </tr></thead>
+          <tbody>${linhas}</tbody>
+          <tbody class="grupo-subtotal"><tr>
+            <td colspan="3" style="text-align:right;text-transform:uppercase;font-size:10px">Total ${cat}</td>
+            <td style="text-align:right;color:#b91c1c">${fmtR(subTot)}</td>
+          </tr></tbody>
+        </table>`;
+    });
+  } else {
+    const linhas = lista.map(d => {
+      const forma = _detectarFormaDespesa(d);
+      const desc  = _descricaoSemPrefixo(d);
+      return `<tr>
+        <td style="width:80px">${fmtD(d.data)}</td>
+        <td style="width:120px">${d.categoria||'—'}</td>
+        <td style="color:${formaColor[forma]||'#555'};font-weight:600;width:80px">${formaLabel[forma]||'—'}</td>
+        <td>${desc||'—'}</td>
+        <td style="text-align:right;font-weight:600;color:#b91c1c;width:110px">${fmtR(d.valor||0)}</td>
+      </tr>`;
+    }).join('');
+    detalheHtml = `<table>
+      <thead><tr>
+        <th>Data</th><th>Categoria</th><th>Forma</th><th>Descrição</th><th style="text-align:right">Valor</th>
+      </tr></thead>
+      <tbody>${linhas}</tbody>
+      <tfoot><tr>
+        <td colspan="4" style="text-align:right;font-size:10px;text-transform:uppercase;color:#555">Total geral</td>
+        <td style="text-align:right;color:#b91c1c;font-size:13px">${fmtR(total)}</td>
+      </tr></tfoot>
+    </table>`;
+  }
+
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Despesas — ${periodoLabel}</title>
+  <style>${CSS}</style>
   </head><body>
   <div class="cabecalho">
     <div>
-      <h2>RELATÓRIO DE DESPESAS</h2>
+      <h2>Relatório de Despesas</h2>
       <div class="sub">Controle e Gestão — Juliana Santos</div>
       <div class="sub">Impresso em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}</div>
+      <div class="sub">Ordenação: ${ordem === 'categoria' ? 'Por categoria' : 'Por data de vencimento'}</div>
     </div>
     <div style="text-align:right">
       <div class="periodo">${periodoLabel}</div>
@@ -691,48 +739,25 @@ function imprimirDespesas() {
   </div>
 
   <div class="resumo">
-    <div class="card-r">
-      <div class="lbl">Total de despesas</div>
-      <div class="val" style="color:#b91c1c">${fmtR(total)}</div>
-    </div>
-    <div class="card-r">
-      <div class="lbl">Lançamentos</div>
-      <div class="val">${lista.length}</div>
-    </div>
+    <div class="card-r"><div class="lbl">Total de despesas</div><div class="val" style="color:#b91c1c">${fmtR(total)}</div></div>
+    <div class="card-r"><div class="lbl">Lançamentos</div><div class="val">${lista.length}</div></div>
+    <div class="card-r"><div class="lbl">Categorias</div><div class="val">${Object.keys(porCat).length}</div></div>
   </div>
 
   <div class="sec-title">Resumo por categoria</div>
-  <table style="width:auto;min-width:280px;margin-bottom:18px">
-    <thead><tr>
-      <th>Categoria</th>
-      <th style="text-align:right">Total</th>
-      <th style="text-align:right">%</th>
-    </tr></thead>
+  <table style="width:auto;min-width:300px;margin-bottom:20px">
+    <thead><tr><th>Categoria</th><th style="text-align:right">Total</th><th style="text-align:right">%</th></tr></thead>
     <tbody class="t-cat">${catRows}</tbody>
-    <tfoot><tr>
-      <td>Total</td>
-      <td style="text-align:right;color:#b91c1c">${fmtR(total)}</td>
-      <td></td>
-    </tr></tfoot>
+    <tfoot><tr><td><strong>Total</strong></td><td style="text-align:right;color:#b91c1c">${fmtR(total)}</td><td></td></tr></tfoot>
   </table>
 
-  <div class="sec-title">Detalhamento</div>
-  <table>
-    <thead><tr>
-      <th style="width:80px">Data</th>
-      <th style="width:110px">Categoria</th>
-      <th style="width:80px">Forma</th>
-      <th>Descrição</th>
-      <th style="text-align:right;width:100px">Valor</th>
-      <th style="width:120px">Obs</th>
-    </tr></thead>
-    <tbody>${linhasHtml}</tbody>
-    <tfoot><tr>
-      <td colspan="4" style="text-align:right;font-size:10px;text-transform:uppercase;color:#555">Total geral</td>
-      <td style="text-align:right;color:#b91c1c;font-size:13px">${fmtR(total)}</td>
-      <td></td>
-    </tr></tfoot>
-  </table>
+  <div class="sec-title">Detalhamento${ordem==='categoria'?' — por categoria':' — por data'}</div>
+  ${detalheHtml}
+
+  ${ordem === 'categoria' ? `<table style="margin-top:8px"><tfoot><tr>
+    <td colspan="3" style="text-align:right;font-size:10px;text-transform:uppercase;color:#555;background:#efefef;border-top:2px solid #999;font-weight:700;padding:6px 8px">Total geral</td>
+    <td style="text-align:right;color:#b91c1c;font-size:13px;background:#efefef;border-top:2px solid #999;font-weight:700;padding:6px 8px;width:110px">${fmtR(total)}</td>
+  </tr></tfoot></table>` : ''}
 
   <div class="rodape">
     <span>Controle e Gestão — Juliana Santos</span>
