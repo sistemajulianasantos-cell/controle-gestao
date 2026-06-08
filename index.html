@@ -1822,7 +1822,18 @@ document.head.appendChild(styleExtra);
           <label class="lbl" style="margin-bottom:0">Colaborador *</label>
           <button type="button" onclick="abrirNovoColabFromEvento()" style="background:none;border:none;color:#4F8EF7;font-size:11px;cursor:pointer;padding:0">+ Cadastrar novo</button>
         </div>
-        <select id="add-ev-lista" class="inp" style="width:100%"></select>
+        <input type="hidden" id="add-ev-lista">
+        <div style="position:relative">
+          <input type="text" id="add-ev-busca" class="inp" style="width:100%;box-sizing:border-box"
+            placeholder="Buscar colaborador..."
+            oninput="_filtrarColabEvento()"
+            onfocus="_abrirDropdownColab()"
+            onblur="setTimeout(()=>{var o=document.getElementById('add-ev-opcoes');if(o)o.style.display='none'},200)"
+            autocomplete="off">
+          <div id="add-ev-opcoes"
+            style="position:absolute;left:0;right:0;top:100%;margin-top:2px;max-height:200px;overflow-y:auto;
+                   background:#161A26;border:1px solid #2A2F42;border-radius:8px;z-index:100;display:none"></div>
+        </div>
       </div>
       <div><label class="lbl">Cargo neste evento</label>
         <select id="add-ev-cargo" class="inp">

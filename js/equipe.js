@@ -7,6 +7,7 @@ let escalaEventoAtual = null; // { id, nome, data }
 const _folhaState = {}; // persiste estado da folha por evento durante a sessão
 let _folhaLinhas  = []; // última folha calculada (para autorização)
 let _novoColabFromEvento = false; // flag: novo colab aberto a partir do modal de evento
+let _colabEventoOpcoes  = []; // colaboradores disponíveis para busca no modal de escala
 
 const CARGOS_EQUIPE = ['Head Bartender','Bartender','Bar Back','Copeiro','Coordenador'];
 const NIVEIS_EQUIPE = ['Novato','Antigo'];
@@ -317,9 +318,25 @@ function rEscalaEventos() {
 
   const hoje = new Date().toISOString().slice(0,10);
 
-  const todos    = (D.contratos||[]).filter(c=>(c.status||'ativo')!=='cancelado').sort((a,b)=>a.data.localeCompare(b.data));
-  const futuros  = todos.filter(c => c.data >= hoje);
-  const passados = todos.filter(c => c.data <  hoje).reverse(); // mais recente primeiro
+  // Lê estado dos filtros antes de reconstruir o DOM
+  const anoVal  = document.getElementById('eq-esc-ano')?.value || '';
+  const mesVal  = document.getElementById('eq-esc-mes')?.value || '';
+  const filtroI = document.getElementById('eq-esc-ini')?.value || '';
+  const filtroF = document.getElementById('eq-esc-fim')?.value || '';
+
+  const todos = (D.contratos||[]).filter(c=>(c.status||'ativo')!=='cancelado').sort((a,b)=>a.data.localeCompare(b.data));
+
+  const filtrados = (filtroI || filtroF) ? todos.filter(c => {
+    if (filtroI && c.data < filtroI) return false;
+    if (filtroF && c.data > filtroF) return false;
+    return true;
+  }) : todos;
+
+  const futuros      = filtrados.filter(c => c.data >= hoje);
+  const passados     = filtrados.filter(c => c.data <  hoje).reverse();
+  const filtroAtivo  = !!(filtroI || filtroF);
+
+  const MESES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
   const _cardEvento = (c, passado=false) => {
     const escalas = _escalasDoEvento(c);
@@ -363,12 +380,28 @@ function rEscalaEventos() {
       <span style="font-weight:600;font-size:15px;color:var(--text)">Escala por Evento</span>
     </div>
 
-    ${!futuros.length ? `
+    <div style="display:flex;gap:12px;align-items:flex-end;margin-bottom:14px;flex-wrap:wrap">
+      <div><label class="lbl">Ano</label><select id="eq-esc-ano" class="inp" style="width:80px" onchange="aplicarMesFechado('eq-esc-ano','eq-esc-mes','eq-esc-ini','eq-esc-fim',rEscalaEventos)"></select></div>
+      <div><label class="lbl">Mês</label><select id="eq-esc-mes" class="inp" style="width:110px" onchange="aplicarMesFechado('eq-esc-ano','eq-esc-mes','eq-esc-ini','eq-esc-fim',rEscalaEventos)">
+        <option value="">Mês...</option>
+        ${MESES.slice(1).map((m,i)=>`<option value="${i+1}" ${mesVal===String(i+1)?'selected':''}>${m}</option>`).join('')}
+      </select></div>
+      <div><label class="lbl">De</label><input id="eq-esc-ini" class="inp" type="date" style="width:145px" value="${filtroI}" onchange="document.getElementById('eq-esc-ano').value='';document.getElementById('eq-esc-mes').value='';rEscalaEventos()"></div>
+      <div><label class="lbl">Até</label><input id="eq-esc-fim" class="inp" type="date" style="width:145px" value="${filtroF}" onchange="document.getElementById('eq-esc-ano').value='';document.getElementById('eq-esc-mes').value='';rEscalaEventos()"></div>
+      <button class="sort-btn active" onclick="rEscalaEventos()">Filtrar</button>
+    </div>
+
+    ${filtroAtivo && !filtrados.length ? `
+    <div style="text-align:center;padding:48px;color:var(--text3)">
+      <div style="font-size:32px;margin-bottom:10px">🔍</div>
+      <div>Nenhum evento encontrado para o período selecionado</div>
+    </div>` : ''}
+
+    ${!filtroAtivo && !futuros.length ? `
     <div style="text-align:center;padding:48px;color:var(--text3)">
       <div style="font-size:32px;margin-bottom:10px">📅</div>
       <div>Nenhum evento futuro em Contratos</div>
-    </div>` :
-    futuros.map(c => _cardEvento(c, false)).join('')}
+    </div>` : futuros.map(c => _cardEvento(c, false)).join('')}
 
     <!-- Histórico -->
     ${passados.length ? `
@@ -383,6 +416,10 @@ function rEscalaEventos() {
         ${passados.map(c=>_cardEvento(c,true)).join('')}
       </div>` : ''}
     </div>` : ''}`;
+
+  // Popula select de ano e restaura valor
+  gerarAnosFromData('eq-esc-ano', todos.map(c=>c.data));
+  if (anoVal) { const el2 = document.getElementById('eq-esc-ano'); if (el2) el2.value = anoVal; }
 }
 
 function _escalasDoEvento(contrato) {
@@ -721,6 +758,23 @@ function rEscalaEvento() {
     : null;
   const horasDefault = horasAuto || D.regrasEquipe?.horasBase || 6;
 
+  // Se não há estado em memória mas há pagamentos autorizados salvos, restaura a partir deles
+  if (!_folhaState[ev.id]) {
+    const pagSalvos = (D.pagamentosEquipe||[]).filter(p => p.contratoId === ev.id);
+    if (pagSalvos.length) {
+      const pRef = pagSalvos[0];
+      const totalOverride = {};
+      pagSalvos.forEach(p => { totalOverride[p.colaboradorId] = p.total; });
+      _folhaState[ev.id] = {
+        regiao:     pRef.regiao      || '',
+        temHE:      (pRef.horasExtras || 0) > 0,
+        horasExtra: pRef.horasExtras || 0,
+        tipoHE:     pRef.tipoHE      || 'antecipada',
+        totalOverride,
+      };
+    }
+  }
+
   // Recupera estado salvo da folha para este evento
   const _sf = _folhaState[ev.id] || {};
 
@@ -953,29 +1007,34 @@ function abrirAddColabEvento() {
       .map(e=>e.colaboradorId)
   );
 
-  const select = document.getElementById('add-ev-lista');
-  if (!select) return;
-  select.innerHTML = '';
-
   const disponiveis = (D.equipe||[])
     .filter(c=>(c.status||'ativo')!=='inativo')
-    .sort((a,b)=>(a.cargo||'').localeCompare(b.cargo||'')||a.nome.localeCompare(b.nome));
+    .sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
 
-  let count = 0;
-  disponiveis.forEach(c => {
-    if (jaEscalados.has(c.id)) return;
-    const conflito = verificarConflito(c.id, ev.data);
-    const opt = document.createElement('option');
-    opt.value = c.id;
-    opt.textContent = `${conflito?'⚠️ ':''}${c.nome} — ${c.cargo||'sem cargo'}${conflito?' (conflito de data)':''}`;
-    select.appendChild(opt);
-    count++;
-  });
+  _colabEventoOpcoes = disponiveis
+    .filter(c => !jaEscalados.has(c.id))
+    .map(c => {
+      const conflito = verificarConflito(c.id, ev.data);
+      return {
+        id: c.id,
+        searchText: c.nome.toLowerCase(),
+        label: `${conflito?'⚠️ ':''}${c.nome} — ${c.cargo||'sem cargo'}${conflito?' (conflito de data)':''}`,
+        inputVal: `${c.nome} — ${c.cargo||'sem cargo'}`
+      };
+    });
 
-  if (!count) {
+  if (!_colabEventoOpcoes.length) {
     alert('Todos os colaboradores ativos já foram escalados para este evento.');
     return;
   }
+
+  // Limpa estado do dropdown de busca
+  const buscaEl  = document.getElementById('add-ev-busca');
+  const opcoesEl = document.getElementById('add-ev-opcoes');
+  const listaEl  = document.getElementById('add-ev-lista');
+  if (buscaEl)  buscaEl.value = '';
+  if (opcoesEl) { opcoesEl.innerHTML = ''; opcoesEl.style.display = 'none'; }
+  if (listaEl)  listaEl.value = '';
 
   document.getElementById('add-ev-titulo').textContent = `Adicionar à: ${ev.nome} (${fd(ev.data)})`;
   document.getElementById('add-ev-cargo').value = '';
@@ -985,7 +1044,8 @@ function abrirAddColabEvento() {
 function confirmarAddColabEvento() {
   const colaboradorId = document.getElementById('add-ev-lista')?.value;
   const cargo         = document.getElementById('add-ev-cargo')?.value;
-  if (!colaboradorId || !escalaEventoAtual) return;
+  if (!escalaEventoAtual) return;
+  if (!colaboradorId) { alert('Selecione um colaborador.'); return; }
 
   const ev = escalaEventoAtual;
   const ok = escalarColab(colaboradorId, ev.data, ev.nome, cargo, ev.id);
@@ -993,6 +1053,45 @@ function confirmarAddColabEvento() {
     document.getElementById('m-add-colab-evento').style.display = 'none';
     rEscalaEvento();
   }
+}
+
+// ─── DROPDOWN DE BUSCA: COLABORADOR NO EVENTO ─────────────────────────────────
+
+function _abrirDropdownColab() {
+  _renderColabEventoOpcoes(document.getElementById('add-ev-busca')?.value || '');
+}
+
+function _filtrarColabEvento() {
+  document.getElementById('add-ev-lista').value = '';
+  _renderColabEventoOpcoes(document.getElementById('add-ev-busca')?.value || '');
+}
+
+function _renderColabEventoOpcoes(busca) {
+  const opcoes = document.getElementById('add-ev-opcoes');
+  if (!opcoes) return;
+  const termo = busca.toLowerCase().trim();
+  const filtrados = termo
+    ? _colabEventoOpcoes.filter(c => c.searchText.includes(termo))
+    : _colabEventoOpcoes;
+
+  if (!filtrados.length) {
+    opcoes.innerHTML = '<div style="padding:10px 12px;color:#8B91A8;font-size:12px">Nenhum resultado</div>';
+  } else {
+    opcoes.innerHTML = filtrados.map(c =>
+      `<div data-id="${c.id}" data-val="${c.inputVal.replace(/"/g,'&quot;')}"
+        onclick="_selecionarColabEvento(this.dataset.id,this.dataset.val)"
+        onmouseover="this.style.background='#1E2332'" onmouseout="this.style.background=''"
+        style="padding:8px 12px;cursor:pointer;font-size:13px;color:#E8EAF0;border-bottom:1px solid #1A1E2E"
+      >${c.label}</div>`
+    ).join('');
+  }
+  opcoes.style.display = 'block';
+}
+
+function _selecionarColabEvento(id, inputVal) {
+  document.getElementById('add-ev-lista').value = id;
+  document.getElementById('add-ev-busca').value = inputVal;
+  document.getElementById('add-ev-opcoes').style.display = 'none';
 }
 
 // ─── CRUD COLABORADOR ─────────────────────────────────────────────────────────
