@@ -8,6 +8,7 @@ const _folhaState = {}; // persiste estado da folha por evento durante a sessão
 let _folhaLinhas  = []; // última folha calculada (para autorização)
 let _novoColabFromEvento = false; // flag: novo colab aberto a partir do modal de evento
 let _colabEventoOpcoes  = []; // colaboradores disponíveis para busca no modal de escala
+let _folhaSaveTimer     = null; // debounce para salvar folhaConfig no contrato
 
 const CARGOS_EQUIPE = ['Head Bartender','Bartender','Bar Back','Copeiro','Coordenador'];
 const NIVEIS_EQUIPE = ['Novato','Antigo'];
@@ -490,6 +491,15 @@ function calcularFolhaPagamento() {
   if (escalaEventoAtual?.id) {
     const prev = _folhaState[escalaEventoAtual.id] || {};
     _folhaState[escalaEventoAtual.id] = { ...prev, regiao, temHE: temHEck, horasExtra, tipoHE };
+    // Salva no contrato (Firebase) com debounce para persistir entre sessões
+    clearTimeout(_folhaSaveTimer);
+    _folhaSaveTimer = setTimeout(() => {
+      const ct = (D.contratos||[]).find(c => c.id === escalaEventoAtual?.id);
+      if (!ct) return;
+      const sf = _folhaState[escalaEventoAtual.id] || {};
+      ct.folhaConfig = { regiao: sf.regiao||'', temHE: sf.temHE||false, horasExtra: sf.horasExtra||0, tipoHE: sf.tipoHE||'antecipada', totalOverride: sf.totalOverride||{} };
+      sv('contratos');
+    }, 800);
   }
 
   if (!regiao) {
@@ -758,19 +768,30 @@ function rEscalaEvento() {
     : null;
   const horasDefault = horasAuto || D.regrasEquipe?.horasBase || 6;
 
-  // Se não há estado em memória mas há pagamentos autorizados salvos, restaura a partir deles
+  // Se não há estado em memória, restaura a partir de pagamentos autorizados ou config salva
   if (!_folhaState[ev.id]) {
     const pagSalvos = (D.pagamentosEquipe||[]).filter(p => p.contratoId === ev.id);
     if (pagSalvos.length) {
+      // Prioridade 1: pagamentos já autorizados
       const pRef = pagSalvos[0];
       const totalOverride = {};
       pagSalvos.forEach(p => { totalOverride[p.colaboradorId] = p.total; });
       _folhaState[ev.id] = {
-        regiao:     pRef.regiao      || '',
-        temHE:      (pRef.horasExtras || 0) > 0,
-        horasExtra: pRef.horasExtras || 0,
-        tipoHE:     pRef.tipoHE      || 'antecipada',
+        regiao:        pRef.regiao       || '',
+        temHE:         (pRef.horasExtras || 0) > 0,
+        horasExtra:    pRef.horasExtras  || 0,
+        tipoHE:        pRef.tipoHE       || 'antecipada',
         totalOverride,
+      };
+    } else if (contrato?.folhaConfig?.regiao) {
+      // Prioridade 2: rascunho salvo antes da autorização
+      const fc = contrato.folhaConfig;
+      _folhaState[ev.id] = {
+        regiao:        fc.regiao        || '',
+        temHE:         fc.temHE         || false,
+        horasExtra:    fc.horasExtra    || 0,
+        tipoHE:        fc.tipoHE        || 'antecipada',
+        totalOverride: fc.totalOverride || {},
       };
     }
   }
