@@ -1125,7 +1125,10 @@
               <option>Impostos</option>
               <option>Outros</option>
             </select>
-            <span style="margin-left:auto;color:#F74F6B;font-weight:600">Total: <span id="desp-lista-total">—</span></span>
+            <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+              <span style="color:#F74F6B;font-weight:600">Total: <span id="desp-lista-total">—</span></span>
+              <button class="btn-sm" onclick="imprimirDespesas()" style="background:var(--bg2);border:1px solid var(--border2)">🖨️ Imprimir</button>
+            </div>
           </div>
           <div style="overflow-x:auto">
             <table style="width:100%;border-collapse:collapse;font-size:13px">
