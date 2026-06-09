@@ -75,7 +75,7 @@ function rDespesasKpi() {
     return true;
   });
   const receita = contratosKpi.reduce((s, c) => {
-    const v = c.valorNum || parseFloat((c.opcao || '0').toString().replace(/[^\d,]/g, '').replace(',', '.')) || 0;
+    const v = parseFloat((c.opcao || '0').toString().replace(/[^\d,]/g, '').replace(',', '.')) || 0;
     return s + v;
   }, 0);
 
