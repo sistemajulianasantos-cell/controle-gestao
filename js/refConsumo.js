@@ -544,7 +544,7 @@ function _rcSalvarEvento() {
   Object.entries(f.consumo||{}).forEach(([k,v])=>{ if(parseFloat(v)>0) consumo[k]=parseFloat(v); });
   if (!Object.keys(consumo).length)          { _rcNovoStatus('Informe ao menos um insumo.', true); return; }
   const evts = _rcGetEventos();
-  evts.push({ id:'rc-'+Date.now(), data:f.data||new Date().toISOString().slice(0,10), cliente:f.cliente||'', grupo:(f.grupo||'').toUpperCase(), convidados:parseFloat(f.convidados), consumo });
+  evts.push({ id:_gerarId('RC'), data:f.data||new Date().toISOString().slice(0,10), cliente:f.cliente||'', grupo:(f.grupo||'').toUpperCase(), convidados:parseFloat(f.convidados), consumo });
   _rcSaveEventos(evts);
   _rcNovoForm = { data:'', cliente:'', grupo:'CASAMENTO', convidados:'', consumo:{} };
   _rcNovoBev  = '';

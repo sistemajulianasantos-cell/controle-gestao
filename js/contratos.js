@@ -397,7 +397,7 @@ function preencherFormImportacao(txt, nomeArquivo) {
 function salvarImportacao() {
   const nome  = document.getElementById('imp-nome')?.value?.trim();
   const data  = document.getElementById('imp-data')?.value;
-  if (!nome || !data) { alert('Preencha pelo menos Nome e Data.'); return; }
+  if (!nome || !data) { alert2('Preencha pelo menos Nome e Data.', 'error'); return; }
 
   const d = window._dadosImportacao || {};
   const valorText = document.getElementById('imp-valor')?.value?.trim() || '';
@@ -617,9 +617,12 @@ function salvarContrato(c) {
   });
 }
 
+var _salvandoContrato = false;
 function salvarContratoCompleto(c) {
+  if (_salvandoContrato) { _logErro('Contratos', 'salvarContratoCompleto', 'Duplo clique bloqueado'); return; }
+  _salvandoContrato = true;
   if (!D.contratos) D.contratos = [];
-  const id = 'CON'+Date.now();
+  const id = _gerarId('CON');
   // ⚠️ cComId garante que o id correto seja propagado para agenda/financeiro/produção
   const cComId = { ...c, id, criadoEm: new Date().toISOString() };
   D.contratos.push(cComId);
@@ -639,6 +642,7 @@ function salvarContratoCompleto(c) {
 
   // → PRODUÇÃO com ficha pré-preenchida
   registrarFichaProducao(cComId);              // ← CORRIGIDO: passa cComId com .id
+  _salvandoContrato = false;
 }
 
 function registrarParcelasContratoFinanceiro(c) {
@@ -648,7 +652,7 @@ function registrarParcelasContratoFinanceiro(c) {
     parcelas.forEach((p,i) => {
       const valNum = parseFloat((p.valor||'0').replace(/\./g,'').replace(',','.')) || 0;
       D.financeiro.push({
-        id: 'FIN'+Date.now()+'_'+i,
+        id: _gerarId('FIN'),
         contratoId: c.id||'',
         contrato: c.nome, evento: c.nomeEvento||c.nome,
         data: c.data, tipo: c.tipo, convidados: c.convidados,
@@ -661,11 +665,11 @@ function registrarParcelasContratoFinanceiro(c) {
   } else if (c.valorNum > 0) {
     const p1 = (c.valorNum*0.2).toLocaleString('pt-BR',{minimumFractionDigits:2});
     const p2 = (c.valorNum*0.8).toLocaleString('pt-BR',{minimumFractionDigits:2});
-    D.financeiro.push({ id:'FIN'+Date.now()+'A', contratoId:c.id||'', contrato:c.nome, evento:c.nomeEvento||c.nome,
+    D.financeiro.push({ id:_gerarId('FIN'), contratoId:c.id||'', contrato:c.nome, evento:c.nomeEvento||c.nome,
       data:c.data, tipo:c.tipo, convidados:c.convidados,
       descricao:'Sinal — assinatura do contrato', valor:'R$ '+p1, valorNum:c.valorNum*0.2,
       vencimento:new Date().toISOString().slice(0,10), status:'pendente' });
-    D.financeiro.push({ id:'FIN'+Date.now()+'B', contratoId:c.id||'', contrato:c.nome, evento:c.nomeEvento||c.nome,
+    D.financeiro.push({ id:_gerarId('FIN'), contratoId:c.id||'', contrato:c.nome, evento:c.nomeEvento||c.nome,
       data:c.data, tipo:c.tipo, convidados:c.convidados,
       descricao:'Restante', valor:'R$ '+p2, valorNum:c.valorNum*0.8,
       vencimento:'', status:'pendente' });
@@ -676,7 +680,7 @@ function registrarParcelasContratoFinanceiro(c) {
 function registrarFichaProducao(c) {
   if (!D.producoes) D.producoes = [];
   D.producoes.push({
-    id:           'PRD'+Date.now(),
+    id:           _gerarId('PRD'),
     contratoId:   c.id||'',
     proposta:     c.proposta||'',
     evento:       c.nomeEvento||c.nome,
@@ -1155,7 +1159,7 @@ function salvarEdicaoContrato() {
   const id   = document.getElementById('ec-id').value;
   const nome = document.getElementById('ec-nome').value.trim();
   const data = document.getElementById('ec-data').value;
-  if (!nome || !data) { alert('Preencha Cliente e Data.'); return; }
+  if (!nome || !data) { alert2('Preencha Cliente e Data.', 'error'); return; }
 
   const idx = (D.contratos||[]).findIndex(x => x.id === id);
   if (idx === -1) return;
@@ -1430,7 +1434,7 @@ function novoContrato() {
 function salvarContratoManual() {
   const nome  = document.getElementById('mn-nome')?.value?.trim();
   const data  = document.getElementById('mn-data')?.value;
-  if (!nome || !data) { alert('Preencha pelo menos Nome e Data do evento.'); return; }
+  if (!nome || !data) { alert2('Preencha pelo menos Nome e Data do evento.', 'error'); return; }
 
   const tipo        = document.getElementById('mn-tipo')?.value || '';
   const convidados  = document.getElementById('mn-conv')?.value?.trim() || '';

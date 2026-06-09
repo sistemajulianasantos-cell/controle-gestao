@@ -10,7 +10,13 @@ const D={
   pagamentosEquipe:[]  // pagamentos autorizados da equipe por evento
 };
 
-function sv(k){if(window.svFirebase)window.svFirebase(k);}
+function sv(k) {
+  if (!window.svFirebase) return;
+  var p = window.svFirebase(k);
+  if (p && typeof p.catch === 'function') {
+    p.catch(function(e) { if (window._logErro) _logErro('Firebase', 'sv/' + k, e); });
+  }
+}
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 function fN(n){return Number(n||0).toLocaleString('pt-BR')}

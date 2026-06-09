@@ -1198,9 +1198,12 @@ function abrirNovoColabFromEvento() {
   abrirNovoColab();
 }
 
+var _salvandoColab = false;
 function salvarColab() {
+  if (_salvandoColab) return;
+  _salvandoColab = true;
   const nome = document.getElementById('eq-m-nome')?.value?.trim();
-  if (!nome) { alert('Informe o nome.'); return; }
+  if (!nome) { alert2('Informe o nome.', 'error'); _salvandoColab = false; return; }
   if (!D.equipe) D.equipe = [];
 
   const id    = document.getElementById('eq-m-id')?.value;
@@ -1226,10 +1229,11 @@ function salvarColab() {
     const idx = D.equipe.findIndex(e=>e.id===id);
     if (idx >= 0) D.equipe[idx] = { ...D.equipe[idx], ...dados };
   } else {
-    D.equipe.push({ id:'EQ'+Date.now(), ...dados, criadoEm: new Date().toISOString() });
+    D.equipe.push({ id: _gerarId('EQ'), ...dados, criadoEm: new Date().toISOString() });
   }
 
   sv('equipe');
+  _salvandoColab = false;
   document.getElementById('m-novo-colab').style.display = 'none';
 
   if (_novoColabFromEvento && !id) {

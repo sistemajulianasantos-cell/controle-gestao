@@ -502,7 +502,7 @@ function salvarFicha(idExistente) {
     var idx = D.fichas.findIndex(function(f){return f.id===idExistente;});
     if (idx>=0) D.fichas[idx] = {id:idExistente, nome:nome, variantes:variantes, itens:itens};
   } else {
-    D.fichas.push({id:'FIC'+Date.now(), nome:nome, variantes:variantes, itens:itens, criadoEm:new Date().toISOString()});
+    D.fichas.push({id:_gerarId('FIC'), nome:nome, variantes:variantes, itens:itens, criadoEm:new Date().toISOString()});
   }
   window._customItens = [];
   sv('fichas');

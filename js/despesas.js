@@ -273,7 +273,10 @@ function rDespesasLista() {
   });
 }
 
+var _salvandoDespesa = false;
 function salvarDespesa() {
+  if (_salvandoDespesa) return;
+  _salvandoDespesa = true;
   const data      = document.getElementById('desp-form-data')?.value;
   const categoria = document.getElementById('desp-form-cat')?.value;
   const forma     = document.getElementById('desp-form-forma')?.value || '';
@@ -282,15 +285,16 @@ function salvarDespesa() {
   const obs       = document.getElementById('desp-form-obs')?.value?.trim() || '';
 
   if (!data || !categoria || !descricao || !valorStr) {
-    alert('Preencha todos os campos obrigatórios (*).');
-    return;
+    alert2('Preencha todos os campos obrigatórios (*).', 'error');
+    _salvandoDespesa = false; return;
   }
   const valor = parseFloat(valorStr.replace(',', '.'));
-  if (!valor || valor <= 0) { alert('Valor inválido.'); return; }
+  if (!valor || valor <= 0) { alert2('Valor inválido.', 'error'); _salvandoDespesa = false; return; }
 
   if (!D.despesas) D.despesas = [];
-  D.despesas.push({ id: 'DESP' + Date.now(), data, categoria, forma, descricao, valor, obs });
+  D.despesas.push({ id: _gerarId('DESP'), data, categoria, forma, descricao, valor, obs });
   sv('despesas');
+  _salvandoDespesa = false;
 
   document.getElementById('desp-form-data').value = '';
   document.getElementById('desp-form-desc').value = '';
@@ -349,7 +353,7 @@ function importarDespesasCSV(input) {
         if (m) data = `${m[3]}-${m[2]}-${m[1]}`;
         const valor = parseFloat(valorStr.replace(/\./g, '').replace(',', '.'));
         if (!valor || valor <= 0) { erros++; continue; }
-        D.despesas.push({ id: 'DESP' + Date.now() + '_' + i, data, categoria, descricao, valor, obs });
+        D.despesas.push({ id: _gerarId('DESP'), data, categoria, descricao, valor, obs });
         importados++;
       }
       sv('despesas');
@@ -532,9 +536,9 @@ function salvarEditDespesa() {
   const descricao = document.getElementById('desp-edit-desc')?.value?.trim();
   const valorStr  = document.getElementById('desp-edit-valor')?.value;
   const obs       = document.getElementById('desp-edit-obs')?.value?.trim() || '';
-  if (!data || !categoria || !descricao || !valorStr) { alert('Preencha todos os campos obrigatórios.'); return; }
+  if (!data || !categoria || !descricao || !valorStr) { alert2('Preencha todos os campos obrigatórios.', 'error'); return; }
   const valor = parseFloat(valorStr.toString().replace(',','.'));
-  if (!valor || valor <= 0) { alert('Valor inválido.'); return; }
+  if (!valor || valor <= 0) { alert2('Valor inválido.', 'error'); return; }
   d.data = data; d.categoria = categoria; d.forma = forma;
   d.descricao = descricao; d.valor = valor; d.obs = obs;
   sv('despesas');
