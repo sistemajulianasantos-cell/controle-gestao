@@ -16,16 +16,48 @@
 <div id="login-overlay" style="position:fixed;inset:0;background:#0F1117;z-index:10000;display:flex;align-items:center;justify-content:center">
   <div style="background:#161A26;border:1px solid #2A2F42;border-radius:12px;padding:40px 48px;min-width:320px;text-align:center">
     <div style="font-size:22px;font-weight:600;color:#E8EAF0;margin-bottom:6px">Controle e Gestão</div>
-    <div style="font-size:13px;color:#8B91A8;margin-bottom:28px">Informe a senha de acesso</div>
-    <input id="login-senha" type="password" placeholder="Senha" maxlength="6"
-      style="width:100%;padding:10px 14px;background:#0F1117;border:1px solid #2A2F42;border-radius:8px;color:#E8EAF0;font-size:15px;letter-spacing:4px;text-align:center;box-sizing:border-box;margin-bottom:8px"
-      onkeydown="if(event.key==='Enter')tentarLogin()">
-    <div id="login-erro" style="color:#F7625A;font-size:12px;min-height:16px;margin-bottom:12px"></div>
-    <button onclick="tentarLogin()"
-      style="width:100%;padding:10px;background:#4F8EF7;border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:600;cursor:pointer">
-      Entrar
-    </button>
+
+    <!-- Etapa 1: Senha -->
+    <div id="login-step-senha">
+      <div style="font-size:13px;color:#8B91A8;margin-bottom:28px">Informe a senha de acesso</div>
+      <input id="login-senha" type="password" placeholder="Senha" maxlength="64"
+        style="width:100%;padding:10px 14px;background:#0F1117;border:1px solid #2A2F42;border-radius:8px;color:#E8EAF0;font-size:15px;letter-spacing:4px;text-align:center;box-sizing:border-box;margin-bottom:8px"
+        onkeydown="if(event.key==='Enter')tentarLogin()">
+      <div id="login-erro" style="color:#F7625A;font-size:12px;min-height:16px;margin-bottom:12px"></div>
+      <button onclick="tentarLogin()"
+        style="width:100%;padding:10px;background:#4F8EF7;border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:600;cursor:pointer">
+        Entrar
+      </button>
+    </div>
+
+    <!-- Etapa 2: MFA (oculto até MFA ser exigido) -->
+    <div id="login-step-mfa" style="display:none">
+      <div style="font-size:13px;color:#8B91A8;margin-bottom:6px">Autenticação em dois fatores</div>
+      <div style="font-size:12px;color:#555D7A;margin-bottom:20px">Informe o código do seu app autenticador</div>
+      <input id="login-mfa-input" type="text" inputmode="numeric" maxlength="6" placeholder="000 000"
+        style="width:100%;padding:10px 14px;background:#0F1117;border:1px solid #2A2F42;border-radius:8px;color:#E8EAF0;font-size:22px;letter-spacing:8px;text-align:center;box-sizing:border-box;margin-bottom:8px"
+        onkeydown="if(event.key==='Enter')tentarLoginMFA()">
+      <div id="login-mfa-erro" style="color:#F7625A;font-size:12px;min-height:16px;margin-bottom:12px"></div>
+      <button onclick="tentarLoginMFA()"
+        style="width:100%;padding:10px;background:#4F8EF7;border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px">
+        Verificar
+      </button>
+      <button onclick="cancelarMFA()"
+        style="width:100%;padding:8px;background:transparent;border:1px solid #2A2F42;border-radius:8px;color:#8B91A8;font-size:13px;cursor:pointer">
+        Voltar
+      </button>
+    </div>
   </div>
+</div>
+
+<!-- ═══ AVISO DE SESSÃO ═══ -->
+<div id="sessao-aviso" style="display:none;position:fixed;bottom:20px;right:20px;z-index:9000;background:#161A26;border:1px solid #facc15;border-radius:10px;padding:14px 18px;min-width:280px;box-shadow:0 4px 20px rgba(0,0,0,.5)">
+  <div style="font-size:13px;font-weight:600;color:#facc15;margin-bottom:4px">Sessão prestes a expirar</div>
+  <div style="font-size:12px;color:#8B91A8;margin-bottom:10px">Sua sessão encerrará em breve por inatividade.</div>
+  <button onclick="document.getElementById('sessao-aviso').style.display='none'"
+    style="padding:6px 14px;background:#4F8EF7;border:none;border-radius:6px;color:#fff;font-size:12px;cursor:pointer">
+    Continuar
+  </button>
 </div>
 
 
@@ -186,6 +218,10 @@
         <div class="nav-item" data-page="refconsumo" data-modulo="refconsumo" onclick="go('refconsumo')">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12 L6 8 L9 10 L14 4"/><circle cx="14" cy="4" r="1.5"/><circle cx="9" cy="10" r="1.5"/><circle cx="6" cy="8" r="1.5"/><circle cx="2" cy="12" r="1.5"/></svg>
           Ref. Consumo
+        </div>
+        <div class="nav-item" data-page="seguranca" data-modulo="seguranca" onclick="go('seguranca')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1L2 4v4c0 3.3 2.5 6.4 6 7 3.5-.6 6-3.7 6-7V4L8 1z"/><path d="M5.5 8l2 2 3-3"/></svg>
+          Segurança
         </div>
       </div>
     </div>
@@ -1322,6 +1358,9 @@
       <div id="refconsumo-content"></div>
     </div>
 
+    <!-- ═══ SEGURANÇA ═══ -->
+    <div id="page-seguranca" class="page"></div>
+
   </div><!-- /content -->
 </div><!-- /main -->
 
@@ -1469,6 +1508,8 @@
 <div id="print-area" style="display:none"></div>
 
 <!-- ═══ SCRIPTS ═══ -->
+<!-- QRCode.js para setup de MFA -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <!-- PDF.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <!-- PizZip e Docxtemplater para gerar .docx -->
@@ -1490,8 +1531,8 @@
 <script src="js/festas.js?v=20260530"></script>
 <script src="js/relatorio.js?v=20260530"></script>
 <script src="js/fornecedores.js?v=20260526j"></script>
-<script src="js/nav.js?v=20260601"></script>
-<script src="js/auth.js?v=20260605"></script>
+<script src="js/nav.js?v=20260609"></script>
+<script src="js/auth.js?v=20260608b"></script>
 <script src="js/contratos.js?v=20260606a"></script>
 <script src="js/agenda.js?v=20260606a"></script>
 <script src="js/producao.js?v=20260530"></script>
@@ -1506,6 +1547,7 @@
 <script src="js/orcCalc.js?v=20260603"></script>
 <script src="js/_refConsumoData.js?v=20260601"></script>
 <script src="js/refConsumo.js?v=20260603"></script>
+<script src="js/seguranca-admin.js?v=20260608"></script>
 
 <script type="module">
 import { initializeApp }    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -1641,6 +1683,7 @@ async function carregarDados() {
       window.perfilAtual = perfSalvo;
       document.getElementById("login-overlay").style.display = "none";
       if (typeof aplicarPerfil === "function") aplicarPerfil(perfSalvo);
+      if (typeof _resetarSessao === "function") _resetarSessao();
     }
     // Re-render página ativa após dados chegarem
     window._dadosCarregados = true;

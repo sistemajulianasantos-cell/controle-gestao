@@ -20,6 +20,7 @@ var pageInfo={
   equipe:['Equipe','Cadastro e escala de colaboradores'],
   orcamento:['Orcamento vs Real','Comparativo custo orcado e real'],
   refconsumo:['Referência de Consumo','Estatísticas históricas por tipo de evento e insumo'],
+  seguranca: ['Segurança','Gestão de senhas e autenticação em dois fatores'],
 };
 // pageRenders como função para evitar referência antecipada
 var pageRenders={};
@@ -46,16 +47,24 @@ function initPageRenders(){
     equipe:rEquipe,
     orcamento:rOrcamento,
     refconsumo:rRefConsumo,
+    seguranca: rSeguranca,
   };
 }
 function go(page){
+  // Guard: exige login e acesso ao módulo
+  if(typeof perfilAtual !== 'undefined' && !perfilAtual){
+    document.getElementById('login-overlay').style.display='flex';
+    return;
+  }
   if(page==='nova-festa'){go('festas');setFestaView('novo');return;}
+  const navItem=document.querySelector(`.nav-item[data-page="${page}"]`);
+  const modulo=navItem&&navItem.getAttribute('data-modulo');
+  if(modulo && typeof ACESSO!=='undefined' && perfilAtual && !(ACESSO[perfilAtual]||[]).includes(modulo)) return;
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.querySelectorAll('.nav-group').forEach(g=>g.classList.remove('open','active-group'));
   const pageEl=document.getElementById('page-'+page);if(!pageEl)return;
   pageEl.classList.add('active');
-  const navItem=document.querySelector(`.nav-item[data-page="${page}"]`);
   if(navItem){navItem.classList.add('active');const g=navItem.closest('.nav-group');if(g){g.classList.add('open','active-group');}}
   const[t,s]=pageInfo[page]||['',''];
   document.getElementById('ptitle').textContent=t;
@@ -87,6 +96,7 @@ function closeM(id){document.getElementById(id).classList.remove('open')}
 function init(){
   initPageRenders();
   applyTheme();
+  if (typeof _iniciarMonitorAtividade === 'function') _iniciarMonitorAtividade();
   const now=new Date();
   document.getElementById('tdate').textContent=now.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
   document.getElementById('nav-date').textContent='v2.0 — '+now.getFullYear();
