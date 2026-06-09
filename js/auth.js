@@ -8,7 +8,7 @@ var ACESSO = {
   operacional: ['contratos','producao','separacao','agenda']
 };
 
-let perfilAtual = null;
+var perfilAtual = null;
 
 // ── SHA-256 ───────────────────────────────────────────────────────────────────
 async function hashSenha(s) {
