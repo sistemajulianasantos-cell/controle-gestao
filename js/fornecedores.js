@@ -104,10 +104,17 @@ function salvarEditForn(){
   sv('fornecedores');
   // Sincroniza categoria e nome em todas as despesas vinculadas
   let atualizadas=0;
+  const nomeOrigLower=nomeOrig.trim().toLowerCase();
   (D.despesas||[]).forEach(d=>{
-    if(d.fornecedor===nomeOrig){
-      if(novoNome!==nomeOrig) d.fornecedor=novoNome;
-      if(novaCategoria && novaCategoria!==catAnterior) d.categoria=novaCategoria;
+    const matchForn=d.fornecedor===nomeOrig;
+    // Despesas importadas do PDF não têm d.fornecedor — compara pela descrição
+    const descLower=(d.descricao||'').trim().toLowerCase();
+    const matchDesc=!d.fornecedor && nomeOrigLower.length>=3 &&
+      (descLower===nomeOrigLower || descLower.startsWith(nomeOrigLower+' '));
+    if(matchForn||matchDesc){
+      if(matchDesc) d.fornecedor=novoNome; // vincula para futuras sincronizações
+      else if(novoNome!==nomeOrig) d.fornecedor=novoNome;
+      if(novaCategoria) d.categoria=novaCategoria;
       atualizadas++;
     }
   });
