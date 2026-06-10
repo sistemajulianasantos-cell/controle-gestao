@@ -51,11 +51,11 @@ function _populateFornecedoresDespesas() {
 }
 
 function _autoFillCatFromForn(val, catId) {
-  if(!val) return;
+  const el=document.getElementById(catId); if(!el) return;
+  if(!val){ el.disabled=false; return; }
   const forn=(D.fornecedores||[]).find(f=>f.nome===val);
-  if(forn && forn.categoria){
-    const el=document.getElementById(catId); if(el) el.value=forn.categoria;
-  }
+  if(forn && forn.categoria){ el.value=forn.categoria; }
+  el.disabled=!!forn; // bloqueia se há fornecedor cadastrado (independente de ter categoria)
 }
 
 function _chaveDesp(data, descricao, valor) {
@@ -368,22 +368,26 @@ function rDespesasLista() {
     return;
   }
 
-  const catsOpts = _getCategoriasDespesas().map(c => `<option value="${c}">${c}</option>`).join('');
   lista.forEach(d => {
     const tr = document.createElement('tr');
     tr.style.borderBottom = '1px solid #1E2235';
     const forma = _detectarFormaDespesa(d);
     const desc  = _descricaoSemPrefixo(d);
     const descEsc = (d.descricao||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
-    const catSel = _getCategoriasDespesas().map(c=>`<option value="${c}"${c===d.categoria?' selected':''}>${c}</option>`).join('');
+    const temForn = !!(d.fornecedor && (D.fornecedores||[]).find(f=>f.nome===d.fornecedor));
+    const catCell = temForn
+      ? `<td style="padding:10px 12px" title="Categoria gerenciada pelo fornecedor">
+           <span class="tag" style="background:#2A2F42;color:#CDD3E3;border:none;opacity:.75">${d.categoria||'—'}</span>
+         </td>`
+      : `<td style="padding:6px 12px">
+           <select onchange="editarCategoriaDespesa('${d.id}','${descEsc}',this.value)"
+             style="background:#2A2F42;color:#CDD3E3;border:1px solid #3A4055;border-radius:4px;font-size:11px;padding:2px 6px;cursor:pointer;max-width:130px">
+             ${_getCategoriasDespesas().map(c=>`<option value="${c}"${c===d.categoria?' selected':''}>${c}</option>`).join('')}
+           </select>
+         </td>`;
     tr.innerHTML = `
       <td style="padding:10px 12px">${fd(d.data) || '—'}</td>
-      <td style="padding:6px 12px">
-        <select onchange="editarCategoriaDespesa('${d.id}','${descEsc}',this.value)"
-          style="background:#2A2F42;color:#CDD3E3;border:1px solid #3A4055;border-radius:4px;font-size:11px;padding:2px 6px;cursor:pointer;max-width:130px">
-          ${catSel}
-        </select>
-      </td>
+      ${catCell}
       <td style="padding:10px 12px">${_formaTag(forma)}</td>
       <td style="padding:10px 12px">${desc || '—'}${d.fornecedor?`<div style="font-size:10px;color:#8B91A8;margin-top:2px">${d.fornecedor}</div>`:''}</td>
       <td style="padding:10px 12px;color:#F74F6B;font-weight:600">${fR(d.valor || 0)}</td>
@@ -674,6 +678,9 @@ function abrirEditDespesa(id) {
   document.getElementById('desp-edit-desc').value  = _descricaoSemPrefixo(d);
   document.getElementById('desp-edit-valor').value = d.valor || '';
   document.getElementById('desp-edit-obs').value   = d.obs || '';
+  // Bloqueia categoria se há fornecedor vinculado
+  const catEditEl = document.getElementById('desp-edit-cat');
+  if(catEditEl) catEditEl.disabled = !!(d.fornecedor && (D.fornecedores||[]).find(f=>f.nome===d.fornecedor));
   document.getElementById('m-edit-despesa').style.display = 'flex';
 }
 
