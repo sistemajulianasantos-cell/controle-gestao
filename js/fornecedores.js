@@ -38,7 +38,29 @@ function _copiarTexto(txt, btn){
   }).catch(()=>alert('Copie manualmente: '+txt));
 }
 
+function _importarFornecedoresDasDespesas(){
+  if(!D.despesas) return;
+  if(!D.fornecedores) D.fornecedores=[];
+  const nomesExist=new Set(D.fornecedores.map(f=>f.nome.trim().toLowerCase()));
+  const novos=new Set();
+  D.despesas.forEach(d=>{
+    if(d.pagamentoEquipeId) return; // ignora pagamentos de equipe
+    // Usa d.fornecedor se preenchido, senão usa a descrição (imports PDF)
+    const nome=(d.fornecedor||d.descricao||'').trim();
+    if(!nome) return;
+    if(nome.includes(' – ')||nome.includes(' - ')) return; // ignora formato "Colab – Evento"
+    if(!nomesExist.has(nome.toLowerCase())) novos.add(nome);
+  });
+  if(!novos.size) return;
+  novos.forEach(nome=>{
+    D.fornecedores.push({nome,categoria:'',tel:'',contato:'',pix:'',codBarras:'',obs:'',criadoEm:td()});
+    nomesExist.add(nome.toLowerCase());
+  });
+  sv('fornecedores');
+}
+
 function rFornecedores(){
+  _importarFornecedoresDasDespesas();
   const ct=document.getElementById('forn-count'); if(ct) ct.textContent=D.fornecedores.length+' cadastrado(s)';
   document.getElementById('tab-forn').innerHTML=D.fornecedores.map(f=>{
     const compras=(D.entradas||[]).filter(e=>e.forn===f.nome).length;
