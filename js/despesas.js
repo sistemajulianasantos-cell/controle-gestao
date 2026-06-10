@@ -35,12 +35,76 @@ function _formaTag(forma) {
 
 function _populateCategoriasSelects() {
   const cats = _getCategoriasDespesas();
-  ['desp-form-cat', 'desp-edit-cat'].forEach(id => {
+  ['desp-form-cat', 'desp-edit-cat', 'fn-cat', 'fn-edit-cat'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     const val = el.value;
     el.innerHTML = '<option value="">Selecione...</option>' + cats.map(c => `<option value="${c}" ${c===val?'selected':''}>${c}</option>`).join('');
   });
+}
+
+function _populateFornecedoresDespesas() {
+  const opts = '<option value="">Nenhum</option>' + (D.fornecedores||[]).map(f=>`<option value="${f.nome}">${f.nome}</option>`).join('');
+  ['desp-form-forn','desp-edit-forn'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.innerHTML=opts;
+  });
+}
+
+function _autoFillCatFromForn(val, catId) {
+  if(!val) return;
+  const forn=(D.fornecedores||[]).find(f=>f.nome===val);
+  if(forn && forn.categoria){
+    const el=document.getElementById(catId); if(el) el.value=forn.categoria;
+  }
+}
+
+function _chaveDesp(data, descricao, valor) {
+  return `${data}|${(descricao||'').trim().toLowerCase()}|${Math.round((valor||0)*100)}`;
+}
+
+function _isDespesaDuplicada(data, descricao, valor) {
+  const k = _chaveDesp(data, descricao, valor);
+  return (D.despesas||[]).some(d => _chaveDesp(d.data, d.descricao, d.valor) === k);
+}
+
+function removerDuplicatasDespesas() {
+  if (!confirm('Remover despesas com mesma data, descrição e valor (mantém a primeira)?')) return;
+  const antes = (D.despesas||[]).length;
+  if (!antes) { alert2('Nenhuma despesa cadastrada.'); return; }
+  const seen = new Set();
+  D.despesas = D.despesas.filter(d => {
+    const k = _chaveDesp(d.data, d.descricao, d.valor);
+    if (seen.has(k)) return false;
+    seen.add(k); return true;
+  });
+  const removidos = antes - D.despesas.length;
+  if (!removidos) { alert2('Nenhuma duplicata encontrada.'); return; }
+  sv('despesas');
+  rDespesasLista();
+  alert2(`${removidos} duplicata(s) removida(s)!`, 'success');
+}
+
+function _registrarPagamentoEquipeComoDespesa(p) {
+  if (!D.despesas) D.despesas = [];
+  if (D.despesas.some(d => d.pagamentoEquipeId === p.id)) return;
+  const cats = _getCategoriasDespesas();
+  const cat  = cats.includes('Pessoal') ? 'Pessoal' : (cats[0] || 'Pessoal');
+  D.despesas.push({
+    id:               'DESP_PE_' + p.id,
+    data:             p.dataPagamento || p.dataEvento || new Date().toISOString().slice(0,10),
+    categoria:        cat,
+    descricao:        `${p.nomeColab} – ${p.nomeEvento}`,
+    valor:            p.total,
+    obs:              `Pgto equipe${p.cargo?' – '+p.cargo:''}`,
+    pagamentoEquipeId: p.id,
+    fornecedor:       '',
+    forma:            'pix_manual',
+  });
+}
+
+function _removerDespesaPagamentoEquipe(pagId) {
+  if (!D.despesas) return;
+  D.despesas = D.despesas.filter(d => d.pagamentoEquipeId !== pagId);
 }
 
 function rDespesas() {
@@ -53,6 +117,7 @@ function rDespesas() {
     btn.classList.toggle('active', btn.dataset.despTab === subView);
   });
   _populateCategoriasSelects();
+  _populateFornecedoresDespesas();
   if (subView === 'kpi') rDespesasKpi();
   else if (subView === 'lista') rDespesasLista();
   else if (subView === 'categorias') rDespesasCategorias();
@@ -237,7 +302,7 @@ function rDespesasLista() {
     if (mes && !ref.startsWith(`${ano}-${mes}`)) return false;
     if (catFiltro && d.categoria !== catFiltro) return false;
     return true;
-  }).sort((a, b) => (b.data || '').localeCompare(a.data || ''));
+  }).sort((a, b) => (a.data || '').localeCompare(b.data || ''));
 
   const tbody = document.getElementById('desp-lista-body');
   if (!tbody) return;
@@ -261,7 +326,7 @@ function rDespesasLista() {
       <td style="padding:10px 12px">${fd(d.data) || '—'}</td>
       <td style="padding:10px 12px"><span class="tag" style="background:#2A2F42;color:#CDD3E3;border:none">${d.categoria || '—'}</span></td>
       <td style="padding:10px 12px">${_formaTag(forma)}</td>
-      <td style="padding:10px 12px">${desc || '—'}</td>
+      <td style="padding:10px 12px">${desc || '—'}${d.fornecedor?`<div style="font-size:10px;color:#8B91A8;margin-top:2px">${d.fornecedor}</div>`:''}</td>
       <td style="padding:10px 12px;color:#F74F6B;font-weight:600">${fR(d.valor || 0)}</td>
       <td style="padding:10px 12px;color:#8B91A8;font-size:12px">${d.obs || '—'}</td>
       <td style="padding:10px 12px;white-space:nowrap;display:flex;gap:6px">
@@ -277,12 +342,13 @@ var _salvandoDespesa = false;
 function salvarDespesa() {
   if (_salvandoDespesa) return;
   _salvandoDespesa = true;
-  const data      = document.getElementById('desp-form-data')?.value;
-  const categoria = document.getElementById('desp-form-cat')?.value;
-  const forma     = document.getElementById('desp-form-forma')?.value || '';
-  const descricao = document.getElementById('desp-form-desc')?.value?.trim();
-  const valorStr  = document.getElementById('desp-form-valor')?.value;
-  const obs       = document.getElementById('desp-form-obs')?.value?.trim() || '';
+  const data       = document.getElementById('desp-form-data')?.value;
+  const categoria  = document.getElementById('desp-form-cat')?.value;
+  const forma      = document.getElementById('desp-form-forma')?.value || '';
+  const fornecedor = document.getElementById('desp-form-forn')?.value || '';
+  const descricao  = document.getElementById('desp-form-desc')?.value?.trim();
+  const valorStr   = document.getElementById('desp-form-valor')?.value;
+  const obs        = document.getElementById('desp-form-obs')?.value?.trim() || '';
 
   if (!data || !categoria || !descricao || !valorStr) {
     alert2('Preencha todos os campos obrigatórios (*).', 'error');
@@ -292,7 +358,7 @@ function salvarDespesa() {
   if (!valor || valor <= 0) { alert2('Valor inválido.', 'error'); _salvandoDespesa = false; return; }
 
   if (!D.despesas) D.despesas = [];
-  D.despesas.push({ id: _gerarId('DESP'), data, categoria, forma, descricao, valor, obs });
+  D.despesas.push({ id: _gerarId('DESP'), data, categoria, forma, fornecedor, descricao, valor, obs });
   sv('despesas');
   _salvandoDespesa = false;
 
@@ -302,6 +368,8 @@ function salvarDespesa() {
   document.getElementById('desp-form-obs').value = '';
   const formaEl = document.getElementById('desp-form-forma');
   if (formaEl) formaEl.value = '';
+  const fornEl = document.getElementById('desp-form-forn');
+  if (fornEl) fornEl.value = '';
 
   alert2('Despesa lançada com sucesso!');
   despSetView('lista');
@@ -340,7 +408,7 @@ function importarDespesasCSV(input) {
       const linhas = text.split(/\r?\n/).filter(l => l.trim());
       if (!linhas.length) { alert('Arquivo vazio.'); return; }
       const inicio = linhas[0].toUpperCase().includes('DATA') ? 1 : 0;
-      let importados = 0, erros = 0;
+      let importados = 0, erros = 0, pulados = 0;
       if (!D.despesas) D.despesas = [];
       for (let i = inicio; i < linhas.length; i++) {
         const cols = linhas[i].split(';');
@@ -353,11 +421,12 @@ function importarDespesasCSV(input) {
         if (m) data = `${m[3]}-${m[2]}-${m[1]}`;
         const valor = parseFloat(valorStr.replace(/\./g, '').replace(',', '.'));
         if (!valor || valor <= 0) { erros++; continue; }
+        if (_isDespesaDuplicada(data, descricao, valor)) { pulados++; continue; }
         D.despesas.push({ id: _gerarId('DESP'), data, categoria, descricao, valor, obs });
         importados++;
       }
       sv('despesas');
-      alert(`✅ ${importados} despesa(s) importada(s) com sucesso!${erros ? `\n⚠️ ${erros} linha(s) ignorada(s).` : ''}`);
+      alert(`✅ ${importados} despesa(s) importada(s)!${pulados ? `\n🔁 ${pulados} duplicata(s) ignorada(s).` : ''}${erros ? `\n⚠️ ${erros} linha(s) com erro.` : ''}`);
       input.value = '';
       despSetView('lista');
     } catch (err) {
@@ -496,9 +565,11 @@ function importarDespesasPDF(input) {
       }
 
       if (!D.despesas) D.despesas = [];
-      D.despesas.push(...despesas);
+      const novasPDF = despesas.filter(d => !_isDespesaDuplicada(d.data, d.descricao, d.valor));
+      const puladasPDF = despesas.length - novasPDF.length;
+      D.despesas.push(...novasPDF);
       sv('despesas');
-      alert(`✅ ${despesas.length} despesa(s) importada(s) do PDF!`);
+      alert(`✅ ${novasPDF.length} despesa(s) importada(s) do PDF!${puladasPDF ? `\n🔁 ${puladasPDF} duplicata(s) ignorada(s).` : ''}`);
       input.value = '';
       despSetView('lista');
 
@@ -516,10 +587,12 @@ function abrirEditDespesa(id) {
   const d = (D.despesas||[]).find(x=>x.id===id);
   if (!d) return;
   _populateCategoriasSelects();
+  _populateFornecedoresDespesas();
   document.getElementById('desp-edit-id').value    = id;
   document.getElementById('desp-edit-data').value  = d.data || '';
   document.getElementById('desp-edit-cat').value   = d.categoria || '';
   document.getElementById('desp-edit-forma').value = d.forma || _detectarFormaDespesa(d);
+  document.getElementById('desp-edit-forn').value  = d.fornecedor || '';
   document.getElementById('desp-edit-desc').value  = _descricaoSemPrefixo(d);
   document.getElementById('desp-edit-valor').value = d.valor || '';
   document.getElementById('desp-edit-obs').value   = d.obs || '';
@@ -530,17 +603,18 @@ function salvarEditDespesa() {
   const id        = document.getElementById('desp-edit-id')?.value;
   const d         = (D.despesas||[]).find(x=>x.id===id);
   if (!d) return;
-  const data      = document.getElementById('desp-edit-data')?.value;
-  const categoria = document.getElementById('desp-edit-cat')?.value;
-  const forma     = document.getElementById('desp-edit-forma')?.value || '';
-  const descricao = document.getElementById('desp-edit-desc')?.value?.trim();
-  const valorStr  = document.getElementById('desp-edit-valor')?.value;
-  const obs       = document.getElementById('desp-edit-obs')?.value?.trim() || '';
+  const data       = document.getElementById('desp-edit-data')?.value;
+  const categoria  = document.getElementById('desp-edit-cat')?.value;
+  const forma      = document.getElementById('desp-edit-forma')?.value || '';
+  const fornecedor = document.getElementById('desp-edit-forn')?.value || '';
+  const descricao  = document.getElementById('desp-edit-desc')?.value?.trim();
+  const valorStr   = document.getElementById('desp-edit-valor')?.value;
+  const obs        = document.getElementById('desp-edit-obs')?.value?.trim() || '';
   if (!data || !categoria || !descricao || !valorStr) { alert2('Preencha todos os campos obrigatórios.', 'error'); return; }
   const valor = parseFloat(valorStr.toString().replace(',','.'));
   if (!valor || valor <= 0) { alert2('Valor inválido.', 'error'); return; }
   d.data = data; d.categoria = categoria; d.forma = forma;
-  d.descricao = descricao; d.valor = valor; d.obs = obs;
+  d.fornecedor = fornecedor; d.descricao = descricao; d.valor = valor; d.obs = obs;
   sv('despesas');
   document.getElementById('m-edit-despesa').style.display = 'none';
   rDespesasLista();
@@ -628,7 +702,7 @@ function imprimirDespesas() {
     if (mes && !ref.startsWith(`${ano}-${mes.padStart(2,'0')}`)) return false;
     if (catFiltro && d.categoria !== catFiltro) return false;
     return true;
-  }).sort((a,b) => (b.data||'').localeCompare(a.data||''));
+  }).sort((a,b) => (a.data||'').localeCompare(b.data||''));
 
   if (!lista.length) { alert('Nenhuma despesa para imprimir com os filtros atuais.'); return; }
 
@@ -675,7 +749,7 @@ function imprimirDespesas() {
     const grupos = {};
     lista.forEach(d => { const c = d.categoria||'Outros'; if (!grupos[c]) grupos[c]=[]; grupos[c].push(d); });
     Object.keys(grupos).sort().forEach(cat => {
-      const itens  = grupos[cat].sort((a,b)=>(b.data||'').localeCompare(a.data||''));
+      const itens  = grupos[cat].sort((a,b)=>(a.data||'').localeCompare(b.data||''));
       const subTot = itens.reduce((s,d)=>s+(d.valor||0),0);
       const linhas = itens.map(d => {
         const forma = _detectarFormaDespesa(d);

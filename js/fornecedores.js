@@ -6,22 +6,118 @@ function setFornView(v){
     document.getElementById('forn-v-'+x).classList.toggle('active',x===v);
     document.getElementById('forn-view-'+x).style.display=x===v?'block':'none';
   });
-  if(v==='lista')rFornecedores();
+  if(v==='lista') rFornecedores();
+  if(v==='novo') _populateCategoriasSelects && _populateCategoriasSelects();
 }
 function salvarForn(){
   const nome=document.getElementById('fn-nome').value.trim();
   if(!nome){alert2('Nome é obrigatório','error');return;}
   if(D.fornecedores.find(f=>f.nome.toLowerCase()===nome.toLowerCase())){alert2('Fornecedor já cadastrado','error');return;}
-  D.fornecedores.push({nome,tel:document.getElementById('fn-tel').value,contato:document.getElementById('fn-contato').value,obs:document.getElementById('fn-obs').value,criadoEm:td()});
-  sv('fornecedores');['fn-nome','fn-tel','fn-contato','fn-obs'].forEach(id=>document.getElementById(id).value='');
-  populateSels();alert2('Fornecedor cadastrado!');setFornView('lista');
+  D.fornecedores.push({
+    nome,
+    categoria: document.getElementById('fn-cat').value,
+    tel:       document.getElementById('fn-tel').value,
+    contato:   document.getElementById('fn-contato').value,
+    pix:       document.getElementById('fn-pix').value.trim(),
+    codBarras: document.getElementById('fn-cod-barras').value.trim(),
+    obs:       document.getElementById('fn-obs').value,
+    criadoEm:  td()
+  });
+  sv('fornecedores');
+  ['fn-nome','fn-cat','fn-tel','fn-contato','fn-pix','fn-cod-barras','fn-obs'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  populateSels(); alert2('Fornecedor cadastrado!'); setFornView('lista');
 }
+
+function _copiarTexto(txt, btn){
+  navigator.clipboard.writeText(txt).then(()=>{
+    const orig=btn.textContent; btn.textContent='✓'; setTimeout(()=>btn.textContent=orig, 1500);
+  }).catch(()=>alert('Copie manualmente: '+txt));
+}
+
 function rFornecedores(){
-  const ct=document.getElementById('forn-count');if(ct)ct.textContent=D.fornecedores.length+' cadastrado(s)';
+  const ct=document.getElementById('forn-count'); if(ct) ct.textContent=D.fornecedores.length+' cadastrado(s)';
   document.getElementById('tab-forn').innerHTML=D.fornecedores.map(f=>{
-    const compras=D.entradas.filter(e=>e.forn===f.nome).length;
-    return`<tr><td class="bold">${f.nome}</td><td style="color:var(--text2)">${f.contato||'—'}</td><td style="font-family:var(--mono);color:var(--text2)">${f.tel||'—'}</td><td><span class="badge b-blue">${compras} lançamento(s)</span></td><td style="color:var(--text3);font-size:10px">${f.obs||'—'}</td></tr>`;
-  }).join('')||'<tr><td colspan="5" style="color:var(--text3);text-align:center;padding:16px">Nenhum fornecedor cadastrado</td></tr>';
+    const compras=(D.entradas||[]).filter(e=>e.forn===f.nome).length;
+    const pixCell = f.pix
+      ? `<td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${f.pix}">
+           <span style="color:var(--text2)">${f.pix.length>18?f.pix.slice(0,18)+'…':f.pix}</span>
+           <button onclick="_copiarTexto('${f.pix.replace(/'/g,"\\'")}',this)" style="background:none;border:none;color:#4F8EF7;cursor:pointer;font-size:11px;padding:0 3px" title="Copiar">⎘</button>
+         </td>`
+      : `<td style="color:var(--text3);font-size:11px">—</td>`;
+    const barCell = f.codBarras
+      ? `<td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${f.codBarras}">
+           <span style="color:var(--text2)">${f.codBarras.length>16?f.codBarras.slice(0,16)+'…':f.codBarras}</span>
+           <button onclick="_copiarTexto('${f.codBarras.replace(/'/g,"\\'")}',this)" style="background:none;border:none;color:#4F8EF7;cursor:pointer;font-size:11px;padding:0 3px" title="Copiar">⎘</button>
+         </td>`
+      : `<td style="color:var(--text3);font-size:11px">—</td>`;
+    const catTag = f.categoria
+      ? `<span class="tag" style="background:#2A2F42;color:#CDD3E3;border:none;font-size:10px">${f.categoria}</span>`
+      : `<span style="color:var(--text3);font-size:11px">—</span>`;
+    return `<tr>
+      <td class="bold">${f.nome}</td>
+      <td>${catTag}</td>
+      <td style="color:var(--text2)">${f.contato||'—'}</td>
+      <td style="font-family:var(--mono);color:var(--text2)">${f.tel||'—'}</td>
+      ${pixCell}
+      ${barCell}
+      <td><span class="badge b-blue">${compras} lançamento(s)</span></td>
+      <td><button class="btn-sm" onclick="abrirEditForn('${f.nome.replace(/'/g,"\\'")}')">✏️</button></td>
+    </tr>`;
+  }).join('')||`<tr><td colspan="8" style="color:var(--text3);text-align:center;padding:16px">Nenhum fornecedor cadastrado</td></tr>`;
+}
+
+function abrirEditForn(nomeOrig){
+  const f=(D.fornecedores||[]).find(x=>x.nome===nomeOrig);
+  if(!f) return;
+  if(typeof _populateCategoriasSelects==='function') _populateCategoriasSelects();
+  document.getElementById('fn-edit-nome-orig').value = nomeOrig;
+  document.getElementById('fn-edit-nome').value      = f.nome;
+  document.getElementById('fn-edit-cat').value       = f.categoria||'';
+  document.getElementById('fn-edit-tel').value       = f.tel||'';
+  document.getElementById('fn-edit-contato').value   = f.contato||'';
+  document.getElementById('fn-edit-obs').value       = f.obs||'';
+  document.getElementById('fn-edit-pix').value       = f.pix||'';
+  document.getElementById('fn-edit-cod-barras').value= f.codBarras||'';
+  document.getElementById('fn-edit-aviso-cat').style.display='none';
+  document.getElementById('m-edit-forn').style.display='flex';
+}
+
+function salvarEditForn(){
+  const nomeOrig = document.getElementById('fn-edit-nome-orig').value;
+  const f=(D.fornecedores||[]).find(x=>x.nome===nomeOrig);
+  if(!f){alert2('Fornecedor não encontrado.','error');return;}
+  const novoNome     = document.getElementById('fn-edit-nome').value.trim();
+  const novaCategoria= document.getElementById('fn-edit-cat').value;
+  if(!novoNome){alert2('Nome é obrigatório.','error');return;}
+  const catAnterior = f.categoria||'';
+  f.nome        = novoNome;
+  f.categoria   = novaCategoria;
+  f.tel         = document.getElementById('fn-edit-tel').value;
+  f.contato     = document.getElementById('fn-edit-contato').value;
+  f.obs         = document.getElementById('fn-edit-obs').value;
+  f.pix         = document.getElementById('fn-edit-pix').value.trim();
+  f.codBarras   = document.getElementById('fn-edit-cod-barras').value.trim();
+  sv('fornecedores');
+  // Sincroniza categoria e nome em todas as despesas vinculadas
+  let atualizadas=0;
+  (D.despesas||[]).forEach(d=>{
+    if(d.fornecedor===nomeOrig){
+      if(novoNome!==nomeOrig) d.fornecedor=novoNome;
+      if(novaCategoria && novaCategoria!==catAnterior) d.categoria=novaCategoria;
+      atualizadas++;
+    }
+  });
+  if(atualizadas) sv('despesas');
+  populateSels();
+  if(typeof _populateFornecedoresDespesas==='function') _populateFornecedoresDespesas();
+  document.getElementById('m-edit-forn').style.display='none';
+  const msg = atualizadas
+    ? `Fornecedor atualizado! ${atualizadas} despesa(s) sincronizada(s).`
+    : 'Fornecedor atualizado!';
+  alert2(msg);
+  rFornecedores();
 }
 
 // ─── COMPARATIVO DE PREÇOS ───────────────────────────────────────────────────

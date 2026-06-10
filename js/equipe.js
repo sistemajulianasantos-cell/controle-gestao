@@ -1707,6 +1707,12 @@ function marcarPagamentoPago(id) {
   p.status = p.status === 'pago' ? 'pendente' : 'pago';
   p.dataPagamento = p.status === 'pago' ? new Date().toISOString().slice(0,10) : null;
   sv('pagamentosEquipe');
+  if (p.status === 'pago') {
+    if (typeof _registrarPagamentoEquipeComoDespesa === 'function') _registrarPagamentoEquipeComoDespesa(p);
+  } else {
+    if (typeof _removerDespesaPagamentoEquipe === 'function') _removerDespesaPagamentoEquipe(p.id);
+  }
+  sv('despesas');
   rEquipePagamentos();
 }
 
@@ -1715,16 +1721,41 @@ function marcarTodosEventoPago(contratoId, novoStatus) {
   (D.pagamentosEquipe||[]).filter(p => p.contratoId === contratoId).forEach(p => {
     p.status = novoStatus;
     p.dataPagamento = novoStatus === 'pago' ? hoje : null;
+    if (novoStatus === 'pago') {
+      if (typeof _registrarPagamentoEquipeComoDespesa === 'function') _registrarPagamentoEquipeComoDespesa(p);
+    } else {
+      if (typeof _removerDespesaPagamentoEquipe === 'function') _removerDespesaPagamentoEquipe(p.id);
+    }
   });
   sv('pagamentosEquipe');
+  sv('despesas');
   rEquipePagamentos();
 }
 
 function excluirPagamentosEvento(contratoId) {
   if (!confirm('Remover todos os pagamentos autorizados deste evento?')) return;
+  (D.pagamentosEquipe||[]).filter(p => p.contratoId === contratoId).forEach(p => {
+    if (typeof _removerDespesaPagamentoEquipe === 'function') _removerDespesaPagamentoEquipe(p.id);
+  });
   D.pagamentosEquipe = (D.pagamentosEquipe||[]).filter(p => p.contratoId !== contratoId);
   sv('pagamentosEquipe');
+  sv('despesas');
   rEquipePagamentos();
+}
+
+function sincronizarPagamentosComDespesas() {
+  const pagos = (D.pagamentosEquipe||[]).filter(p => p.status === 'pago');
+  if (!pagos.length) { alert2('Nenhum pagamento marcado como pago.'); return; }
+  let criados = 0;
+  pagos.forEach(p => {
+    if (typeof _registrarPagamentoEquipeComoDespesa === 'function') {
+      const antes = (D.despesas||[]).length;
+      _registrarPagamentoEquipeComoDespesa(p);
+      if ((D.despesas||[]).length > antes) criados++;
+    }
+  });
+  sv('despesas');
+  alert2(criados ? `${criados} despesa(s) lançada(s) com sucesso!` : 'Todos os pagamentos já estavam nas despesas.', 'success');
 }
 
 function sincronizarDadosColaboradores() {
@@ -1789,6 +1820,8 @@ function rEquipePagamentos() {
         <input id="eq-pg-busca" type="text" placeholder="Buscar evento ou colaborador..."
           value="${busca}" oninput="rEquipePagamentos()"
           style="padding:6px 10px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-size:12px;width:220px">
+        <button class="btn-sm" onclick="sincronizarPagamentosComDespesas()"
+          style="background:var(--bg2);border:1px solid var(--border2)" title="Lança os pagamentos já marcados como pagos nas Despesas da empresa">📤 Lançar nas Despesas</button>
         <button class="btn-sm" onclick="sincronizarDadosColaboradores()"
           style="background:var(--bg2);border:1px solid var(--border2)" title="Atualiza chave PIX e nome de todos os pagamentos com os dados atuais do cadastro">🔄 Atualizar cadastro</button>
         <button class="btn-sm" onclick="imprimirPagamentosEquipe()"
