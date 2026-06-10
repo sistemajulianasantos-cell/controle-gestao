@@ -112,7 +112,18 @@ function _removerDespesasDoEvento(contratoId) {
   D.despesas = D.despesas.filter(d => !d.pagamentoEquipeId?.startsWith('PE_' + contratoId + '_'));
 }
 
+function _limparDescricoesParcelas() {
+  if (!D.despesas) return;
+  let changed = false;
+  D.despesas.forEach(d => {
+    const nova = (d.descricao || '').replace(/\s*[-–]\s*\d+\/\d+\s*$/, '').trim();
+    if (nova !== d.descricao) { d.descricao = nova; changed = true; }
+  });
+  if (changed) sv('despesas');
+}
+
 function rDespesas() {
+  _limparDescricoesParcelas();
   const subView = document.getElementById('desp-sub-view')?.value || 'kpi';
   ['kpi', 'lancar', 'lista', 'importar', 'categorias'].forEach(v => {
     const el = document.getElementById('desp-view-' + v);
@@ -544,10 +555,11 @@ function importarDespesasPDF(input) {
         const valor = parseFloat(valorStr.replace(/\./g, '').replace(',', '.'));
         if (!valor || valor <= 0) continue;
 
-        // Descrição = texto sem datas e sem valores
+        // Descrição = texto sem datas, valores e sufixo de parcela (ex: "- 1/1")
         const descricao = fullLine
           .replace(/\d{2}\/\d{2}\/\d{4}/g, '')
           .replace(/\d{1,3}(?:\.\d{3})*,\d{2}/g, '')
+          .replace(/\s*[-–]\s*\d+\/\d+\s*$/, '')
           .replace(/\s+/g, ' ').trim() || 'Sem descrição';
 
         despesas.push({
