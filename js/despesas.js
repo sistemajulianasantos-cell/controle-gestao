@@ -368,14 +368,22 @@ function rDespesasLista() {
     return;
   }
 
+  const catsOpts = _getCategoriasDespesas().map(c => `<option value="${c}">${c}</option>`).join('');
   lista.forEach(d => {
     const tr = document.createElement('tr');
     tr.style.borderBottom = '1px solid #1E2235';
     const forma = _detectarFormaDespesa(d);
     const desc  = _descricaoSemPrefixo(d);
+    const descEsc = (d.descricao||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    const catSel = _getCategoriasDespesas().map(c=>`<option value="${c}"${c===d.categoria?' selected':''}>${c}</option>`).join('');
     tr.innerHTML = `
       <td style="padding:10px 12px">${fd(d.data) || '—'}</td>
-      <td style="padding:10px 12px"><span class="tag" style="background:#2A2F42;color:#CDD3E3;border:none">${d.categoria || '—'}</span></td>
+      <td style="padding:6px 12px">
+        <select onchange="editarCategoriaDespesa('${d.id}','${descEsc}',this.value)"
+          style="background:#2A2F42;color:#CDD3E3;border:1px solid #3A4055;border-radius:4px;font-size:11px;padding:2px 6px;cursor:pointer;max-width:130px">
+          ${catSel}
+        </select>
+      </td>
       <td style="padding:10px 12px">${_formaTag(forma)}</td>
       <td style="padding:10px 12px">${desc || '—'}${d.fornecedor?`<div style="font-size:10px;color:#8B91A8;margin-top:2px">${d.fornecedor}</div>`:''}</td>
       <td style="padding:10px 12px;color:#F74F6B;font-weight:600">${fR(d.valor || 0)}</td>
@@ -387,6 +395,24 @@ function rDespesasLista() {
     `;
     tbody.appendChild(tr);
   });
+}
+
+function editarCategoriaDespesa(id, descricao, novaCategoria) {
+  const idx = (D.despesas||[]).findIndex(d => d.id === id);
+  if (idx < 0) return;
+  D.despesas[idx].categoria = novaCategoria;
+  const descLower = (descricao||'').trim().toLowerCase();
+  const iguais = (D.despesas||[]).filter((d,i) =>
+    i !== idx && (d.descricao||'').trim().toLowerCase() === descLower && d.categoria !== novaCategoria
+  );
+  if (iguais.length > 0 && confirm(`Aplicar "${novaCategoria}" para todas as ${iguais.length+1} despesas com descrição "${descricao}"?`)) {
+    iguais.forEach(d => { d.categoria = novaCategoria; });
+    // Atualiza também o fornecedor cadastrado, se existir
+    const forn = (D.fornecedores||[]).find(f => f.nome.trim().toLowerCase() === descLower);
+    if (forn) { forn.categoria = novaCategoria; sv('fornecedores'); }
+  }
+  sv('despesas');
+  rDespesasLista();
 }
 
 var _salvandoDespesa = false;
