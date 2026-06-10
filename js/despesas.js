@@ -107,6 +107,11 @@ function _removerDespesaPagamentoEquipe(pagId) {
   D.despesas = D.despesas.filter(d => d.pagamentoEquipeId !== pagId);
 }
 
+function _removerDespesasDoEvento(contratoId) {
+  if (!D.despesas) return;
+  D.despesas = D.despesas.filter(d => !d.pagamentoEquipeId?.startsWith('PE_' + contratoId + '_'));
+}
+
 function rDespesas() {
   const subView = document.getElementById('desp-sub-view')?.value || 'kpi';
   ['kpi', 'lancar', 'lista', 'importar', 'categorias'].forEach(v => {

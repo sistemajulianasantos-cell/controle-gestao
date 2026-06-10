@@ -1668,10 +1668,12 @@ function autorizarPagamentosEvento() {
   const hoje        = new Date().toISOString().slice(0,10);
 
   if (!D.pagamentosEquipe) D.pagamentosEquipe = [];
+  // Remove pagamentos e despesas anteriores deste evento (reautorização limpa)
   D.pagamentosEquipe = D.pagamentosEquipe.filter(p => p.contratoId !== ev.id);
+  if (typeof _removerDespesasDoEvento === 'function') _removerDespesasDoEvento(ev.id);
 
   _folhaLinhas.forEach(l => {
-    D.pagamentosEquipe.push({
+    const pag = {
       id:               `PE_${ev.id}_${l.col.id}`,
       contratoId:       ev.id,
       nomeEvento:       ev.nome,
@@ -1692,11 +1694,14 @@ function autorizarPagamentosEvento() {
       dataAutorizacao:  hoje,
       status:           'pendente',
       dataPagamento:    null,
-    });
+    };
+    D.pagamentosEquipe.push(pag);
+    if (typeof _registrarPagamentoEquipeComoDespesa === 'function') _registrarPagamentoEquipeComoDespesa(pag);
   });
 
   sv('pagamentosEquipe');
-  alert2('Pagamentos autorizados! Acesse "💳 Pagamentos" para marcar como pagos.', 'success');
+  sv('despesas');
+  alert2('Pagamentos autorizados! Os valores já aparecem nas Despesas (categoria Pessoal).', 'success');
   calcularFolhaPagamento();
 }
 
@@ -1733,9 +1738,7 @@ function marcarTodosEventoPago(contratoId, novoStatus) {
 
 function excluirPagamentosEvento(contratoId) {
   if (!confirm('Remover todos os pagamentos autorizados deste evento?')) return;
-  (D.pagamentosEquipe||[]).filter(p => p.contratoId === contratoId).forEach(p => {
-    if (typeof _removerDespesaPagamentoEquipe === 'function') _removerDespesaPagamentoEquipe(p.id);
-  });
+  if (typeof _removerDespesasDoEvento === 'function') _removerDespesasDoEvento(contratoId);
   D.pagamentosEquipe = (D.pagamentosEquipe||[]).filter(p => p.contratoId !== contratoId);
   sv('pagamentosEquipe');
   sv('despesas');
