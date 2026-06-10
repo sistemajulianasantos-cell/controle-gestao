@@ -772,16 +772,15 @@ function rEscalaEvento() {
   if (!_folhaState[ev.id]) {
     const pagSalvos = (D.pagamentosEquipe||[]).filter(p => p.contratoId === ev.id);
     if (pagSalvos.length) {
-      // Prioridade 1: pagamentos já autorizados
+      // Prioridade 1: restaura configuração da folha autorizada, mas NÃO bloqueia o recálculo
+      // (totalOverride intencional bloqueava alterações de região/horas)
       const pRef = pagSalvos[0];
-      const totalOverride = {};
-      pagSalvos.forEach(p => { totalOverride[p.colaboradorId] = p.total; });
       _folhaState[ev.id] = {
         regiao:        pRef.regiao       || '',
         temHE:         (pRef.horasExtras || 0) > 0,
         horasExtra:    pRef.horasExtras  || 0,
         tipoHE:        pRef.tipoHE       || 'antecipada',
-        totalOverride,
+        totalOverride: {},
       };
     } else if (contrato?.folhaConfig?.regiao) {
       // Prioridade 2: rascunho salvo antes da autorização
