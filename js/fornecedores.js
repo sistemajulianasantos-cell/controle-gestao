@@ -27,7 +27,9 @@ function salvarForn(){
   ['fn-nome','fn-cat','fn-tel','fn-contato','fn-pix','fn-cod-barras','fn-obs'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value='';
   });
-  populateSels(); alert2('Fornecedor cadastrado!'); setFornView('lista');
+  populateSels();
+  if(typeof _populateFornecedoresDespesas==='function') _populateFornecedoresDespesas();
+  alert2('Fornecedor cadastrado!'); setFornView('lista');
 }
 
 function _copiarTexto(txt, btn){

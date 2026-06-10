@@ -1132,7 +1132,7 @@
             </div>
             <div>
               <label class="lbl">Fornecedor <span style="font-size:10px;color:#8B91A8">(opcional)</span></label>
-              <select id="desp-form-forn" class="inp" onchange="_autoFillCatFromForn(this.value,'desp-form-cat')">
+              <select id="desp-form-forn" class="inp" onfocus="_populateFornecedoresDespesas()" onchange="_autoFillCatFromForn(this.value,'desp-form-cat')">
                 <option value="">Nenhum</option>
               </select>
             </div>
@@ -1927,7 +1927,7 @@ document.head.appendChild(styleExtra);
       </div>
       <div style="grid-column:span 2">
         <label class="lbl">Fornecedor <span style="font-size:10px;color:#8B91A8">(opcional)</span></label>
-        <select id="desp-edit-forn" class="inp" style="width:100%;box-sizing:border-box" onchange="_autoFillCatFromForn(this.value,'desp-edit-cat')">
+        <select id="desp-edit-forn" class="inp" style="width:100%;box-sizing:border-box" onfocus="_populateFornecedoresDespesas()" onchange="_autoFillCatFromForn(this.value,'desp-edit-cat')">
           <option value="">Nenhum</option>
         </select>
       </div>
