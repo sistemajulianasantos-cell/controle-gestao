@@ -41,14 +41,36 @@ function _copiarTexto(txt, btn){
 function _importarFornecedoresDasDespesas(){
   if(!D.despesas) return;
   if(!D.fornecedores) D.fornecedores=[];
+
+  // 1. Limpa fornecedores já cadastrados com prefixo BO/CO/PI
+  const prefixRE=/^(BO|CO|PI)\s+/i;
+  let houveLimpeza=false;
+  for(let i=D.fornecedores.length-1;i>=0;i--){
+    const f=D.fornecedores[i];
+    if(!prefixRE.test(f.nome)) continue;
+    const nomeSem=f.nome.replace(prefixRE,'').trim();
+    if(!nomeSem) continue;
+    const jaExiste=D.fornecedores.some((x,j)=>j!==i&&x.nome.trim().toLowerCase()===nomeSem.toLowerCase());
+    if(jaExiste){
+      D.fornecedores.splice(i,1); // remove duplicado com prefixo
+    } else {
+      const nomeAntigo=f.nome;
+      f.nome=nomeSem; // renomeia removendo o prefixo
+      (D.despesas||[]).forEach(d=>{if(d.fornecedor===nomeAntigo)d.fornecedor=nomeSem;});
+    }
+    houveLimpeza=true;
+  }
+  if(houveLimpeza){sv('fornecedores');sv('despesas');}
+
+  // 2. Importa novos fornecedores usando descrição sem prefixo BO/CO/PI
   const nomesExist=new Set(D.fornecedores.map(f=>f.nome.trim().toLowerCase()));
   const novos=new Set();
   D.despesas.forEach(d=>{
-    if(d.pagamentoEquipeId) return; // ignora pagamentos de equipe
-    // Usa d.fornecedor se preenchido, senão usa a descrição (imports PDF)
-    const nome=(d.fornecedor||d.descricao||'').trim();
+    if(d.pagamentoEquipeId) return;
+    const nome=(d.fornecedor||_descricaoSemPrefixo(d)||'').trim();
     if(!nome) return;
-    if(nome.includes(' – ')||nome.includes(' - ')) return; // ignora formato "Colab – Evento"
+    if(nome.includes(' – ')||nome.includes(' - ')) return;
+    if(prefixRE.test(nome)) return; // ainda tem prefixo (referência antiga)
     if(!nomesExist.has(nome.toLowerCase())) novos.add(nome);
   });
   if(!novos.size) return;
