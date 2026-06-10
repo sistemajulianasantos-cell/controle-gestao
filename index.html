@@ -1170,6 +1170,16 @@
               <option>Impostos</option>
               <option>Outros</option>
             </select>
+            <select id="desp-lista-ordem" class="inp" style="width:175px;font-size:11px" onchange="rDespesasLista()">
+              <option value="data_asc">Data ↑ (mais antigas)</option>
+              <option value="data_desc">Data ↓ (mais recentes)</option>
+              <option value="valor_asc">Valor ↑ (menor primeiro)</option>
+              <option value="valor_desc">Valor ↓ (maior primeiro)</option>
+              <option value="cat_az">Categoria A → Z</option>
+              <option value="cat_za">Categoria Z → A</option>
+              <option value="desc_az">Descrição A → Z</option>
+              <option value="desc_za">Descrição Z → A</option>
+            </select>
             <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
               <span style="color:#F74F6B;font-weight:600">Total: <span id="desp-lista-total">—</span></span>
               <select id="desp-print-ordem" class="inp" style="width:130px;font-size:11px">

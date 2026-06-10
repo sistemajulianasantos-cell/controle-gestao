@@ -312,13 +312,26 @@ function rDespesasLista() {
   }
   const catFiltro = catSelect?.value || '';
 
+  const ordemLista = document.getElementById('desp-lista-ordem')?.value || 'data_asc';
+
+  const _sortFns = {
+    data_asc:  (a,b) => (a.data||'').localeCompare(b.data||''),
+    data_desc: (a,b) => (b.data||'').localeCompare(a.data||''),
+    valor_asc: (a,b) => (a.valor||0)-(b.valor||0),
+    valor_desc:(a,b) => (b.valor||0)-(a.valor||0),
+    cat_az:    (a,b) => (a.categoria||'').localeCompare(b.categoria||'', 'pt-BR'),
+    cat_za:    (a,b) => (b.categoria||'').localeCompare(a.categoria||'', 'pt-BR'),
+    desc_az:   (a,b) => (a.descricao||'').localeCompare(b.descricao||'', 'pt-BR'),
+    desc_za:   (a,b) => (b.descricao||'').localeCompare(a.descricao||'', 'pt-BR'),
+  };
+
   const lista = (D.despesas || []).filter(d => {
     const ref = d.data || '';
     if (ano && !ref.startsWith(ano)) return false;
     if (mes && !ref.startsWith(`${ano}-${mes}`)) return false;
     if (catFiltro && d.categoria !== catFiltro) return false;
     return true;
-  }).sort((a, b) => (a.data || '').localeCompare(b.data || ''));
+  }).sort(_sortFns[ordemLista] || _sortFns.data_asc);
 
   const tbody = document.getElementById('desp-lista-body');
   if (!tbody) return;
