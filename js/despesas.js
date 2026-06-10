@@ -747,60 +747,53 @@ function imprimirDespesas() {
       @page{size:A4;margin:12mm}
     }`;
 
-  // ── Detalhamento: por data (lista flat) ou por categoria (agrupado)
+  // ── Detalhamento: agrupado com subtotais (por categoria ou por data)
   let detalheHtml = '';
+
+  function _blocoGrupo(titulo, itens, colunas, subTotLabel) {
+    const subTot = itens.reduce((s,d)=>s+(d.valor||0),0);
+    const linhas = itens.map(d => {
+      const forma = _detectarFormaDespesa(d);
+      const desc  = _descricaoSemPrefixo(d);
+      return `<tr>
+        ${colunas === 'cat'
+          ? `<td style="width:80px">${fmtD(d.data)}</td>
+             <td style="color:${formaColor[forma]||'#555'};font-weight:600;width:80px">${formaLabel[forma]||'—'}</td>
+             <td>${desc||'—'}</td>`
+          : `<td style="width:120px">${d.categoria||'—'}</td>
+             <td style="color:${formaColor[forma]||'#555'};font-weight:600;width:80px">${formaLabel[forma]||'—'}</td>
+             <td>${desc||'—'}</td>`}
+        <td style="text-align:right;font-weight:600;color:#b91c1c;width:110px">${fmtR(d.valor||0)}</td>
+      </tr>`;
+    }).join('');
+    const thsData  = `<th>Data</th><th>Forma</th><th>Descrição</th><th style="text-align:right">Valor</th>`;
+    const thsCat   = `<th>Categoria</th><th>Forma</th><th>Descrição</th><th style="text-align:right">Valor</th>`;
+    return `
+      <div class="grupo-titulo"><span>${titulo}</span><span>${fmtR(subTot)}</span></div>
+      <table>
+        <thead><tr>${colunas==='cat'?thsData:thsCat}</tr></thead>
+        <tbody>${linhas}</tbody>
+        <tbody class="grupo-subtotal"><tr>
+          <td colspan="3" style="text-align:right;text-transform:uppercase;font-size:10px">${subTotLabel}</td>
+          <td style="text-align:right;color:#b91c1c">${fmtR(subTot)}</td>
+        </tr></tbody>
+      </table>`;
+  }
 
   if (ordem === 'categoria') {
     const grupos = {};
     lista.forEach(d => { const c = d.categoria||'Outros'; if (!grupos[c]) grupos[c]=[]; grupos[c].push(d); });
     Object.keys(grupos).sort().forEach(cat => {
-      const itens  = grupos[cat].sort((a,b)=>(a.data||'').localeCompare(b.data||''));
-      const subTot = itens.reduce((s,d)=>s+(d.valor||0),0);
-      const linhas = itens.map(d => {
-        const forma = _detectarFormaDespesa(d);
-        const desc  = _descricaoSemPrefixo(d);
-        return `<tr>
-          <td style="width:80px">${fmtD(d.data)}</td>
-          <td style="color:${formaColor[forma]||'#555'};font-weight:600;width:80px">${formaLabel[forma]||'—'}</td>
-          <td>${desc||'—'}</td>
-          <td style="text-align:right;font-weight:600;color:#b91c1c;width:110px">${fmtR(d.valor||0)}</td>
-        </tr>`;
-      }).join('');
-      detalheHtml += `
-        <div class="grupo-titulo"><span>${cat}</span><span>${fmtR(subTot)}</span></div>
-        <table>
-          <thead><tr>
-            <th>Data</th><th>Forma</th><th>Descrição</th><th style="text-align:right">Valor</th>
-          </tr></thead>
-          <tbody>${linhas}</tbody>
-          <tbody class="grupo-subtotal"><tr>
-            <td colspan="3" style="text-align:right;text-transform:uppercase;font-size:10px">Total ${cat}</td>
-            <td style="text-align:right;color:#b91c1c">${fmtR(subTot)}</td>
-          </tr></tbody>
-        </table>`;
+      const itens = grupos[cat].sort((a,b)=>(a.data||'').localeCompare(b.data||''));
+      detalheHtml += _blocoGrupo(cat, itens, 'cat', `Total ${cat}`);
     });
   } else {
-    const linhas = lista.map(d => {
-      const forma = _detectarFormaDespesa(d);
-      const desc  = _descricaoSemPrefixo(d);
-      return `<tr>
-        <td style="width:80px">${fmtD(d.data)}</td>
-        <td style="width:120px">${d.categoria||'—'}</td>
-        <td style="color:${formaColor[forma]||'#555'};font-weight:600;width:80px">${formaLabel[forma]||'—'}</td>
-        <td>${desc||'—'}</td>
-        <td style="text-align:right;font-weight:600;color:#b91c1c;width:110px">${fmtR(d.valor||0)}</td>
-      </tr>`;
-    }).join('');
-    detalheHtml = `<table>
-      <thead><tr>
-        <th>Data</th><th>Categoria</th><th>Forma</th><th>Descrição</th><th style="text-align:right">Valor</th>
-      </tr></thead>
-      <tbody>${linhas}</tbody>
-      <tfoot><tr>
-        <td colspan="4" style="text-align:right;font-size:10px;text-transform:uppercase;color:#555">Total geral</td>
-        <td style="text-align:right;color:#b91c1c;font-size:13px">${fmtR(total)}</td>
-      </tr></tfoot>
-    </table>`;
+    // Agrupa por data, ordem crescente
+    const grupos = {};
+    lista.forEach(d => { const dt = d.data||''; if (!grupos[dt]) grupos[dt]=[]; grupos[dt].push(d); });
+    Object.keys(grupos).sort().forEach(dt => {
+      detalheHtml += _blocoGrupo(fmtD(dt), grupos[dt], 'data', `Total ${fmtD(dt)}`);
+    });
   }
 
   const w = window.open('', '_blank');
@@ -813,7 +806,7 @@ function imprimirDespesas() {
       <h2>Relatório de Despesas</h2>
       <div class="sub">Controle e Gestão — Juliana Santos</div>
       <div class="sub">Impresso em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}</div>
-      <div class="sub">Ordenação: ${ordem === 'categoria' ? 'Por categoria' : 'Por data de vencimento'}</div>
+      <div class="sub">Agrupamento: ${ordem === 'categoria' ? 'Por categoria (subtotal por categoria)' : 'Por data de vencimento (subtotal por dia)'}</div>
     </div>
     <div style="text-align:right">
       <div class="periodo">${periodoLabel}</div>
@@ -834,13 +827,13 @@ function imprimirDespesas() {
     <tfoot><tr><td><strong>Total</strong></td><td style="text-align:right;color:#b91c1c">${fmtR(total)}</td><td></td></tr></tfoot>
   </table>
 
-  <div class="sec-title">Detalhamento${ordem==='categoria'?' — por categoria':' — por data'}</div>
+  <div class="sec-title">Detalhamento — ${ordem==='categoria'?'por categoria':'por data de vencimento'}</div>
   ${detalheHtml}
 
-  ${ordem === 'categoria' ? `<table style="margin-top:8px"><tfoot><tr>
+  <table style="margin-top:8px"><tfoot><tr>
     <td colspan="3" style="text-align:right;font-size:10px;text-transform:uppercase;color:#555;background:#efefef;border-top:2px solid #999;font-weight:700;padding:6px 8px">Total geral</td>
     <td style="text-align:right;color:#b91c1c;font-size:13px;background:#efefef;border-top:2px solid #999;font-weight:700;padding:6px 8px;width:110px">${fmtR(total)}</td>
-  </tr></tfoot></table>` : ''}
+  </tr></tfoot></table>
 
   <div class="rodape">
     <span>Controle e Gestão — Juliana Santos</span>
