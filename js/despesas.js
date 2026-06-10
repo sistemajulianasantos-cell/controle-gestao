@@ -112,6 +112,27 @@ function _removerDespesasDoEvento(contratoId) {
   D.despesas = D.despesas.filter(d => !d.pagamentoEquipeId?.startsWith('PE_' + contratoId + '_'));
 }
 
+function _sincronizarCategoriasComFornecedores() {
+  if (!D.despesas || !D.fornecedores) return;
+  let changed = false;
+  D.fornecedores.forEach(f => {
+    if (!f.nome || !f.categoria) return;
+    const nomeLower = f.nome.trim().toLowerCase();
+    if (nomeLower.length < 3) return;
+    D.despesas.forEach(d => {
+      const matchForn = d.fornecedor === f.nome;
+      const descLower = (d.descricao || '').trim().toLowerCase();
+      const matchDesc = !d.fornecedor &&
+        (descLower === nomeLower || descLower.startsWith(nomeLower + ' '));
+      if (matchForn || matchDesc) {
+        if (matchDesc) { d.fornecedor = f.nome; changed = true; }
+        if (d.categoria !== f.categoria) { d.categoria = f.categoria; changed = true; }
+      }
+    });
+  });
+  if (changed) sv('despesas');
+}
+
 function _limparDescricoesParcelas() {
   if (!D.despesas) return;
   let changed = false;
@@ -123,6 +144,7 @@ function _limparDescricoesParcelas() {
 }
 
 function rDespesas() {
+  _sincronizarCategoriasComFornecedores();
   _limparDescricoesParcelas();
   const subView = document.getElementById('desp-sub-view')?.value || 'kpi';
   ['kpi', 'lancar', 'lista', 'importar', 'categorias'].forEach(v => {
