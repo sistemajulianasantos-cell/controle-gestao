@@ -21,6 +21,8 @@ var pageInfo={
   orcamento:['Orcamento vs Real','Comparativo custo orcado e real'],
   refconsumo:['Referência de Consumo','Estatísticas históricas por tipo de evento e insumo'],
   seguranca: ['Segurança','Gestão de senhas e autenticação em dois fatores'],
+  fornecedores:['Fornecedores','Cadastro e dados dos fornecedores'],
+  comparativo: ['Comparativo de Preços','Histórico de preços por produto e fornecedor'],
 };
 // pageRenders como função para evitar referência antecipada
 var pageRenders={};
@@ -48,6 +50,7 @@ function initPageRenders(){
     orcamento:rOrcamento,
     refconsumo:rRefConsumo,
     seguranca: rSeguranca,
+    fornecedores:()=>setFornView('lista'),
   };
 }
 function go(page){

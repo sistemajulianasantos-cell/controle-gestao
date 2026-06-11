@@ -62,18 +62,10 @@ function _importarFornecedoresDasDespesas(){
   }
   if(houveLimpeza){sv('fornecedores');sv('despesas');}
 
-  // 2. Remove fornecedores que são membros da equipe (match exato ou prefixo de nome)
-  const sufixoRE=/\s*[–\-]+\s*$/; // sufixo " –" de PDFs bancários
+  // 2. Remove fornecedores que são membros da equipe (nome exato, case-insensitive)
   const nomeEquipe=new Set((D.equipe||[]).map(c=>(c.nome||'').trim().toLowerCase()).filter(Boolean));
   function ehEquipe(nome){
-    const n=nome.toLowerCase().replace(sufixoRE,'').trim();
-    if(!n||n.length<4) return false;
-    if(nomeEquipe.has(n)) return true;
-    // Prefixo com ≥2 palavras para não confundir nomes de empresa curtos
-    if(n.split(/\s+/).length>=2){
-      for(const eq of nomeEquipe){if(eq.startsWith(n)) return true;}
-    }
-    return false;
+    return nomeEquipe.has(nome.trim().toLowerCase());
   }
   for(let i=D.fornecedores.length-1;i>=0;i--){
     if(ehEquipe(D.fornecedores[i].nome)){

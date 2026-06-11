@@ -293,19 +293,17 @@ function rEquipePerfil() {
     ${!todas.length?`<div style="text-align:center;padding:32px;color:var(--text3)">Nenhuma escala registrada ainda.</div>`:''}`;
 }
 
-// Foto: converte File → base64 e salva no colaborador
+// Foto: redimensiona, converte File → base64 e salva no colaborador
 function uploadFotoColab(colabId, input) {
   const file = input.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
+  _redimensionarFoto(file, base64 => {
     const c = (D.equipe||[]).find(x=>x.id===colabId);
     if (!c) return;
-    c.foto = e.target.result;
+    c.foto = base64;
     sv('equipe');
     rEquipePerfil();
-  };
-  reader.readAsDataURL(file);
+  });
 }
 
 // ─── ESCALA POR EVENTO ────────────────────────────────────────────────────────
@@ -1124,18 +1122,32 @@ const _EQ_CARGOS_CB = [
   { id: 'cp', val: 'Copeiro' },
 ];
 
+function _redimensionarFoto(file, cb, maxPx=200, quality=0.75) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(maxPx / img.width, maxPx / img.height, 1);
+      const w = Math.round(img.width  * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      cb(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
 function eqPreviewFoto(input) {
   const file = input.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    document.getElementById('eq-m-foto').value = e.target.result;
+  _redimensionarFoto(file, base64 => {
+    document.getElementById('eq-m-foto').value = base64;
     const prev = document.getElementById('eq-m-foto-preview');
-    if (prev) {
-      prev.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover">`;
-    }
-  };
-  reader.readAsDataURL(file);
+    if (prev) prev.innerHTML = `<img src="${base64}" style="width:100%;height:100%;object-fit:cover">`;
+  });
 }
 
 function eqAtualizarInicial(nome) {
