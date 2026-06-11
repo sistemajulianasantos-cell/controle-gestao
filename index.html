@@ -1624,7 +1624,27 @@ window.svFirebase = async function(chave) {
     if(chave==='produtos')       campo.produtos       = D.produtos;
     if(chave==='historico')    campo.historico    = D.historico;
     if(chave==='metas')        campo.metas        = D.metas;
-    if(chave==='equipe')            campo.equipe            = D.equipe;
+    if(chave==='equipe'){
+      // Comprime fotos grandes (>50KB base64) antes de salvar para não estourar limite Firestore
+      const _comprimirSeFoto = c => {
+        if(!c.foto || c.foto.length <= 50000) return Promise.resolve(c);
+        return new Promise(resolve=>{
+          const img=new Image();
+          img.onload=()=>{
+            const sc=Math.min(200/img.width,200/img.height,1);
+            const cv=document.createElement('canvas');
+            cv.width=Math.round(img.width*sc); cv.height=Math.round(img.height*sc);
+            cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
+            const compressed=cv.toDataURL('image/jpeg',0.75);
+            const mem=D.equipe.find(x=>x.id===c.id); if(mem) mem.foto=compressed;
+            resolve({...c,foto:compressed});
+          };
+          img.onerror=()=>resolve({...c,foto:''});
+          img.src=c.foto;
+        });
+      };
+      campo.equipe = await Promise.all((D.equipe||[]).map(_comprimirSeFoto));
+    }
     if(chave==='escalas')           campo.escalas           = D.escalas;
     if(chave==='regrasEquipe')      campo.regrasEquipe      = D.regrasEquipe;
     if(chave==='pagamentosEquipe')  campo.pagamentosEquipe  = D.pagamentosEquipe;
@@ -1637,8 +1657,11 @@ window.svFirebase = async function(chave) {
     if (Object.keys(campo).length === 0) return;
     await setDoc(doc(db, "dados", DOC_ID), campo, { merge: true });
   } catch(e) {
-    alert2("Erro ao salvar: " + e.message, "error");
-    console.error(e);
+    console.error('Erro ao salvar ('+chave+'):', e);
+    // Exibe erro persistente — não some automaticamente
+    const el=document.getElementById('alertbox');
+    if(el){el.textContent='❌ Erro ao salvar: '+e.message;el.className='alert alert-error';el.style.display='block';}
+    else alert('Erro ao salvar: '+e.message);
   }
 };
 
