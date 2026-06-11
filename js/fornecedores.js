@@ -62,10 +62,21 @@ function _importarFornecedoresDasDespesas(){
   }
   if(houveLimpeza){sv('fornecedores');sv('despesas');}
 
-  // 2. Remove fornecedores que são membros da equipe
+  // 2. Remove fornecedores que são membros da equipe (match exato ou prefixo de nome)
+  const sufixoRE=/\s*[–\-]+\s*$/; // sufixo " –" de PDFs bancários
   const nomeEquipe=new Set((D.equipe||[]).map(c=>(c.nome||'').trim().toLowerCase()).filter(Boolean));
+  function ehEquipe(nome){
+    const n=nome.toLowerCase().replace(sufixoRE,'').trim();
+    if(!n||n.length<4) return false;
+    if(nomeEquipe.has(n)) return true;
+    // Prefixo com ≥2 palavras para não confundir nomes de empresa curtos
+    if(n.split(/\s+/).length>=2){
+      for(const eq of nomeEquipe){if(eq.startsWith(n)) return true;}
+    }
+    return false;
+  }
   for(let i=D.fornecedores.length-1;i>=0;i--){
-    if(nomeEquipe.has(D.fornecedores[i].nome.trim().toLowerCase())){
+    if(ehEquipe(D.fornecedores[i].nome)){
       D.fornecedores.splice(i,1);
       houveLimpeza=true;
     }
@@ -77,12 +88,12 @@ function _importarFornecedoresDasDespesas(){
   const novos=new Set();
   D.despesas.forEach(d=>{
     if(d.pagamentoEquipeId) return;
-    if(d.categoria==='Pessoal') return; // despesa de pessoal não vira fornecedor
+    if(d.categoria==='Pessoal') return;
     const nome=(d.fornecedor||_descricaoSemPrefixo(d)||'').trim();
     if(!nome) return;
     if(nome.includes(' – ')||nome.includes(' - ')) return;
-    if(prefixRE.test(nome)) return; // ainda tem prefixo (referência antiga)
-    if(nomeEquipe.has(nome.toLowerCase())) return; // é membro da equipe
+    if(prefixRE.test(nome)) return;
+    if(ehEquipe(nome)) return;
     if(!nomesExist.has(nome.toLowerCase())) novos.add(nome);
   });
   if(!novos.size) return;
