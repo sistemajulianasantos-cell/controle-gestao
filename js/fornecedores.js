@@ -62,15 +62,27 @@ function _importarFornecedoresDasDespesas(){
   }
   if(houveLimpeza){sv('fornecedores');sv('despesas');}
 
-  // 2. Importa novos fornecedores usando descrição sem prefixo BO/CO/PI
+  // 2. Remove fornecedores que são membros da equipe
+  const nomeEquipe=new Set((D.equipe||[]).map(c=>(c.nome||'').trim().toLowerCase()).filter(Boolean));
+  for(let i=D.fornecedores.length-1;i>=0;i--){
+    if(nomeEquipe.has(D.fornecedores[i].nome.trim().toLowerCase())){
+      D.fornecedores.splice(i,1);
+      houveLimpeza=true;
+    }
+  }
+  if(houveLimpeza){sv('fornecedores');sv('despesas');}
+
+  // 3. Importa novos fornecedores usando descrição sem prefixo BO/CO/PI
   const nomesExist=new Set(D.fornecedores.map(f=>f.nome.trim().toLowerCase()));
   const novos=new Set();
   D.despesas.forEach(d=>{
     if(d.pagamentoEquipeId) return;
+    if(d.categoria==='Pessoal') return; // despesa de pessoal não vira fornecedor
     const nome=(d.fornecedor||_descricaoSemPrefixo(d)||'').trim();
     if(!nome) return;
     if(nome.includes(' – ')||nome.includes(' - ')) return;
     if(prefixRE.test(nome)) return; // ainda tem prefixo (referência antiga)
+    if(nomeEquipe.has(nome.toLowerCase())) return; // é membro da equipe
     if(!nomesExist.has(nome.toLowerCase())) novos.add(nome);
   });
   if(!novos.size) return;
