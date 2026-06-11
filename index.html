@@ -495,9 +495,19 @@
       </div>
       <div id="forn-view-lista">
         <div class="sec">
-          <div class="sec-head"><span class="sec-title">Fornecedores cadastrados</span><span id="forn-count" style="font-size:11px;color:var(--text3)"></span></div>
+          <div class="sec-head" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span class="sec-title">Fornecedores cadastrados</span>
+            <span id="forn-count" style="font-size:11px;color:var(--text3)"></span>
+            <div id="forn-bulk-bar" style="display:none;margin-left:auto;display:none;align-items:center;gap:8px">
+              <span id="forn-sel-count" style="font-size:12px;color:var(--text2)"></span>
+              <button class="btn-sm" style="background:#3b1a1a;color:#f87171;border:1px solid #7f1d1d" onclick="excluirFornSelecionados()">🗑 Excluir selecionados</button>
+            </div>
+          </div>
           <table>
-            <thead><tr><th>Nome</th><th>Categoria</th><th>Contato</th><th>Telefone</th><th>Chave PIX</th><th>Cód. Barras</th><th>Compras</th><th>Ação</th></tr></thead>
+            <thead><tr>
+              <th style="width:32px"><input type="checkbox" id="forn-sel-all" onclick="fornSelAll(this)" title="Selecionar todos"></th>
+              <th>Nome</th><th>Categoria</th><th>Contato</th><th>Telefone</th><th>Chave PIX</th><th>Cód. Barras</th><th>Compras</th><th>Ação</th>
+            </tr></thead>
             <tbody id="tab-forn"></tbody>
           </table>
         </div>
@@ -1550,7 +1560,7 @@
 <script src="js/quebras.js?v=20260610z"></script>
 <script src="js/festas.js?v=20260610z"></script>
 <script src="js/relatorio.js?v=20260610z"></script>
-<script src="js/fornecedores.js?v=20260611c"></script>
+<script src="js/fornecedores.js?v=20260611d"></script>
 <script src="js/nav.js?v=20260610z"></script>
 <script src="js/auth.js?v=20260610z"></script>
 <script src="js/contratos.js?v=20260610z"></script>

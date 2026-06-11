@@ -96,11 +96,49 @@ function _importarFornecedoresDasDespesas(){
   sv('fornecedores');
 }
 
+function _fornAtualizarBulkBar(){
+  const sels=document.querySelectorAll('.forn-cb:checked');
+  const bar=document.getElementById('forn-bulk-bar');
+  const ct=document.getElementById('forn-sel-count');
+  if(!bar) return;
+  if(sels.length>0){
+    bar.style.display='flex';
+    if(ct) ct.textContent=sels.length+' selecionado(s)';
+  } else {
+    bar.style.display='none';
+  }
+}
+
+function fornSelAll(cb){
+  document.querySelectorAll('.forn-cb').forEach(el=>el.checked=cb.checked);
+  _fornAtualizarBulkBar();
+}
+
+function excluirForn(nome){
+  if(!confirm('Excluir fornecedor "'+nome+'"?')) return;
+  D.fornecedores=D.fornecedores.filter(f=>f.nome!==nome);
+  sv('fornecedores');
+  rFornecedores();
+}
+
+function excluirFornSelecionados(){
+  const sels=[...document.querySelectorAll('.forn-cb:checked')].map(cb=>cb.dataset.nome);
+  if(!sels.length) return;
+  if(!confirm('Excluir '+sels.length+' fornecedor(es) selecionado(s)?')) return;
+  const nomesSet=new Set(sels);
+  D.fornecedores=D.fornecedores.filter(f=>!nomesSet.has(f.nome));
+  sv('fornecedores');
+  rFornecedores();
+}
+
 function rFornecedores(){
   _importarFornecedoresDasDespesas();
   const ct=document.getElementById('forn-count'); if(ct) ct.textContent=D.fornecedores.length+' cadastrado(s)';
+  const allCb=document.getElementById('forn-sel-all'); if(allCb) allCb.checked=false;
+  const bar=document.getElementById('forn-bulk-bar'); if(bar) bar.style.display='none';
   document.getElementById('tab-forn').innerHTML=D.fornecedores.map(f=>{
     const compras=(D.entradas||[]).filter(e=>e.forn===f.nome).length;
+    const nomeEsc=f.nome.replace(/'/g,"\\'");
     const pixCell = f.pix
       ? `<td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${f.pix}">
            <span style="color:var(--text2)">${f.pix.length>18?f.pix.slice(0,18)+'…':f.pix}</span>
@@ -117,6 +155,7 @@ function rFornecedores(){
       ? `<span class="tag" style="background:#2A2F42;color:#CDD3E3;border:none;font-size:10px">${f.categoria}</span>`
       : `<span style="color:var(--text3);font-size:11px">—</span>`;
     return `<tr>
+      <td style="width:32px;text-align:center"><input type="checkbox" class="forn-cb" data-nome="${f.nome.replace(/"/g,'&quot;')}" onchange="_fornAtualizarBulkBar()"></td>
       <td class="bold">${f.nome}</td>
       <td>${catTag}</td>
       <td style="color:var(--text2)">${f.contato||'—'}</td>
@@ -124,9 +163,12 @@ function rFornecedores(){
       ${pixCell}
       ${barCell}
       <td><span class="badge b-blue">${compras} lançamento(s)</span></td>
-      <td><button class="btn-sm" onclick="abrirEditForn('${f.nome.replace(/'/g,"\\'")}')">✏️</button></td>
+      <td style="white-space:nowrap">
+        <button class="btn-sm" onclick="abrirEditForn('${nomeEsc}')">✏️</button>
+        <button class="btn-sm" style="background:#3b1a1a;color:#f87171;border:1px solid #7f1d1d;margin-left:4px" onclick="excluirForn('${nomeEsc}')" title="Excluir">🗑</button>
+      </td>
     </tr>`;
-  }).join('')||`<tr><td colspan="8" style="color:var(--text3);text-align:center;padding:16px">Nenhum fornecedor cadastrado</td></tr>`;
+  }).join('')||`<tr><td colspan="9" style="color:var(--text3);text-align:center;padding:16px">Nenhum fornecedor cadastrado</td></tr>`;
 }
 
 function abrirEditForn(nomeOrig){
