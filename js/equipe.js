@@ -357,17 +357,22 @@ function rEscalaEventos() {
       </div>
       ${!escalas.length
         ? `<div style="padding:10px 14px;color:var(--text3);font-size:12px">Nenhum colaborador escalado</div>`
-        : `<div style="display:flex;flex-wrap:wrap;gap:8px;padding:10px 14px">
+        : `<div style="display:flex;flex-wrap:wrap;gap:14px;padding:14px 16px">
             ${escalas.map(e=>{
               const col=(D.equipe||[]).find(x=>x.id===e.colaboradorId);
               if(!col) return '';
-              return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:8px 12px;display:flex;align-items:center;gap:10px">
-                ${col.foto?`<img src="${col.foto}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid var(--border2);flex-shrink:0">`:
-                  `<div style="width:48px;height:48px;border-radius:50%;background:var(--bg2);border:2px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:var(--text3);flex-shrink:0">${(col.nome||'?')[0].toUpperCase()}</div>`}
-                <div>
-                  <div style="font-size:13px;font-weight:600;color:var(--text)">${col.nome.split(' ').slice(0,2).join(' ')}</div>
-                  <div style="font-size:11px;color:var(--text3)">${e.cargo||col.cargo||'—'}</div>
+              const primeiroNome = col.nome.split(' ')[0];
+              const sobrenome   = col.nome.split(' ')[1] || '';
+              const cargo       = e.cargo||col.cargo||'';
+              const foto        = col.foto
+                ? `<img src="${col.foto}" style="width:80px;height:88px;border-radius:10px;object-fit:cover;object-position:top center;display:block">`
+                : `<div style="width:80px;height:88px;border-radius:10px;background:var(--bg2);border:2px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:700;color:var(--text3)">${(col.nome||'?')[0].toUpperCase()}</div>`;
+              return `<div style="display:flex;flex-direction:column;align-items:center;gap:6px;width:80px">
+                ${foto}
+                <div style="font-size:11px;font-weight:700;color:var(--text);text-align:center;line-height:1.2;width:100%">
+                  ${primeiroNome}${sobrenome?' '+sobrenome:''}
                 </div>
+                ${cargo?`<div style="font-size:10px;color:var(--text3);text-align:center;margin-top:-4px">${cargo}</div>`:''}
               </div>`;
             }).join('')}
           </div>`}
