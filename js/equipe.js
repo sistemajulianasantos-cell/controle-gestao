@@ -2,6 +2,7 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 let equipeView    = 'lista'; // 'lista' | 'perfil' | 'eventos' | 'evento-detalhe' | 'regras' | 'pagamentos'
+let _escalaViewMode = 'lista'; // 'lista' | 'imagem'
 let equipeAtualId = null;
 let escalaEventoAtual = null; // { id, nome, data }
 const _folhaState = {}; // persiste estado da folha por evento durante a sessão
@@ -827,7 +828,7 @@ function rEscalaEvento() {
 
     <!-- Tabela equipe -->
     <div class="sec" style="margin-bottom:14px">
-      <div class="sec-head">
+      <div class="sec-head" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         ${(()=>{
           const tot = contrato?.equipe?.length ? contrato.equipe.reduce((s,e)=>s+(e.qtd||0),0) : (contrato?.equipeTotal||0);
           const textoBreakdown = contrato?.equipe?.length ? contrato.equipe.map(e=>`${e.qtd} ${e.cargo}`).join(' · ') : (contrato?.equipeTexto||'');
@@ -836,6 +837,10 @@ function rEscalaEvento() {
           const breakdown = textoBreakdown ? `<span style="font-size:10px;color:var(--text3);margin-left:8px">(${textoBreakdown})</span>` : '';
           return `<span class="sec-title">👥 Equipe escalada — <span style="color:${cor}">${label}</span>${breakdown}</span>`;
         })()}
+        <div style="margin-left:auto;display:flex;gap:4px">
+          <button class="sort-btn${_escalaViewMode==='lista'?' active':''}" onclick="_escalaViewMode='lista';rEscalaEvento()" title="Visualização em lista">☰ Lista</button>
+          <button class="sort-btn${_escalaViewMode==='imagem'?' active':''}" onclick="_escalaViewMode='imagem';rEscalaEvento()" title="Visualização em imagem">⊞ Imagem</button>
+        </div>
       </div>
       ${(()=>{
         // Build expected slots from contrato.equipe
@@ -880,6 +885,44 @@ function rEscalaEvento() {
              <div style="margin-bottom:12px">Nenhum colaborador escalado ainda.</div>
              <button class="btn btn-primary btn-sm" onclick="abrirAddColabEvento()">+ Adicionar colaborador</button>
            </div>`;
+
+        // ── VIEW IMAGEM ─────────────────────────────────────────────────────
+        if (_escalaViewMode === 'imagem') {
+          const coresLabel = {
+            'Coordenador':    '#f59e0b',
+            'Head Bartender': '#6366f1',
+            'Bartender':      '#3b82f6',
+            'Bar Back':       '#22c55e',
+            'Copeiro':        '#ec4899',
+          };
+          // Agrupa escalados por cargo mantendo ordem
+          const gruposImagem = {};
+          rows.filter(r=>r.tipo==='filled').forEach(r=>{
+            const c = r.escala.cargo||'Outros';
+            if(!gruposImagem[c]) gruposImagem[c]=[];
+            gruposImagem[c].push(r.escala);
+          });
+          const linhas = Object.entries(gruposImagem).map(([cargo, lista])=>{
+            const cor = coresLabel[cargo]||'var(--text2)';
+            const cards = lista.map(e=>{
+              const col=(D.equipe||[]).find(x=>x.id===e.colaboradorId);
+              if(!col) return '';
+              const primeiroNome = col.nome.split(' ')[0];
+              const foto = col.foto
+                ? `<img src="${col.foto}" style="width:72px;height:72px;border-radius:10px;object-fit:cover;display:block">`
+                : `<div style="width:72px;height:72px;border-radius:10px;background:var(--bg3);border:2px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700;color:var(--text3)">${col.nome[0].toUpperCase()}</div>`;
+              return `<div style="display:flex;flex-direction:column;align-items:center;gap:5px;cursor:default" title="${col.nome}">
+                ${foto}
+                <div style="font-size:11px;font-weight:600;color:var(--text);text-align:center;max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${primeiroNome}</div>
+              </div>`;
+            }).join('');
+            return `<div style="display:flex;align-items:center;gap:0;border-bottom:1px solid var(--border);min-height:100px">
+              <div style="min-width:140px;max-width:140px;padding:12px 14px;font-weight:700;font-size:12px;color:${cor};border-right:3px solid ${cor};background:var(--bg2);align-self:stretch;display:flex;align-items:center">${cargo}</div>
+              <div style="display:flex;flex-wrap:wrap;gap:12px;padding:12px 16px">${cards||'<span style="color:var(--text3);font-size:11px;font-style:italic">— nenhum escalado —</span>'}</div>
+            </div>`;
+          }).join('');
+          return `<div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">${linhas}</div>`;
+        }
 
         return `<div style="overflow-x:auto">
            <table style="border-collapse:collapse;font-size:12px;width:100%">
