@@ -345,8 +345,8 @@ function rEscalaEventos() {
     <div class="sec" style="margin-bottom:10px">
       <div class="sec-head" style="flex-wrap:wrap;gap:8px">
         <div>
-          <span class="sec-title">${c.nome||'Sem nome'}</span>
-          <span style="font-size:11px;color:var(--text3);margin-left:8px">
+          <span style="font-size:15px;font-weight:700;color:var(--text)">${c.nome||'Sem nome'}</span>
+          <span style="font-size:12px;color:var(--text2);margin-left:10px">
             ${fd(c.data)}${c.local?' · '+c.local:''}${c.convidados?' · '+c.convidados+' conv.':''}
           </span>
         </div>
