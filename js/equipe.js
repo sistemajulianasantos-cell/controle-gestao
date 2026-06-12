@@ -140,8 +140,8 @@ function rEquipeLista() {
                   onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
                 <td style="padding:8px 12px">
                   <div style="display:flex;align-items:center;gap:8px">
-                    ${c.foto ? `<img src="${c.foto}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0">` :
-                      `<div style="width:28px;height:28px;border-radius:50%;background:var(--bg3);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--text3);flex-shrink:0">${(c.nome||'?')[0].toUpperCase()}</div>`}
+                    ${c.foto ? `<img src="${c.foto}" style="width:52px;height:52px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid var(--border2)">` :
+                      `<div style="width:52px;height:52px;border-radius:50%;background:var(--bg3);border:2px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:var(--text3);flex-shrink:0">${(c.nome||'?')[0].toUpperCase()}</div>`}
                     <div>
                       <div style="font-weight:600;color:var(--text)">${c.nome}</div>
                       ${c.chave_pix?`<div style="font-size:10px;color:var(--green);font-family:monospace">PIX: ${c.chave_pix}</div>`:c.cpf?`<div style="font-size:10px;color:var(--text3)">${c.cpf}</div>`:''}
@@ -360,12 +360,12 @@ function rEscalaEventos() {
             ${escalas.map(e=>{
               const col=(D.equipe||[]).find(x=>x.id===e.colaboradorId);
               if(!col) return '';
-              return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 10px;display:flex;align-items:center;gap:7px">
-                ${col.foto?`<img src="${col.foto}" style="width:22px;height:22px;border-radius:50%;object-fit:cover">`:
-                  `<div style="width:22px;height:22px;border-radius:50%;background:var(--bg2);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--text3)">${(col.nome||'?')[0]}</div>`}
+              return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:8px 12px;display:flex;align-items:center;gap:10px">
+                ${col.foto?`<img src="${col.foto}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid var(--border2);flex-shrink:0">`:
+                  `<div style="width:48px;height:48px;border-radius:50%;background:var(--bg2);border:2px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:var(--text3);flex-shrink:0">${(col.nome||'?')[0].toUpperCase()}</div>`}
                 <div>
-                  <div style="font-size:12px;font-weight:600;color:var(--text)">${col.nome.split(' ')[0]}</div>
-                  <div style="font-size:10px;color:var(--text3)">${e.cargo||col.cargo||'—'}</div>
+                  <div style="font-size:13px;font-weight:600;color:var(--text)">${col.nome.split(' ').slice(0,2).join(' ')}</div>
+                  <div style="font-size:11px;color:var(--text3)">${e.cargo||col.cargo||'—'}</div>
                 </div>
               </div>`;
             }).join('')}
@@ -798,8 +798,8 @@ function rEscalaEvento() {
 
   const ordemCargos = ['Coordenador','Head Bartender','Bartender','Bar Back','Copeiro','Outros'];
   const avatar = col => col.foto
-    ? `<img src="${col.foto}" style="width:30px;height:30px;border-radius:50%;object-fit:cover;flex-shrink:0">`
-    : `<div style="width:30px;height:30px;border-radius:50%;background:var(--bg3);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--text3);flex-shrink:0">${(col.nome||'?')[0].toUpperCase()}</div>`;
+    ? `<img src="${col.foto}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid var(--border2)">`
+    : `<div style="width:48px;height:48px;border-radius:50%;background:var(--bg3);border:2px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:var(--text3);flex-shrink:0">${(col.nome||'?')[0].toUpperCase()}</div>`;
 
   const cargoSelect = (escalaId, atual) =>
     `<select onchange="alterarCargoEscala('${escalaId}',this.value)"
@@ -900,7 +900,7 @@ function rEscalaEvento() {
                      <td style="padding:7px 12px;font-size:11px;color:var(--text3);font-style:italic">${row.label}</td>
                      <td style="padding:7px 12px" colspan="4">
                        <div style="display:flex;align-items:center;gap:8px">
-                         <div style="width:30px;height:30px;border-radius:50%;background:var(--bg3);border:1px dashed var(--border2);flex-shrink:0"></div>
+                         <div style="width:48px;height:48px;border-radius:50%;background:var(--bg3);border:2px dashed var(--border2);flex-shrink:0"></div>
                          <span style="color:var(--text3);font-style:italic">— Vaga em aberto —</span>
                          <button class="btn-sm" onclick="abrirAddColabEvento()" style="margin-left:8px;font-size:10px;padding:2px 7px">+ Adicionar</button>
                        </div>
