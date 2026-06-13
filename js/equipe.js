@@ -11,7 +11,7 @@ let _novoColabFromEvento = false; // flag: novo colab aberto a partir do modal d
 let _colabEventoOpcoes  = []; // colaboradores disponíveis para busca no modal de escala
 let _folhaSaveTimer     = null; // debounce para salvar folhaConfig no contrato
 
-const CARGOS_EQUIPE = ['Head Bartender','Bartender','Bar Back','Copeiro','Coordenador'];
+const CARGOS_EQUIPE = ['Head Bartender','Coordenador','Bartender','Bar Back','Copeiro'];
 const NIVEIS_EQUIPE = ['Novato','Antigo'];
 
 const REGIOES_PAGAMENTO = [
@@ -802,7 +802,7 @@ function rEscalaEvento() {
   // Recupera estado salvo da folha para este evento
   const _sf = _folhaState[ev.id] || {};
 
-  const ordemCargos = ['Coordenador','Head Bartender','Bartender','Bar Back','Copeiro','Outros'];
+  const ordemCargos = ['Head Bartender','Coordenador','Bartender','Bar Back','Copeiro','Outros'];
   const avatar = col => col.foto
     ? `<img src="${col.foto}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid var(--border2)">`
     : `<div style="width:48px;height:48px;border-radius:50%;background:var(--bg3);border:2px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:var(--text3);flex-shrink:0">${(col.nome||'?')[0].toUpperCase()}</div>`;
@@ -835,8 +835,13 @@ function rEscalaEvento() {
     <div class="sec" style="margin-bottom:14px">
       <div class="sec-head" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         ${(()=>{
-          const tot = contrato?.equipe?.length ? contrato.equipe.reduce((s,e)=>s+(e.qtd||0),0) : (contrato?.equipeTotal||0);
           const textoBreakdown = contrato?.equipe?.length ? contrato.equipe.map(e=>`${e.qtd} ${e.cargo}`).join(' · ') : (contrato?.equipeTexto||'');
+          const _totBruto = contrato?.equipe?.length
+            ? contrato.equipe.reduce((s,e)=>s+(e.qtd||0),0)
+            : textoBreakdown
+              ? ([...textoBreakdown.matchAll(/(\d+)\s+\w/g)].reduce((s,m)=>s+parseInt(m[1]),0) || contrato?.equipeTotal||0)
+              : (contrato?.equipeTotal||0);
+          const tot = Math.max(_totBruto, 0);
           const cor = !tot ? 'var(--text)' : escalas.length >= tot ? 'var(--red)' : escalas.length > 0 ? 'var(--amber)' : 'var(--text)';
           const label = tot ? `${escalas.length} / ${tot} pessoa${tot!==1?'s':''}` : `${escalas.length} pessoa${escalas.length!==1?'s':''}`;
           const breakdown = textoBreakdown ? `<span style="font-size:10px;color:var(--text3);margin-left:8px">(${textoBreakdown})</span>` : '';
@@ -849,7 +854,7 @@ function rEscalaEvento() {
       </div>
       ${(()=>{
         // Build expected slots from contrato.equipe
-        const slotsCargos = ['Coordenador','Head Bartender','Bartender','Bar Back','Copeiro'];
+        const slotsCargos = ['Head Bartender','Coordenador','Bartender','Bar Back','Copeiro'];
         const slotsEsperados = [];
         if (contrato?.equipe?.length) {
           const eq = [...contrato.equipe].sort((a,b)=>(slotsCargos.indexOf(a.cargo)<0?99:slotsCargos.indexOf(a.cargo))-(slotsCargos.indexOf(b.cargo)<0?99:slotsCargos.indexOf(b.cargo)));
