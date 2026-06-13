@@ -1145,7 +1145,7 @@ function _renderColabEventoOpcoes(busca) {
   } else {
     opcoes.innerHTML = filtrados.map(c =>
       `<div data-id="${c.id}" data-val="${c.inputVal.replace(/"/g,'&quot;')}"
-        onclick="_selecionarColabEvento(this.dataset.id,this.dataset.val)"
+        onmousedown="event.preventDefault();_selecionarColabEvento(this.dataset.id,this.dataset.val)"
         onmouseover="this.style.background='#1E2332'" onmouseout="this.style.background=''"
         style="padding:8px 12px;cursor:pointer;font-size:13px;color:#E8EAF0;border-bottom:1px solid #1A1E2E"
       >${c.label}</div>`
