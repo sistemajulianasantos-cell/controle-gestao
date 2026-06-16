@@ -56,6 +56,38 @@ function _statusTag(status) {
   return `<span style="background:${s.bg};color:${s.cor};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;border:1px solid ${s.cor}40">${s.label}</span>`;
 }
 
+function _despAddCategoria(selectId) {
+  const nome = prompt('Nome da nova categoria:')?.trim();
+  if (!nome) return;
+  const cats = _getCategoriasDespesas();
+  if (cats.map(c=>c.toLowerCase()).includes(nome.toLowerCase())) {
+    alert2('Categoria já existe.', 'error'); return;
+  }
+  if (!D.categoriasDespesas) D.categoriasDespesas = [...cats];
+  D.categoriasDespesas.push(nome);
+  sv('categoriasDespesas');
+  _populateCategoriasSelects();
+  const el = document.getElementById(selectId);
+  if (el) { el.value = nome; }
+  alert2(`Categoria "${nome}" criada!`, 'success');
+}
+
+function _despAddFornecedor(selectId, catSelectId) {
+  const nome = prompt('Nome do novo fornecedor:')?.trim();
+  if (!nome) return;
+  if ((D.fornecedores||[]).some(f=>f.nome.trim().toLowerCase()===nome.toLowerCase())) {
+    alert2('Fornecedor já cadastrado.', 'error'); return;
+  }
+  if (!D.fornecedores) D.fornecedores = [];
+  D.fornecedores.push({ nome });
+  sv('fornecedores');
+  _populateFornecedoresDespesas();
+  const el = document.getElementById(selectId);
+  if (el) el.value = nome;
+  if (catSelectId) _autoFillCatFromForn(nome, catSelectId);
+  alert2(`Fornecedor "${nome}" cadastrado!`, 'success');
+}
+
 function _populateCategoriasSelects() {
   const cats = _getCategoriasDespesas();
   ['desp-form-cat', 'desp-edit-cat', 'fn-cat', 'fn-edit-cat'].forEach(id => {
@@ -558,7 +590,7 @@ function salvarDespesa() {
   const valorStr   = document.getElementById('desp-form-valor')?.value;
   const obs        = document.getElementById('desp-form-obs')?.value?.trim() || '';
 
-  if (!data || !categoria || !descricao || !valorStr) {
+  if (!data || !categoria || !fornecedor || !descricao || !valorStr) {
     alert2('Preencha todos os campos obrigatórios (*).', 'error');
     _salvandoDespesa = false; return;
   }
@@ -845,7 +877,7 @@ function salvarEditDespesa() {
   const obs        = document.getElementById('desp-edit-obs')?.value?.trim() || '';
   const dataVencimento = document.getElementById('desp-edit-vencimento')?.value || '';
   const dataPagamento  = document.getElementById('desp-edit-pagamento')?.value || '';
-  if (!data || !categoria || !descricao || !valorStr) { alert2('Preencha todos os campos obrigatórios.', 'error'); return; }
+  if (!data || !categoria || !fornecedor || !descricao || !valorStr) { alert2('Preencha todos os campos obrigatórios (*).', 'error'); return; }
   const valor = parseFloat(valorStr.toString().replace(',','.'));
   if (!valor || valor <= 0) { alert2('Valor inválido.', 'error'); return; }
   d.data = data; d.categoria = categoria; d.forma = forma;
