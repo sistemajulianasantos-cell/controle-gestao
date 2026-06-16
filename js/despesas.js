@@ -370,7 +370,67 @@ function rDespesasKpi() {
   `;
 }
 
+let _despSel = new Set();
+
+function _despAtualizarBulkBar() {
+  const bar = document.getElementById('desp-bulk-bar');
+  const cnt = document.getElementById('desp-bulk-count');
+  if (!bar) return;
+  const n = _despSel.size;
+  bar.style.display = n > 0 ? 'flex' : 'none';
+  if (cnt) cnt.textContent = n;
+  const chkAll = document.getElementById('desp-chk-all');
+  if (chkAll) {
+    const total = document.querySelectorAll('.desp-chk').length;
+    chkAll.indeterminate = n > 0 && n < total;
+    chkAll.checked = n > 0 && n === total;
+  }
+}
+
+function despToggleSel(id, checked) {
+  if (checked) _despSel.add(id); else _despSel.delete(id);
+  _despAtualizarBulkBar();
+}
+
+function despSelAll(checked) {
+  _despSel.clear();
+  if (checked) {
+    document.querySelectorAll('.desp-chk').forEach(el => { _despSel.add(el.dataset.id); el.checked = true; });
+  } else {
+    document.querySelectorAll('.desp-chk').forEach(el => { el.checked = false; });
+  }
+  _despAtualizarBulkBar();
+}
+
+function marcarSelecionadasPagas() {
+  if (!_despSel.size) return;
+  const hoje = new Date().toISOString().slice(0,10);
+  let count = 0;
+  _despSel.forEach(id => {
+    const d = (D.despesas||[]).find(x=>x.id===id);
+    if (d && _statusDesp(d) !== 'pago') {
+      d.status = 'pago';
+      if (!d.dataPagamento) d.dataPagamento = hoje;
+      count++;
+    }
+  });
+  if (count) { sv('despesas'); alert2(`${count} despesa(s) marcada(s) como paga(s)!`, 'success'); }
+  _despSel.clear();
+  rDespesasLista();
+}
+
+function excluirDespesasSelecionadas() {
+  if (!_despSel.size) return;
+  if (!confirm(`Excluir ${_despSel.size} despesa(s) selecionada(s)?`)) return;
+  D.despesas = (D.despesas||[]).filter(d => !_despSel.has(d.id));
+  sv('despesas');
+  _despSel.clear();
+  rDespesasLista();
+  alert2('Despesas excluídas!', 'success');
+}
+
 function rDespesasLista() {
+  _despSel.clear();
   const mes = document.getElementById('desp-mes')?.value || '';
   const ano = document.getElementById('desp-ano')?.value || new Date().getFullYear().toString();
 
@@ -417,7 +477,7 @@ function rDespesasLista() {
 
   tbody.innerHTML = '';
   if (!lista.length) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#8B91A8;padding:24px">Nenhuma despesa encontrada para este período.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#8B91A8;padding:24px">Nenhuma despesa encontrada para este período.</td></tr>';
     return;
   }
 
@@ -445,6 +505,10 @@ function rDespesasLista() {
     const pagCell = status === 'pago' && d.dataPagamento
       ? `<div style="font-size:10px;color:#10B981;margin-top:2px">Pago em ${fd(d.dataPagamento)}</div>` : '';
     tr.innerHTML = `
+      <td style="padding:8px 10px;text-align:center">
+        <input type="checkbox" class="desp-chk" data-id="${d.id}" onchange="despToggleSel('${d.id}',this.checked)"
+          style="width:15px;height:15px;cursor:pointer;accent-color:#4F8EF7">
+      </td>
       <td style="padding:8px 10px;white-space:nowrap">${fd(d.data)||'—'}</td>
       <td style="padding:8px 10px;white-space:nowrap">${vencCell}</td>
       <td style="padding:8px 10px">${_statusTag(status)}</td>

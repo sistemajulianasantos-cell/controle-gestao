@@ -1220,10 +1220,21 @@
               <button class="btn-sm" onclick="imprimirDespesas()" style="background:var(--bg2);border:1px solid var(--border2)">🖨️ Imprimir</button>
             </div>
           </div>
+          <!-- Barra de ações em lote -->
+          <div id="desp-bulk-bar" style="display:none;align-items:center;gap:10px;padding:8px 14px;background:#1D2235;border-top:1px solid #2A2F42;flex-wrap:wrap">
+            <span style="color:#CDD3E3;font-size:13px"><strong id="desp-bulk-count">0</strong> selecionada(s)</span>
+            <button class="btn-sm" onclick="marcarSelecionadasPagas()" style="background:#0A2E1A;border:1px solid #10B98140;color:#10B981;font-size:12px;padding:3px 10px">✓ Marcar como Pago</button>
+            <button class="btn-sm btn-red" onclick="excluirDespesasSelecionadas()" style="font-size:12px;padding:3px 10px">✕ Excluir selecionadas</button>
+            <button class="btn-sm" onclick="despSelAll(false)" style="background:var(--bg2);border:1px solid var(--border2);font-size:12px;padding:3px 10px">Limpar seleção</button>
+          </div>
           <div style="overflow-x:auto">
             <table style="width:100%;border-collapse:collapse;font-size:13px">
               <thead>
                 <tr style="color:#8B91A8;border-bottom:1px solid #2A2F42">
+                  <th style="padding:10px 10px;text-align:center;font-weight:500;width:36px">
+                    <input type="checkbox" id="desp-chk-all" onchange="despSelAll(this.checked)"
+                      style="width:15px;height:15px;cursor:pointer;accent-color:#4F8EF7" title="Selecionar todos">
+                  </th>
                   <th style="padding:10px 10px;text-align:left;font-weight:500">Data</th>
                   <th style="padding:10px 10px;text-align:left;font-weight:500">Vencimento</th>
                   <th style="padding:10px 10px;text-align:left;font-weight:500">Status</th>
@@ -1588,7 +1599,7 @@
 <script src="js/agenda.js?v=20260610z"></script>
 <script src="js/producao.js?v=20260610z"></script>
 <script src="js/financeiro.js?v=20260610z"></script>
-<script src="js/despesas.js?v=20260616a"></script>
+<script src="js/despesas.js?v=20260616b"></script>
 <script src="js/producao2.js?v=20260610z"></script>
 <script src="js/produtos.js?v=20260610z"></script>
 <script src="js/regras.js?v=20260610z"></script>
