@@ -7,10 +7,16 @@ function _getCategoriasDespesas() {
 }
 
 const _FORMAS_DESP = {
-  boleto:     { label: 'Boleto',   bg: '#1D3461', cor: '#3B82F6' },
-  pix_manual: { label: 'PIX',      bg: '#0A2E1A', cor: '#10B981' },
-  pix_nota:   { label: 'PIX+Nota', bg: '#0A2430', cor: '#06B6D4' },
-  outros:     { label: 'Outros',   bg: '#2A2F42', cor: '#8B91A8' },
+  dinheiro:       { label: 'Dinheiro',      bg: '#1A2E1A', cor: '#4FC78E' },
+  pix:            { label: 'PIX',           bg: '#0A2E1A', cor: '#10B981' },
+  pix_manual:     { label: 'PIX',           bg: '#0A2E1A', cor: '#10B981' },
+  pix_nota:       { label: 'PIX+Nota',      bg: '#0A2430', cor: '#06B6D4' },
+  cartao_credito: { label: 'Cartão Créd.',  bg: '#1D2E45', cor: '#60A5FA' },
+  cartao_debito:  { label: 'Cartão Déb.',   bg: '#1A2040', cor: '#818CF8' },
+  boleto:         { label: 'Boleto',        bg: '#1D3461', cor: '#3B82F6' },
+  transferencia:  { label: 'Transferência', bg: '#1A2840', cor: '#38BDF8' },
+  cheque:         { label: 'Cheque',        bg: '#2A2820', cor: '#F59E0B' },
+  outros:         { label: 'Outros',        bg: '#2A2F42', cor: '#8B91A8' },
 };
 
 function _detectarFormaDespesa(d) {
@@ -31,6 +37,23 @@ function _formaTag(forma) {
   if (!forma) return '<span style="color:#8B91A8;font-size:12px">—</span>';
   const f = _FORMAS_DESP[forma] || _FORMAS_DESP.outros;
   return `<span style="background:${f.bg};color:${f.cor};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;border:1px solid ${f.cor}40">${f.label}</span>`;
+}
+
+function _statusDesp(d) {
+  if (d.dataPagamento || d.status === 'pago') return 'pago';
+  const hoje = new Date().toISOString().slice(0, 10);
+  if (d.dataVencimento && d.dataVencimento < hoje) return 'vencido';
+  return 'pendente';
+}
+
+function _statusTag(status) {
+  const MAP = {
+    pago:     { label: 'Pago',     bg: '#0A2E1A', cor: '#10B981' },
+    vencido:  { label: 'Vencido',  bg: '#2E1010', cor: '#F74F6B' },
+    pendente: { label: 'Pendente', bg: '#251E0A', cor: '#F59E0B' },
+  };
+  const s = MAP[status] || MAP.pendente;
+  return `<span style="background:${s.bg};color:${s.cor};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;border:1px solid ${s.cor}40">${s.label}</span>`;
 }
 
 function _populateCategoriasSelects() {
@@ -214,6 +237,15 @@ function rDespesasKpi() {
   const percRecVsMeta = meta > 0 ? Math.min(100, (receita / meta) * 100).toFixed(0) : 0;
   const aReceberKpi = receita - recebidoCaixa;
 
+  // Breakdown por status de pagamento
+  let totalPago = 0, totalPendente = 0, totalVencido = 0;
+  despesasFiltradas.forEach(d => {
+    const st = _statusDesp(d);
+    if (st === 'pago')     totalPago     += (d.valor || 0);
+    else if (st === 'vencido') totalVencido += (d.valor || 0);
+    else                   totalPendente += (d.valor || 0);
+  });
+
   // Breakdown por categoria
   const byCategoria = {};
   despesasFiltradas.forEach(d => {
@@ -248,6 +280,24 @@ function rDespesasKpi() {
         <div class="card-label">🎯 Meta Faturamento</div>
         <div class="card-val" style="color:#F59E0B">${meta ? fR(meta) : '—'}</div>
         <div style="font-size:11px;color:#8B91A8;margin-top:4px">${meta ? percRecVsMeta + '% atingido' : 'Não definida'}</div>
+      </div>
+    </div>
+
+    <div class="cards" style="margin-bottom:20px">
+      <div class="card" style="border-left:3px solid #10B981">
+        <div class="card-label">✅ Pagas</div>
+        <div class="card-val" style="color:#10B981">${fR(totalPago)}</div>
+        <div style="font-size:11px;color:#8B91A8;margin-top:4px">${despesasFiltradas.filter(d=>_statusDesp(d)==='pago').length} despesa(s)</div>
+      </div>
+      <div class="card" style="border-left:3px solid #F59E0B">
+        <div class="card-label">⏳ A Pagar</div>
+        <div class="card-val" style="color:#F59E0B">${fR(totalPendente)}</div>
+        <div style="font-size:11px;color:#8B91A8;margin-top:4px">${despesasFiltradas.filter(d=>_statusDesp(d)==='pendente').length} despesa(s)</div>
+      </div>
+      <div class="card" style="border-left:3px solid #F74F6B">
+        <div class="card-label">🚨 Vencidas</div>
+        <div class="card-val" style="color:#F74F6B">${fR(totalVencido)}</div>
+        <div style="font-size:11px;color:#8B91A8;margin-top:4px">${despesasFiltradas.filter(d=>_statusDesp(d)==='vencido').length} despesa(s)</div>
       </div>
     </div>
 
@@ -332,19 +382,21 @@ function rDespesasLista() {
     catSelect.innerHTML = '<option value="">Todas as categorias</option>' +
       allCats.map(c => `<option value="${c}"${c === currentVal ? ' selected' : ''}>${c}</option>`).join('');
   }
-  const catFiltro = catSelect?.value || '';
-
-  const ordemLista = document.getElementById('desp-lista-ordem')?.value || 'data_asc';
+  const catFiltro   = catSelect?.value || '';
+  const statusFiltro = document.getElementById('desp-status-filtro')?.value || '';
+  const ordemLista  = document.getElementById('desp-lista-ordem')?.value || 'data_asc';
 
   const _sortFns = {
-    data_asc:  (a,b) => (a.data||'').localeCompare(b.data||''),
-    data_desc: (a,b) => (b.data||'').localeCompare(a.data||''),
-    valor_asc: (a,b) => (a.valor||0)-(b.valor||0),
-    valor_desc:(a,b) => (b.valor||0)-(a.valor||0),
-    cat_az:    (a,b) => (a.categoria||'').localeCompare(b.categoria||'', 'pt-BR'),
-    cat_za:    (a,b) => (b.categoria||'').localeCompare(a.categoria||'', 'pt-BR'),
-    desc_az:   (a,b) => (a.descricao||'').localeCompare(b.descricao||'', 'pt-BR'),
-    desc_za:   (a,b) => (b.descricao||'').localeCompare(a.descricao||'', 'pt-BR'),
+    data_asc:   (a,b) => (a.data||'').localeCompare(b.data||''),
+    data_desc:  (a,b) => (b.data||'').localeCompare(a.data||''),
+    venc_asc:   (a,b) => (a.dataVencimento||'9999').localeCompare(b.dataVencimento||'9999'),
+    venc_desc:  (a,b) => (b.dataVencimento||'').localeCompare(a.dataVencimento||''),
+    valor_asc:  (a,b) => (a.valor||0)-(b.valor||0),
+    valor_desc: (a,b) => (b.valor||0)-(a.valor||0),
+    cat_az:     (a,b) => (a.categoria||'').localeCompare(b.categoria||'', 'pt-BR'),
+    cat_za:     (a,b) => (b.categoria||'').localeCompare(a.categoria||'', 'pt-BR'),
+    desc_az:    (a,b) => (a.descricao||'').localeCompare(b.descricao||'', 'pt-BR'),
+    desc_za:    (a,b) => (b.descricao||'').localeCompare(a.descricao||'', 'pt-BR'),
   };
 
   const lista = (D.despesas || []).filter(d => {
@@ -352,6 +404,7 @@ function rDespesasLista() {
     if (ano && !ref.startsWith(ano)) return false;
     if (mes && !ref.startsWith(`${ano}-${mes}`)) return false;
     if (catFiltro && d.categoria !== catFiltro) return false;
+    if (statusFiltro && _statusDesp(d) !== statusFiltro) return false;
     return true;
   }).sort(_sortFns[ordemLista] || _sortFns.data_asc);
 
@@ -364,37 +417,47 @@ function rDespesasLista() {
 
   tbody.innerHTML = '';
   if (!lista.length) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#8B91A8;padding:24px">Nenhuma despesa encontrada para este período.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#8B91A8;padding:24px">Nenhuma despesa encontrada para este período.</td></tr>';
     return;
   }
 
   lista.forEach(d => {
     const tr = document.createElement('tr');
     tr.style.borderBottom = '1px solid #1E2235';
-    const forma = _detectarFormaDespesa(d);
-    const desc  = _descricaoSemPrefixo(d);
+    const forma  = _detectarFormaDespesa(d);
+    const desc   = _descricaoSemPrefixo(d);
+    const status = _statusDesp(d);
     const descEsc = (d.descricao||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
     const temForn = !!(d.fornecedor && (D.fornecedores||[]).find(f=>f.nome===d.fornecedor));
+    const vencCell = d.dataVencimento
+      ? `<span style="color:${status==='vencido'?'#F74F6B':status==='pago'?'#8B91A8':'#F59E0B'};font-size:12px">${fd(d.dataVencimento)}</span>`
+      : `<span style="color:#8B91A8;font-size:12px">—</span>`;
     const catCell = temForn
-      ? `<td style="padding:10px 12px" title="Categoria gerenciada pelo fornecedor">
+      ? `<td style="padding:8px 10px" title="Categoria gerenciada pelo fornecedor">
            <span class="tag" style="background:#2A2F42;color:#CDD3E3;border:none;opacity:.75">${d.categoria||'—'}</span>
          </td>`
-      : `<td style="padding:6px 12px">
+      : `<td style="padding:4px 10px">
            <select onchange="editarCategoriaDespesa('${d.id}','${descEsc}',this.value)"
-             style="background:#2A2F42;color:#CDD3E3;border:1px solid #3A4055;border-radius:4px;font-size:11px;padding:2px 6px;cursor:pointer;max-width:130px">
+             style="background:#2A2F42;color:#CDD3E3;border:1px solid #3A4055;border-radius:4px;font-size:11px;padding:2px 6px;cursor:pointer;max-width:120px">
              ${_getCategoriasDespesas().map(c=>`<option value="${c}"${c===d.categoria?' selected':''}>${c}</option>`).join('')}
            </select>
          </td>`;
+    const pagCell = status === 'pago' && d.dataPagamento
+      ? `<div style="font-size:10px;color:#10B981;margin-top:2px">Pago em ${fd(d.dataPagamento)}</div>` : '';
     tr.innerHTML = `
-      <td style="padding:10px 12px">${fd(d.data) || '—'}</td>
+      <td style="padding:8px 10px;white-space:nowrap">${fd(d.data)||'—'}</td>
+      <td style="padding:8px 10px;white-space:nowrap">${vencCell}</td>
+      <td style="padding:8px 10px">${_statusTag(status)}</td>
       ${catCell}
-      <td style="padding:10px 12px">${_formaTag(forma)}</td>
-      <td style="padding:10px 12px">${desc || '—'}${d.fornecedor?`<div style="font-size:10px;color:#8B91A8;margin-top:2px">${d.fornecedor}</div>`:''}</td>
-      <td style="padding:10px 12px;color:#F74F6B;font-weight:600">${fR(d.valor || 0)}</td>
-      <td style="padding:10px 12px;color:#8B91A8;font-size:12px">${d.obs || '—'}</td>
-      <td style="padding:10px 12px;white-space:nowrap;display:flex;gap:6px">
-        <button class="btn-sm" onclick="abrirEditDespesa('${d.id}')" style="background:var(--bg3);border:1px solid var(--border2)" title="Editar">✏️</button>
-        <button class="btn-sm btn-red" onclick="excluirDespesa('${d.id}')" title="Excluir">✕</button>
+      <td style="padding:8px 10px">${_formaTag(forma)}</td>
+      <td style="padding:8px 10px">${desc||'—'}${d.fornecedor?`<div style="font-size:10px;color:#8B91A8;margin-top:2px">${d.fornecedor}</div>`:''}${pagCell}</td>
+      <td style="padding:8px 10px;color:#F74F6B;font-weight:600;white-space:nowrap">${fR(d.valor||0)}</td>
+      <td style="padding:8px 10px;white-space:nowrap">
+        <div style="display:flex;gap:4px;align-items:center">
+          ${status !== 'pago' ? `<button class="btn-sm" onclick="marcarDespesaPaga('${d.id}')" style="background:#0A2E1A;border:1px solid #10B98140;color:#10B981;font-size:11px;padding:2px 7px" title="Marcar como pago">✓ Pagar</button>` : ''}
+          <button class="btn-sm" onclick="abrirEditDespesa('${d.id}')" style="background:var(--bg3);border:1px solid var(--border2)" title="Editar">✏️</button>
+          <button class="btn-sm btn-red" onclick="excluirDespesa('${d.id}')" title="Excluir">✕</button>
+        </div>
       </td>
     `;
     tbody.appendChild(tr);
@@ -438,8 +501,13 @@ function salvarDespesa() {
   const valor = parseFloat(valorStr.replace(',', '.'));
   if (!valor || valor <= 0) { alert2('Valor inválido.', 'error'); _salvandoDespesa = false; return; }
 
+  const dataVencimento = document.getElementById('desp-form-vencimento')?.value || '';
+  const dataPagamento  = document.getElementById('desp-form-pagamento')?.value || '';
+  const status         = dataPagamento ? 'pago' : 'pendente';
+
   if (!D.despesas) D.despesas = [];
-  D.despesas.push({ id: _gerarId('DESP'), data, categoria, forma, fornecedor, descricao, valor, obs });
+  D.despesas.push({ id: _gerarId('DESP'), data, categoria, forma, fornecedor, descricao, valor, obs,
+                    dataVencimento, dataPagamento, status });
   sv('despesas');
   _salvandoDespesa = false;
 
@@ -451,6 +519,10 @@ function salvarDespesa() {
   if (formaEl) formaEl.value = '';
   const fornEl = document.getElementById('desp-form-forn');
   if (fornEl) fornEl.value = '';
+  const vencEl = document.getElementById('desp-form-vencimento');
+  if (vencEl) vencEl.value = '';
+  const pagEl = document.getElementById('desp-form-pagamento');
+  if (pagEl) pagEl.value = '';
 
   alert2('Despesa lançada com sucesso!');
   despSetView('lista');
@@ -461,6 +533,16 @@ function excluirDespesa(id) {
   D.despesas = (D.despesas || []).filter(d => d.id !== id);
   sv('despesas');
   rDespesasLista();
+}
+
+function marcarDespesaPaga(id) {
+  const d = (D.despesas||[]).find(x=>x.id===id);
+  if (!d) return;
+  d.status = 'pago';
+  if (!d.dataPagamento) d.dataPagamento = new Date().toISOString().slice(0,10);
+  sv('despesas');
+  rDespesasLista();
+  alert2('Despesa marcada como paga!', 'success');
 }
 
 function baixarModeloDespesasCSV() {
@@ -670,14 +752,16 @@ function abrirEditDespesa(id) {
   if (!d) return;
   _populateCategoriasSelects();
   _populateFornecedoresDespesas();
-  document.getElementById('desp-edit-id').value    = id;
-  document.getElementById('desp-edit-data').value  = d.data || '';
-  document.getElementById('desp-edit-cat').value   = d.categoria || '';
-  document.getElementById('desp-edit-forma').value = d.forma || _detectarFormaDespesa(d);
-  document.getElementById('desp-edit-forn').value  = d.fornecedor || '';
-  document.getElementById('desp-edit-desc').value  = _descricaoSemPrefixo(d);
-  document.getElementById('desp-edit-valor').value = d.valor || '';
-  document.getElementById('desp-edit-obs').value   = d.obs || '';
+  document.getElementById('desp-edit-id').value         = id;
+  document.getElementById('desp-edit-data').value       = d.data || '';
+  document.getElementById('desp-edit-cat').value        = d.categoria || '';
+  document.getElementById('desp-edit-forma').value      = d.forma || _detectarFormaDespesa(d);
+  document.getElementById('desp-edit-forn').value       = d.fornecedor || '';
+  document.getElementById('desp-edit-desc').value       = _descricaoSemPrefixo(d);
+  document.getElementById('desp-edit-valor').value      = d.valor || '';
+  document.getElementById('desp-edit-obs').value        = d.obs || '';
+  document.getElementById('desp-edit-vencimento').value = d.dataVencimento || '';
+  document.getElementById('desp-edit-pagamento').value  = d.dataPagamento || '';
   // Bloqueia categoria se há fornecedor vinculado
   const catEditEl = document.getElementById('desp-edit-cat');
   if(catEditEl) catEditEl.disabled = !!(d.fornecedor && (D.fornecedores||[]).find(f=>f.nome===d.fornecedor));
@@ -695,11 +779,16 @@ function salvarEditDespesa() {
   const descricao  = document.getElementById('desp-edit-desc')?.value?.trim();
   const valorStr   = document.getElementById('desp-edit-valor')?.value;
   const obs        = document.getElementById('desp-edit-obs')?.value?.trim() || '';
+  const dataVencimento = document.getElementById('desp-edit-vencimento')?.value || '';
+  const dataPagamento  = document.getElementById('desp-edit-pagamento')?.value || '';
   if (!data || !categoria || !descricao || !valorStr) { alert2('Preencha todos os campos obrigatórios.', 'error'); return; }
   const valor = parseFloat(valorStr.toString().replace(',','.'));
   if (!valor || valor <= 0) { alert2('Valor inválido.', 'error'); return; }
   d.data = data; d.categoria = categoria; d.forma = forma;
   d.fornecedor = fornecedor; d.descricao = descricao; d.valor = valor; d.obs = obs;
+  d.dataVencimento = dataVencimento;
+  d.dataPagamento  = dataPagamento;
+  d.status         = dataPagamento ? 'pago' : (d.status === 'pago' && !dataPagamento ? 'pendente' : d.status || 'pendente');
   sv('despesas');
   document.getElementById('m-edit-despesa').style.display = 'none';
   rDespesasLista();
