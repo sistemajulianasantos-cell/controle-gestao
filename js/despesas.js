@@ -787,11 +787,14 @@ function importarDespesasPDF(input) {
         const temTraco = /\s-\s?\d+\/\d+/.test(fullLine); // padrão "- 1/1"
         if (!temCO && !temTraco && datas.length < 2) continue;
 
-        // Vencimento = 2ª data na linha (ordem esquerda→direita); se só 1, usa ela
-        const vencStr = datas.length >= 2 ? datas[1] : datas[0];
+        // Emissão = 1ª data; Vencimento = 2ª data (ordem esquerda→direita)
+        const emissaoStr = datas[0];
+        const vencStr    = datas.length >= 2 ? datas[1] : datas[0];
         const mDate = vencStr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
         if (!mDate) continue;
-        const data = `${mDate[3]}-${mDate[2]}-${mDate[1]}`;
+        const dataVencimento = `${mDate[3]}-${mDate[2]}-${mDate[1]}`;
+        const mEmissao = emissaoStr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+        const data = mEmissao ? `${mEmissao[3]}-${mEmissao[2]}-${mEmissao[1]}` : dataVencimento;
 
         // Valor a Pagar = ÚLTIMO valor na linha (coluna mais à direita)
         const valorStr = valores[valores.length - 1];
@@ -808,6 +811,7 @@ function importarDespesasPDF(input) {
         despesas.push({
           id: 'DESP' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
           data,
+          dataVencimento,
           categoria: currentCategoria,
           descricao,
           valor,
