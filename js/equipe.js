@@ -457,21 +457,25 @@ function _calcHorasEvento(ini, fim) {
   } catch { return null; }
 }
 
-function _calcPagamento(cargoKey, nivel, regiao, horas, tipoHE, convidados) {
+function _calcPagamento(cargoKey, nivel, regiao, horasContr, horasNH, convidados) {
   const rg = D.regrasEquipe || {};
   const nk = (nivel||'').toLowerCase().includes('novato') ? 'novato' : 'antigo';
-  const valorBase  = (((rg.base||{})[regiao]||{})[cargoKey]||{})[nk] || 0;
-  const horasBase  = rg.horasBase || 6;
-  const horasExtra = Math.max(0, horas - horasBase);
-  const ehViagem   = (regiao||'').startsWith('viagem');
-  const tabHE      = ehViagem ? (rg.horaExtraViagem||{}) : (rg.horaExtra||{});
-  const chHE       = tipoHE === 'nh' ? 'naHora' : 'antecipada';
-  const valorHE    = ((tabHE[chHE]||{})[nk]||0) * horasExtra;
-  const paxUnits   = cargoKey === 'hb'
+  const valorBase     = (((rg.base||{})[regiao]||{})[cargoKey]||{})[nk] || 0;
+  const horasBase     = rg.horasBase || 6;
+  const ehViagem      = (regiao||'').startsWith('viagem');
+  const tabHE         = ehViagem ? (rg.horaExtraViagem||{}) : (rg.horaExtra||{});
+  // Horas do contrato acima da base → rate antecipada
+  const horasExtraAnt = Math.max(0, (horasContr||0) - horasBase);
+  const horasExtraNH  = horasNH || 0;
+  const valorHE_ant   = ((tabHE.antecipada||{})[nk]||0) * horasExtraAnt;
+  const valorHE_nh    = ((tabHE.naHora    ||{})[nk]||0) * horasExtraNH;
+  const horasExtra    = horasExtraAnt + horasExtraNH;
+  const valorHE       = valorHE_ant + valorHE_nh;
+  const paxUnits      = cargoKey === 'hb'
     ? Math.max(1, (convidados||0) / 100)
     : Math.floor((convidados||0) / 100);
   const valorBonus = ((rg.bonusConvidados||{})[cargoKey]||0) * paxUnits;
-  return { valorBase, horasExtra, valorHE, valorBonus, total: valorBase+valorHE+valorBonus };
+  return { valorBase, horasExtra, horasExtraAnt, horasExtraNH, valorHE, valorHE_ant, valorHE_nh, valorBonus, total: valorBase+valorHE+valorBonus };
 }
 
 function toggleHoraExtraEvento() {
@@ -484,24 +488,22 @@ function toggleHoraExtraEvento() {
 function calcularFolhaPagamento() {
   const regiao     = document.getElementById('eq-fp-regiao')?.value || '';
   const horasContr = parseFloat(document.getElementById('eq-fp-horas-base')?.value) || (D.regrasEquipe?.horasBase||6);
-  const temHEck    = document.getElementById('eq-fp-tem-he')?.checked || false;
-  const horasExtra = temHEck ? (parseFloat(document.getElementById('eq-fp-horas-extra')?.value)||0) : 0;
-  const horas      = horasContr + horasExtra;
-  const tipoHE     = document.getElementById('eq-fp-tipo-he')?.value || 'antecipada';
-  const el         = document.getElementById('eq-folha-resultado');
+  const temHEck = document.getElementById('eq-fp-tem-he')?.checked || false;
+  const horasNH = temHEck ? (parseFloat(document.getElementById('eq-fp-horas-extra')?.value)||0) : 0;
+  const el      = document.getElementById('eq-folha-resultado');
   if (!el) return;
 
   // Persiste o estado da folha para restaurar ao voltar à tela
   if (escalaEventoAtual?.id) {
     const prev = _folhaState[escalaEventoAtual.id] || {};
-    _folhaState[escalaEventoAtual.id] = { ...prev, regiao, temHE: temHEck, horasExtra, tipoHE };
+    _folhaState[escalaEventoAtual.id] = { ...prev, regiao, temHE: temHEck, horasExtra: horasNH };
     // Salva no contrato (Firebase) com debounce para persistir entre sessões
     clearTimeout(_folhaSaveTimer);
     _folhaSaveTimer = setTimeout(() => {
       const ct = (D.contratos||[]).find(c => c.id === escalaEventoAtual?.id);
       if (!ct) return;
       const sf = _folhaState[escalaEventoAtual.id] || {};
-      ct.folhaConfig = { regiao: sf.regiao||'', temHE: sf.temHE||false, horasExtra: sf.horasExtra||0, tipoHE: sf.tipoHE||'antecipada', totalOverride: sf.totalOverride||{} };
+      ct.folhaConfig = { regiao: sf.regiao||'', temHE: sf.temHE||false, horasExtra: sf.horasExtra||0, totalOverride: sf.totalOverride||{} };
       sv('contratos');
     }, 800);
   }
@@ -515,8 +517,8 @@ function calcularFolhaPagamento() {
   const contrato = (D.contratos||[]).find(c=>c.id===ev?.id);
   const escalas  = _escalasDoEvento(contrato||{id:ev?.id,nome:ev?.nome,data:ev?.data});
   const convidados = parseInt(contrato?.convidados||0);
-  const horasBase  = D.regrasEquipe?.horasBase || 6;
-  const temHE      = horas > horasBase;
+  const horasBase = D.regrasEquipe?.horasBase || 6;
+  const temHE     = horasContr > horasBase || horasNH > 0;
 
   const overrides = _folhaState[ev.id] || {};
   if (!overrides.totalOverride) overrides.totalOverride = {};
@@ -528,7 +530,7 @@ function calcularFolhaPagamento() {
     const cargo    = e.cargo || col.cargo || '';
     const cargoKey = _CARGO_PAG_KEY[cargo];
     if (!cargoKey) return;
-    const pag = _calcPagamento(cargoKey, col.nivel, regiao, horas, tipoHE, convidados);
+    const pag = _calcPagamento(cargoKey, col.nivel, regiao, horasContr, horasNH, convidados);
     const totalFinal = overrides.totalOverride[col.id] !== undefined ? overrides.totalOverride[col.id] : pag.total;
     linhas.push({ col, cargo, ...pag, total: totalFinal, totalEditado: overrides.totalOverride[col.id] !== undefined });
   });
@@ -545,7 +547,7 @@ function calcularFolhaPagamento() {
       if (faltando > 0) {
         const cargoKey = _CARGO_PAG_KEY[item.cargo];
         if (cargoKey) {
-          const pag = _calcPagamento(cargoKey, 'Antigo', regiao, horas, tipoHE, convidados);
+          const pag = _calcPagamento(cargoKey, 'Antigo', regiao, horasContr, horasNH, convidados);
           for (let i=0; i<faltando; i++) vagasAusentes.push({ cargo: item.cargo, cargoKey, valorCalc: pag.total });
         }
       }
@@ -577,7 +579,7 @@ function calcularFolhaPagamento() {
             <th style="padding:7px 10px;text-align:left">Cargo</th>
             <th style="padding:7px 10px;text-align:left">Nível</th>
             <th style="padding:7px 10px;text-align:right">Valor base</th>
-            ${temHE?`<th style="padding:7px 10px;text-align:right">H. extra (+${horasExtra||horas-horasBase}h)</th>`:''}
+            ${temHE?`<th style="padding:7px 10px;text-align:right">H. extra${horasNH>0?` (+${horasNH}h NH)`:''}</th>`:''}
             <th style="padding:7px 10px;text-align:right">Bônus</th>
             <th style="padding:7px 10px;text-align:right;color:var(--green)">Total</th>
             <th style="padding:7px 10px;text-align:center;min-width:130px">Chave PIX</th>
@@ -783,7 +785,6 @@ function rEscalaEvento() {
         regiao:        pRef.regiao       || '',
         temHE:         (pRef.horasExtras || 0) > 0,
         horasExtra:    pRef.horasExtras  || 0,
-        tipoHE:        pRef.tipoHE       || 'antecipada',
         totalOverride: {},
       };
     } else if (contrato?.folhaConfig?.regiao) {
@@ -793,7 +794,6 @@ function rEscalaEvento() {
         regiao:        fc.regiao        || '',
         temHE:         fc.temHE         || false,
         horasExtra:    fc.horasExtra    || 0,
-        tipoHE:        fc.tipoHE        || 'antecipada',
         totalOverride: fc.totalOverride || {},
       };
     }
@@ -1021,13 +1021,6 @@ function rEscalaEvento() {
             <label class="lbl">Horas extras</label>
             <input type="number" id="eq-fp-horas-extra" class="inp" style="width:90px" min="0.5" max="12" step="0.5"
               value="${_sf.horasExtra||1}" onchange="calcularFolhaPagamento()">
-          </div>
-          <div>
-            <label class="lbl">Tipo de hora extra</label>
-            <select id="eq-fp-tipo-he" class="inp" style="width:200px" onchange="calcularFolhaPagamento()">
-              <option value="antecipada" ${(_sf.tipoHE||'antecipada')==='antecipada'?'selected':''}>Contratada com antecedência</option>
-              <option value="nh" ${_sf.tipoHE==='nh'?'selected':''}>Contratada na hora</option>
-            </select>
           </div>
         </div>
       </div>
@@ -1726,11 +1719,10 @@ function autorizarPagamentosEvento() {
   }
   const ev          = escalaEventoAtual;
   const regiao      = document.getElementById('eq-fp-regiao')?.value || '';
-  const horasContr  = parseFloat(document.getElementById('eq-fp-horas-base')?.value) || 6;
-  const temHEck     = document.getElementById('eq-fp-tem-he')?.checked || false;
-  const horasExtra  = temHEck ? (parseFloat(document.getElementById('eq-fp-horas-extra')?.value)||0) : 0;
-  const tipoHE      = document.getElementById('eq-fp-tipo-he')?.value || 'antecipada';
-  const hoje        = new Date().toISOString().slice(0,10);
+  const horasContr = parseFloat(document.getElementById('eq-fp-horas-base')?.value) || 6;
+  const temHEck    = document.getElementById('eq-fp-tem-he')?.checked || false;
+  const horasNH    = temHEck ? (parseFloat(document.getElementById('eq-fp-horas-extra')?.value)||0) : 0;
+  const hoje       = new Date().toISOString().slice(0,10);
 
   if (!D.pagamentosEquipe) D.pagamentosEquipe = [];
   // Remove pagamentos e despesas anteriores deste evento (reautorização limpa)
@@ -1754,8 +1746,7 @@ function autorizarPagamentosEvento() {
       total:            l.total,
       regiao,
       horasContratadas: horasContr,
-      horasExtras:      horasExtra,
-      tipoHE,
+      horasExtras:      horasNH,
       dataAutorizacao:  hoje,
       status:           'pendente',
       dataPagamento:    null,
