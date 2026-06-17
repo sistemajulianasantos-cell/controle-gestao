@@ -1211,6 +1211,21 @@
               <option value="desc_za">Descrição Z → A</option>
               <option value="venc_asc">Vencimento ↑ (mais próximo)</option>
               <option value="venc_desc">Vencimento ↓ (mais distante)</option>
+              <option value="forma_az">Forma Pgto A → Z</option>
+              <option value="forma_za">Forma Pgto Z → A</option>
+            </select>
+            <select id="desp-forma-filtro" class="inp" style="width:145px;font-size:11px" onchange="rDespesasLista()">
+              <option value="">Todas as formas</option>
+              <option value="boleto">Boleto</option>
+              <option value="pix">PIX</option>
+              <option value="pix_manual">PIX Manual</option>
+              <option value="pix_nota">PIX c/ Nota</option>
+              <option value="cartao_credito">Cartão Crédito</option>
+              <option value="cartao_debito">Cartão Débito</option>
+              <option value="dinheiro">Dinheiro</option>
+              <option value="transferencia">Transferência</option>
+              <option value="cheque">Cheque</option>
+              <option value="outros">Outros</option>
             </select>
             <select id="desp-status-filtro" class="inp" style="width:140px;font-size:11px" onchange="rDespesasLista()">
               <option value="">Todos os status</option>

@@ -478,6 +478,12 @@ function rDespesasLista() {
   const statusFiltro = document.getElementById('desp-status-filtro')?.value || '';
   const ordemLista  = document.getElementById('desp-lista-ordem')?.value || 'data_asc';
 
+  const formaFiltro = document.getElementById('desp-forma-filtro')?.value || '';
+
+  const _formaOrdem = { boleto: '1', dinheiro: '2', pix: '3', pix_manual: '4', pix_nota: '5',
+                         cartao_credito: '6', cartao_debito: '7', transferencia: '8', cheque: '9', outros: 'z' };
+  const _formaKey = d => _formaOrdem[_detectarFormaDespesa(d)] || 'z';
+
   const _sortFns = {
     data_asc:   (a,b) => (a.data||'').localeCompare(b.data||''),
     data_desc:  (a,b) => (b.data||'').localeCompare(a.data||''),
@@ -489,6 +495,8 @@ function rDespesasLista() {
     cat_za:     (a,b) => (b.categoria||'').localeCompare(a.categoria||'', 'pt-BR'),
     desc_az:    (a,b) => (a.descricao||'').localeCompare(b.descricao||'', 'pt-BR'),
     desc_za:    (a,b) => (b.descricao||'').localeCompare(a.descricao||'', 'pt-BR'),
+    forma_az:   (a,b) => _formaKey(a).localeCompare(_formaKey(b)) || (a.data||'').localeCompare(b.data||''),
+    forma_za:   (a,b) => _formaKey(b).localeCompare(_formaKey(a)) || (a.data||'').localeCompare(b.data||''),
   };
 
   const lista = (D.despesas || []).filter(d => {
@@ -497,6 +505,7 @@ function rDespesasLista() {
     if (mes && !ref.startsWith(`${ano}-${mes}`)) return false;
     if (catFiltro && d.categoria !== catFiltro) return false;
     if (statusFiltro && _statusDesp(d) !== statusFiltro) return false;
+    if (formaFiltro && _detectarFormaDespesa(d) !== formaFiltro) return false;
     return true;
   }).sort(_sortFns[ordemLista] || _sortFns.data_asc);
 
