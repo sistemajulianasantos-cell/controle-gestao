@@ -555,8 +555,12 @@ function calcularFolhaPagamento() {
   if (contrato2?.equipe?.length) {
     const escalasGrupadas2 = {};
     escalas.forEach(e => { const c=e.cargo||''; if(!escalasGrupadas2[c]) escalasGrupadas2[c]=[]; escalasGrupadas2[c].push(e); });
+    const cargosNoContrato2 = new Set((contrato2.equipe||[]).map(e => e.cargo));
     contrato2.equipe.forEach(item => {
-      const preenchidos = (escalasGrupadas2[item.cargo]||[]).length;
+      let preenchidos = (escalasGrupadas2[item.cargo]||[]).length;
+      if (item.cargo === 'Bartender' && !cargosNoContrato2.has('Head Bartender')) {
+        preenchidos += (escalasGrupadas2['Head Bartender']||[]).length;
+      }
       const faltando = (item.qtd||0) - preenchidos;
       if (faltando > 0) {
         const cargoKey = _CARGO_PAG_KEY[item.cargo];
@@ -885,19 +889,29 @@ function rEscalaEvento() {
         // Build display rows: expected slots first, then overflow escalas
         const rows = [];
         if (slotsEsperados.length) {
+          const cargosNoContrato = new Set(slotsEsperados.map(s => s.cargo));
           const usados = {};
           slotsEsperados.forEach(slot => {
-            const grupo = escalasGrupadas[slot.cargo]||[];
-            const used  = usados[slot.cargo]||0;
-            const escala = grupo[used];
-            usados[slot.cargo] = used+1;
+            const grupoExato = escalasGrupadas[slot.cargo]||[];
+            const used = usados[slot.cargo]||0;
+            let escala = grupoExato[used];
+            if (escala) {
+              usados[slot.cargo] = used + 1;
+            } else if (slot.cargo === 'Bartender' && !cargosNoContrato.has('Head Bartender')) {
+              // Head Bartender preenche slot de Bartender quando não há slot próprio de HB no contrato
+              const grupoHB = escalasGrupadas['Head Bartender']||[];
+              const usadoHB = usados['Head Bartender']||0;
+              if (grupoHB[usadoHB]) {
+                escala = grupoHB[usadoHB];
+                usados['Head Bartender'] = usadoHB + 1;
+              }
+            }
             const label = slot.total > 1 ? `${slot.cargo} ${slot.num}` : slot.cargo;
             rows.push(escala ? { tipo:'filled', escala, label } : { tipo:'vaga', cargo:slot.cargo, label });
           });
-          // overflow: escalas beyond expected count
+          // overflow: escalas além do que foi usado (HBs em slots de Bartender já contabilizados)
           Object.entries(escalasGrupadas).forEach(([cargo, grupo]) => {
-            const esperado = slotsEsperados.filter(s=>s.cargo===cargo).length;
-            grupo.slice(esperado).forEach(e => rows.push({ tipo:'filled', escala:e, label:cargo+' (extra)' }));
+            grupo.slice(usados[cargo]||0).forEach(e => rows.push({ tipo:'filled', escala:e, label:cargo+' (extra)' }));
           });
         } else {
           escalas.slice().sort((a,b)=>(ordemCargos.indexOf(a.cargo)<0?99:ordemCargos.indexOf(a.cargo))-(ordemCargos.indexOf(b.cargo)<0?99:ordemCargos.indexOf(b.cargo)))
@@ -1062,10 +1076,16 @@ function abrirAddColabEvento() {
     );
     // Conta apenas slots regulares preenchidos (extras além da cota por cargo não bloqueiam vagas abertas)
     const preenchidos = contrato?.equipe?.length
-      ? contrato.equipe.reduce((s, slot) => {
-          const qtdDoCargo = escalasDoEvento.filter(e => e.cargo === slot.cargo).length;
-          return s + Math.min(qtdDoCargo, slot.qtd || 0);
-        }, 0)
+      ? (() => {
+          const cargosNoContratoAdc = new Set((contrato.equipe||[]).map(e => e.cargo));
+          return contrato.equipe.reduce((s, slot) => {
+            const qtdDoCargo = escalasDoEvento.filter(e =>
+              e.cargo === slot.cargo ||
+              (e.cargo === 'Head Bartender' && slot.cargo === 'Bartender' && !cargosNoContratoAdc.has('Head Bartender'))
+            ).length;
+            return s + Math.min(qtdDoCargo, slot.qtd || 0);
+          }, 0);
+        })()
       : escalasDoEvento.length;
     if (preenchidos >= maxEquipe) {
       alert(`Limite atingido: este evento contratou ${maxEquipe} colaborador${maxEquipe!==1?'es':''} e já há ${preenchidos} escalado${preenchidos!==1?'s':''}.`);
