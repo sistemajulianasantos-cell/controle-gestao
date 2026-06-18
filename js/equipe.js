@@ -913,6 +913,13 @@ function rEscalaEvento() {
           Object.entries(escalasGrupadas).forEach(([cargo, grupo]) => {
             grupo.slice(usados[cargo]||0).forEach(e => rows.push({ tipo:'filled', escala:e, label:cargo+' (extra)' }));
           });
+          // Reordena sempre pelo cargo real: HB/Coord → Bartender → Bar Back → Copeiro
+          rows.sort((a, b) => {
+            const cA = a.tipo === 'filled' ? (a.escala.cargo||'') : (a.cargo||'');
+            const cB = b.tipo === 'filled' ? (b.escala.cargo||'') : (b.cargo||'');
+            return (ordemCargos.indexOf(cA) < 0 ? 99 : ordemCargos.indexOf(cA))
+                 - (ordemCargos.indexOf(cB) < 0 ? 99 : ordemCargos.indexOf(cB));
+          });
         } else {
           escalas.slice().sort((a,b)=>(ordemCargos.indexOf(a.cargo)<0?99:ordemCargos.indexOf(a.cargo))-(ordemCargos.indexOf(b.cargo)<0?99:ordemCargos.indexOf(b.cargo)))
             .forEach(e => rows.push({ tipo:'filled', escala:e, label:e.cargo }));
