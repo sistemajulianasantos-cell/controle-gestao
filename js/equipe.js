@@ -10,6 +10,8 @@ let _folhaLinhas  = []; // última folha calculada (para autorização)
 let _novoColabFromEvento = false; // flag: novo colab aberto a partir do modal de evento
 let _colabEventoOpcoes  = []; // colaboradores disponíveis para busca no modal de escala
 let _folhaSaveTimer     = null; // debounce para salvar folhaConfig no contrato
+let _escalaFiltroState  = { ini: '', fim: '', ano: '', mes: '' }; // persiste filtros da tela de eventos
+let _equipeSearchTimer  = null; // debounce para busca na lista de equipe
 
 const CARGOS_EQUIPE = ['Head Bartender','Coordenador','Bartender','Bar Back','Copeiro'];
 const NIVEIS_EQUIPE = ['Novato','Antigo'];
@@ -43,6 +45,16 @@ function rEquipe() {
 
 // ─── LISTA ────────────────────────────────────────────────────────────────────
 
+function _equipeSearch(inp) {
+  clearTimeout(_equipeSearchTimer);
+  const cursor = inp.selectionStart;
+  _equipeSearchTimer = setTimeout(() => {
+    rEquipeLista();
+    const el = document.getElementById('eq-busca');
+    if (el) { el.focus(); el.setSelectionRange(cursor, cursor); }
+  }, 120);
+}
+
 function rEquipeLista() {
   equipeView = 'lista';
   const el = document.getElementById('eq-content');
@@ -69,7 +81,7 @@ function rEquipeLista() {
   el.innerHTML = `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
       <span style="font-size:16px;font-weight:600;color:var(--text)">Equipe</span>
-      <input id="eq-busca" type="text" placeholder="Buscar..." value="${busca}" oninput="rEquipeLista()"
+      <input id="eq-busca" type="text" placeholder="Buscar..." value="${busca}" oninput="_equipeSearch(this)"
         style="padding:6px 10px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-size:12px;width:150px">
       <select id="eq-filtro-cargo" onchange="rEquipeLista()"
         style="padding:6px 8px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-size:12px">
@@ -318,11 +330,12 @@ function rEscalaEventos() {
 
   const hoje = new Date().toISOString().slice(0,10);
 
-  // Lê estado dos filtros antes de reconstruir o DOM
-  const anoVal  = document.getElementById('eq-esc-ano')?.value || '';
-  const mesVal  = document.getElementById('eq-esc-mes')?.value || '';
-  const filtroI = document.getElementById('eq-esc-ini')?.value || '';
-  const filtroF = document.getElementById('eq-esc-fim')?.value || '';
+  // Lê filtros do DOM (se existir) ou do estado persistente (ao voltar de detalhe)
+  const anoVal  = document.getElementById('eq-esc-ano')?.value ?? _escalaFiltroState.ano;
+  const mesVal  = document.getElementById('eq-esc-mes')?.value ?? _escalaFiltroState.mes;
+  const filtroI = document.getElementById('eq-esc-ini')?.value ?? _escalaFiltroState.ini;
+  const filtroF = document.getElementById('eq-esc-fim')?.value ?? _escalaFiltroState.fim;
+  _escalaFiltroState = { ini: filtroI, fim: filtroF, ano: anoVal, mes: mesVal };
 
   const todos = (D.contratos||[]).filter(c=>(c.status||'ativo')!=='cancelado').sort((a,b)=>a.data.localeCompare(b.data));
 
@@ -394,6 +407,7 @@ function rEscalaEventos() {
       <div><label class="lbl">De</label><input id="eq-esc-ini" class="inp" type="date" style="width:145px" value="${filtroI}" onchange="document.getElementById('eq-esc-ano').value='';document.getElementById('eq-esc-mes').value='';rEscalaEventos()"></div>
       <div><label class="lbl">Até</label><input id="eq-esc-fim" class="inp" type="date" style="width:145px" value="${filtroF}" onchange="document.getElementById('eq-esc-ano').value='';document.getElementById('eq-esc-mes').value='';rEscalaEventos()"></div>
       <button class="sort-btn active" onclick="rEscalaEventos()">Filtrar</button>
+      ${filtroAtivo?`<button class="sort-btn" onclick="_escalaFiltroState={ini:'',fim:'',ano:'',mes:''};rEscalaEventos()" style="color:var(--red)">✕ Limpar</button>`:''}
     </div>
 
     ${filtroAtivo && !filtrados.length ? `
