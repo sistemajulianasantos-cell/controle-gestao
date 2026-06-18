@@ -321,7 +321,8 @@ function uploadFotoColab(colabId, input) {
 
 // ─── ESCALA POR EVENTO ────────────────────────────────────────────────────────
 
-let _mostrarHistoricoEscala = false;
+let _mostrarHistoricoEscala  = false;
+let _escalaEventosViewMode  = 'imagem'; // 'imagem' | 'lista'
 
 function rEscalaEventos() {
   equipeView = 'eventos';
@@ -351,25 +352,52 @@ function rEscalaEventos() {
 
   const MESES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
+  const ordemCargosEv = ['Head Bartender','Coordenador','Bartender','Bar Back','Copeiro'];
   const _cardEvento = (c, passado=false) => {
-    const escalas = _escalasDoEvento(c);
+    const escalas = _escalasDoEvento(c).slice().sort((a,b)=>{
+      const iA = ordemCargosEv.indexOf(a.cargo||''); const iB = ordemCargosEv.indexOf(b.cargo||'');
+      return (iA<0?99:iA)-(iB<0?99:iB);
+    });
     const nomeEsc = (c.nome||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
-    return `
-    <div class="sec" style="margin-bottom:10px">
-      <div class="sec-head" style="flex-wrap:wrap;gap:8px">
-        <div>
-          <span style="font-size:15px;font-weight:700;color:var(--text)">${c.nome||'Sem nome'}</span>
-          <span style="font-size:12px;color:var(--text2);margin-left:10px">
-            ${fd(c.data)}${c.local?' · '+c.local:''}${c.convidados?' · '+c.convidados+' conv.':''}
-          </span>
-        </div>
-        <button class="btn-sm ${passado?'':'btn-primary'}" style="${passado?'background:var(--bg3)':''}"
-          onclick="abrirEscalaEvento('${c.id}','${nomeEsc}','${c.data}')">
-          👥 ${passado?'Ver equipe':'Montar equipe'}
-        </button>
-      </div>
-      ${!escalas.length
-        ? `<div style="padding:10px 14px;color:var(--text3);font-size:12px">Nenhum colaborador escalado</div>`
+    const coresLabel = { 'Head Bartender':'#6366f1','Coordenador':'#f59e0b','Bartender':'#3b82f6','Bar Back':'#22c55e','Copeiro':'#ec4899' };
+
+    const corpo = !escalas.length
+      ? `<div style="padding:10px 14px;color:var(--text3);font-size:12px">Nenhum colaborador escalado</div>`
+      : _escalaEventosViewMode === 'lista'
+        ? `<div style="overflow-x:auto">
+            <table style="border-collapse:collapse;font-size:12px;width:100%">
+              <thead>
+                <tr style="border-bottom:1px solid var(--border2);font-size:10px;text-transform:uppercase;color:var(--text3)">
+                  <th style="padding:5px 12px;text-align:left">Nome</th>
+                  <th style="padding:5px 10px;text-align:left">Cargo</th>
+                  <th style="padding:5px 10px;text-align:left">Nível</th>
+                  <th style="padding:5px 10px;text-align:left;font-family:monospace">Chave PIX</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${escalas.map(e=>{
+                  const col=(D.equipe||[]).find(x=>x.id===e.colaboradorId);
+                  if(!col) return '';
+                  const cargo = e.cargo||col.cargo||'';
+                  const cor   = coresLabel[cargo]||'var(--text2)';
+                  const foto  = col.foto
+                    ? `<img src="${col.foto}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0">`
+                    : `<div style="width:28px;height:28px;border-radius:50%;background:var(--bg3);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--text3);flex-shrink:0">${(col.nome||'?')[0].toUpperCase()}</div>`;
+                  return `<tr style="border-bottom:1px solid var(--border)">
+                    <td style="padding:5px 12px">
+                      <div style="display:flex;align-items:center;gap:7px">
+                        ${foto}
+                        <span style="font-weight:600">${col.nome}</span>
+                      </div>
+                    </td>
+                    <td style="padding:5px 10px;color:${cor};font-size:11px">${cargo}</td>
+                    <td style="padding:5px 10px;color:${col.nivel==='Novato'?'var(--amber)':'var(--green)'};font-size:11px">${col.nivel||'—'}</td>
+                    <td style="padding:5px 10px;font-family:monospace;font-size:10px;color:#4ade80">${col.chave_pix||'—'}</td>
+                  </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>`
         : `<div style="display:flex;flex-wrap:wrap;gap:14px;padding:14px 16px">
             ${escalas.map(e=>{
               const col=(D.equipe||[]).find(x=>x.id===e.colaboradorId);
@@ -385,10 +413,26 @@ function rEscalaEventos() {
                 <div style="font-size:11px;font-weight:700;color:var(--text);text-align:center;line-height:1.2;width:100%">
                   ${primeiroNome}${sobrenome?' '+sobrenome:''}
                 </div>
-                ${cargo?`<div style="font-size:10px;color:var(--text3);text-align:center;margin-top:-4px">${cargo}</div>`:''}
+                ${cargo?`<div style="font-size:10px;color:${coresLabel[cargo]||'var(--text3)'};text-align:center;margin-top:-4px">${cargo}</div>`:''}
               </div>`;
             }).join('')}
-          </div>`}
+          </div>`;
+
+    return `
+    <div class="sec" style="margin-bottom:10px">
+      <div class="sec-head" style="flex-wrap:wrap;gap:8px">
+        <div>
+          <span style="font-size:15px;font-weight:700;color:var(--text)">${c.nome||'Sem nome'}</span>
+          <span style="font-size:12px;color:var(--text2);margin-left:10px">
+            ${fd(c.data)}${c.local?' · '+c.local:''}${c.convidados?' · '+c.convidados+' conv.':''}
+          </span>
+        </div>
+        <button class="btn-sm ${passado?'':'btn-primary'}" style="${passado?'background:var(--bg3)':''}"
+          onclick="abrirEscalaEvento('${c.id}','${nomeEsc}','${c.data}')">
+          👥 ${passado?'Ver equipe':'Montar equipe'}
+        </button>
+      </div>
+      ${corpo}
     </div>`;
   };
 
@@ -396,6 +440,10 @@ function rEscalaEventos() {
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
       <button class="btn-sm" onclick="rEquipeLista()" style="background:var(--bg3)">← Colaboradores</button>
       <span style="font-weight:600;font-size:15px;color:var(--text)">Escala por Evento</span>
+      <div style="margin-left:auto;display:flex;gap:4px">
+        <button class="sort-btn${_escalaEventosViewMode==='lista'?' active':''}" onclick="_escalaEventosViewMode='lista';rEscalaEventos()" title="Lista">☰ Lista</button>
+        <button class="sort-btn${_escalaEventosViewMode==='imagem'?' active':''}" onclick="_escalaEventosViewMode='imagem';rEscalaEventos()" title="Imagem">⊞ Imagem</button>
+      </div>
     </div>
 
     <div style="display:flex;gap:12px;align-items:flex-end;margin-bottom:14px;flex-wrap:wrap">
