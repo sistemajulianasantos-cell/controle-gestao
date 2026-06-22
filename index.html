@@ -1070,47 +1070,95 @@
 
     <!-- ═══ FINANCEIRO ═══ -->
     <div id="page-financeiro" class="page">
+
+      <!-- KPIs globais -->
       <div class="cards" style="margin-bottom:14px">
-        <div class="card"><div class="card-label">A receber (pendente)</div><div class="card-val" id="fin-total-pend">—</div></div>
-        <div class="card"><div class="card-label">Recebido (pago)</div><div class="card-val" id="fin-total-pago">—</div></div>
-        <div class="card"><div class="card-label">Total contratado</div><div class="card-val" id="fin-total-geral">—</div></div>
+        <div class="card"><div class="card-label">Total contratado</div><div class="card-value" id="fin-total-geral">—</div></div>
+        <div class="card red"><div class="card-label">Em aberto</div><div class="card-value" id="fin-total-pend">—</div></div>
+        <div class="card green"><div class="card-label">Recebido</div><div class="card-value" id="fin-total-pago">—</div></div>
+        <div class="card amber"><div class="card-label">Atrasado</div><div class="card-value" id="fin-total-atrasado">—</div></div>
       </div>
 
-      <div class="sec">
-        <div class="sec-head" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <span class="sec-title">💰 Parcelas e Pagamentos</span>
-          <select id="fin-filtro" class="inp" style="width:120px" onchange="rFinanceiro()">
-            <option value="todos">Todos</option>
-            <option value="pendente">Pendentes</option>
-            <option value="pago">Pagos</option>
-          </select>
-          <select id="fin-ano" class="inp" style="width:80px" onchange="aplicarMesFechado('fin-ano','fin-mes','fin-data-ini','fin-data-fim',rFinanceiro)"></select>
-          <select id="fin-mes" class="inp" style="width:110px" onchange="aplicarMesFechado('fin-ano','fin-mes','fin-data-ini','fin-data-fim',rFinanceiro)"><option value="">Mês...</option><option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option><option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option><option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option></select>
-          <label class="lbl" style="margin:0">De</label>
-          <input id="fin-data-ini" class="inp" type="date" style="width:140px" onchange="document.getElementById('fin-ano').value='';document.getElementById('fin-mes').value='';rFinanceiro()">
-          <label class="lbl" style="margin:0">Até</label>
-          <input id="fin-data-fim" class="inp" type="date" style="width:140px" onchange="document.getElementById('fin-ano').value='';document.getElementById('fin-mes').value='';rFinanceiro()">
-          <button class="btn-sm" onclick="limparFinanceiroOrfaos()" style="margin-left:auto;background:#2A2F42;color:#F74F6B;border:1px solid #F74F6B" title="Remove lançamentos cujo contrato foi excluído">🗑️ Limpar órfãos</button>
-        </div>
-        <div style="overflow-x:auto">
-          <table style="width:100%;border-collapse:collapse;font-size:13px">
-            <thead>
-              <tr style="color:#8B91A8;border-bottom:1px solid #2A2F42">
-                <th style="padding:10px 12px;text-align:left;font-weight:500">Vencimento</th>
-                <th style="padding:10px 12px;text-align:left;font-weight:500">Evento</th>
-                <th style="padding:10px 12px;text-align:left;font-weight:500">Data evento</th>
-                <th style="padding:10px 12px;text-align:left;font-weight:500">Tipo</th>
-                <th style="padding:10px 12px;text-align:center;font-weight:500">Convidados</th>
-                <th style="padding:10px 12px;text-align:left;font-weight:500">Descrição</th>
-                <th style="padding:10px 12px;text-align:left;font-weight:500">Valor</th>
-                <th style="padding:10px 12px;text-align:left;font-weight:500">Status</th>
-                <th style="padding:10px 12px;text-align:left;font-weight:500">Ação</th>
-              </tr>
-            </thead>
-            <tbody id="fin-body"></tbody>
-          </table>
+      <!-- Abas -->
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+        <button class="sort-btn active" id="fin-tab-sint" onclick="finSetView('sintetico')">📊 Sintético</button>
+        <button class="sort-btn"        id="fin-tab-anal" onclick="finSetView('analitico')">📋 Analítico</button>
+        <div style="margin-left:auto">
+          <button class="btn-sm" onclick="limparFinanceiroOrfaos()" style="background:#2A2F42;color:#F74F6B;border:1px solid #F74F6B" title="Remove lançamentos cujo contrato foi excluído">🗑️ Limpar órfãos</button>
         </div>
       </div>
+
+      <!-- ── SINTÉTICO ── -->
+      <div id="fin-view-sint">
+        <div class="sec">
+          <div class="sec-head" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span class="sec-title">📊 Resumo por evento</span>
+            <select id="fins-ano" class="inp" style="width:85px" onchange="aplicarMesFechado('fins-ano','fins-mes','fins-data-ini','fins-data-fim',rFinanceiroSintetico)"></select>
+            <select id="fins-mes" class="inp" style="width:115px" onchange="aplicarMesFechado('fins-ano','fins-mes','fins-data-ini','fins-data-fim',rFinanceiroSintetico)">
+              <option value="">Mês...</option><option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option><option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option><option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+            </select>
+            <label class="lbl" style="margin:0">De</label>
+            <input id="fins-data-ini" class="inp" type="date" style="width:140px" onchange="document.getElementById('fins-ano').value='';document.getElementById('fins-mes').value='';rFinanceiroSintetico()">
+            <label class="lbl" style="margin:0">Até</label>
+            <input id="fins-data-fim" class="inp" type="date" style="width:140px" onchange="document.getElementById('fins-ano').value='';document.getElementById('fins-mes').value='';rFinanceiroSintetico()">
+          </div>
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:12px">
+              <thead>
+                <tr style="color:#8B91A8;border-bottom:2px solid #2A2F42;background:var(--bg4)">
+                  <th style="padding:10px 12px;text-align:left;font-weight:600">Data evento</th>
+                  <th style="padding:10px 12px;text-align:left;font-weight:600">Evento</th>
+                  <th style="padding:10px 12px;text-align:left;font-weight:600">Tipo / Convidados</th>
+                  <th style="padding:10px 14px;text-align:center;font-weight:600;color:#60A5FA">20% — Sinal</th>
+                  <th style="padding:10px 14px;text-align:center;font-weight:600;color:#818CF8">80% — Restante</th>
+                  <th style="padding:10px 14px;text-align:center;font-weight:600;color:#FBBF24">Fechamento</th>
+                  <th style="padding:10px 12px;text-align:right;font-weight:600">Total</th>
+                </tr>
+              </thead>
+              <tbody id="fins-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── ANALÍTICO ── -->
+      <div id="fin-view-anal" style="display:none">
+        <div class="sec">
+          <div class="sec-head" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span class="sec-title">📋 Lançamentos detalhados</span>
+            <select id="fin-filtro" class="inp" style="width:120px" onchange="rFinanceiro()">
+              <option value="todos">Todos</option>
+              <option value="pendente">Pendentes</option>
+              <option value="pago">Pagos</option>
+            </select>
+            <select id="fin-ano" class="inp" style="width:85px" onchange="aplicarMesFechado('fin-ano','fin-mes','fin-data-ini','fin-data-fim',rFinanceiro)"></select>
+            <select id="fin-mes" class="inp" style="width:115px" onchange="aplicarMesFechado('fin-ano','fin-mes','fin-data-ini','fin-data-fim',rFinanceiro)"><option value="">Mês...</option><option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option><option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option><option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option></select>
+            <label class="lbl" style="margin:0">De</label>
+            <input id="fin-data-ini" class="inp" type="date" style="width:140px" onchange="document.getElementById('fin-ano').value='';document.getElementById('fin-mes').value='';rFinanceiro()">
+            <label class="lbl" style="margin:0">Até</label>
+            <input id="fin-data-fim" class="inp" type="date" style="width:140px" onchange="document.getElementById('fin-ano').value='';document.getElementById('fin-mes').value='';rFinanceiro()">
+          </div>
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+              <thead>
+                <tr style="color:#8B91A8;border-bottom:1px solid #2A2F42">
+                  <th style="padding:10px 12px;text-align:left;font-weight:500">Vencimento</th>
+                  <th style="padding:10px 12px;text-align:left;font-weight:500">Evento</th>
+                  <th style="padding:10px 12px;text-align:left;font-weight:500">Data evento</th>
+                  <th style="padding:10px 12px;text-align:left;font-weight:500">Tipo</th>
+                  <th style="padding:10px 12px;text-align:center;font-weight:500">Convidados</th>
+                  <th style="padding:10px 12px;text-align:left;font-weight:500">Descrição</th>
+                  <th style="padding:10px 12px;text-align:left;font-weight:500">Valor</th>
+                  <th style="padding:10px 12px;text-align:left;font-weight:500">Status</th>
+                  <th style="padding:10px 12px;text-align:left;font-weight:500">Ação</th>
+                </tr>
+              </thead>
+              <tbody id="fin-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
     </div>
 
     <!-- ═══ FECHAMENTOS DE EVENTO ═══ -->
