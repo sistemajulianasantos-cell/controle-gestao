@@ -47,8 +47,12 @@ function criarFesta(){
   sv('festas');nfItens=[];limparNF();alert2('Evento salvo!');setFestaView('geral');
 }
 function _allFestas(){
-  const editedIds=new Set(D.festas.map(f=>f.id));
-  return [...D.festas,...FESTAS_PRELOAD.filter(p=>!editedIds.has(p.id))].sort((a,b)=>b.data.localeCompare(a.data));
+  const editedIds  = new Set(D.festas.map(f=>f.id));
+  const deletedIds = new Set(D.deletedFestaIds || []);
+  return [
+    ...D.festas.filter(f => !deletedIds.has(f.id)),
+    ...FESTAS_PRELOAD.filter(p => !editedIds.has(p.id) && !deletedIds.has(p.id))
+  ].sort((a,b)=>b.data.localeCompare(a.data));
 }
 function _qbrPorEvento(){
   const map={};
@@ -183,8 +187,16 @@ function rFestas(){
 }
 function excluirFesta(id){
   if(!confirm('Excluir este evento? Esta ação não pode ser desfeita.'))return;
-  D.festas=D.festas.filter(x=>x.id!==id);
-  sv('festas');rFestas();alert2('Evento excluído.');
+  const isPreload = (window.FESTAS_PRELOAD||[]).some(f=>f.id===id);
+  if(isPreload){
+    if(!D.deletedFestaIds) D.deletedFestaIds=[];
+    if(!D.deletedFestaIds.includes(id)) D.deletedFestaIds.push(id);
+    sv('deletedFestaIds');
+  } else {
+    D.festas=D.festas.filter(x=>x.id!==id);
+    sv('festas');
+  }
+  rFestas();alert2('Evento excluído.');
 }
 function toggleFesta(uid){
   const detail=document.getElementById(uid+'-detail');const arrow=document.getElementById(uid+'-arrow');if(!detail)return;

@@ -1895,6 +1895,7 @@ window.svFirebase = async function(chave) {
     if(chave==='despesas')           campo.despesas            = D.despesas;
     if(chave==='categoriasDespesas') campo.categoriasDespesas  = D.categoriasDespesas;
     if(chave==='fechamentos')        campo.fechamentos         = D.fechamentos;
+    if(chave==='deletedFestaIds')    campo.deletedFestaIds     = D.deletedFestaIds;
     if (Object.keys(campo).length === 0) return;
     await setDoc(doc(db, "dados", DOC_ID), campo, { merge: true });
   } catch(e) {
@@ -1948,6 +1949,7 @@ async function carregarDados() {
     D.despesas              = r.despesas              || [];
     D.categoriasDespesas    = r.categoriasDespesas    || [];
     D.fechamentos           = r.fechamentos           || [];
+    D.deletedFestaIds       = r.deletedFestaIds       || [];
 
     // Senhas: migra texto puro → SHA-256 e inicializa se vazio
     const _isHashed = k => /^[0-9a-f]{64}$/.test(k);
