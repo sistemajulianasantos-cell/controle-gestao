@@ -448,7 +448,7 @@ function rFestaFechamentos() {
       const btnPag = fch.status === 'pendente'
         ? `<button class="btn-sm btn-green" onclick="event.stopPropagation();marcarFechamentoPago('${fch.id}')">Recebido</button>`
         : `<button class="btn-sm" onclick="event.stopPropagation();marcarFechamentoPendente('${fch.id}')">Desfazer</button>`;
-      acoes = btnPag + ` <button class="btn-sm" onclick="event.stopPropagation();editarFechamento('${fch.id}')">✏️</button>`;
+      acoes = btnPag + ` <button class="btn-sm" onclick="event.stopPropagation();editarFechamento('${fch.id}')">✏️</button> <button class="btn-sm btn-red" onclick="event.stopPropagation();excluirFechamento('${fch.id}')">✕</button>`;
     }
 
     const tr = document.createElement('tr');
