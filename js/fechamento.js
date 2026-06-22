@@ -502,9 +502,11 @@ function rFestaFechamentos() {
     return { c, fch, valProd, valQbr, festaId: festa?.id };
   });
 
-  // Aplica filtros
-  if (filtro === 'sem')        rows = rows.filter(r => !r.fch);
-  else if (filtro !== 'todos') rows = rows.filter(r => r.fch && r.fch.status === filtro);
+  // Esta aba mostra APENAS contratos com fechamento lançado.
+  // Contratos sem fechamento ficam na aba "📋 Sem fechamento".
+  rows = rows.filter(r => r.fch);
+  if (filtro === 'pendente') rows = rows.filter(r => r.fch.status === 'pendente');
+  else if (filtro === 'pago') rows = rows.filter(r => r.fch.status === 'pago');
   if (busca) rows = rows.filter(r =>
     norm(r.c.nome).includes(busca) ||
     norm(r.c.nomeEvento || '').includes(busca)
@@ -515,12 +517,8 @@ function rFestaFechamentos() {
 
   tbody.innerHTML = '';
 
-  if (!concluidos.length) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:24px">Nenhum contrato concluído encontrado. Marque contratos como "Concluído" para que apareçam aqui.</td></tr>';
-    return;
-  }
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:24px">Nenhum resultado para o filtro selecionado.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:24px">Nenhum fechamento lançado. Use a aba "📋 Sem fechamento" para lançar o acerto dos eventos.</td></tr>';
     return;
   }
 
