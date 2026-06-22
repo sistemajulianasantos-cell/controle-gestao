@@ -16,14 +16,34 @@ function _fchCor(id)   { return (TIPOS_FCH.find(t => t.id === id) || {}).cor   |
 
 // ── Tela principal ───────────────────────────────────────────────────────────
 function rFechamentos() {
-  const all      = D.fechamentos || [];
-  const pendentes = all.filter(f => f.status === 'pendente');
-  const pagos     = all.filter(f => f.status === 'pago');
+  const all = D.fechamentos || [];
+
+  // Também inclui entradas do financeiro com isFechamento: true que não têm
+  // entrada correspondente em D.fechamentos (criadas por versões anteriores)
+  const fchFinIds = new Set(all.map(f => f.financeiroId).filter(Boolean));
+  const fchIds    = new Set(all.map(f => f.id));
+  const orfaos = (D.financeiro || [])
+    .filter(f => f.isFechamento && !fchFinIds.has(f.id) && !fchIds.has(f.id))
+    .map(f => ({
+      id:          f.id,
+      eventoNome:  f.evento || f.contrato || '—',
+      clienteNome: f.contrato || '',
+      dataEvento:  f.data || '',
+      vencimento:  f.vencimento || '',
+      itens:       [],
+      totalExtras: f.valorNum || 0,
+      status:      f.status || 'pendente',
+      _orfao:      true,
+    }));
+  const lista_all = [...all, ...orfaos];
+
+  const pendentes = lista_all.filter(f => f.status === 'pendente');
+  const pagos     = lista_all.filter(f => f.status === 'pago');
   const totPend   = pendentes.reduce((s, f) => s + (f.totalExtras || 0), 0);
   const totPago   = pagos.reduce((s, f) => s + (f.totalExtras || 0), 0);
 
   const setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-  setEl('fch-tot-count', all.length.toString());
+  setEl('fch-tot-count', lista_all.length.toString());
   setEl('fch-tot-pend',  fR(totPend));
   setEl('fch-tot-pago',  fR(totPago));
 
@@ -33,7 +53,7 @@ function rFechamentos() {
   const filtro = document.getElementById('fch-filtro')?.value || 'todos';
   const busca  = (document.getElementById('fch-busca')?.value || '').toLowerCase();
 
-  const lista = all
+  const lista = lista_all
     .filter(f => filtro === 'todos' || f.status === filtro)
     .filter(f => !busca || (f.eventoNome || '').toLowerCase().includes(busca) || (f.clienteNome || '').toLowerCase().includes(busca))
     .sort((a, b) => (b.dataEvento || '').localeCompare(a.dataEvento || ''));
@@ -70,7 +90,7 @@ function rFechamentos() {
     tr.innerHTML = `
       <td style="width:24px;font-size:12px;color:var(--text3);text-align:center;user-select:none" id="${uid}-arrow">▶</td>
       <td style="font-size:11px;color:var(--text3);white-space:nowrap">${fd(f.dataEvento) || '—'}</td>
-      <td><strong>${f.eventoNome || '—'}</strong><div style="font-size:10px;font-weight:400;color:var(--text3)">${f.clienteNome || ''}</div></td>
+      <td><strong>${f.eventoNome || '—'}</strong><div style="font-size:10px;font-weight:400;color:var(--text3)">${f.clienteNome || ''}${f._orfao ? ' <span style="color:#F87171">(lançamento antigo)</span>' : ''}</div></td>
       <td style="font-size:11px;color:var(--text3)">${(f.itens || []).length} item${(f.itens || []).length !== 1 ? 's' : ''}</td>
       <td style="font-family:var(--mono);font-weight:700;color:#FBBF24">${fR(f.totalExtras)}</td>
       <td>${statusTag}</td>
@@ -313,15 +333,41 @@ function editarFechamento(id) {
 // ── Excluir ──────────────────────────────────────────────────────────────────
 function excluirFechamento(id) {
   if (!confirm('Excluir este fechamento?\nOs itens extras e a parcela no financeiro serão removidos.\nO evento permanece como "Pendente fechamento".')) return;
+
+  let removeu = false;
+
+  // Tenta remover de D.fechamentos (fluxo normal)
   const f = (D.fechamentos || []).find(x => x.id === id);
-  if (!f) { alert2('Fechamento não encontrado.', 'error'); return; }
-  if (f.financeiroId) {
-    D.financeiro = (D.financeiro || []).filter(x => x.id !== f.financeiroId);
+  if (f) {
+    if (f.financeiroId) {
+      D.financeiro = (D.financeiro || []).filter(x => x.id !== f.financeiroId);
+    }
+    D.fechamentos = D.fechamentos.filter(x => x.id !== id);
+    sv('fechamentos');
     sv('financeiro');
+    removeu = true;
   }
-  D.fechamentos = D.fechamentos.filter(x => x.id !== id);
-  sv('fechamentos');
-  alert2('Fechamento excluído. Evento voltou para "Pendente fechamento".', 'success');
+
+  // Fallback: entrada pode estar só em D.financeiro (isFechamento: true)
+  const fin = (D.financeiro || []).find(x => x.id === id && x.isFechamento);
+  if (fin) {
+    D.financeiro = D.financeiro.filter(x => x.id !== id);
+    sv('financeiro');
+    removeu = true;
+  }
+
+  // Remove também qualquer entrada financeiro com isFechamento ligada ao mesmo contratoId
+  if (f && f.contratoId && !fin) {
+    const finVinc = (D.financeiro || []).find(x => x.contratoId === f.contratoId && x.isFechamento);
+    if (finVinc) {
+      D.financeiro = D.financeiro.filter(x => x.id !== finVinc.id);
+      sv('financeiro');
+    }
+  }
+
+  if (!removeu) { alert2('Fechamento não encontrado. Pode ter sido removido já.', 'error'); return; }
+
+  alert2('Fechamento excluído com sucesso!', 'success');
   rFechamentos();
   rFestaFechamentos();
   rFestaPendentes();
