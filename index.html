@@ -1948,6 +1948,7 @@ async function carregarDados() {
     D.agenda       = r.agenda       || [];
     D.financeiro   = r.financeiro   || [];
     D.contratos    = r.contratos    || [];
+    if (typeof atualizarStatusContratos === 'function') atualizarStatusContratos();
     D.producoes    = r.producoes    || [];
     D.separacoes   = r.separacoes   || [];
     D.fichas       = r.fichas       || [];

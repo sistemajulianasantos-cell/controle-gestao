@@ -3,6 +3,21 @@
 
 let dadosContrato = {};
 
+// Atualiza status dos contratos com base na data do evento:
+// data passada → concluido | data futura/hoje → ativo
+// Contratos cancelados nunca são alterados.
+function atualizarStatusContratos() {
+  if (!D.contratos || !D.contratos.length) return;
+  const hoje = new Date().toISOString().slice(0, 10);
+  let mudou = false;
+  D.contratos.forEach(c => {
+    if (c.status === 'cancelado' || !c.data) return;
+    const novoStatus = c.data < hoje ? 'concluido' : 'ativo';
+    if (c.status !== novoStatus) { c.status = novoStatus; mudou = true; }
+  });
+  if (mudou) sv('contratos');
+}
+
 function setContratoView(v) {
   if (v === 'importar') { setTimeout(initImportacao, 50); }
   ['importar','lista','manual'].forEach(k => {
