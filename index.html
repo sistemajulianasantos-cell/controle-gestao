@@ -536,7 +536,7 @@
         <button class="sort-btn"        id="fv-produtos"   onclick="setFestaView('produtos')">🍾 Produtos consumidos</button>
         <button class="sort-btn"        id="fv-quebras"    onclick="setFestaView('quebras')">🥃 Quebras detalhadas</button>
         <button class="sort-btn active" id="fv-fechamento" onclick="setFestaView('fechamento')">💰 Fechamentos</button>
-        <button class="sort-btn"        id="fv-novo"       onclick="setFestaView('novo')">+ Novo evento</button>
+        <button class="sort-btn"        id="fv-novo"       onclick="setFestaView('novo')">📋 Sem fechamento</button>
       </div>
       <div id="fview-geral" style="display:none">
         <div class="cards" id="festas-cards" style="margin-bottom:14px"></div>
@@ -574,29 +574,11 @@
       </div>
       <div id="fview-novo" style="display:none">
         <div class="sec">
-          <div class="sec-head"><span class="sec-title">Criar novo evento</span></div>
-          <div class="form-grid c3">
-            <div class="form-group full"><label>Nome do evento</label><input type="text" id="fnome" placeholder="Ex: Casamento Silva, 15 anos Maria..."></div>
-            <div class="form-group"><label>Data</label><input type="date" id="fdata"></div>
-            <div class="form-group"><label>Local</label><input type="text" id="flocal" placeholder="Endereço ou local"></div>
-            <div class="form-group"><label>Responsável</label><input type="text" id="fresp" placeholder="Nome do bartender"></div>
-            <div class="form-group"><label>Valor total do evento (R$)</label><input type="number" id="fvalor" placeholder="0,00" step="0.01"></div>
+          <div class="sec-head">
+            <span class="sec-title">📋 Eventos sem fechamento</span>
+            <span style="font-size:11px;color:var(--text3);margin-left:10px">Contratos concluídos aguardando acerto pós-evento</span>
           </div>
-          <div style="padding:0 16px 14px">
-            <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Produtos consumidos</div>
-            <div style="display:grid;grid-template-columns:1fr 110px 130px 36px;gap:8px;margin-bottom:10px;align-items:center">
-              <select id="fi-prod" style="font-size:12px"><option value="">Selecionar produto...</option></select>
-              <input type="number" id="fi-qtd" placeholder="Qtd consumida" step="0.01" style="font-size:12px" onkeydown="if(event.key==='Enter')addIF()">
-              <input type="number" id="fi-val" placeholder="Valor (opcional)" step="0.01" style="font-size:12px" onkeydown="if(event.key==='Enter')addIF()">
-              <button class="btn btn-primary btn-sm" onclick="addIF()" style="padding:0;height:36px;width:100%;font-size:18px;line-height:1">+</button>
-            </div>
-            <div id="nf-itens" style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg3);min-height:48px"></div>
-            <div id="nf-count" style="font-size:10px;color:var(--text3);margin-top:6px;text-align:right"></div>
-          </div>
-          <div class="form-actions">
-            <button class="btn" onclick="limparNF()">Limpar</button>
-            <button class="btn btn-primary" onclick="criarFesta()">Salvar evento</button>
-          </div>
+          <div id="fview-novo-body" style="padding:8px 0"></div>
         </div>
       </div>
 

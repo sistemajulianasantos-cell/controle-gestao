@@ -67,6 +67,53 @@ function setFestaView(v){
   if(v==='produtos')rFestaProdutos();
   if(v==='quebras')rFestaQuebras();
   if(v==='fechamento')rFestaFechamentos();
+  if(v==='novo')rFestaPendentes();
+}
+
+function rFestaPendentes() {
+  const fchPorContrato = {};
+  (D.fechamentos || []).forEach(f => { if (f.contratoId) fchPorContrato[f.contratoId] = true; });
+
+  const pendentes = (D.contratos || [])
+    .filter(c => c.status === 'concluido' && !fchPorContrato[c.id])
+    .sort((a, b) => (b.data || '').localeCompare(a.data || ''));
+
+  const body = document.getElementById('fview-novo-body');
+  if (!body) return;
+
+  if (!pendentes.length) {
+    body.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text3)">✅ Todos os eventos concluídos já têm fechamento registrado.</div>';
+    return;
+  }
+
+  body.innerHTML = `<div style="overflow-x:auto"><table class="table">
+    <thead><tr>
+      <th style="padding:10px 12px">Data</th>
+      <th style="padding:10px 12px">Evento / Cliente</th>
+      <th style="padding:10px 12px">Tipo</th>
+      <th style="padding:10px 12px">Convidados</th>
+      <th style="padding:10px 12px">Valor contrato</th>
+      <th style="padding:10px 12px">Ação</th>
+    </tr></thead>
+    <tbody>
+      ${pendentes.map(c => {
+        const temFesta = (D.festas || []).some(f => f.data === c.data);
+        const importBtn = temFesta
+          ? `<button class="btn-sm" onclick="importarFechamento('${c.id}')" style="border-color:#1A3D2B;color:#4ADE80">↓ Importar dados</button> `
+          : '';
+        return `<tr>
+          <td style="font-size:11px;color:var(--text3);white-space:nowrap;padding:10px 12px">${fd(c.data)||'—'}</td>
+          <td style="padding:10px 12px"><strong>${c.nomeEvento||c.nome}</strong><div style="font-size:10px;color:var(--text3)">${c.nome}</div></td>
+          <td style="font-size:11px;padding:10px 12px">${c.tipo||'—'}</td>
+          <td style="font-size:11px;padding:10px 12px">${c.convidados||'—'}</td>
+          <td style="font-family:var(--mono);font-size:11px;padding:10px 12px">${c.opcao||'—'}</td>
+          <td style="padding:10px 12px">
+            ${importBtn}<button class="btn-sm" onclick="novoFechamento('${c.id}')" style="border-color:#1A2A3D;color:#60A5FA">✏️ Manual</button>
+          </td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table></div>`;
 }
 function rFestaQuebras(){
   const rows=[];

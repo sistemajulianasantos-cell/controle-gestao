@@ -312,16 +312,70 @@ function editarFechamento(id) {
 
 // ── Excluir ──────────────────────────────────────────────────────────────────
 function excluirFechamento(id) {
-  if (!confirm('Excluir este fechamento? A parcela correspondente no financeiro também será removida.')) return;
+  if (!confirm('Excluir este fechamento?\nOs itens extras e a parcela no financeiro serão removidos.\nO evento permanece como "Pendente fechamento".')) return;
   const f = (D.fechamentos || []).find(x => x.id === id);
-  if (f?.financeiroId) {
+  if (!f) { alert2('Fechamento não encontrado.', 'error'); return; }
+  if (f.financeiroId) {
     D.financeiro = (D.financeiro || []).filter(x => x.id !== f.financeiroId);
     sv('financeiro');
   }
-  D.fechamentos = (D.fechamentos || []).filter(x => x.id !== id);
+  D.fechamentos = D.fechamentos.filter(x => x.id !== id);
   sv('fechamentos');
+  alert2('Fechamento excluído. Evento voltou para "Pendente fechamento".', 'success');
   rFechamentos();
   rFestaFechamentos();
+  rFestaPendentes();
+}
+
+// ── Importar dados da festa para o fechamento ─────────────────────────────────
+function importarFechamento(contratoId) {
+  const c = (D.contratos || []).find(x => x.id === contratoId);
+  if (!c) return;
+
+  _fchItens = [];
+
+  // Produtos consumidos da festa vinculada pela data
+  const festa = (D.festas || []).find(f => f.data === c.data);
+  if (festa) {
+    (festa.itens || []).forEach(it => {
+      const v = parseFloat(it.valor) || 0;
+      if (v > 0) _fchItens.push({ tipo: 'adicional', descricao: it.prod || 'Produto', valor: v });
+    });
+    if (festa.valor_total_evento && !_fchItens.length) {
+      _fchItens.push({ tipo: 'adicional', descricao: 'Total evento', valor: festa.valor_total_evento });
+    }
+  }
+
+  // Quebras vinculadas pela data
+  (D.quebras || [])
+    .filter(q => q.data === c.data && q.obs)
+    .forEach(q => {
+      const v = parseFloat(q.qtd || 0) * parseFloat(q.custo || 0);
+      if (v > 0) _fchItens.push({ tipo: 'quebra', descricao: q.prod || 'Quebra', valor: v });
+    });
+
+  if (!_fchItens.length) {
+    alert2('Nenhum dado de produtos/quebras encontrado para esta data. Preencha manualmente.', 'warning');
+  }
+
+  // Pré-preenche o modal
+  document.getElementById('fch-modal-id').value  = '';
+  document.getElementById('fch-modal-obs').value  = '';
+  const sel = document.getElementById('fch-modal-contrato');
+  sel.innerHTML = '<option value="">Selecionar contrato...</option>' +
+    (D.contratos || [])
+      .slice().sort((a, b) => (b.data || '').localeCompare(a.data || ''))
+      .map(ct => `<option value="${ct.id}"${ct.id === contratoId ? ' selected' : ''}>${ct.nome || '—'} — ${fd(ct.data) || '—'}</option>`)
+      .join('');
+  document.getElementById('fch-modal-nome').value = c.nome || '';
+  document.getElementById('fch-modal-data').value = c.data || '';
+  if (c.data) {
+    const d = new Date(c.data + 'T12:00:00');
+    d.setDate(d.getDate() + 3);
+    document.getElementById('fch-modal-venc').value = d.toISOString().slice(0, 10);
+  }
+  _rFchItens();
+  openM('mfechamento');
 }
 
 // ── Status ───────────────────────────────────────────────────────────────────
