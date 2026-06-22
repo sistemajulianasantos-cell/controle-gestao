@@ -120,9 +120,14 @@ function rFestaPendentes() {
   </table></div>`;
 }
 function rFestaQuebras(){
+  // Apenas eventos que ainda estão visíveis (não excluídos)
+  const eventosVisiveis=new Set(_allFestas().map(f=>f.nome));
   const rows=[];
-  QUEBRAS_EVENTO_PRELOAD.forEach(ev=>{ev.itens.forEach(i=>rows.push({evento:ev.evento,data:ev.data,prod:i.prod,qtd:i.qtd,custo:i.custo,total:i.total}));});
-  D.quebras.filter(q=>q.obs&&!QUEBRAS_PRELOAD.find(p=>p.prod===q.prod&&p.data===q.data&&p.qtd===q.qtd)).forEach(q=>{rows.push({evento:q.obs,data:q.data,prod:q.prod,qtd:q.qtd,custo:q.custo,total:q.qtd*Number(q.custo||0)});});
+  QUEBRAS_EVENTO_PRELOAD.forEach(ev=>{
+    if(!eventosVisiveis.has(ev.evento))return;
+    ev.itens.forEach(i=>rows.push({evento:ev.evento,data:ev.data,prod:i.prod,qtd:i.qtd,custo:i.custo,total:i.total}));
+  });
+  D.quebras.filter(q=>q.obs&&eventosVisiveis.has(q.obs)&&!QUEBRAS_PRELOAD.find(p=>p.prod===q.prod&&p.data===q.data&&p.qtd===q.qtd)).forEach(q=>{rows.push({evento:q.obs,data:q.data,prod:q.prod,qtd:q.qtd,custo:q.custo,total:q.qtd*Number(q.custo||0)});});
   rows.sort((a,b)=>b.data.localeCompare(a.data));
   const totalVal=rows.reduce((a,r)=>a+Number(r.total||0),0);
   document.getElementById('tab-festa-qbr').innerHTML=rows.length
