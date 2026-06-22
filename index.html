@@ -534,6 +534,7 @@
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
         <button class="sort-btn"        id="fv-geral"      onclick="setFestaView('geral')">📋 Todos os eventos</button>
         <button class="sort-btn"        id="fv-produtos"   onclick="setFestaView('produtos')">🍾 Produtos consumidos</button>
+        <button class="sort-btn"        id="fv-quebras"    onclick="setFestaView('quebras')">🥃 Quebras detalhadas</button>
         <button class="sort-btn active" id="fv-fechamento" onclick="setFestaView('fechamento')">💰 Fechamentos</button>
         <button class="sort-btn"        id="fv-novo"       onclick="setFestaView('novo')">📋 Sem fechamento</button>
       </div>
@@ -559,6 +560,15 @@
           <table>
             <thead><tr><th>Evento</th><th>Data</th><th>Produto</th><th>Qtd consumida</th><th>Valor (R$)</th></tr></thead>
             <tbody id="tab-festa-prods"></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="fview-quebras" style="display:none">
+        <div class="sec">
+          <div class="sec-head"><span class="sec-title">🥃 Quebras detalhadas por evento</span></div>
+          <table>
+            <thead><tr><th>Evento</th><th>Data</th><th>Peça quebrada</th><th>Qtd</th><th>Custo unit.</th><th>Total</th></tr></thead>
+            <tbody id="tab-festa-qbr"></tbody>
           </table>
         </div>
       </div>

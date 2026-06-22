@@ -63,12 +63,13 @@ function _qbrPorEvento(){
   return map;
 }
 function setFestaView(v){
-  ['geral','produtos','fechamento','novo'].forEach(x=>{
+  ['geral','produtos','quebras','fechamento','novo'].forEach(x=>{
     const btn=document.getElementById('fv-'+x);if(btn)btn.classList.toggle('active',x===v);
     const view=document.getElementById('fview-'+x);if(view)view.style.display=x===v?'block':'none';
   });
   if(v==='geral')rFestas();
   if(v==='produtos')rFestaProdutos();
+  if(v==='quebras')rFestaQuebras();
   if(v==='fechamento')rFestaFechamentos();
   if(v==='novo')rFestaPendentes();
 }
@@ -133,7 +134,9 @@ function rFestas(){
   const qbrMap=_qbrPorEvento();
   const busca=(document.getElementById('festas-busca')?.value||'').toLowerCase();
   const totalValProd=all.reduce((a,f)=>a+(f.valor_total_evento||f.itens.reduce((s,i)=>s+Number(i.valor||0),0)),0);
-  const totalValQbr=Object.values(qbrMap).reduce((a,v)=>a+v.total,0);
+  // Soma quebras apenas dos eventos visíveis (não de preloads excluídos)
+  const eventosVisiveis=new Set(all.map(f=>f.nome));
+  const totalValQbr=Object.entries(qbrMap).filter(([nome])=>eventosVisiveis.has(nome)).reduce((a,[,v])=>a+v.total,0);
   document.getElementById('festas-cards').innerHTML=`
     <div class="card green"><div class="card-label">Eventos no período</div><div class="card-value">${all.length}</div></div>
     <div class="card blue"><div class="card-label">🍾 Val. produtos</div><div class="card-value">R$ ${totalValProd.toLocaleString('pt-BR',{minimumFractionDigits:0})}</div></div>
