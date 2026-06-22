@@ -351,81 +351,86 @@ function _fchSincFinanceiro(f, status) {
   if (fin) { fin.status = status; sv('financeiro'); }
 }
 
-// ── Aba Fechamento dentro da tela de Festas ──────────────────────────────────
+// ── Aba Fechamento — fonte primária: contratos concluídos ────────────────────
 function rFestaFechamentos() {
-  const all      = D.fechamentos || [];
-  const pendentes = all.filter(f => f.status === 'pendente');
-  const pagos     = all.filter(f => f.status === 'pago');
+  const fchAll    = D.fechamentos || [];
+  const pendentes = fchAll.filter(f => f.status === 'pendente');
+  const pagos     = fchAll.filter(f => f.status === 'pago');
   const totPend   = pendentes.reduce((s, f) => s + (f.totalExtras || 0), 0);
   const totPago   = pagos.reduce((s, f) => s + (f.totalExtras || 0), 0);
 
   const setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-  setEl('fch-tab-count', all.length.toString());
+  setEl('fch-tab-count', fchAll.length.toString());
   setEl('fch-tab-pend',  fR(totPend));
   setEl('fch-tab-pago',  fR(totPago));
 
-  const tbody  = document.getElementById('fch-tab-body');
+  const tbody = document.getElementById('fch-tab-body');
   if (!tbody) return;
 
-  const filtro  = document.getElementById('fch-tab-filtro')?.value || 'todos';
-  const busca   = (document.getElementById('fch-tab-busca')?.value || '').toLowerCase();
-  const qbrMap  = typeof _qbrPorEvento === 'function' ? _qbrPorEvento() : {};
-  const festas  = typeof _allFestas    === 'function' ? _allFestas()   : (D.festas || []);
+  const filtro = document.getElementById('fch-tab-filtro')?.value || 'todos';
+  const busca  = (document.getElementById('fch-tab-busca')?.value || '').toLowerCase();
+  const norm   = s => (s || '').toLowerCase().trim();
+  const qbrMap = typeof _qbrPorEvento === 'function' ? _qbrPorEvento() : {};
+  const festas = typeof _allFestas    === 'function' ? _allFestas()   : (D.festas || []);
 
-  // Monta índice de fechamentos por evento (nome+data)
-  const norm  = s => (s || '').toLowerCase().trim();
-  const fchPorEvento = {};
-  all.forEach(f => {
+  // Índice de festas por data para cruzar com contratos
+  const festasPorData = {};
+  festas.forEach(f => { festasPorData[f.data] = f; });
+
+  // Índice de fechamentos: por contratoId e por nome+data (fallback)
+  const fchPorContrato = {};
+  const fchPorChave    = {};
+  fchAll.forEach(f => {
+    if (f.contratoId) fchPorContrato[f.contratoId] = f;
     const chave = norm(f.eventoNome) + '|' + (f.dataEvento || '');
-    fchPorEvento[chave] = f;
+    fchPorChave[chave] = f;
   });
 
-  // Índice de contratos por nome/data para cruzamento
-  const contratoPorEvento = {};
-  (D.contratos || []).forEach(c => {
-    const chave = norm(c.nome) + '|' + (c.data || '');
-    contratoPorEvento[chave] = c;
-    if (c.nomeEvento) {
-      const chave2 = norm(c.nomeEvento) + '|' + (c.data || '');
-      contratoPorEvento[chave2] = c;
-    }
-  });
+  // Fonte primária: todos os contratos concluídos
+  const concluidos = (D.contratos || []).filter(c => c.status === 'concluido');
 
   const hoje = new Date().toISOString().slice(0, 10);
 
-  // Filtra e ordena festas
-  let rows = festas.map(f => {
-    const chave    = norm(f.nome) + '|' + (f.data || '');
-    const fch      = fchPorEvento[chave] || null;
-    const contrato = contratoPorEvento[chave] || null;
-    const qbr      = qbrMap[f.nome] || null;
-    const valProd  = f.valor_total_evento || f.itens.reduce((a, i) => a + Number(i.valor || 0), 0);
-    const valQbr   = qbr ? qbr.total : 0;
-    return { f, fch, contrato, valProd, valQbr };
+  let rows = concluidos.map(c => {
+    const fch   = fchPorContrato[c.id] || fchPorChave[norm(c.nome) + '|' + (c.data || '')] || null;
+    const festa = festasPorData[c.data] || null;
+    const qbr   = festa ? qbrMap[festa.nome] : (qbrMap[c.nome] || null);
+    const valProd = festa
+      ? (festa.valor_total_evento || festa.itens.reduce((a, i) => a + Number(i.valor || 0), 0))
+      : 0;
+    const valQbr = qbr ? qbr.total : 0;
+    return { c, fch, valProd, valQbr, festaId: festa?.id };
   });
 
   // Aplica filtros
-  if (filtro === 'sem')      rows = rows.filter(r => !r.fch);
+  if (filtro === 'sem')        rows = rows.filter(r => !r.fch);
   else if (filtro !== 'todos') rows = rows.filter(r => r.fch && r.fch.status === filtro);
   if (busca) rows = rows.filter(r =>
-    norm(r.f.nome).includes(busca) ||
-    norm(r.contrato?.nome || '').includes(busca)
+    norm(r.c.nome).includes(busca) ||
+    norm(r.c.nomeEvento || '').includes(busca)
   );
+
+  // Ordena por data mais recente
+  rows.sort((a, b) => (b.c.data || '').localeCompare(a.c.data || ''));
 
   tbody.innerHTML = '';
 
+  if (!concluidos.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:24px">Nenhum contrato concluído encontrado. Marque contratos como "Concluído" para que apareçam aqui.</td></tr>';
+    return;
+  }
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:24px">Nenhum evento encontrado</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:24px">Nenhum resultado para o filtro selecionado.</td></tr>';
     return;
   }
 
-  rows.forEach(({ f, fch, contrato, valProd, valQbr }) => {
-    const uid = 'fcht-' + f.id;
+  rows.forEach(({ c, fch, valProd, valQbr, festaId }) => {
+    const uid = 'fcht-' + c.id;
 
     // Status tag
     let statusTag;
     if (!fch) {
-      statusTag = '<span class="tag" style="background:#1A1E2E;color:#8B91A8">Sem fechamento</span>';
+      statusTag = '<span class="tag" style="background:#1A1E2E;color:#8B91A8">Pendente fechamento</span>';
     } else if (fch.status === 'pago') {
       statusTag = '<span class="tag tag-green">Pago</span>';
     } else {
@@ -435,34 +440,29 @@ function rFestaFechamentos() {
         : '<span class="tag tag-yellow">Pendente</span>';
     }
 
-    // Botão de ação
+    // Ações
     let acoes;
     if (!fch) {
-      acoes = `<button class="btn-sm btn-primary" onclick="event.stopPropagation();abrirFechamentoDeFesta('${f.id}')" style="border-color:#1A2A3D;color:#60A5FA">+ Fechamento</button>`;
+      acoes = `<button class="btn-sm" onclick="event.stopPropagation();novoFechamento('${c.id}')" style="border-color:#1A2A3D;color:#60A5FA">+ Fechamento</button>`;
     } else {
-      const btnStatus = fch.status === 'pendente'
+      const btnPag = fch.status === 'pendente'
         ? `<button class="btn-sm btn-green" onclick="event.stopPropagation();marcarFechamentoPago('${fch.id}')">Recebido</button>`
         : `<button class="btn-sm" onclick="event.stopPropagation();marcarFechamentoPendente('${fch.id}')">Desfazer</button>`;
-      acoes = btnStatus + ` <button class="btn-sm" onclick="event.stopPropagation();editarFechamento('${fch.id}')">✏️</button>`;
+      acoes = btnPag + ` <button class="btn-sm" onclick="event.stopPropagation();editarFechamento('${fch.id}')">✏️</button>`;
     }
 
-    // Linha principal
     const tr = document.createElement('tr');
     tr.style.cursor = 'pointer';
     tr.onclick = () => _toggleFchTab(uid);
     tr.innerHTML = `
       <td style="width:24px;font-size:12px;color:var(--text3);text-align:center;user-select:none" id="${uid}-arrow">${fch ? '▶' : '—'}</td>
-      <td style="font-size:11px;color:var(--text3);white-space:nowrap">${fd(f.data) || '—'}</td>
+      <td style="font-size:11px;color:var(--text3);white-space:nowrap">${fd(c.data) || '—'}</td>
       <td>
-        <strong>${f.nome}</strong>
-        ${contrato ? `<div style="font-size:10px;color:var(--text3)">${contrato.tipo || ''} · ${contrato.convidados || '—'} convidados</div>` : (f.local ? `<div style="font-size:10px;color:var(--text3)">${f.local}</div>` : '')}
+        <strong>${c.nomeEvento || c.nome}</strong>
+        <div style="font-size:10px;color:var(--text3)">${c.tipo || ''} · ${c.convidados || '—'} convidados · ${c.local || ''}</div>
       </td>
-      <td style="font-family:var(--mono);font-size:11px;color:${valProd ? 'var(--green)' : 'var(--text3)'}">
-        ${valProd ? fR(valProd) : '—'}
-      </td>
-      <td style="font-family:var(--mono);font-size:11px;color:${valQbr ? 'var(--red)' : 'var(--text3)'}">
-        ${valQbr ? fR(valQbr) : '—'}
-      </td>
+      <td style="font-family:var(--mono);font-size:11px;color:${valProd ? 'var(--green)' : 'var(--text3)'}">${valProd ? fR(valProd) : '—'}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:${valQbr ? 'var(--red)' : 'var(--text3)'}">${valQbr ? fR(valQbr) : '—'}</td>
       <td style="font-family:var(--mono);font-size:11px;font-weight:${fch ? 700 : 400};color:${fch ? '#FBBF24' : 'var(--text3)'}">
         ${fch ? fR(fch.totalExtras) : '—'}
       </td>
@@ -470,7 +470,6 @@ function rFestaFechamentos() {
       <td onclick="event.stopPropagation()">${acoes}</td>`;
     tbody.appendChild(tr);
 
-    // Linha de detalhes do fechamento (colapsável)
     if (fch) {
       const detailRows = (fch.itens || []).map(it =>
         `<div style="display:grid;grid-template-columns:140px 1fr 110px;gap:8px;padding:6px 14px;border-bottom:1px solid var(--border);font-size:11px">
@@ -478,7 +477,7 @@ function rFestaFechamentos() {
           <span style="color:var(--text2)">${it.descricao || '—'}</span>
           <span style="font-family:var(--mono);font-weight:600;color:#FBBF24;text-align:right">${fR(it.valor)}</span>
         </div>`
-      ).join('') || '<div style="padding:10px 14px;font-size:11px;color:var(--text3)">Nenhum item</div>';
+      ).join('') || '<div style="padding:10px 14px;font-size:11px;color:var(--text3)">Nenhum item lançado</div>';
 
       const trDetail = document.createElement('tr');
       trDetail.id = uid + '-detail';

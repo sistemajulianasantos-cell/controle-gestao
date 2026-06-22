@@ -116,8 +116,8 @@
       </div>
       <div class="nav-group-items">
         <div class="nav-item" data-page="festas" data-modulo="estoque" onclick="go('festas')">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 4v4l3 2"/></svg>
-          Eventos
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 8h6M5 5h3M5 11h4"/></svg>
+          Fechamentos
         </div>
         <div class="nav-item" data-page="producao" data-modulo="producao" onclick="go('producao')">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="1" width="10" height="14" rx="1"/><path d="M5 5h5M5 8h5M5 11h3"/><path d="M10 1v4h4"/></svg>
@@ -532,13 +532,13 @@
     <!-- ═══ FESTAS ═══ -->
     <div id="page-festas" class="page">
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
-        <button class="sort-btn active" id="fv-geral"      onclick="setFestaView('geral')">📋 Visão Geral</button>
+        <button class="sort-btn"        id="fv-geral"      onclick="setFestaView('geral')">📋 Todos os eventos</button>
         <button class="sort-btn"        id="fv-produtos"   onclick="setFestaView('produtos')">🍾 Produtos consumidos</button>
         <button class="sort-btn"        id="fv-quebras"    onclick="setFestaView('quebras')">🥃 Quebras detalhadas</button>
-        <button class="sort-btn"        id="fv-fechamento" onclick="setFestaView('fechamento')">💰 Fechamento</button>
+        <button class="sort-btn active" id="fv-fechamento" onclick="setFestaView('fechamento')">💰 Fechamentos</button>
         <button class="sort-btn"        id="fv-novo"       onclick="setFestaView('novo')">+ Novo evento</button>
       </div>
-      <div id="fview-geral">
+      <div id="fview-geral" style="display:none">
         <div class="cards" id="festas-cards" style="margin-bottom:14px"></div>
         <div class="sec">
           <div class="sec-head">
@@ -601,7 +601,7 @@
       </div>
 
       <!-- Aba Fechamento -->
-      <div id="fview-fechamento" style="display:none">
+      <div id="fview-fechamento">
         <div class="cards" style="margin-bottom:14px">
           <div class="card"><div class="card-label">Fechamentos registrados</div><div class="card-value" id="fch-tab-count">—</div></div>
           <div class="card amber"><div class="card-label">A receber (pendente)</div><div class="card-value" id="fch-tab-pend">—</div></div>

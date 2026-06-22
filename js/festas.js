@@ -128,11 +128,16 @@ function rFestas(){
       <td style="font-family:var(--mono);color:${valTotal?'var(--text)':'var(--text3)'};font-weight:${valTotal?700:400}">${valTotal?'R$ '+valTotal.toLocaleString('pt-BR',{minimumFractionDigits:2}):'—'}</td>
       <td onclick="event.stopPropagation()" style="white-space:nowrap">
         <button class="btn btn-sm" onclick="editarFesta('${f.id}')" style="font-size:10px">✏️ Editar</button>
-        <button class="btn btn-sm" onclick="abrirFechamentoDeFesta('${f.id}')" style="font-size:10px;border-color:#3D3210;color:#FBBF24" title="Registrar fechamento pós-evento">📋 Fechamento</button>
+        <button class="btn-sm btn-red" onclick="excluirFesta('${f.id}')" title="Excluir evento" style="font-size:13px;padding:3px 7px">🗑</button>
       </td>
     </tr>
     <tr id="${uid}-detail" style="display:none"><td colspan="8" style="padding:0;border-bottom:2px solid var(--border2)">${detailContent}</td></tr>`;
   }).join('')||'<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:16px">Nenhum evento encontrado</td></tr>';
+}
+function excluirFesta(id){
+  if(!confirm('Excluir este evento? Esta ação não pode ser desfeita.'))return;
+  D.festas=D.festas.filter(x=>x.id!==id);
+  sv('festas');rFestas();alert2('Evento excluído.');
 }
 function toggleFesta(uid){
   const detail=document.getElementById(uid+'-detail');const arrow=document.getElementById(uid+'-arrow');if(!detail)return;
