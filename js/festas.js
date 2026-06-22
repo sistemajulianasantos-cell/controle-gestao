@@ -63,13 +63,12 @@ function _qbrPorEvento(){
   return map;
 }
 function setFestaView(v){
-  ['geral','produtos','quebras','fechamento','novo'].forEach(x=>{
+  ['geral','produtos','fechamento','novo'].forEach(x=>{
     const btn=document.getElementById('fv-'+x);if(btn)btn.classList.toggle('active',x===v);
     const view=document.getElementById('fview-'+x);if(view)view.style.display=x===v?'block':'none';
   });
   if(v==='geral')rFestas();
   if(v==='produtos')rFestaProdutos();
-  if(v==='quebras')rFestaQuebras();
   if(v==='fechamento')rFestaFechamentos();
   if(v==='novo')rFestaPendentes();
 }
