@@ -202,6 +202,10 @@
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 13l3-5 3 3 3-6 3 4"/><path d="M1 1v14h14"/></svg>
           Despesas
         </div>
+        <div class="nav-item" data-page="fechamentos" data-modulo="financeiro" onclick="go('fechamentos')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 8h6M5 5h3M5 11h4"/></svg>
+          Fechamentos
+        </div>
       </div>
     </div>
 
@@ -528,10 +532,11 @@
     <!-- ═══ FESTAS ═══ -->
     <div id="page-festas" class="page">
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
-        <button class="sort-btn active" id="fv-geral"    onclick="setFestaView('geral')">📋 Visão Geral</button>
-        <button class="sort-btn"        id="fv-produtos"  onclick="setFestaView('produtos')">🍾 Produtos consumidos</button>
-        <button class="sort-btn"        id="fv-quebras"   onclick="setFestaView('quebras')">🥃 Quebras detalhadas</button>
-        <button class="sort-btn"        id="fv-novo"      onclick="setFestaView('novo')">+ Novo evento</button>
+        <button class="sort-btn active" id="fv-geral"      onclick="setFestaView('geral')">📋 Visão Geral</button>
+        <button class="sort-btn"        id="fv-produtos"   onclick="setFestaView('produtos')">🍾 Produtos consumidos</button>
+        <button class="sort-btn"        id="fv-quebras"    onclick="setFestaView('quebras')">🥃 Quebras detalhadas</button>
+        <button class="sort-btn"        id="fv-fechamento" onclick="setFestaView('fechamento')">💰 Fechamento</button>
+        <button class="sort-btn"        id="fv-novo"       onclick="setFestaView('novo')">+ Novo evento</button>
       </div>
       <div id="fview-geral">
         <div class="cards" id="festas-cards" style="margin-bottom:14px"></div>
@@ -591,6 +596,45 @@
           <div class="form-actions">
             <button class="btn" onclick="limparNF()">Limpar</button>
             <button class="btn btn-primary" onclick="criarFesta()">Salvar evento</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Aba Fechamento -->
+      <div id="fview-fechamento" style="display:none">
+        <div class="cards" style="margin-bottom:14px">
+          <div class="card"><div class="card-label">Fechamentos registrados</div><div class="card-value" id="fch-tab-count">—</div></div>
+          <div class="card amber"><div class="card-label">A receber (pendente)</div><div class="card-value" id="fch-tab-pend">—</div></div>
+          <div class="card green"><div class="card-label">Recebido (pago)</div><div class="card-value" id="fch-tab-pago">—</div></div>
+        </div>
+        <div class="sec">
+          <div class="sec-head" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span class="sec-title">💰 Fechamento de Eventos — acerto pós-festa</span>
+            <select id="fch-tab-filtro" class="inp" style="width:120px" onchange="rFestaFechamentos()">
+              <option value="todos">Todos</option>
+              <option value="pendente">Pendentes</option>
+              <option value="pago">Pagos</option>
+              <option value="sem">Sem fechamento</option>
+            </select>
+            <input id="fch-tab-busca" class="inp" type="text" placeholder="Buscar evento..." style="width:200px" oninput="rFestaFechamentos()">
+            <button class="btn btn-primary" onclick="novoFechamento()" style="margin-left:auto">+ Novo fechamento</button>
+          </div>
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+              <thead>
+                <tr style="color:#8B91A8;border-bottom:1px solid #2A2F42">
+                  <th style="padding:10px 12px;width:24px"></th>
+                  <th style="padding:10px 12px;text-align:left;font-weight:500">Data</th>
+                  <th style="padding:10px 12px;text-align:left;font-weight:500">Evento / Contrato</th>
+                  <th style="padding:10px 12px;text-align:left;font-weight:500">🍾 Produtos</th>
+                  <th style="padding:10px 12px;text-align:left;font-weight:500">🥃 Quebras</th>
+                  <th style="padding:10px 12px;text-align:left;font-weight:500">💰 Extras (fechamento)</th>
+                  <th style="padding:10px 12px;text-align:left;font-weight:500">Status</th>
+                  <th style="padding:10px 12px;text-align:left;font-weight:500">Ação</th>
+                </tr>
+              </thead>
+              <tbody id="fch-tab-body"></tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -1069,6 +1113,43 @@
       </div>
     </div>
 
+    <!-- ═══ FECHAMENTOS DE EVENTO ═══ -->
+    <div id="page-fechamentos" class="page">
+      <div class="cards" style="margin-bottom:14px">
+        <div class="card"><div class="card-label">Fechamentos registrados</div><div class="card-value" id="fch-tot-count">—</div></div>
+        <div class="card amber"><div class="card-label">A receber (pendente)</div><div class="card-value" id="fch-tot-pend">—</div></div>
+        <div class="card green"><div class="card-label">Recebido (pago)</div><div class="card-value" id="fch-tot-pago">—</div></div>
+      </div>
+      <div class="sec">
+        <div class="sec-head" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span class="sec-title">📋 Fechamentos de Eventos</span>
+          <select id="fch-filtro" class="inp" style="width:120px" onchange="rFechamentos()">
+            <option value="todos">Todos</option>
+            <option value="pendente">Pendentes</option>
+            <option value="pago">Pagos</option>
+          </select>
+          <input id="fch-busca" class="inp" type="text" placeholder="Buscar evento ou cliente..." style="width:220px" oninput="rFechamentos()">
+          <button class="btn btn-primary" onclick="novoFechamento()" style="margin-left:auto">+ Novo fechamento</button>
+        </div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead>
+              <tr style="color:#8B91A8;border-bottom:1px solid #2A2F42">
+                <th style="padding:10px 12px;width:24px"></th>
+                <th style="padding:10px 12px;text-align:left;font-weight:500">Data evento</th>
+                <th style="padding:10px 12px;text-align:left;font-weight:500">Evento / Cliente</th>
+                <th style="padding:10px 12px;text-align:left;font-weight:500">Itens</th>
+                <th style="padding:10px 12px;text-align:left;font-weight:500">Total extras</th>
+                <th style="padding:10px 12px;text-align:left;font-weight:500">Status</th>
+                <th style="padding:10px 12px;text-align:left;font-weight:500">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="fch-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- ═══ ANÁLISE DE DESPESAS ═══ -->
     <div id="page-despesas" class="page">
       <input type="hidden" id="desp-sub-view" value="kpi">
@@ -1487,6 +1568,80 @@
 
 
 
+<!-- ═══ MODAL FECHAMENTO DE EVENTO ═══ -->
+<div class="modal-overlay" id="mfechamento">
+  <div class="modal" style="max-width:580px;width:95%">
+    <div class="modal-head">
+      <span class="modal-title">📋 Fechamento de Evento</span>
+      <button class="modal-close" onclick="closeM('mfechamento')">×</button>
+    </div>
+    <input type="hidden" id="fch-modal-id">
+    <div style="padding:14px 18px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;max-height:72vh">
+
+      <div>
+        <label class="lbl">Contrato vinculado</label>
+        <select id="fch-modal-contrato" class="inp" style="width:100%" onchange="fchContratoChange()">
+          <option value="">Selecionar contrato...</option>
+        </select>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 140px 140px;gap:10px">
+        <div>
+          <label class="lbl">Cliente</label>
+          <input type="text" id="fch-modal-nome" class="inp" style="width:100%" placeholder="Nome do cliente">
+        </div>
+        <div>
+          <label class="lbl">Data do evento</label>
+          <input type="date" id="fch-modal-data" class="inp" style="width:100%">
+        </div>
+        <div>
+          <label class="lbl">Vencimento do acerto</label>
+          <input type="date" id="fch-modal-venc" class="inp" style="width:100%">
+        </div>
+      </div>
+
+      <div style="background:var(--bg4);border-radius:var(--radius);border:1px solid var(--border2);padding:12px">
+        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:8px">+ Adicionar cobrança extra</div>
+        <div style="display:grid;grid-template-columns:140px 1fr 100px auto;gap:8px;align-items:flex-end">
+          <div>
+            <label class="lbl">Tipo</label>
+            <select id="fch-item-tipo" class="inp" style="width:100%">
+              <option value="bebida_extra">Bebida extra</option>
+              <option value="quebra">Quebra / Dano</option>
+              <option value="hora_extra">Hora extra</option>
+              <option value="adicional">Serv. adicional</option>
+            </select>
+          </div>
+          <div>
+            <label class="lbl">Descrição</label>
+            <input type="text" id="fch-item-desc" class="inp" style="width:100%" placeholder="Ex: 5 garrafas de gin extra" onkeydown="if(event.key==='Enter')fchAddItem()">
+          </div>
+          <div>
+            <label class="lbl">Valor (R$)</label>
+            <input type="number" id="fch-item-val" class="inp" style="width:100%" placeholder="0,00" step="0.01" min="0" onkeydown="if(event.key==='Enter')fchAddItem()">
+          </div>
+          <button class="btn btn-primary" onclick="fchAddItem()" style="white-space:nowrap;padding:8px 12px">+ Add</button>
+        </div>
+      </div>
+
+      <div id="fch-itens-list" style="border:1px solid var(--border2);border-radius:var(--radius);max-height:180px;overflow-y:auto;min-height:36px;background:var(--bg3)"></div>
+
+      <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;font-size:13px;color:var(--text3)">
+        Total a cobrar: <strong id="fch-total-preview" style="color:#FBBF24;font-size:16px;font-family:var(--mono)">—</strong>
+      </div>
+
+      <div>
+        <label class="lbl">Observações (opcional)</label>
+        <textarea id="fch-modal-obs" class="inp" rows="2" style="width:100%;resize:vertical" placeholder="Ex: cliente concordou com os valores no dia 05/06..."></textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn" onclick="closeM('mfechamento')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarFechamento()">💾 Salvar fechamento</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ MODAL NOVO ORÇAMENTO ═══ -->
 <div id="m-novo-orc" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5000;align-items:center;justify-content:center">
   <div style="background:#161A26;border:1px solid #2A2F42;border-radius:12px;padding:28px 32px;width:100%;max-width:540px;max-height:90vh;overflow-y:auto">
@@ -1622,6 +1777,7 @@
 <script src="js/agenda.js?v=20260610z"></script>
 <script src="js/producao.js?v=20260610z"></script>
 <script src="js/financeiro.js?v=20260610z"></script>
+<script src="js/fechamento.js?v=20260622a"></script>
 <script src="js/despesas.js?v=20260616c"></script>
 <script src="js/producao2.js?v=20260610z"></script>
 <script src="js/produtos.js?v=20260610z"></script>
@@ -1709,6 +1865,7 @@ window.svFirebase = async function(chave) {
     if(chave==='rcEventosImportados')campo.rcEventosImportados = D.rcEventosImportados;
     if(chave==='despesas')           campo.despesas            = D.despesas;
     if(chave==='categoriasDespesas') campo.categoriasDespesas  = D.categoriasDespesas;
+    if(chave==='fechamentos')        campo.fechamentos         = D.fechamentos;
     if (Object.keys(campo).length === 0) return;
     await setDoc(doc(db, "dados", DOC_ID), campo, { merge: true });
   } catch(e) {
@@ -1760,6 +1917,7 @@ async function carregarDados() {
     D.rcEventosImportados   = r.rcEventosImportados   || [];
     D.despesas              = r.despesas              || [];
     D.categoriasDespesas    = r.categoriasDespesas    || [];
+    D.fechamentos           = r.fechamentos           || [];
 
     // Senhas: migra texto puro → SHA-256 e inicializa se vazio
     const _isHashed = k => /^[0-9a-f]{64}$/.test(k);
