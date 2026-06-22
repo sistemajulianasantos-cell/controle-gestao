@@ -189,14 +189,15 @@ function rFinanceiroSintetico() {
   const filtroI = document.getElementById('fins-data-ini')?.value || '';
   const filtroF = document.getElementById('fins-data-fim')?.value || '';
 
-  // Agrupa por contrato/evento
+  // Agrupa por evento+data (sem contratoId no key para unir entradas antigas com novas)
   const grupos = {};
   fin
     .filter(f => !filtroI || (f.data && f.data >= filtroI))
     .filter(f => !filtroF || (f.data && f.data <= filtroF))
     .forEach(f => {
-      const chave = (f.contratoId || '') + '||' + (f.evento || f.contrato || '') + '||' + (f.data || '');
+      const chave = (f.evento || f.contrato || '') + '||' + (f.data || '');
       if (!grupos[chave]) grupos[chave] = {
+        contratoId: f.contratoId || '',
         nome:       f.evento || f.contrato || '—',
         data:       f.data   || '',
         tipo:       f.tipo   || '—',
@@ -204,10 +205,14 @@ function rFinanceiroSintetico() {
         p20: null, p80: null, pFch: null,
       };
       const g = grupos[chave];
-      if (f.isFechamento)                             g.pFch = f;
-      else if ((f.descricao||'').includes('20%'))     g.p20  = f;
-      else if ((f.descricao||'').includes('80%'))     g.p80  = f;
-      else if (!g.p20 && !g.p80)                      g.p20  = f; // fallback
+      // Preenche contratoId se essa entrada tiver e o grupo ainda não tiver
+      if (!g.contratoId && f.contratoId) g.contratoId = f.contratoId;
+      const desc = (f.descricao || '').toLowerCase();
+      if (f.isFechamento)                                                          g.pFch = f;
+      else if (desc.includes('20%') || desc.includes('sinal') || desc.includes('assinatura')) g.p20 = g.p20 || f;
+      else if (desc.includes('80%') || desc.includes('restante') || desc.includes('saldo'))   g.p80 = g.p80 || f;
+      else if (!g.p20)                                                             g.p20  = f;
+      else if (!g.p80)                                                             g.p80  = f;
     });
 
   const tbody = document.getElementById('fins-body');
