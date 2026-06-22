@@ -549,9 +549,12 @@ function toggleHoraExtraEvento() {
 
 function calcularFolhaPagamento() {
   const regiao     = document.getElementById('eq-fp-regiao')?.value || '';
-  const horasContr = parseFloat(document.getElementById('eq-fp-horas-base')?.value) || (D.regrasEquipe?.horasBase||6);
-  const temHEck = document.getElementById('eq-fp-tem-he')?.checked || false;
-  const horasNH = temHEck ? (parseFloat(document.getElementById('eq-fp-horas-extra')?.value)||0) : 0;
+  const horasBase  = D.regrasEquipe?.horasBase || 6;
+  const temHEck    = document.getElementById('eq-fp-tem-he')?.checked || false;
+  const horasContr = temHEck
+    ? (parseFloat(document.getElementById('eq-fp-horas-base')?.value) || horasBase)
+    : horasBase;
+  const horasNH    = temHEck ? (parseFloat(document.getElementById('eq-fp-horas-extra')?.value)||0) : 0;
   const el      = document.getElementById('eq-folha-resultado');
   if (!el) return;
 
@@ -579,8 +582,7 @@ function calcularFolhaPagamento() {
   const contrato = (D.contratos||[]).find(c=>c.id===ev?.id);
   const escalas  = _escalasDoEvento(contrato||{id:ev?.id,nome:ev?.nome,data:ev?.data});
   const convidados = parseInt(contrato?.convidados||0);
-  const horasBase = D.regrasEquipe?.horasBase || 6;
-  const temHE     = horasContr > horasBase || horasNH > 0;
+  const temHE     = temHEck;
 
   const overrides = _folhaState[ev.id] || {};
   if (!overrides.totalOverride) overrides.totalOverride = {};
@@ -602,7 +604,11 @@ function calcularFolhaPagamento() {
   const vagasAusentes = [];
   if (contrato2?.equipe?.length) {
     const escalasGrupadas2 = {};
-    escalas.forEach(e => { const c=e.cargo||''; if(!escalasGrupadas2[c]) escalasGrupadas2[c]=[]; escalasGrupadas2[c].push(e); });
+    escalas.forEach(e => {
+      const c = e.cargo || (D.equipe||[]).find(x=>x.id===e.colaboradorId)?.cargo || '';
+      if(!escalasGrupadas2[c]) escalasGrupadas2[c]=[];
+      escalasGrupadas2[c].push(e);
+    });
     const cargosNoContrato2 = new Set((contrato2.equipe||[]).map(e => e.cargo));
     contrato2.equipe.forEach(item => {
       let preenchidos = (escalasGrupadas2[item.cargo]||[]).length;
@@ -929,10 +935,14 @@ function rEscalaEvento() {
           });
         }
 
-        // Group escalas by cargo (in order they appear)
+        // Group escalas by cargo — resolve empty cargo from collaborator profile
         const escalasGrupadas = {};
         escalas.slice().sort((a,b)=>(ordemCargos.indexOf(a.cargo)<0?99:ordemCargos.indexOf(a.cargo))-(ordemCargos.indexOf(b.cargo)<0?99:ordemCargos.indexOf(b.cargo)))
-          .forEach(e => { const c=e.cargo||''; if(!escalasGrupadas[c]) escalasGrupadas[c]=[]; escalasGrupadas[c].push(e); });
+          .forEach(e => {
+            const c = e.cargo || (D.equipe||[]).find(x=>x.id===e.colaboradorId)?.cargo || '';
+            if(!escalasGrupadas[c]) escalasGrupadas[c]=[];
+            escalasGrupadas[c].push({...e, cargo: c});
+          });
 
         // Build display rows: expected slots first, then overflow escalas
         const rows = [];
@@ -1196,10 +1206,13 @@ function abrirAddColabEvento() {
 
 function confirmarAddColabEvento() {
   const colaboradorId = document.getElementById('add-ev-lista')?.value;
-  const cargo         = document.getElementById('add-ev-cargo')?.value;
+  let cargo           = document.getElementById('add-ev-cargo')?.value;
   if (!escalaEventoAtual) return;
   if (!colaboradorId) { alert('Selecione um colaborador.'); return; }
-
+  if (!cargo) {
+    const col = (D.equipe||[]).find(c=>c.id===colaboradorId);
+    cargo = col?.cargo || '';
+  }
   const ev = escalaEventoAtual;
   const ok = escalarColab(colaboradorId, ev.data, ev.nome, cargo, ev.id);
   if (ok) {
@@ -1808,8 +1821,9 @@ function autorizarPagamentosEvento() {
   }
   const ev          = escalaEventoAtual;
   const regiao      = document.getElementById('eq-fp-regiao')?.value || '';
-  const horasContr = parseFloat(document.getElementById('eq-fp-horas-base')?.value) || 6;
+  const _horasBase = D.regrasEquipe?.horasBase || 6;
   const temHEck    = document.getElementById('eq-fp-tem-he')?.checked || false;
+  const horasContr = temHEck ? (parseFloat(document.getElementById('eq-fp-horas-base')?.value) || _horasBase) : _horasBase;
   const horasNH    = temHEck ? (parseFloat(document.getElementById('eq-fp-horas-extra')?.value)||0) : 0;
   const hoje       = new Date().toISOString().slice(0,10);
 
