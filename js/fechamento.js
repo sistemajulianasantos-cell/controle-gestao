@@ -68,11 +68,13 @@ function rFechamentos() {
 
   lista.forEach(f => {
     const atrasado = f.status === 'pendente' && f.vencimento && f.vencimento < hoje;
-    const statusTag = f.status === 'pago'
-      ? '<span class="tag tag-green">Pago</span>'
-      : atrasado
-        ? '<span class="tag tag-red">Atrasado</span>'
-        : '<span class="tag tag-yellow">Pendente</span>';
+    const statusTag = !f.totalExtras
+      ? '<span class="tag tag-green">Sem cobrança</span>'
+      : f.status === 'pago'
+        ? '<span class="tag tag-green">Pago</span>'
+        : atrasado
+          ? '<span class="tag tag-red">Atrasado</span>'
+          : '<span class="tag tag-yellow">Pendente</span>';
 
     const uid = 'fch-' + f.id;
 
@@ -253,6 +255,7 @@ function salvarFechamento() {
   const c           = (D.contratos || []).find(x => x.id === contratoId);
   const eventoNome  = c ? (c.nomeEvento || c.nome) : clienteNome;
   const totalExtras = _fchItens.reduce((s, i) => s + i.valor, 0);
+  const statusInicial = (semCobranca || totalExtras === 0) ? 'pago' : 'pendente';
 
   if (!D.fechamentos) D.fechamentos = [];
 
@@ -267,6 +270,7 @@ function salvarFechamento() {
       existing.itens       = [..._fchItens];
       existing.totalExtras = totalExtras;
       existing.observacoes = obs;
+      if (semCobranca || totalExtras === 0) existing.status = 'pago';
       if (existing.financeiroId) {
         const fin = (D.financeiro || []).find(f => f.id === existing.financeiroId);
         if (fin) {
@@ -289,7 +293,7 @@ function salvarFechamento() {
       vencimento,
       itens:        [..._fchItens],
       totalExtras,
-      status:       'pendente',
+      status:       statusInicial,
       observacoes:  obs,
       financeiroId: finId,
     });
@@ -306,7 +310,7 @@ function salvarFechamento() {
       valor:        'R$ ' + totalExtras.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
       valorNum:     totalExtras,
       vencimento,
-      status:       'pendente',
+      status:       statusInicial,
       isFechamento: true,
     });
     sv('financeiro');
@@ -548,6 +552,8 @@ function rFestaFechamentos() {
     let statusTag;
     if (!fch) {
       statusTag = '<span class="tag" style="background:#1A1E2E;color:#8B91A8">Pendente fechamento</span>';
+    } else if (!fch.totalExtras) {
+      statusTag = '<span class="tag tag-green">Sem cobrança</span>';
     } else if (fch.status === 'pago') {
       statusTag = '<span class="tag tag-green">Pago</span>';
     } else {
