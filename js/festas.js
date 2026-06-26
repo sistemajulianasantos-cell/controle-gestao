@@ -49,10 +49,34 @@ function criarFesta(){
 function _allFestas(){
   const editedIds  = new Set(D.festas.map(f=>f.id));
   const deletedIds = new Set(D.deletedFestaIds || []);
-  return [
+
+  const festasManuais = [
     ...D.festas.filter(f => !deletedIds.has(f.id)),
     ...FESTAS_PRELOAD.filter(p => !editedIds.has(p.id) && !deletedIds.has(p.id))
-  ].sort((a,b)=>b.data.localeCompare(a.data));
+  ];
+
+  // Gera entradas virtuais a partir de fechamentos que não têm festa manual correspondente
+  const festasDatas = new Set(festasManuais.map(f => f.data));
+  const virtuais = {};
+  (D.fechamentos || []).forEach(fch => {
+    if (!fch.dataEvento || festasDatas.has(fch.dataEvento)) return;
+    if (virtuais[fch.id]) return;
+    virtuais[fch.id] = {
+      id:                  '_fch_' + fch.id,
+      nome:                fch.eventoNome || fch.clienteNome || '—',
+      data:                fch.dataEvento,
+      local:               '',
+      status:              'encerrada',
+      valor_total_evento:  fch.totalExtras || 0,
+      itens:               (fch.itens || [])
+        .filter(it => it.tipo !== 'quebra')
+        .map(it => ({ prod: it.descricao, qtd: 1, consumido: 1, valor: it.valor })),
+      _virtual:            true,
+    };
+  });
+
+  return [...festasManuais, ...Object.values(virtuais)]
+    .sort((a,b) => (b.data || '').localeCompare(a.data || ''));
 }
 function _qbrPorEvento(){
   const map={};
@@ -142,6 +166,12 @@ function rFestaQuebras(){
     ev.itens.forEach(i=>rows.push({evento:ev.evento,data:ev.data,prod:i.prod,qtd:i.qtd,custo:i.custo,total:i.total}));
   });
   D.quebras.filter(q=>q.obs&&eventosVisiveis.has(q.obs)&&!QUEBRAS_PRELOAD.find(p=>p.prod===q.prod&&p.data===q.data&&p.qtd===q.qtd)).forEach(q=>{rows.push({evento:q.obs,data:q.data,prod:q.prod,qtd:q.qtd,custo:q.custo,total:q.qtd*Number(q.custo||0)});});
+  // Itens de quebra registrados nos fechamentos
+  (D.fechamentos||[]).forEach(fch=>{
+    (fch.itens||[]).filter(it=>it.tipo==='quebra').forEach(it=>{
+      rows.push({evento:fch.eventoNome||fch.clienteNome||'—',data:fch.dataEvento||'',prod:it.descricao,qtd:1,custo:it.valor,total:it.valor});
+    });
+  });
   rows.sort((a,b)=>b.data.localeCompare(a.data));
   const totalVal=rows.reduce((a,r)=>a+Number(r.total||0),0);
   document.getElementById('tab-festa-qbr').innerHTML=rows.length
@@ -199,8 +229,11 @@ function rFestas(){
       <td style="font-family:var(--mono);color:${valQbr?'var(--red)':'var(--text3)'};font-weight:${valQbr?600:400}">${valQbr?'R$ '+valQbr.toLocaleString('pt-BR',{minimumFractionDigits:2}):'—'}</td>
       <td style="font-family:var(--mono);color:${valTotal?'var(--text)':'var(--text3)'};font-weight:${valTotal?700:400}">${valTotal?'R$ '+valTotal.toLocaleString('pt-BR',{minimumFractionDigits:2}):'—'}</td>
       <td onclick="event.stopPropagation()" style="white-space:nowrap">
-        <button class="btn btn-sm" onclick="editarFesta('${f.id}')" style="font-size:10px">✏️ Editar</button>
-        <button class="btn-sm btn-red" onclick="excluirFesta('${f.id}')" title="Excluir evento" style="font-size:13px;padding:3px 7px">🗑</button>
+        ${f._virtual
+          ? `<span style="font-size:10px;color:var(--text3);font-style:italic">via fechamento</span>`
+          : `<button class="btn btn-sm" onclick="editarFesta('${f.id}')" style="font-size:10px">✏️ Editar</button>
+             <button class="btn-sm btn-red" onclick="excluirFesta('${f.id}')" title="Excluir evento" style="font-size:13px;padding:3px 7px">🗑</button>`
+        }
       </td>
     </tr>
     <tr id="${uid}-detail" style="display:none"><td colspan="8" style="padding:0;border-bottom:2px solid var(--border2)">${detailContent}</td></tr>`;
