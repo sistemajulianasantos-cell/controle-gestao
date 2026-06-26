@@ -604,6 +604,46 @@
         </div>
       </div>
 
+      <!-- Importar arquivo de fechamento -->
+      <div id="fview-importar-fch" style="display:none">
+        <div class="sec" style="margin-bottom:14px">
+          <div class="sec-head" style="display:flex;align-items:center;gap:10px">
+            <span class="sec-title">📂 Importar dados do fechamento</span>
+            <button class="btn-sm" onclick="setFestaView('novo')" style="margin-left:auto">← Voltar</button>
+          </div>
+          <div style="padding:16px">
+            <div id="fch-import-contrato-info" style="color:#C0C5DA;font-size:13px;margin-bottom:14px;font-weight:500"></div>
+            <p style="color:#8B91A8;font-size:12px;margin-bottom:16px;line-height:1.7">
+              Envie um arquivo CSV ou TXT com os itens de cobrança do evento. Uma linha por item:<br>
+              <code style="background:#1A1E2E;padding:2px 6px;border-radius:4px;color:#4ADE80">tipo, descrição, valor</code>
+              &nbsp;ou&nbsp;
+              <code style="background:#1A1E2E;padding:2px 6px;border-radius:4px;color:#60A5FA">descrição, valor</code>
+              (tipo assume <em>adicional</em>)<br>
+              Tipos aceitos: <code style="background:#1A1E2E;padding:2px 6px;border-radius:4px">bebida_extra</code>
+              <code style="background:#1A1E2E;padding:2px 6px;border-radius:4px">quebra</code>
+              <code style="background:#1A1E2E;padding:2px 6px;border-radius:4px">hora_extra</code>
+              <code style="background:#1A1E2E;padding:2px 6px;border-radius:4px">adicional</code>
+            </p>
+            <div id="fch-imp-upload-zone"
+              style="border:2px dashed #2A2F42;border-radius:10px;padding:40px 32px;text-align:center;cursor:pointer;transition:border-color 0.2s;max-width:500px"
+              onclick="document.getElementById('fch-imp-file-input').click()">
+              <div style="font-size:36px;margin-bottom:10px">📂</div>
+              <div style="color:#8B91A8;font-size:13px">Clique ou arraste o arquivo CSV / TXT aqui</div>
+              <input id="fch-imp-file-input" type="file" accept=".csv,.txt" style="display:none" onchange="lerArquivoFechamento(this)">
+            </div>
+            <div id="fch-imp-status" style="color:#8B91A8;font-size:12px;margin-top:10px;min-height:16px"></div>
+          </div>
+        </div>
+        <div class="sec" id="fch-imp-preview" style="display:none">
+          <div class="sec-head"><span class="sec-title">✅ Confirmar itens extraídos</span></div>
+          <div id="fch-imp-itens-list" style="padding:8px 0"></div>
+          <div style="padding:12px 16px;display:flex;gap:8px">
+            <button class="btn btn-primary" onclick="confirmarImporteFechamento()">✅ Confirmar e abrir fechamento</button>
+            <button class="btn" onclick="setFestaView('novo')" style="background:#2A2F42">Cancelar</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Aba Fechamento -->
       <div id="fview-fechamento">
         <div class="cards" style="margin-bottom:14px">

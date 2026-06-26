@@ -63,7 +63,7 @@ function _qbrPorEvento(){
   return map;
 }
 function setFestaView(v){
-  ['geral','produtos','quebras','fechamento','novo'].forEach(x=>{
+  ['geral','produtos','quebras','fechamento','novo','importar-fch'].forEach(x=>{
     const btn=document.getElementById('fv-'+x);if(btn)btn.classList.toggle('active',x===v);
     const view=document.getElementById('fview-'+x);if(view)view.style.display=x===v?'block':'none';
   });
@@ -118,10 +118,6 @@ function rFestaPendentes() {
     </tr></thead>
     <tbody>
       ${pendentes.map(c => {
-        const temFesta = (D.festas || []).some(f => f.data === c.data);
-        const importStyle = temFesta
-          ? 'border-color:#1A3D2B;color:#4ADE80'
-          : 'border-color:#2A2D1A;color:#A3B86A;opacity:0.7';
         return `<tr>
           <td style="font-size:11px;color:var(--text3);white-space:nowrap;padding:10px 12px">${fd(c.data)||'—'}</td>
           <td style="padding:10px 12px"><strong>${c.nomeEvento||c.nome}</strong><div style="font-size:10px;color:var(--text3)">${c.nome}</div></td>
@@ -129,7 +125,7 @@ function rFestaPendentes() {
           <td style="font-size:11px;padding:10px 12px">${c.convidados||'—'}</td>
           <td style="font-family:var(--mono);font-size:11px;padding:10px 12px">${c.opcao||'—'}</td>
           <td style="padding:10px 12px">
-            <button class="btn-sm" onclick="importarFechamento('${c.id}')" style="${importStyle}" title="${temFesta ? 'Importar dados da festa' : 'Sem dados de festa — abrirá o modal para preenchimento manual'}">↓ Importar dados</button>
+            <button class="btn-sm" onclick="abrirImporteFechamento('${c.id}')" style="border-color:#1A3D2B;color:#4ADE80">↓ Importar dados</button>
             <button class="btn-sm" onclick="novoFechamento('${c.id}')" style="border-color:#1A2A3D;color:#60A5FA">✏️ Manual</button>
           </td>
         </tr>`;
@@ -294,5 +290,148 @@ function salvarEdicao(){
   });
   f.itens=itensBase;
   sv('festas');closeM('medit');rFestas();alert2('Evento atualizado!');
+}
+
+// ── Importar arquivo de fechamento ───────────────────────────────────────────
+let _fchImportContratoId = '';
+
+function abrirImporteFechamento(contratoId) {
+  _fchImportContratoId = contratoId;
+  const c = (D.contratos || []).find(x => x.id === contratoId);
+
+  setFestaView('importar-fch');
+
+  const info = document.getElementById('fch-import-contrato-info');
+  if (info && c) info.textContent = `Contrato: ${c.nomeEvento || c.nome} — ${fd(c.data) || '—'}`;
+
+  const status  = document.getElementById('fch-imp-status');
+  const preview = document.getElementById('fch-imp-preview');
+  if (status)  status.textContent = '';
+  if (preview) preview.style.display = 'none';
+
+  const fileInput = document.getElementById('fch-imp-file-input');
+  if (fileInput) fileInput.value = '';
+
+  window._fchImportItens = [];
+  _initFchImportZone();
+}
+
+function _initFchImportZone() {
+  const zone = document.getElementById('fch-imp-upload-zone');
+  if (!zone || zone._initDone) return;
+  zone._initDone = true;
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor = '#4F8EF7'; });
+  zone.addEventListener('dragleave', () => { zone.style.borderColor = '#2A2F42'; });
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.style.borderColor = '#2A2F42';
+    if (e.dataTransfer.files[0]) _processarArquivoFechamento(e.dataTransfer.files[0]);
+  });
+}
+
+function lerArquivoFechamento(input) {
+  if (input.files[0]) _processarArquivoFechamento(input.files[0]);
+}
+
+async function _processarArquivoFechamento(file) {
+  const status  = document.getElementById('fch-imp-status');
+  const preview = document.getElementById('fch-imp-preview');
+  if (status)  status.textContent = 'Lendo arquivo…';
+  if (preview) preview.style.display = 'none';
+
+  try {
+    const txt = await file.text();
+    const itens = _parsearItensFechamento(txt);
+
+    if (!itens.length) {
+      if (status) status.textContent = '⚠ Nenhum item encontrado. Verifique o formato: "tipo, descrição, valor" ou "descrição, valor" por linha.';
+      return;
+    }
+
+    window._fchImportItens = itens;
+    _renderPreviewImporteFch(itens);
+    if (status)  status.textContent = `${itens.length} item(s) encontrado(s). Confirme abaixo.`;
+    if (preview) preview.style.display = '';
+  } catch(e) {
+    if (status) status.textContent = 'Erro ao ler arquivo: ' + e.message;
+  }
+}
+
+function _parsearItensFechamento(txt) {
+  const TIPOS = ['bebida_extra', 'quebra', 'hora_extra', 'adicional'];
+  const itens = [];
+
+  txt.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#')).forEach(linha => {
+    const partes = linha.split(/[,;\t]/).map(p => p.trim());
+
+    if (partes.length >= 3) {
+      const tipoRaw = partes[0].toLowerCase().replace(/\s+/g, '_');
+      const tipo    = TIPOS.includes(tipoRaw) ? tipoRaw : 'adicional';
+      const desc    = partes[1];
+      const valor   = parseFloat(partes[2].replace(/[R$\s.]/g, '').replace(',', '.'));
+      if (desc && valor > 0) itens.push({ tipo, descricao: desc, valor });
+    } else if (partes.length === 2) {
+      const desc  = partes[0];
+      const valor = parseFloat(partes[1].replace(/[R$\s.]/g, '').replace(',', '.'));
+      if (desc && valor > 0) itens.push({ tipo: 'adicional', descricao: desc, valor });
+    }
+  });
+
+  return itens;
+}
+
+function _renderPreviewImporteFch(itens) {
+  const list = document.getElementById('fch-imp-itens-list');
+  if (!list) return;
+  const total = itens.reduce((s, i) => s + i.valor, 0);
+  list.innerHTML =
+    `<div style="padding:0 16px">
+      <div style="display:grid;grid-template-columns:130px 1fr 110px;gap:8px;padding:6px 14px;background:var(--bg4);border-bottom:1px solid var(--border)">
+        <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase">Tipo</span>
+        <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase">Descrição</span>
+        <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;text-align:right">Valor</span>
+      </div>
+      ${itens.map(it =>
+        `<div style="display:grid;grid-template-columns:130px 1fr 110px;gap:8px;padding:6px 14px;border-bottom:1px solid var(--border);font-size:11px">
+          <span style="color:${_fchCor(it.tipo)};font-weight:600">${_fchLabel(it.tipo)}</span>
+          <span style="color:var(--text2)">${it.descricao}</span>
+          <span style="font-family:var(--mono);font-weight:600;color:#FBBF24;text-align:right">${fR(it.valor)}</span>
+        </div>`
+      ).join('')}
+      <div style="padding:10px 14px;text-align:right;font-weight:700;color:#FBBF24;font-family:var(--mono)">Total: ${fR(total)}</div>
+    </div>`;
+}
+
+function confirmarImporteFechamento() {
+  const itens = window._fchImportItens || [];
+  if (!itens.length) { alert2('Nenhum item para importar', 'error'); return; }
+
+  const contratoId = _fchImportContratoId;
+  const c = (D.contratos || []).find(x => x.id === contratoId);
+
+  _fchItens = [...itens];
+
+  const sel = document.getElementById('fch-modal-contrato');
+  sel.innerHTML = '<option value="">Selecionar contrato...</option>' +
+    (D.contratos || [])
+      .slice().sort((a, b) => (b.data || '').localeCompare(a.data || ''))
+      .map(ct => `<option value="${ct.id}"${ct.id === contratoId ? ' selected' : ''}>${ct.nome || '—'} — ${fd(ct.data) || '—'}</option>`)
+      .join('');
+
+  document.getElementById('fch-modal-id').value  = '';
+  document.getElementById('fch-modal-obs').value  = '';
+  if (c) {
+    document.getElementById('fch-modal-nome').value = c.nome || '';
+    document.getElementById('fch-modal-data').value = c.data || '';
+    if (c.data) {
+      const d = new Date(c.data + 'T12:00:00');
+      d.setDate(d.getDate() + 3);
+      document.getElementById('fch-modal-venc').value = d.toISOString().slice(0, 10);
+    }
+  }
+
+  _rFchItens();
+  setFestaView('novo');
+  openM('mfechamento');
 }
 
