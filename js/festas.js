@@ -404,12 +404,15 @@ function _parsearPDFFechamento(txt) {
     if (SKIP.test(linha)) return;
 
     // Formato: "Nome qtd R$ unitário R$ total" — ex: "Gin Tanqueray 4 R$ 125,00 R$ 500,00"
-    const m = linha.match(/^(.+?)\s+(\d+)\s+R\$\s*[\d.,]+\s+R\$\s*([\d.,]+)/);
+    const m = linha.match(/^(.+?)\s+(\d+)\s+R\$\s*([\d.,]+)\s+R\$\s*([\d.,]+)/);
     if (m) {
-      const nome  = m[1].trim();
-      const total = parseFloat(m[3].replace(/\./g, '').replace(',', '.'));
+      const nome      = m[1].trim();
+      const qtd       = m[2];
+      const unitario  = m[3];
+      const total     = parseFloat(m[4].replace(/\./g, '').replace(',', '.'));
       if (nome && total > 0 && !/^TOTAL/i.test(nome)) {
-        itens.push({ tipo: _classificarTipoFechamento(nome), descricao: nome, valor: total });
+        const descricao = `${nome} — ${qtd} un. × R$ ${unitario}`;
+        itens.push({ tipo: _classificarTipoFechamento(nome), descricao, valor: total });
       }
       return;
     }
