@@ -1687,7 +1687,12 @@
         </div>
       </div>
 
-      <div style="background:var(--bg4);border-radius:var(--radius);border:1px solid var(--border2);padding:12px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 2px">
+        <input type="checkbox" id="fch-sem-cobranca" onchange="fchToggleSemCobranca()" style="width:16px;height:16px;cursor:pointer;accent-color:var(--green)">
+        <span style="font-size:13px;color:var(--text2)">Sem acerto adicional — evento encerrado sem cobranças extras</span>
+      </label>
+
+      <div id="fch-add-area" style="background:var(--bg4);border-radius:var(--radius);border:1px solid var(--border2);padding:12px">
         <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:8px">+ Adicionar cobrança extra</div>
         <div style="display:grid;grid-template-columns:140px 1fr 100px auto;gap:8px;align-items:flex-end">
           <div>
@@ -1713,7 +1718,7 @@
 
       <div id="fch-itens-list" style="border:1px solid var(--border2);border-radius:var(--radius);max-height:180px;overflow-y:auto;min-height:36px;background:var(--bg3)"></div>
 
-      <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;font-size:13px;color:var(--text3)">
+      <div id="fch-total-row" style="display:flex;justify-content:flex-end;align-items:center;gap:8px;font-size:13px;color:var(--text3)">
         Total a cobrar: <strong id="fch-total-preview" style="color:#FBBF24;font-size:16px;font-family:var(--mono)">—</strong>
       </div>
 

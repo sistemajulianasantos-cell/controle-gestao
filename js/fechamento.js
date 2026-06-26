@@ -133,8 +133,18 @@ function _toggleFch(uid) {
 }
 
 // ── Modal: novo / editar ─────────────────────────────────────────────────────
+function fchToggleSemCobranca() {
+  const sem = document.getElementById('fch-sem-cobranca')?.checked;
+  ['fch-add-area','fch-itens-list','fch-total-row'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = sem ? 'none' : '';
+  });
+}
+
 function novoFechamento(contratoId, festaRef) {
   _fchItens = [];
+  const semEl = document.getElementById('fch-sem-cobranca');
+  if (semEl) { semEl.checked = false; fchToggleSemCobranca(); }
   document.getElementById('fch-modal-id').value   = '';
   document.getElementById('fch-modal-nome').value  = '';
   document.getElementById('fch-modal-data').value  = '';
@@ -236,8 +246,9 @@ function salvarFechamento() {
   const vencimento  = document.getElementById('fch-modal-venc').value;
   const obs         = document.getElementById('fch-modal-obs').value.trim();
 
+  const semCobranca = document.getElementById('fch-sem-cobranca')?.checked;
   if (!clienteNome && !contratoId) { alert2('Selecione o contrato ou informe o cliente', 'error'); return; }
-  if (!_fchItens.length)           { alert2('Adicione ao menos um item', 'error'); return; }
+  if (!_fchItens.length && !semCobranca) { alert2('Adicione ao menos um item ou marque "Sem acerto adicional"', 'error'); return; }
 
   const c           = (D.contratos || []).find(x => x.id === contratoId);
   const eventoNome  = c ? (c.nomeEvento || c.nome) : clienteNome;
@@ -314,6 +325,8 @@ function editarFechamento(id) {
   const f = (D.fechamentos || []).find(x => x.id === id);
   if (!f) return;
   _fchItens = (f.itens || []).map(i => ({ ...i }));
+  const semEl = document.getElementById('fch-sem-cobranca');
+  if (semEl) { semEl.checked = false; fchToggleSemCobranca(); }
 
   const sel = document.getElementById('fch-modal-contrato');
   sel.innerHTML = '<option value="">Selecionar contrato...</option>' +
