@@ -305,6 +305,7 @@ function salvarFechamento() {
   closeM('mfechamento');
   rFechamentos();
   rFestaFechamentos();
+  rFestaPendentes();
   alert2('Fechamento salvo com sucesso!');
 }
 
