@@ -78,15 +78,32 @@ function rFestaPendentes() {
   const fchPorContrato = {};
   (D.fechamentos || []).forEach(f => { if (f.contratoId) fchPorContrato[f.contratoId] = true; });
 
+  const mes   = document.getElementById('fview-novo-mes')?.value  || '';
+  const ano   = document.getElementById('fview-novo-ano')?.value  || '';
+  const busca = (document.getElementById('fview-novo-busca')?.value || '').toLowerCase();
+
   const pendentes = (D.contratos || [])
-    .filter(c => c.status === 'concluido' && !fchPorContrato[c.id])
+    .filter(c => {
+      if (c.status !== 'concluido') return false;
+      if (fchPorContrato[c.id]) return false;
+      if (ano && !(c.data || '').startsWith(ano)) return false;
+      if (mes && (c.data || '').slice(5, 7) !== mes) return false;
+      if (busca) {
+        const haystack = ((c.nomeEvento || '') + ' ' + (c.nome || '') + ' ' + (c.tipo || '')).toLowerCase();
+        if (!haystack.includes(busca)) return false;
+      }
+      return true;
+    })
     .sort((a, b) => (b.data || '').localeCompare(a.data || ''));
 
   const body = document.getElementById('fview-novo-body');
   if (!body) return;
 
   if (!pendentes.length) {
-    body.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text3)">✅ Todos os eventos concluídos já têm fechamento registrado.</div>';
+    const msg = (ano || mes || busca)
+      ? '🔍 Nenhum evento encontrado para o filtro selecionado.'
+      : '✅ Todos os eventos concluídos já têm fechamento registrado.';
+    body.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text3)">${msg}</div>`;
     return;
   }
 
@@ -102,9 +119,9 @@ function rFestaPendentes() {
     <tbody>
       ${pendentes.map(c => {
         const temFesta = (D.festas || []).some(f => f.data === c.data);
-        const importBtn = temFesta
-          ? `<button class="btn-sm" onclick="importarFechamento('${c.id}')" style="border-color:#1A3D2B;color:#4ADE80">↓ Importar dados</button> `
-          : '';
+        const importStyle = temFesta
+          ? 'border-color:#1A3D2B;color:#4ADE80'
+          : 'border-color:#2A2D1A;color:#A3B86A;opacity:0.7';
         return `<tr>
           <td style="font-size:11px;color:var(--text3);white-space:nowrap;padding:10px 12px">${fd(c.data)||'—'}</td>
           <td style="padding:10px 12px"><strong>${c.nomeEvento||c.nome}</strong><div style="font-size:10px;color:var(--text3)">${c.nome}</div></td>
@@ -112,7 +129,8 @@ function rFestaPendentes() {
           <td style="font-size:11px;padding:10px 12px">${c.convidados||'—'}</td>
           <td style="font-family:var(--mono);font-size:11px;padding:10px 12px">${c.opcao||'—'}</td>
           <td style="padding:10px 12px">
-            ${importBtn}<button class="btn-sm" onclick="novoFechamento('${c.id}')" style="border-color:#1A2A3D;color:#60A5FA">✏️ Manual</button>
+            <button class="btn-sm" onclick="importarFechamento('${c.id}')" style="${importStyle}" title="${temFesta ? 'Importar dados da festa' : 'Sem dados de festa — abrirá o modal para preenchimento manual'}">↓ Importar dados</button>
+            <button class="btn-sm" onclick="novoFechamento('${c.id}')" style="border-color:#1A2A3D;color:#60A5FA">✏️ Manual</button>
           </td>
         </tr>`;
       }).join('')}
