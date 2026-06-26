@@ -512,8 +512,13 @@ function rFestaFechamentos() {
     const valProd = festa
       ? (festa.valor_total_evento || festa.itens.reduce((a, i) => a + Number(i.valor || 0), 0))
       : 0;
-    const valQbr = qbr ? qbr.total : 0;
-    return { c, fch, valProd, valQbr, festaId: festa?.id };
+    // Quebras: produção manual + itens tipo='quebra' do fechamento
+    const valQbrProd = qbr ? qbr.total : 0;
+    const valQbrFch  = fch ? (fch.itens || []).filter(it => it.tipo === 'quebra').reduce((s, it) => s + (it.valor || 0), 0) : 0;
+    const valQbr     = valQbrProd + valQbrFch;
+    // Extras: itens do fechamento que NÃO são quebra
+    const valExtras  = fch ? (fch.itens || []).filter(it => it.tipo !== 'quebra').reduce((s, it) => s + (it.valor || 0), 0) : 0;
+    return { c, fch, valProd, valQbr, valExtras, festaId: festa?.id };
   });
 
   // Esta aba mostra APENAS contratos com fechamento lançado.
@@ -536,7 +541,7 @@ function rFestaFechamentos() {
     return;
   }
 
-  rows.forEach(({ c, fch, valProd, valQbr, festaId }) => {
+  rows.forEach(({ c, fch, valProd, valQbr, valExtras, festaId }) => {
     const uid = 'fcht-' + c.id;
 
     // Status tag
@@ -575,8 +580,8 @@ function rFestaFechamentos() {
       </td>
       <td style="font-family:var(--mono);font-size:11px;color:${valProd ? 'var(--green)' : 'var(--text3)'}">${valProd ? fR(valProd) : '—'}</td>
       <td style="font-family:var(--mono);font-size:11px;color:${valQbr ? 'var(--red)' : 'var(--text3)'}">${valQbr ? fR(valQbr) : '—'}</td>
-      <td style="font-family:var(--mono);font-size:11px;font-weight:${fch ? 700 : 400};color:${fch ? '#FBBF24' : 'var(--text3)'}">
-        ${fch ? fR(fch.totalExtras) : '—'}
+      <td style="font-family:var(--mono);font-size:11px;font-weight:${valExtras ? 700 : 400};color:${valExtras ? '#FBBF24' : 'var(--text3)'}">
+        ${valExtras ? fR(valExtras) : '—'}
       </td>
       <td>${statusTag}</td>
       <td onclick="event.stopPropagation()">${acoes}</td>`;
