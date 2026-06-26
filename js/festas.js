@@ -340,11 +340,17 @@ async function _processarArquivoFechamento(file) {
   if (preview) preview.style.display = 'none';
 
   try {
-    const txt = await file.text();
-    const itens = _parsearItensFechamento(txt);
+    let itens = [];
+
+    if (file.name.toLowerCase().endsWith('.pdf')) {
+      itens = await _lerPDFFechamento(file);
+    } else {
+      const txt = await file.text();
+      itens = _parsearItensFechamento(txt);
+    }
 
     if (!itens.length) {
-      if (status) status.textContent = '⚠ Nenhum item encontrado. Verifique o formato: "tipo, descrição, valor" ou "descrição, valor" por linha.';
+      if (status) status.textContent = '⚠ Nenhum item encontrado. Verifique se o PDF segue o formato padrão com tabela de itens e valores.';
       return;
     }
 
@@ -355,6 +361,79 @@ async function _processarArquivoFechamento(file) {
   } catch(e) {
     if (status) status.textContent = 'Erro ao ler arquivo: ' + e.message;
   }
+}
+
+async function _lerPDFFechamento(file) {
+  if (!window.pdfjsLib) throw new Error('PDF.js não disponível. Recarregue a página.');
+  if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+
+  const ab  = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+  let txt = '';
+
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const pg = await pdf.getPage(i);
+    const tc = await pg.getTextContent();
+    let lastY = null, currentLine = '', pageLines = [];
+
+    for (const item of tc.items) {
+      const y = item.transform ? Math.round(item.transform[5]) : null;
+      if (lastY !== null && y !== null && Math.abs(y - lastY) > 3) {
+        if (currentLine.trim()) pageLines.push(currentLine.trim());
+        currentLine = item.str;
+      } else {
+        currentLine += (currentLine && item.str && !currentLine.endsWith(' ') ? ' ' : '') + item.str;
+      }
+      lastY = y;
+    }
+    if (currentLine.trim()) pageLines.push(currentLine.trim());
+    txt += pageLines.join('\n') + '\n';
+  }
+
+  return _parsearPDFFechamento(txt);
+}
+
+function _parsearPDFFechamento(txt) {
+  const SKIP = /^(ITEM|UNIDADES|VALOR|VALOR UNIT|UNIT[ÁA]RIO|TOTAL|PIX|Dados Banc|Banco|Ag[eê]ncia|Conta|CNPJ|Gentileza|Proposta|Cliente|E-mail|Telefone|Evento|Convidados|Data:|Local|FECHAMENTO|QUEBRAS|DADOS DO)/i;
+  const itens = [];
+
+  txt.split('\n').map(l => l.trim()).filter(Boolean).forEach(linha => {
+    if (SKIP.test(linha)) return;
+
+    // Formato: "Nome qtd R$ unitário R$ total" — ex: "Gin Tanqueray 4 R$ 125,00 R$ 500,00"
+    const m = linha.match(/^(.+?)\s+(\d+)\s+R\$\s*[\d.,]+\s+R\$\s*([\d.,]+)/);
+    if (m) {
+      const nome  = m[1].trim();
+      const total = parseFloat(m[3].replace(/\./g, '').replace(',', '.'));
+      if (nome && total > 0 && !/^TOTAL/i.test(nome)) {
+        itens.push({ tipo: _classificarTipoFechamento(nome), descricao: nome, valor: total });
+      }
+      return;
+    }
+
+    // Fallback: linha com 2+ valores R$ — pega o último como total
+    const rsMatches = [...linha.matchAll(/R\$\s*([\d.,]+)/g)];
+    if (rsMatches.length >= 2) {
+      const nome  = linha.slice(0, linha.indexOf('R$')).replace(/\s+\d+\s*$/, '').trim();
+      const total = parseFloat(rsMatches[rsMatches.length - 1][1].replace(/\./g, '').replace(',', '.'));
+      if (nome && total > 0 && !/^TOTAL/i.test(nome)) {
+        itens.push({ tipo: _classificarTipoFechamento(nome), descricao: nome, valor: total });
+      }
+    }
+  });
+
+  return itens;
+}
+
+function _classificarTipoFechamento(nome) {
+  const n = nome.toLowerCase();
+  if (/copo|taça|jarra|bowl|vidro|bandeja|prato/.test(n))                                                    return 'quebra';
+  if (/vodka|gin|whiskey|whisky|rum|cacha[cç]a|cerveja|vinho|prosecco|espumante|champagne|bebida/.test(n))   return 'bebida_extra';
+  if (/hora\s*extra/.test(n))                                                                                 return 'hora_extra';
+  return 'adicional';
 }
 
 function _parsearItensFechamento(txt) {
