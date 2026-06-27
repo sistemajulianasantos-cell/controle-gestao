@@ -551,9 +551,7 @@ function calcularFolhaPagamento() {
   const regiao     = document.getElementById('eq-fp-regiao')?.value || '';
   const horasBase  = D.regrasEquipe?.horasBase || 6;
   const temHEck    = document.getElementById('eq-fp-tem-he')?.checked || false;
-  const horasContr = temHEck
-    ? (parseFloat(document.getElementById('eq-fp-horas-base')?.value) || horasBase)
-    : horasBase;
+  const horasContr = parseFloat(document.getElementById('eq-fp-horas-base')?.value) || horasBase;
   const horasNH    = temHEck ? (parseFloat(document.getElementById('eq-fp-horas-extra')?.value)||0) : 0;
   const el      = document.getElementById('eq-folha-resultado');
   if (!el) return;
@@ -582,7 +580,7 @@ function calcularFolhaPagamento() {
   const contrato = (D.contratos||[]).find(c=>c.id===ev?.id);
   const escalas  = _escalasDoEvento(contrato||{id:ev?.id,nome:ev?.nome,data:ev?.data});
   const convidados = parseInt(contrato?.convidados||0);
-  const temHE     = temHEck;
+  const temHE     = temHEck || horasContr > horasBase;
 
   const overrides = _folhaState[ev.id] || {};
   if (!overrides.totalOverride) overrides.totalOverride = {};
@@ -632,6 +630,11 @@ function calcularFolhaPagamento() {
     return;
   }
 
+  const _ORD_PAG = ['Head Bartender','Coordenador','Bartender','Bar Back','Copeiro'];
+  linhas.sort((a, b) => {
+    const ia = _ORD_PAG.indexOf(a.cargo); const ib = _ORD_PAG.indexOf(b.cargo);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
   _folhaLinhas = linhas.map(l => ({ ...l }));
 
   let totalGeral = linhas.reduce((s,l)=>s+l.total,0);
@@ -1823,7 +1826,7 @@ function autorizarPagamentosEvento() {
   const regiao      = document.getElementById('eq-fp-regiao')?.value || '';
   const _horasBase = D.regrasEquipe?.horasBase || 6;
   const temHEck    = document.getElementById('eq-fp-tem-he')?.checked || false;
-  const horasContr = temHEck ? (parseFloat(document.getElementById('eq-fp-horas-base')?.value) || _horasBase) : _horasBase;
+  const horasContr = parseFloat(document.getElementById('eq-fp-horas-base')?.value) || _horasBase;
   const horasNH    = temHEck ? (parseFloat(document.getElementById('eq-fp-horas-extra')?.value)||0) : 0;
   const hoje       = new Date().toISOString().slice(0,10);
 
@@ -2014,6 +2017,8 @@ function rEquipePagamentos() {
       : eventosSorted.map(([cid, ev]) => {
           const todosEv   = (D.pagamentosEquipe||[]).filter(p=>p.contratoId===cid);
           const pendEv    = todosEv.filter(p=>p.status==='pendente');
+          const _ORD = ['Head Bartender','Coordenador','Bartender','Bar Back','Copeiro'];
+          ev.itens.sort((a,b)=>((_ORD.indexOf(a.cargo)<0?99:_ORD.indexOf(a.cargo))-(_ORD.indexOf(b.cargo)<0?99:_ORD.indexOf(b.cargo))));
           const totalEv   = ev.itens.reduce((a,p)=>a+p.total,0);
           const todosPago = pendEv.length === 0;
           const contrato  = (D.contratos||[]).find(c=>c.id===cid);
@@ -2110,6 +2115,8 @@ function imprimirPagamentosEquipe() {
   Object.entries(porEvento).sort((a,b)=>(b[1].data||'').localeCompare(a[1].data||'')).forEach(([cid, ev]) => {
     const contrato    = (D.contratos||[]).find(c=>c.id===cid);
     const regiaoLabel = REGIOES_PAGAMENTO.find(r=>r.key===ev.regiao)?.label || ev.regiao || '';
+    const _ORD_IMP = ['Head Bartender','Coordenador','Bartender','Bar Back','Copeiro'];
+    ev.itens.sort((a,b)=>((_ORD_IMP.indexOf(a.cargo)<0?99:_ORD_IMP.indexOf(a.cargo))-(_ORD_IMP.indexOf(b.cargo)<0?99:_ORD_IMP.indexOf(b.cargo))));
     const totalEv     = ev.itens.reduce((a,p)=>a+p.total,0);
 
     corpo += `
