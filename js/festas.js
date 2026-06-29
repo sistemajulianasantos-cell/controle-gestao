@@ -87,9 +87,22 @@ function _allFestas(){
 }
 function _qbrPorEvento(){
   const map={};
+  const add=(nomeEv,data,it)=>{
+    if(!map[nomeEv])map[nomeEv]={total:0,itens:[],data};
+    map[nomeEv].itens.push(it);map[nomeEv].total+=Number(it.total||0);
+  };
   QUEBRAS_EVENTO_PRELOAD.forEach(ev=>{
-    if(!map[ev.evento])map[ev.evento]={total:0,itens:[],data:ev.data};
-    ev.itens.forEach(i=>{map[ev.evento].itens.push(i);map[ev.evento].total+=i.total;});
+    ev.itens.forEach(i=>add(ev.evento,ev.data,i));
+  });
+  (D.quebras||[]).filter(q=>q.obs&&!QUEBRAS_PRELOAD.find(p=>p.prod===q.prod&&p.data===q.data&&p.qtd===q.qtd)).forEach(q=>{
+    add(q.obs,q.data,{prod:q.prod,qtd:q.qtd,custo:q.custo,total:q.qtd*Number(q.custo||0)});
+  });
+  (D.fechamentos||[]).forEach(fch=>{
+    (fch.itens||[]).filter(it=>it.tipo==='quebra'||it.tipo==='peca').forEach(it=>{
+      const p=(typeof _fchParseItem==='function')?_fchParseItem(it):{produto:it.descricao,qtd:null,valorUnit:null};
+      const q=p.qtd||1;const custo=p.valorUnit||(q>0&&it.valor?it.valor/q:0)||0;
+      add(fch.eventoNome||fch.clienteNome||'—',fch.dataEvento||'',{prod:p.produto,qtd:q,custo,total:Number(it.valor||0)});
+    });
   });
   return map;
 }
