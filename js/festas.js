@@ -173,7 +173,10 @@ function rFestaQuebras(){
   // Itens de quebra registrados nos fechamentos
   (D.fechamentos||[]).forEach(fch=>{
     (fch.itens||[]).filter(it=>it.tipo==='quebra').forEach(it=>{
-      rows.push({evento:fch.eventoNome||fch.clienteNome||'—',data:fch.dataEvento||'',prod:it.descricao,qtd:1,custo:it.valor,total:it.valor});
+      const p=(typeof _fchParseItem==='function')?_fchParseItem(it):{produto:it.descricao,qtd:null,valorUnit:null};
+      const q=p.qtd||1;
+      const custo=p.valorUnit||(q>0&&it.valor?it.valor/q:it.valor)||0;
+      rows.push({evento:fch.eventoNome||fch.clienteNome||'—',data:fch.dataEvento||'',prod:p.produto,qtd:q,custo,total:it.valor});
     });
   });
   rows.sort((a,b)=>b.data.localeCompare(a.data));
