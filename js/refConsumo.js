@@ -212,8 +212,8 @@ function _rcBuildTabela() {
   </div>
 
   <div style="margin-top:14px;padding:12px 16px;background:var(--bg3);border-radius:8px;border-left:3px solid #4F8EF7;font-size:11px;color:var(--text3);line-height:1.7">
-    <strong style="color:var(--text2)">Mínimo</strong> = piso histórico (nunca levar menos).
-    <strong style="color:var(--text2)">Sugestão</strong> = média × convidados — referência de compra.
+    <strong style="color:var(--text2)">Mínimo</strong> = piso histórico (nunca levar menos).&nbsp;
+    <strong style="color:var(--text2)">Sugestão</strong> = média × convidados + margem de segurança (<strong>×1,20</strong> se &lt; 18 unid., <strong>×1,15</strong> se ≥ 18 unid.) — sempre arredondado para cima.&nbsp;
     <sup style="color:#F5A623">*</sup> = apenas 1 evento registrado nessa categoria. Itens sem histórico mostram sugestão global.
   </div>
 </div>
@@ -253,6 +253,11 @@ function _rcBuildTabelaComparativa(stats) {
 </table>`;
 }
 
+function _rcSugestao(rate, pax) {
+  const base = rate * pax;
+  return Math.ceil(base * (base < 18 ? 1.20 : 1.15));
+}
+
 function _rcBuildComparativaRows(statsArg, groupsArg) {
   const stats  = statsArg  || _rcGetStats();
   const groups = groupsArg || (_rcGruposVisiveis.length ? _rcGruposVisiveis : ['CASAMENTO']);
@@ -289,10 +294,10 @@ function _rcBuildComparativaRows(statsArg, groupsArg) {
           return `<td style="padding:7px 8px;text-align:right;color:var(--text3);${sep}">—</td><td style="padding:7px 8px;text-align:right;color:var(--text3)">—</td><td style="padding:7px 8px;text-align:right;color:var(--text3)">—</td><td style="padding:7px 8px;text-align:right;color:var(--text3);background:rgba(79,142,247,.04)">—</td>`;
         }
         if (d.count <= 0) {
-          return `<td style="padding:7px 8px;text-align:right;color:var(--text3);opacity:.55;${sep}">—</td><td style="padding:7px 8px;text-align:right;color:var(--text3);opacity:.55">—</td><td style="padding:7px 8px;text-align:right;color:var(--text3);opacity:.55">—</td><td style="padding:7px 8px;text-align:right;font-weight:600;color:#4F8EF7;opacity:.65;background:rgba(79,142,247,.04)">${ceil(d.mediaGeral)}</td>`;
+          return `<td style="padding:7px 8px;text-align:right;color:var(--text3);opacity:.55;${sep}">—</td><td style="padding:7px 8px;text-align:right;color:var(--text3);opacity:.55">—</td><td style="padding:7px 8px;text-align:right;color:var(--text3);opacity:.55">—</td><td style="padding:7px 8px;text-align:right;font-weight:600;color:#4F8EF7;opacity:.65;background:rgba(79,142,247,.04)">${d.mediaGeral!=null?_rcSugestao(d.mediaGeral,pax):'—'}</td>`;
         }
         const suf = d.count===1 ? '<sup style="color:#F5A623;font-size:9px">*</sup>' : '';
-        return `<td style="padding:7px 8px;text-align:right;color:var(--text2);${sep}">${ceil(d.min)}</td><td style="padding:7px 8px;text-align:right;color:var(--text2)">${ceil(d.avg)}</td><td style="padding:7px 8px;text-align:right;color:var(--text2)">${ceil(d.max)}</td><td style="padding:7px 8px;text-align:right;font-weight:700;color:#4F8EF7;font-size:12px;background:rgba(79,142,247,.04)">${d.avg!=null?Math.ceil(d.avg*pax):'—'}${suf}</td>`;
+        return `<td style="padding:7px 8px;text-align:right;color:var(--text2);${sep}">${ceil(d.min)}</td><td style="padding:7px 8px;text-align:right;color:var(--text2)">${ceil(d.avg)}</td><td style="padding:7px 8px;text-align:right;color:var(--text2)">${ceil(d.max)}</td><td style="padding:7px 8px;text-align:right;font-weight:700;color:#4F8EF7;font-size:12px;background:rgba(79,142,247,.04)">${d.avg!=null?_rcSugestao(d.avg,pax):'—'}${suf}</td>`;
       }).join('');
 
       html.push(`<tr><td style="padding:7px 14px 7px 22px;color:var(--text);font-weight:500;white-space:nowrap">${b}</td>${cells}</tr>`);
