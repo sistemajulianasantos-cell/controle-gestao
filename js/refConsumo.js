@@ -450,24 +450,78 @@ function _rcBuildEventos() {
     );
   }
 
+  // Modo auditoria: detecta o insumo exato sendo pesquisado
+  const insumoTerm = _rcHistInsumo.toLowerCase().trim();
+  let auditBev = null;
+  if (insumoTerm && filtrados.length) {
+    for (const e of filtrados) {
+      const match = Object.keys(e.consumo||{}).find(k => k.toLowerCase().includes(insumoTerm));
+      if (match) { auditBev = match; break; }
+    }
+  }
+
+  // Card de auditoria com min/méd/máx/sug calculados a partir dos eventos filtrados
+  let auditSummary = '';
+  if (auditBev) {
+    const rates = filtrados
+      .map(e => {
+        const qty = parseFloat((e.consumo||{})[auditBev] || 0);
+        return (qty > 0 && e.convidados > 0) ? qty / e.convidados : null;
+      })
+      .filter(r => r !== null);
+    if (rates.length) {
+      const mn  = Math.min(...rates);
+      const mx  = Math.max(...rates);
+      const avg = (mn + mx) / 2;
+      const pax = _rcPax;
+      const sug = _rcSugestao(avg, pax);
+      auditSummary = `
+        <div style="margin-bottom:14px;padding:14px 18px;background:rgba(79,142,247,.06);border-radius:8px;border:1px solid rgba(79,142,247,.25)">
+          <div style="font-size:11px;font-weight:700;color:#4F8EF7;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">
+            Auditoria · ${auditBev} · ${rates.length} evento${rates.length!==1?'s':''} · ${_rcHistGrupo||'todos os tipos'}
+          </div>
+          <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:13px">
+            <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Mínimo</div><strong style="color:var(--text);font-size:18px">${Math.ceil(mn*pax)}</strong></div>
+            <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Médio</div><strong style="color:var(--text);font-size:18px">${Math.ceil(avg*pax)}</strong></div>
+            <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Máximo</div><strong style="color:var(--text);font-size:18px">${Math.ceil(mx*pax)}</strong></div>
+            <div style="text-align:center;background:rgba(79,142,247,.12);border-radius:6px;padding:4px 16px"><div style="font-size:10px;color:#4F8EF7;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Sugestão · ${pax} conv.</div><strong style="color:#4F8EF7;font-size:22px">${sug}</strong></div>
+          </div>
+          <div style="margin-top:8px;font-size:10px;color:var(--text3)">Taxa média: ${avg.toFixed(4)} unid./convidado · Margem: ${(avg*pax)<18?'×1,20':'×1,15'} (base ${Math.ceil(avg*pax)} unid.)</div>
+        </div>`;
+    }
+  }
+
   const total  = filtrados.length;
   const inicio = _rcHistPage * RC_HIST_PER_PAGE;
   const pagina = filtrados.slice(inicio, inicio + RC_HIST_PER_PAGE);
   const nPags  = Math.ceil(total / RC_HIST_PER_PAGE);
 
+  const auditTh = auditBev ? `
+    <th style="padding:9px 12px;text-align:right;color:#4F8EF7;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Qtd ${auditBev}</th>
+    <th style="padding:9px 12px;text-align:right;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Unid./Conv.</th>` : '';
+
   const rows = pagina.length === 0
-    ? `<tr><td colspan="6" style="padding:32px;text-align:center;color:var(--text3)">Nenhum evento encontrado.</td></tr>`
-    : pagina.map((e, ri) => {
+    ? `<tr><td colspan="${auditBev?8:6}" style="padding:32px;text-align:center;color:var(--text3)">Nenhum evento encontrado.</td></tr>`
+    : pagina.map((e) => {
         const idxReal = todos.indexOf(e);
         const nitens  = Object.values(e.consumo||{}).filter(v=>parseFloat(v)>0).length;
         const badge   = e._fonte==='manual'
           ? `<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:rgba(61,220,132,.12);border:1px solid rgba(61,220,132,.3);color:#3DDC84">manual</span>`
           : `<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:rgba(245,166,35,.12);border:1px solid rgba(245,166,35,.3);color:#F5A623">fechamento</span>`;
+        let auditTds = '';
+        if (auditBev) {
+          const qty  = parseFloat((e.consumo||{})[auditBev] || 0);
+          const taxa = (qty > 0 && e.convidados > 0) ? (qty / e.convidados) : 0;
+          auditTds = `
+            <td style="padding:8px 12px;text-align:right;font-weight:700;color:#4F8EF7;font-family:var(--mono)">${qty > 0 ? qty : '—'}</td>
+            <td style="padding:8px 12px;text-align:right;color:var(--text3);font-family:var(--mono);font-size:11px">${taxa > 0 ? taxa.toFixed(4) : '—'}</td>`;
+        }
         return `<tr>
           <td style="padding:8px 12px;color:var(--text2);font-family:var(--mono);font-size:11px">${e.data||'—'}</td>
           <td style="padding:8px 12px;color:var(--text)">${e.cliente||'—'}</td>
           <td style="padding:8px 12px">${badge} <span style="font-size:11px;color:var(--text2);margin-left:4px">${e.grupo||'—'}</span></td>
           <td style="padding:8px 12px;text-align:right;font-family:var(--mono);color:var(--text)">${e.convidados||0}</td>
+          ${auditTds}
           <td style="padding:8px 12px;text-align:right;color:var(--text3);font-size:11px">${nitens} insumo${nitens!==1?'s':''}</td>
           <td style="padding:8px 12px;text-align:right">
             <button onclick="_rcVerEvento(${idxReal})" style="background:none;border:none;color:#4F8EF7;cursor:pointer;font-size:11px;text-decoration:underline;margin-right:8px">ver</button>
@@ -499,6 +553,8 @@ function _rcBuildEventos() {
 
   <div id="rc-evt-detalhe"></div>
 
+  ${auditSummary}
+
   <div style="font-size:12px;color:var(--text3);margin-bottom:10px">
     ${total} evento${total!==1?'s':''}
     ${_rcHistGrupo ? ' · tipo: '+_rcHistGrupo : ''}
@@ -513,6 +569,7 @@ function _rcBuildEventos() {
           <th style="padding:9px 12px;text-align:left;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Cliente</th>
           <th style="padding:9px 12px;text-align:left;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Tipo</th>
           <th style="padding:9px 12px;text-align:right;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Convidados</th>
+          ${auditTh}
           <th style="padding:9px 12px;text-align:right;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Itens</th>
           <th></th>
         </tr>
@@ -534,7 +591,7 @@ function _rcHistFiltrar(g)        { _rcHistGrupo = g; _rcHistPage = 0; rRefConsu
 function _rcHistFiltrarInsumo(v)  { _rcHistInsumo = v; _rcHistPage = 0; rRefConsumo(); }
 
 function _rcVerEvento(i) {
-  const todos = [..._rcGetEventos().reverse().map(e=>({...e,_fonte:'manual'})), ..._rcGetEventosImportados().slice().reverse().map(e=>({...e,_fonte:'importado'}))];
+  const todos = [..._rcGetEventos().slice().reverse().map(e=>({...e,_fonte:'manual'})), ..._rcGetEventosDasFestas().map(e=>({...e,_fonte:'fechamento'}))];
   const e = todos[i];
   if (!e) return;
   const itens = Object.entries(e.consumo||{}).filter(([,v])=>parseFloat(v)>0)
@@ -552,7 +609,7 @@ function _rcVerEvento(i) {
 
 function _rcDeleteEvento(i) {
   if (!confirm('Excluir este evento?')) return;
-  const todos  = [..._rcGetEventos().reverse().map(e=>({...e,_fonte:'manual'})), ..._rcGetEventosImportados().slice().reverse().map(e=>({...e,_fonte:'importado'}))];
+  const todos  = [..._rcGetEventos().slice().reverse().map(e=>({...e,_fonte:'manual'})), ..._rcGetEventosDasFestas().map(e=>({...e,_fonte:'fechamento'}))];
   const e = todos[i];
   if (!e || e._fonte !== 'manual') return;
   // Encontra o índice real na lista manual
