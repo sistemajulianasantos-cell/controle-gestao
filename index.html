@@ -610,8 +610,10 @@
         <div class="sec">
           <div class="sec-head" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
             <span class="sec-title">🗂️ Cadastro de itens</span>
-            <span style="font-size:11px;color:var(--text3)">Classifique cada item para que apareça na aba correta</span>
+            <input type="text" id="cat-busca" class="inp" placeholder="Buscar item..." style="width:200px;font-size:11px;padding:5px 9px" oninput="rFchCadastro()">
+            <span style="font-size:11px;color:var(--text3)" id="cat-total-label"></span>
           </div>
+          <div id="cat-dup-alert" style="display:none;margin:10px 0 4px;padding:8px 12px;background:#FBBF2415;border:1px solid #FBBF2455;border-radius:var(--radius);font-size:12px;color:#FBBF24"></div>
           <!-- Formulário de adição -->
           <div style="display:grid;grid-template-columns:1fr 150px auto;gap:8px;align-items:flex-end;padding:12px 0 16px;border-bottom:1px solid var(--border2)">
             <div>
@@ -636,7 +638,7 @@
           </div>
           <!-- Lista do catálogo -->
           <table>
-            <thead><tr><th>Nome</th><th>Categoria</th><th style="width:40px"></th></tr></thead>
+            <thead><tr><th>Nome</th><th>Categoria</th><th style="width:50px;text-align:center">Excluir</th></tr></thead>
             <tbody id="tab-catalogo"></tbody>
           </table>
         </div>

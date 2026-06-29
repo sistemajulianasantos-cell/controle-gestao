@@ -602,29 +602,90 @@ function _fchCatMergeRows() {
   return Object.values(map).sort((a, b) => a.nome.localeCompare(b.nome));
 }
 
+function _fchNormNome(nome) {
+  return nome.toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/\b\d+\s*(ml|l\b|g\b|kg|un\.?)\b/gi, '')
+    .replace(/\s+/g, ' ').trim();
+}
+
+function _fchLevenshtein(a, b) {
+  if (Math.abs(a.length - b.length) > 4) return 99;
+  const dp = Array.from({length: a.length + 1}, (_, i) => Array.from({length: b.length + 1}, (_, j) => i || j));
+  for (let i = 1; i <= a.length; i++)
+    for (let j = 1; j <= b.length; j++)
+      dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+  return dp[a.length][b.length];
+}
+
+function _fchCatDetectDups(rows) {
+  const dups = new Set();
+  const norm = rows.map(r => ({ key: r.nome.toLowerCase(), norm: _fchNormNome(r.nome) }));
+  for (let i = 0; i < norm.length; i++) {
+    for (let j = i + 1; j < norm.length; j++) {
+      const a = norm[i].norm, b = norm[j].norm;
+      if (!a || !b) continue;
+      if (a === b || a.includes(b) || b.includes(a) || _fchLevenshtein(a, b) <= 2) {
+        dups.add(norm[i].key);
+        dups.add(norm[j].key);
+      }
+    }
+  }
+  return dups;
+}
+
 function rFchCadastro() {
-  const rows = _fchCatMergeRows();
+  const busca = (document.getElementById('cat-busca')?.value || '').toLowerCase().trim();
+  const allRows = _fchCatMergeRows();
+  const dups = _fchCatDetectDups(allRows);
+
+  const rows = busca ? allRows.filter(r => r.nome.toLowerCase().includes(busca)) : allRows;
+
+  // Alerta de duplicatas
+  const dupEl = document.getElementById('cat-dup-alert');
+  if (dupEl) {
+    const n = dups.size;
+    dupEl.style.display = (n > 0 && !busca) ? 'block' : 'none';
+    if (n > 0 && !busca) dupEl.innerHTML = `⚠️ <strong>${n} item${n>1?'s':''} com possível duplicidade</strong> detectado${n>1?'s':''} — revise os destacados abaixo`;
+  }
+  const lbEl = document.getElementById('cat-total-label');
+  if (lbEl) lbEl.textContent = rows.length + ' item' + (rows.length !== 1 ? 's' : '');
+
   const tb = document.getElementById('tab-catalogo');
   if (!tb) return;
-  const tipoOpts = Object.entries(_CAT_TIPO).map(([v, i]) =>
-    `<option value="${v}">${i.icon} ${i.label}</option>`).join('');
+
   tb.innerHTML = rows.length
     ? rows.map(item => {
         const info = _CAT_TIPO[item.tipo] || _CAT_TIPO.produto;
-        const escNome = item.nome.replace(/'/g, "\\'");
-        return `<tr>
-          <td style="font-size:13px;font-weight:500">${item.nome}${item.ocorrencias > 0 ? `<span style="font-size:10px;color:var(--text3);margin-left:6px">(${item.ocorrencias}×)</span>` : ''}</td>
+        const escNome = item.nome.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        const isDup = dups.has(item.nome.toLowerCase());
+        const dupBadge = isDup
+          ? '<span style="font-size:10px;background:#FBBF2422;color:#FBBF24;border:1px solid #FBBF2455;padding:1px 6px;border-radius:10px;margin-left:6px;vertical-align:middle">⚠️ duplicata</span>'
+          : '';
+        const ocBadge = item.ocorrencias > 0
+          ? `<span style="font-size:10px;color:var(--text3);margin-left:5px">(${item.ocorrencias}×)</span>` : '';
+        const rowBg = isDup ? 'background:rgba(251,191,36,0.06);' : '';
+        const delTitle = item.ocorrencias > 0
+          ? `Remove do catálogo (item ainda presente em ${item.ocorrencias} fechamento${item.ocorrencias>1?'s':''})`
+          : 'Excluir item do catálogo';
+        return `<tr style="${rowBg}">
+          <td style="font-size:13px;font-weight:500">${item.nome}${dupBadge}${ocBadge}</td>
           <td>
             <select style="font-size:11px;font-weight:600;color:${info.color};background:${info.color}18;border:1px solid ${info.color}55;padding:3px 8px;border-radius:20px;cursor:pointer"
               onchange="_fchCatSetTipo('${escNome}', this.value)">
-              ${Object.entries(_CAT_TIPO).map(([v,i]) =>
-                `<option value="${v}"${item.tipo===v?' selected':''}>${i.icon} ${i.label}</option>`).join('')}
+              ${Object.entries(_CAT_TIPO).map(([v,inf]) =>
+                `<option value="${v}"${item.tipo===v?' selected':''}>${inf.icon} ${inf.label}</option>`).join('')}
             </select>
+          </td>
+          <td style="text-align:center">
+            <span style="cursor:pointer;color:var(--red);font-size:20px;font-weight:300;line-height:1;display:inline-block;width:24px;text-align:center"
+              onclick="_fchCatDel('${escNome}', ${item.ocorrencias})" title="${delTitle}">×</span>
           </td>
         </tr>`;
       }).join('')
-    : '<tr><td colspan="2" style="text-align:center;color:var(--text3);padding:20px;font-size:12px">Nenhum item encontrado nos fechamentos</td></tr>';
-  _fchAtualizarDatalist(rows);
+    : '<tr><td colspan="3" style="text-align:center;color:var(--text3);padding:20px;font-size:12px">Nenhum item encontrado</td></tr>';
+
+  _fchAtualizarDatalist(allRows);
 }
 
 function _fchCatSetTipo(nome, tipo) {
@@ -656,6 +717,18 @@ function _fchCatAdd() {
   if (!nome) { alert2('Informe o nome do item', 'error'); return; }
   _fchCatSetTipo(nome, tipo);
   document.getElementById('cat-nome').value = '';
+  rFchCadastro();
+}
+
+function _fchCatDel(nome, ocorrencias) {
+  const msg = ocorrencias > 0
+    ? `"${nome}" aparece em ${ocorrencias} fechamento${ocorrencias>1?'s':''}.\nRemover do catálogo? (os fechamentos não serão alterados)`
+    : `Excluir "${nome}" do catálogo?`;
+  if (!confirm(msg)) return;
+  if (!D.catalogoFch) D.catalogoFch = [];
+  const key = nome.toLowerCase();
+  D.catalogoFch = D.catalogoFch.filter(c => c.nome.toLowerCase() !== key);
+  sv('catalogoFch');
   rFchCadastro();
 }
 
