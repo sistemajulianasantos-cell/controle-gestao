@@ -14,6 +14,52 @@ let _fchItens = [];
 function _fchLabel(id) { return (TIPOS_FCH.find(t => t.id === id) || {}).label || id; }
 function _fchCor(id)   { return (TIPOS_FCH.find(t => t.id === id) || {}).cor   || 'var(--text)'; }
 
+// Normaliza item para exibição em colunas (suporta formato antigo e novo)
+function _fchParseItem(it) {
+  if (it.qtd != null && it.valorUnit != null) {
+    return { produto: it.descricao || '—', qtd: it.qtd, valorUnit: it.valorUnit, valor: it.valor };
+  }
+  // Tenta extrair do formato legado "Produto — N un. × R$ X,XX"
+  const m = (it.descricao || '').match(/^(.+?)\s*[—\-–]\s*(\d+)\s*un\.\s*[×x]\s*R\$\s*([\d.,]+)/i);
+  if (m) {
+    const qtd       = parseInt(m[2]);
+    const valorUnit = parseFloat(m[3].replace(/\./g, '').replace(',', '.'));
+    return { produto: m[1].trim(), qtd, valorUnit, valor: it.valor };
+  }
+  return { produto: it.descricao || '—', qtd: null, valorUnit: null, valor: it.valor };
+}
+
+function _fchCalcTotal() {
+  const qtd   = parseFloat(document.getElementById('fch-item-qtd')?.value   || 0);
+  const vunit = parseFloat((document.getElementById('fch-item-vunit')?.value || '').replace(',', '.')) || 0;
+  const tot   = qtd * vunit;
+  const el    = document.getElementById('fch-item-total-prev');
+  if (el) el.textContent = tot > 0 ? fR(tot) : '—';
+}
+
+// HTML de detalhe de itens — colunas: Tipo | Produto | Qtd | Val.Unit | Total
+function _fchDetalheGrid(itens, colspan) {
+  const header = `
+    <div style="display:grid;grid-template-columns:120px 1fr 55px 90px 90px;gap:6px;padding:6px 14px;background:var(--bg4);border-bottom:1px solid var(--border)">
+      <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase">Tipo</span>
+      <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase">Produto</span>
+      <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;text-align:right">Qtd</span>
+      <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;text-align:right">Val. unit.</span>
+      <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;text-align:right">Total</span>
+    </div>`;
+  const rows = (itens || []).map(it => {
+    const p = _fchParseItem(it);
+    return `<div style="display:grid;grid-template-columns:120px 1fr 55px 90px 90px;gap:6px;padding:6px 14px;border-bottom:1px solid var(--border);font-size:11px;align-items:center">
+      <span style="color:${_fchCor(it.tipo)};font-weight:600">${_fchLabel(it.tipo)}</span>
+      <span style="color:var(--text2)">${p.produto}</span>
+      <span style="font-family:var(--mono);text-align:right;color:var(--text2)">${p.qtd != null ? p.qtd : '—'}</span>
+      <span style="font-family:var(--mono);text-align:right;color:var(--text2)">${p.valorUnit != null ? fR(p.valorUnit) : '—'}</span>
+      <span style="font-family:var(--mono);font-weight:600;color:#FBBF24;text-align:right">${fR(p.valor)}</span>
+    </div>`;
+  }).join('') || '<div style="padding:10px 14px;font-size:11px;color:var(--text3)">Nenhum item lançado</div>';
+  return header + rows;
+}
+
 // ── Tela principal ───────────────────────────────────────────────────────────
 function rFechamentos() {
   const all = D.fechamentos || [];
@@ -78,14 +124,6 @@ function rFechamentos() {
 
     const uid = 'fch-' + f.id;
 
-    const detailRows = (f.itens || []).map(it =>
-      `<div style="display:grid;grid-template-columns:140px 1fr 110px;gap:8px;padding:6px 14px;border-bottom:1px solid var(--border);font-size:11px;align-items:center">
-        <span style="color:${_fchCor(it.tipo)};font-weight:600">${_fchLabel(it.tipo)}</span>
-        <span style="color:var(--text2)">${it.descricao || '—'}</span>
-        <span style="font-family:var(--mono);font-weight:600;color:#FBBF24;text-align:right">${fR(it.valor)}</span>
-      </div>`
-    ).join('') || '<div style="padding:10px 14px;font-size:11px;color:var(--text3)">Nenhum item lançado</div>';
-
     const tr = document.createElement('tr');
     tr.style.cursor = 'pointer';
     tr.onclick = () => _toggleFch(uid);
@@ -111,12 +149,7 @@ function rFechamentos() {
     trDetail.style.display = 'none';
     trDetail.innerHTML = `<td colspan="7" style="padding:0;border-bottom:2px solid var(--border2)">
       <div style="background:var(--bg3)">
-        <div style="display:grid;grid-template-columns:140px 1fr 110px;gap:8px;padding:6px 14px;background:var(--bg4);border-bottom:1px solid var(--border)">
-          <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase">Tipo</span>
-          <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase">Descrição</span>
-          <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;text-align:right">Valor</span>
-        </div>
-        ${detailRows}
+        ${_fchDetalheGrid(f.itens)}
         ${f.observacoes ? `<div style="padding:8px 14px;font-size:11px;color:var(--text3);border-top:1px solid var(--border)">📝 ${f.observacoes}</div>` : ''}
         ${f.vencimento ? `<div style="padding:6px 14px;font-size:11px;color:var(--text3)">Vencimento: <strong>${fd(f.vencimento)}</strong></div>` : ''}
       </div>
@@ -200,21 +233,27 @@ function fchContratoChange() {
 
 // ── Itens do modal ───────────────────────────────────────────────────────────
 function fchAddItem() {
-  const tipo = document.getElementById('fch-item-tipo').value;
-  const desc = document.getElementById('fch-item-desc').value.trim();
-  const val  = parseFloat(document.getElementById('fch-item-val').value.replace(',', '.'));
-  if (!tipo || !desc || !val || val <= 0) { alert2('Preencha tipo, descrição e valor', 'error'); return; }
-  _fchItens.push({ tipo, descricao: desc, valor: val });
-  document.getElementById('fch-item-desc').value = '';
-  document.getElementById('fch-item-val').value  = '';
+  const tipo      = document.getElementById('fch-item-tipo').value;
+  const desc      = document.getElementById('fch-item-desc').value.trim();
+  const qtd       = parseFloat(document.getElementById('fch-item-qtd').value  || 0);
+  const valorUnit = parseFloat((document.getElementById('fch-item-vunit').value || '').replace(',', '.')) || 0;
+  if (!tipo || !desc)               { alert2('Preencha tipo e produto', 'error'); return; }
+  if (qtd <= 0 || valorUnit <= 0)   { alert2('Informe quantidade e valor unitário', 'error'); return; }
+  const val = Math.round(qtd * valorUnit * 100) / 100;
+  _fchItens.push({ tipo, descricao: desc, qtd, valorUnit, valor: val });
+  document.getElementById('fch-item-desc').value  = '';
+  document.getElementById('fch-item-qtd').value   = '';
+  document.getElementById('fch-item-vunit').value = '';
+  const prevEl = document.getElementById('fch-item-total-prev');
+  if (prevEl) prevEl.textContent = '—';
   document.getElementById('fch-item-desc').focus();
   _rFchItens();
 }
 
 function _rFchItens() {
-  const c      = document.getElementById('fch-itens-list');
-  const totEl  = document.getElementById('fch-total-preview');
-  const tot    = _fchItens.reduce((s, i) => s + i.valor, 0);
+  const c     = document.getElementById('fch-itens-list');
+  const totEl = document.getElementById('fch-total-preview');
+  const tot   = _fchItens.reduce((s, i) => s + i.valor, 0);
   if (totEl) totEl.textContent = _fchItens.length ? fR(tot) : '—';
   if (!c) return;
 
@@ -224,19 +263,25 @@ function _rFchItens() {
   }
 
   c.innerHTML =
-    `<div style="display:grid;grid-template-columns:130px 1fr 100px 28px;gap:8px;padding:6px 14px;background:var(--bg4);border-bottom:1px solid var(--border)">
+    `<div style="display:grid;grid-template-columns:120px 1fr 50px 88px 88px 24px;gap:6px;padding:6px 14px;background:var(--bg4);border-bottom:1px solid var(--border)">
       <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase">Tipo</span>
-      <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase">Descrição</span>
-      <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;text-align:right">Valor</span>
+      <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase">Produto</span>
+      <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;text-align:right">Qtd</span>
+      <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;text-align:right">Val. unit.</span>
+      <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;text-align:right">Total</span>
       <span></span>
     </div>` +
-    _fchItens.map((it, idx) => `
-      <div style="display:grid;grid-template-columns:130px 1fr 100px 28px;gap:8px;align-items:center;padding:6px 14px;border-bottom:1px solid var(--border);font-size:11px">
+    _fchItens.map((it, idx) => {
+      const p = _fchParseItem(it);
+      return `<div style="display:grid;grid-template-columns:120px 1fr 50px 88px 88px 24px;gap:6px;align-items:center;padding:6px 14px;border-bottom:1px solid var(--border);font-size:11px">
         <span style="color:${_fchCor(it.tipo)};font-weight:600">${_fchLabel(it.tipo)}</span>
-        <span style="color:var(--text2)">${it.descricao}</span>
-        <span style="font-family:var(--mono);font-weight:600;color:#FBBF24;text-align:right">${fR(it.valor)}</span>
+        <span style="color:var(--text2)">${p.produto}</span>
+        <span style="font-family:var(--mono);text-align:right;color:var(--text2)">${p.qtd != null ? p.qtd : '—'}</span>
+        <span style="font-family:var(--mono);text-align:right;color:var(--text2)">${p.valorUnit != null ? fR(p.valorUnit) : '—'}</span>
+        <span style="font-family:var(--mono);font-weight:600;color:#FBBF24;text-align:right">${fR(p.valor)}</span>
         <span style="cursor:pointer;color:var(--red);font-size:16px;text-align:center;line-height:1" onclick="_fchItens.splice(${idx},1);_rFchItens()">×</span>
-      </div>`).join('');
+      </div>`;
+    }).join('');
 }
 
 // ── Salvar ───────────────────────────────────────────────────────────────────
@@ -594,25 +639,12 @@ function rFestaFechamentos() {
     tbody.appendChild(tr);
 
     if (fch) {
-      const detailRows = (fch.itens || []).map(it =>
-        `<div style="display:grid;grid-template-columns:140px 1fr 110px;gap:8px;padding:6px 14px;border-bottom:1px solid var(--border);font-size:11px">
-          <span style="color:${_fchCor(it.tipo)};font-weight:600">${_fchLabel(it.tipo)}</span>
-          <span style="color:var(--text2)">${it.descricao || '—'}</span>
-          <span style="font-family:var(--mono);font-weight:600;color:#FBBF24;text-align:right">${fR(it.valor)}</span>
-        </div>`
-      ).join('') || '<div style="padding:10px 14px;font-size:11px;color:var(--text3)">Nenhum item lançado</div>';
-
       const trDetail = document.createElement('tr');
       trDetail.id = uid + '-detail';
       trDetail.style.display = 'none';
       trDetail.innerHTML = `<td colspan="8" style="padding:0;border-bottom:2px solid var(--border2)">
         <div style="background:var(--bg3)">
-          <div style="display:grid;grid-template-columns:140px 1fr 110px;gap:8px;padding:6px 14px;background:var(--bg4);border-bottom:1px solid var(--border)">
-            <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase">Tipo</span>
-            <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase">Descrição</span>
-            <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;text-align:right">Valor</span>
-          </div>
-          ${detailRows}
+          ${_fchDetalheGrid(fch.itens)}
           ${fch.vencimento ? `<div style="padding:6px 14px;font-size:11px;color:var(--text3)">Vencimento: <strong>${fd(fch.vencimento)}</strong></div>` : ''}
           ${fch.observacoes ? `<div style="padding:6px 14px;font-size:11px;color:var(--text3)">📝 ${fch.observacoes}</div>` : ''}
         </div>
