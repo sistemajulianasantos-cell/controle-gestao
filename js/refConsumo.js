@@ -486,10 +486,8 @@ function _rcBuildEventos() {
       const mx        = Math.max(...qtys);
       const avgQty    = qtys.reduce((a,b)=>a+b,0) / qtys.length;
       const totalQty  = qtys.reduce((a,b)=>a+b,0);
-      const totalConv = dados.reduce((a,d)=>a+d.conv,0);
-      const taxaPond  = totalQty / totalConv;  // média ponderada pelo nº de convidados
-      const pax       = _rcPax;
-      const sug       = _rcSugestao(taxaPond, pax);
+      const margem    = avgQty < 18 ? 1.20 : 1.15;
+      const sug       = Math.ceil(avgQty * margem);
       const convLabel = (_rcHistConvMin||_rcHistConvMax)
         ? ` · ${_rcHistConvMin||'?'}–${_rcHistConvMax||'?'} conv.` : '';
       auditSummary = `
@@ -501,9 +499,9 @@ function _rcBuildEventos() {
             <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Mínimo</div><strong style="color:var(--text);font-size:18px">${mn}</strong></div>
             <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Médio</div><strong style="color:var(--text);font-size:18px">${Math.ceil(avgQty)}</strong></div>
             <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Máximo</div><strong style="color:var(--text);font-size:18px">${mx}</strong></div>
-            <div style="text-align:center;background:rgba(79,142,247,.12);border-radius:6px;padding:4px 16px"><div style="font-size:10px;color:#4F8EF7;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Sugestão · ${pax} conv.</div><strong style="color:#4F8EF7;font-size:22px">${sug}</strong></div>
+            <div style="text-align:center;background:rgba(79,142,247,.12);border-radius:6px;padding:4px 16px"><div style="font-size:10px;color:#4F8EF7;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Sugestão</div><strong style="color:#4F8EF7;font-size:22px">${sug}</strong></div>
           </div>
-          <div style="margin-top:8px;font-size:10px;color:var(--text3)">Taxa ponderada: ${taxaPond.toFixed(4)} unid./convidado · Margem: ${(taxaPond*pax)<18?'×1,20':'×1,15'} (base ${Math.ceil(taxaPond*pax)} unid.) · total histórico: ${totalQty} unid. / ${totalConv} conv.</div>
+          <div style="margin-top:8px;font-size:10px;color:var(--text3)">Média histórica: ${avgQty.toFixed(1)} unid. · Margem: ×${margem.toFixed(2)} · total histórico: ${totalQty} unid. em ${dados.length} eventos</div>
         </div>`;
     }
   }
