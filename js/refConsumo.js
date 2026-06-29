@@ -520,13 +520,17 @@ function _rcBuildEventos() {
           ? `<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:rgba(61,220,132,.12);border:1px solid rgba(61,220,132,.3);color:#3DDC84">manual</span>`
           : `<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:rgba(245,166,35,.12);border:1px solid rgba(245,166,35,.3);color:#F5A623">fechamento</span>`;
 
-        // Produtos consumidos em linha, ordenados por qtd desc
+        // Produtos consumidos em lista vertical, ordenados por qtd desc
         const prods = Object.entries(e.consumo||{})
           .filter(([,v]) => parseFloat(v) > 0)
           .sort((a,b) => b[1]-a[1])
           .map(([k,v]) => {
             const destaque = auditBev && k === auditBev;
-            return `<span style="display:inline-block;margin:1px 2px;padding:1px 7px;border-radius:8px;font-size:10px;${destaque?'background:rgba(79,142,247,.15);border:1px solid rgba(79,142,247,.4);color:#4F8EF7;font-weight:700':'background:var(--bg3);border:1px solid var(--border);color:var(--text2)'}">${k} <strong>${v}</strong></span>`;
+            return `<div style="display:flex;align-items:center;gap:6px;padding:2px 0;${destaque?'color:#4F8EF7;font-weight:700':'color:var(--text2)'}">
+              <strong style="font-family:var(--mono);min-width:22px;text-align:right;font-size:12px">${v}</strong>
+              <span style="font-size:11px">${k}</span>
+              ${destaque ? '<span style="font-size:9px;color:#4F8EF7">★</span>' : ''}
+            </div>`;
           }).join('');
 
         let auditTds = '';
