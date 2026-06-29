@@ -560,16 +560,32 @@ function _fchSincFinanceiro(f, status) {
 
 // ── Aba Fechamento — fonte primária: contratos concluídos ────────────────────
 function rFestaFechamentos() {
-  const fchAll    = D.fechamentos || [];
-  const pendentes = fchAll.filter(f => f.status === 'pendente');
-  const pagos     = fchAll.filter(f => f.status === 'pago');
-  const totPend   = pendentes.reduce((s, f) => s + (f.totalExtras || 0), 0);
-  const totPago   = pagos.reduce((s, f) => s + (f.totalExtras || 0), 0);
+  const fchAll  = D.fechamentos || [];
+  const _PROD   = ['produto', 'bebida_extra'];
+  const _PECA   = ['peca', 'quebra'];
+
+  let totProd = 0, totQbr = 0, totExt = 0, totGeral = 0, totPago = 0, totPend = 0;
+  fchAll.forEach(f => {
+    const itens = f.itens || [];
+    const vProd = itens.filter(it => _PROD.includes(it.tipo || '')).reduce((s, it) => s + (it.valor || 0), 0);
+    const vQbr  = itens.filter(it => _PECA.includes(it.tipo || '')).reduce((s, it) => s + (it.valor || 0), 0);
+    const vExt  = itens.filter(it => !_PROD.includes(it.tipo || '') && !_PECA.includes(it.tipo || '')).reduce((s, it) => s + (it.valor || 0), 0);
+    totProd  += vProd;
+    totQbr   += vQbr;
+    totExt   += vExt;
+    totGeral += f.totalExtras || 0;
+    if (f.status === 'pago')     totPago += f.totalExtras || 0;
+    else                         totPend += f.totalExtras || 0;
+  });
 
   const setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-  setEl('fch-tab-count', fchAll.length.toString());
-  setEl('fch-tab-pend',  fR(totPend));
-  setEl('fch-tab-pago',  fR(totPago));
+  setEl('fch-tab-count',    fchAll.length.toString());
+  setEl('fch-tab-tot-prod', fR(totProd));
+  setEl('fch-tab-tot-qbr',  fR(totQbr));
+  setEl('fch-tab-tot-ext',  fR(totExt));
+  setEl('fch-tab-tot',      fR(totGeral));
+  setEl('fch-tab-pago',     fR(totPago));
+  setEl('fch-tab-pend',     fR(totPend));
 
   const tbody = document.getElementById('fch-tab-body');
   if (!tbody) return;
