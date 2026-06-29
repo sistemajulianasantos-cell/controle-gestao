@@ -537,6 +537,7 @@
         <button class="sort-btn"        id="fv-quebras"    onclick="setFestaView('quebras')">🥃 Quebras detalhadas</button>
         <button class="sort-btn active" id="fv-fechamento" onclick="setFestaView('fechamento')">💰 Fechamentos</button>
         <button class="sort-btn"        id="fv-novo"       onclick="setFestaView('novo')">📋 Sem fechamento</button>
+        <button class="sort-btn"        id="fv-cadastro"   onclick="setFestaView('cadastro')">🗂️ Cadastro</button>
       </div>
       <div id="fview-geral" style="display:none">
         <div class="cards" id="festas-cards" style="margin-bottom:14px"></div>
@@ -601,6 +602,43 @@
             <input id="fview-novo-busca" class="inp" type="text" placeholder="Buscar evento ou cliente..." style="width:200px" oninput="rFestaPendentes()">
           </div>
           <div id="fview-novo-body" style="padding:8px 0"></div>
+        </div>
+      </div>
+
+      <!-- Cadastro de itens -->
+      <div id="fview-cadastro" style="display:none">
+        <div class="sec">
+          <div class="sec-head" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span class="sec-title">🗂️ Cadastro de itens</span>
+            <span style="font-size:11px;color:var(--text3)">Classifique cada item para que apareça na aba correta</span>
+          </div>
+          <!-- Formulário de adição -->
+          <div style="display:grid;grid-template-columns:1fr 150px auto;gap:8px;align-items:flex-end;padding:12px 0 16px;border-bottom:1px solid var(--border2)">
+            <div>
+              <label class="lbl">Nome do item</label>
+              <input type="text" id="cat-nome" class="inp" style="width:100%" placeholder="Ex: Vodka Absolut, Copo Long Drink, Hora Extra..." onkeydown="if(event.key==='Enter')_fchCatAdd()">
+            </div>
+            <div>
+              <label class="lbl">Categoria</label>
+              <select id="cat-tipo" class="inp" style="width:100%">
+                <option value="produto">🍾 Produto</option>
+                <option value="peca">🥃 Peça</option>
+                <option value="servico">⚙️ Serviço adicional</option>
+              </select>
+            </div>
+            <button class="btn btn-primary" onclick="_fchCatAdd()" style="white-space:nowrap">+ Adicionar</button>
+          </div>
+          <!-- Legenda -->
+          <div style="display:flex;gap:16px;padding:10px 0 8px;flex-wrap:wrap">
+            <span style="font-size:11px;color:#22C55E">🍾 <strong>Produto</strong> → aparece em "Produtos consumidos"</span>
+            <span style="font-size:11px;color:#EF4444">🥃 <strong>Peça</strong> → aparece em "Quebras detalhadas"</span>
+            <span style="font-size:11px;color:#8B91A8">⚙️ <strong>Serviço adicional</strong> → somente no total do fechamento</span>
+          </div>
+          <!-- Lista do catálogo -->
+          <table>
+            <thead><tr><th>Nome</th><th>Categoria</th><th style="width:40px"></th></tr></thead>
+            <tbody id="tab-catalogo"></tbody>
+          </table>
         </div>
       </div>
 
@@ -1698,16 +1736,16 @@
         <div style="display:grid;grid-template-columns:130px 1fr 65px 95px;gap:8px;align-items:flex-end;margin-bottom:8px">
           <div>
             <label class="lbl">Tipo</label>
-            <select id="fch-item-tipo" class="inp" style="width:100%">
-              <option value="bebida_extra">Bebida extra</option>
-              <option value="quebra">Quebra / Dano</option>
-              <option value="hora_extra">Hora extra</option>
-              <option value="adicional">Serv. adicional</option>
+            <select id="fch-item-tipo" class="inp" style="width:100%" onchange="_fchCalcTotal()">
+              <option value="produto">🍾 Produto</option>
+              <option value="peca">🥃 Peça</option>
+              <option value="servico">⚙️ Serviço</option>
             </select>
           </div>
           <div>
             <label class="lbl">Produto</label>
-            <input type="text" id="fch-item-desc" class="inp" style="width:100%" placeholder="Ex: Gin Beefeater" onkeydown="if(event.key==='Enter')fchAddItem()">
+            <input type="text" id="fch-item-desc" class="inp" style="width:100%" placeholder="Ex: Gin Beefeater" list="fch-catalogo-list" onchange="_fchAutoTipo(this.value)" onkeydown="if(event.key==='Enter')fchAddItem()">
+            <datalist id="fch-catalogo-list"></datalist>
           </div>
           <div>
             <label class="lbl">Qtd</label>

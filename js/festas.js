@@ -69,7 +69,10 @@ function _allFestas(){
       status:              'encerrada',
       valor_total_evento:  fch.totalExtras || 0,
       itens:               (fch.itens || [])
-        .filter(it => it.tipo !== 'quebra')
+        .filter(it => {
+          const t = it.tipo || '';
+          return !['quebra','peca','servico','hora_extra','adicional'].includes(t);
+        })
         .map(it => {
           const p = (typeof _fchParseItem === 'function') ? _fchParseItem(it) : { produto: it.descricao, qtd: null };
           const q = p.qtd || 1;
@@ -91,7 +94,7 @@ function _qbrPorEvento(){
   return map;
 }
 function setFestaView(v){
-  ['geral','produtos','quebras','fechamento','novo','importar-fch'].forEach(x=>{
+  ['geral','produtos','quebras','fechamento','novo','importar-fch','cadastro'].forEach(x=>{
     const btn=document.getElementById('fv-'+x);if(btn)btn.classList.toggle('active',x===v);
     const view=document.getElementById('fview-'+x);if(view)view.style.display=x===v?'block':'none';
   });
@@ -100,6 +103,7 @@ function setFestaView(v){
   if(v==='quebras')rFestaQuebras();
   if(v==='fechamento')rFestaFechamentos();
   if(v==='novo')rFestaPendentes();
+  if(v==='cadastro')rFchCadastro();
 }
 
 function rFestaPendentes() {
@@ -172,7 +176,7 @@ function rFestaQuebras(){
   D.quebras.filter(q=>q.obs&&eventosVisiveis.has(q.obs)&&!QUEBRAS_PRELOAD.find(p=>p.prod===q.prod&&p.data===q.data&&p.qtd===q.qtd)).forEach(q=>{rows.push({evento:q.obs,data:q.data,prod:q.prod,qtd:q.qtd,custo:q.custo,total:q.qtd*Number(q.custo||0)});});
   // Itens de quebra registrados nos fechamentos
   (D.fechamentos||[]).forEach(fch=>{
-    (fch.itens||[]).filter(it=>it.tipo==='quebra').forEach(it=>{
+    (fch.itens||[]).filter(it=>it.tipo==='quebra'||it.tipo==='peca').forEach(it=>{
       const p=(typeof _fchParseItem==='function')?_fchParseItem(it):{produto:it.descricao,qtd:null,valorUnit:null};
       const q=p.qtd||1;
       const custo=p.valorUnit||(q>0&&it.valor?it.valor/q:it.valor)||0;
@@ -553,7 +557,69 @@ function confirmarImporteFechamento() {
   }
 
   _rFchItens();
+  _fchAtualizarDatalist();
   setFestaView('novo');
   openM('mfechamento');
+}
+
+// ─── CATÁLOGO DE ITENS ────────────────────────────────────────────────────────
+const _CAT_TIPO = {
+  produto: { label: 'Produto',           icon: '🍾', color: '#22C55E' },
+  peca:    { label: 'Peça',              icon: '🥃', color: '#EF4444' },
+  servico: { label: 'Serviço adicional', icon: '⚙️', color: '#8B91A8' },
+};
+
+function rFchCadastro() {
+  if (!D.catalogoFch) D.catalogoFch = [];
+  const rows = D.catalogoFch;
+  const tb = document.getElementById('tab-catalogo');
+  if (!tb) return;
+  tb.innerHTML = rows.length
+    ? rows.map((item, i) => {
+        const info = _CAT_TIPO[item.tipo] || { label: item.tipo, icon: '', color: 'var(--text3)' };
+        return `<tr>
+          <td style="font-size:13px;font-weight:500">${item.nome}</td>
+          <td><span style="font-size:11px;font-weight:600;color:${info.color};background:${info.color}22;padding:2px 8px;border-radius:20px">${info.icon} ${info.label}</span></td>
+          <td style="text-align:center"><span style="cursor:pointer;color:var(--red);font-size:18px;font-weight:300;line-height:1" onclick="_fchCatDel(${i})" title="Remover">×</span></td>
+        </tr>`;
+      }).join('')
+    : '<tr><td colspan="3" style="text-align:center;color:var(--text3);padding:20px;font-size:12px">Nenhum item cadastrado ainda — adicione acima ↑</td></tr>';
+  _fchAtualizarDatalist();
+}
+
+function _fchCatAdd() {
+  const nome = (document.getElementById('cat-nome')?.value || '').trim();
+  const tipo = document.getElementById('cat-tipo')?.value || 'produto';
+  if (!nome) { alert2('Informe o nome do item', 'error'); return; }
+  if (!D.catalogoFch) D.catalogoFch = [];
+  if (D.catalogoFch.find(x => x.nome.toLowerCase() === nome.toLowerCase())) {
+    alert2('Esse item já está no catálogo', 'error'); return;
+  }
+  D.catalogoFch.push({ nome, tipo });
+  D.catalogoFch.sort((a, b) => a.nome.localeCompare(b.nome));
+  sv('catalogoFch');
+  document.getElementById('cat-nome').value = '';
+  rFchCadastro();
+}
+
+function _fchCatDel(i) {
+  if (!D.catalogoFch) return;
+  D.catalogoFch.splice(i, 1);
+  sv('catalogoFch');
+  rFchCadastro();
+}
+
+function _fchAtualizarDatalist() {
+  const dl = document.getElementById('fch-catalogo-list');
+  if (!dl) return;
+  dl.innerHTML = (D.catalogoFch || []).map(x => `<option value="${x.nome}">`).join('');
+}
+
+function _fchAutoTipo(nome) {
+  if (!nome || !D.catalogoFch) return;
+  const item = D.catalogoFch.find(x => x.nome.toLowerCase() === nome.toLowerCase());
+  if (!item) return;
+  const sel = document.getElementById('fch-item-tipo');
+  if (sel) sel.value = item.tipo;
 }
 
