@@ -70,7 +70,11 @@ function _allFestas(){
       valor_total_evento:  fch.totalExtras || 0,
       itens:               (fch.itens || [])
         .filter(it => it.tipo !== 'quebra')
-        .map(it => ({ prod: it.descricao, qtd: 1, consumido: 1, valor: it.valor })),
+        .map(it => {
+          const p = (typeof _fchParseItem === 'function') ? _fchParseItem(it) : { produto: it.descricao, qtd: null };
+          const q = p.qtd || 1;
+          return { prod: p.produto, qtd: q, consumido: q, valor: it.valor };
+        }),
       _virtual:            true,
     };
   });
