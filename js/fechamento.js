@@ -3,10 +3,14 @@
 if (!D.fechamentos) D.fechamentos = [];
 
 const TIPOS_FCH = [
-  { id: 'bebida_extra', label: 'Bebida extra',     cor: 'var(--blue)'  },
-  { id: 'quebra',       label: 'Quebra / Dano',    cor: 'var(--red)'   },
-  { id: 'hora_extra',   label: 'Hora extra',       cor: '#FBBF24'      },
-  { id: 'adicional',    label: 'Serv. adicional',  cor: 'var(--text2)' },
+  { id: 'produto',      label: 'Produto',           cor: '#22C55E'       },
+  { id: 'peca',         label: 'Peça',              cor: 'var(--red)'    },
+  { id: 'servico',      label: 'Serviço adicional', cor: '#FBBF24'       },
+  // retrocompatibilidade com dados antigos
+  { id: 'bebida_extra', label: 'Bebida extra',      cor: '#22C55E'       },
+  { id: 'quebra',       label: 'Quebra / Dano',     cor: 'var(--red)'    },
+  { id: 'hora_extra',   label: 'Hora extra',        cor: '#FBBF24'       },
+  { id: 'adicional',    label: 'Serv. adicional',   cor: 'var(--text2)'  },
 ];
 
 let _fchItens = [];
@@ -578,20 +582,16 @@ function rFestaFechamentos() {
 
   const hoje = new Date().toISOString().slice(0, 10);
 
+  const _PROD = ['produto', 'bebida_extra'];
+  const _PECA = ['peca', 'quebra'];
+
   let rows = concluidos.map(c => {
-    const fch   = fchPorContrato[c.id] || fchPorChave[norm(c.nome) + '|' + (c.data || '')] || null;
-    const festa = festasPorData[c.data] || null;
-    const qbr   = festa ? qbrMap[festa.nome] : (qbrMap[c.nome] || null);
-    const valProd = festa
-      ? (festa.valor_total_evento || festa.itens.reduce((a, i) => a + Number(i.valor || 0), 0))
-      : 0;
-    // Quebras: produção manual + itens tipo='quebra' do fechamento
-    const valQbrProd = qbr ? qbr.total : 0;
-    const valQbrFch  = fch ? (fch.itens || []).filter(it => it.tipo === 'quebra').reduce((s, it) => s + (it.valor || 0), 0) : 0;
-    const valQbr     = valQbrProd + valQbrFch;
-    // Extras: itens do fechamento que NÃO são quebra
-    const valExtras  = fch ? (fch.itens || []).filter(it => it.tipo !== 'quebra').reduce((s, it) => s + (it.valor || 0), 0) : 0;
-    return { c, fch, valProd, valQbr, valExtras, festaId: festa?.id };
+    const fch = fchPorContrato[c.id] || fchPorChave[norm(c.nome) + '|' + (c.data || '')] || null;
+    const itens = fch ? (fch.itens || []) : [];
+    const valProd    = itens.filter(it => _PROD.includes(it.tipo || '')).reduce((s, it) => s + (it.valor || 0), 0);
+    const valQbr     = itens.filter(it => _PECA.includes(it.tipo || '')).reduce((s, it) => s + (it.valor || 0), 0);
+    const valExtras  = itens.filter(it => !_PROD.includes(it.tipo || '') && !_PECA.includes(it.tipo || '')).reduce((s, it) => s + (it.valor || 0), 0);
+    return { c, fch, valProd, valQbr, valExtras };
   });
 
   // Esta aba mostra APENAS contratos com fechamento lançado.
