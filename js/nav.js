@@ -20,7 +20,7 @@ var pageInfo={
   despesas:['Análise Financeira','Receita, despesas e KPIs financeiros'],
   equipe:['Equipe','Cadastro e escala de colaboradores'],
   orcamento:['Orcamento vs Real','Comparativo custo orcado e real'],
-  refconsumo:['Referência de Consumo','Estatísticas históricas por tipo de evento e insumo'],
+  refconsumo:['Estimativa de Bebidas','Estimativa de consumo por tipo de evento e número de convidados'],
   seguranca: ['Segurança','Gestão de senhas e autenticação em dois fatores'],
   fornecedores:['Fornecedores','Cadastro e dados dos fornecedores'],
   comparativo: ['Comparativo de Preços','Histórico de preços por produto e fornecedor'],
