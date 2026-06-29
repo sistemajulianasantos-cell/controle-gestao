@@ -569,21 +569,84 @@ const _CAT_TIPO = {
   servico: { label: 'Serviço adicional', icon: '⚙️', color: '#8B91A8' },
 };
 
-function rFchCadastro() {
+function _fchCatMergeRows() {
+  // Coleta todos os itens únicos dos fechamentos (usa _fchParseItem para nome limpo)
   if (!D.catalogoFch) D.catalogoFch = [];
-  const rows = D.catalogoFch;
+  const map = {}; // key=nome.lower → { nome, tipo, ocorrencias }
+  (D.fechamentos || []).forEach(fch => {
+    (fch.itens || []).forEach(it => {
+      const p = (typeof _fchParseItem === 'function') ? _fchParseItem(it) : { produto: it.descricao };
+      const nome = (p.produto || '').trim();
+      if (!nome || nome === '—') return;
+      const key = nome.toLowerCase();
+      if (!map[key]) {
+        const cat = D.catalogoFch.find(c => c.nome.toLowerCase() === key);
+        // tipo: catálogo > item atual > inferência pelo tipo legado
+        let tipo = cat ? cat.tipo : (it.tipo || '');
+        if (!tipo || !_CAT_TIPO[tipo]) {
+          if (tipo === 'quebra')               tipo = 'peca';
+          else if (tipo === 'hora_extra' || tipo === 'adicional') tipo = 'servico';
+          else if (tipo === 'bebida_extra')    tipo = 'produto';
+          else                                 tipo = 'produto';
+        }
+        map[key] = { nome, tipo, ocorrencias: 0 };
+      }
+      map[key].ocorrencias++;
+    });
+  });
+  // inclui itens do catálogo que não aparecem em nenhum fechamento ainda
+  D.catalogoFch.forEach(c => {
+    const key = c.nome.toLowerCase();
+    if (!map[key]) map[key] = { nome: c.nome, tipo: c.tipo, ocorrencias: 0 };
+  });
+  return Object.values(map).sort((a, b) => a.nome.localeCompare(b.nome));
+}
+
+function rFchCadastro() {
+  const rows = _fchCatMergeRows();
   const tb = document.getElementById('tab-catalogo');
   if (!tb) return;
+  const tipoOpts = Object.entries(_CAT_TIPO).map(([v, i]) =>
+    `<option value="${v}">${i.icon} ${i.label}</option>`).join('');
   tb.innerHTML = rows.length
-    ? rows.map((item, i) => {
-        const info = _CAT_TIPO[item.tipo] || { label: item.tipo, icon: '', color: 'var(--text3)' };
+    ? rows.map(item => {
+        const info = _CAT_TIPO[item.tipo] || _CAT_TIPO.produto;
+        const escNome = item.nome.replace(/'/g, "\\'");
         return `<tr>
-          <td style="font-size:13px;font-weight:500">${item.nome}</td>
-          <td><span style="font-size:11px;font-weight:600;color:${info.color};background:${info.color}22;padding:2px 8px;border-radius:20px">${info.icon} ${info.label}</span></td>
-          <td style="text-align:center"><span style="cursor:pointer;color:var(--red);font-size:18px;font-weight:300;line-height:1" onclick="_fchCatDel(${i})" title="Remover">×</span></td>
+          <td style="font-size:13px;font-weight:500">${item.nome}${item.ocorrencias > 0 ? `<span style="font-size:10px;color:var(--text3);margin-left:6px">(${item.ocorrencias}×)</span>` : ''}</td>
+          <td>
+            <select style="font-size:11px;font-weight:600;color:${info.color};background:${info.color}18;border:1px solid ${info.color}55;padding:3px 8px;border-radius:20px;cursor:pointer"
+              onchange="_fchCatSetTipo('${escNome}', this.value)">
+              ${Object.entries(_CAT_TIPO).map(([v,i]) =>
+                `<option value="${v}"${item.tipo===v?' selected':''}>${i.icon} ${i.label}</option>`).join('')}
+            </select>
+          </td>
         </tr>`;
       }).join('')
-    : '<tr><td colspan="3" style="text-align:center;color:var(--text3);padding:20px;font-size:12px">Nenhum item cadastrado ainda — adicione acima ↑</td></tr>';
+    : '<tr><td colspan="2" style="text-align:center;color:var(--text3);padding:20px;font-size:12px">Nenhum item encontrado nos fechamentos</td></tr>';
+  _fchAtualizarDatalist(rows);
+}
+
+function _fchCatSetTipo(nome, tipo) {
+  if (!D.catalogoFch) D.catalogoFch = [];
+  const key = nome.toLowerCase();
+  // Atualiza ou cria entrada no catálogo
+  let cat = D.catalogoFch.find(c => c.nome.toLowerCase() === key);
+  if (cat) cat.tipo = tipo; else D.catalogoFch.push({ nome, tipo });
+  // Atualiza todos os itens nos fechamentos com esse nome
+  let updated = 0;
+  (D.fechamentos || []).forEach(fch => {
+    (fch.itens || []).forEach(it => {
+      const p = (typeof _fchParseItem === 'function') ? _fchParseItem(it) : { produto: it.descricao };
+      if ((p.produto || '').toLowerCase() === key) { it.tipo = tipo; updated++; }
+    });
+  });
+  sv('catalogoFch');
+  if (updated > 0) sv('fechamentos');
+  // Atualiza visual do select sem re-renderizar a tabela inteira
+  const info = _CAT_TIPO[tipo] || _CAT_TIPO.produto;
+  const sel = event && event.target;
+  if (sel) { sel.style.color = info.color; sel.style.background = info.color+'18'; sel.style.borderColor = info.color+'55'; }
   _fchAtualizarDatalist();
 }
 
@@ -591,33 +654,22 @@ function _fchCatAdd() {
   const nome = (document.getElementById('cat-nome')?.value || '').trim();
   const tipo = document.getElementById('cat-tipo')?.value || 'produto';
   if (!nome) { alert2('Informe o nome do item', 'error'); return; }
-  if (!D.catalogoFch) D.catalogoFch = [];
-  if (D.catalogoFch.find(x => x.nome.toLowerCase() === nome.toLowerCase())) {
-    alert2('Esse item já está no catálogo', 'error'); return;
-  }
-  D.catalogoFch.push({ nome, tipo });
-  D.catalogoFch.sort((a, b) => a.nome.localeCompare(b.nome));
-  sv('catalogoFch');
+  _fchCatSetTipo(nome, tipo);
   document.getElementById('cat-nome').value = '';
   rFchCadastro();
 }
 
-function _fchCatDel(i) {
-  if (!D.catalogoFch) return;
-  D.catalogoFch.splice(i, 1);
-  sv('catalogoFch');
-  rFchCadastro();
-}
-
-function _fchAtualizarDatalist() {
+function _fchAtualizarDatalist(rows) {
   const dl = document.getElementById('fch-catalogo-list');
   if (!dl) return;
-  dl.innerHTML = (D.catalogoFch || []).map(x => `<option value="${x.nome}">`).join('');
+  const list = rows || _fchCatMergeRows();
+  dl.innerHTML = list.map(x => `<option value="${x.nome}">`).join('');
 }
 
 function _fchAutoTipo(nome) {
-  if (!nome || !D.catalogoFch) return;
-  const item = D.catalogoFch.find(x => x.nome.toLowerCase() === nome.toLowerCase());
+  if (!nome) return;
+  const rows = _fchCatMergeRows();
+  const item = rows.find(x => x.nome.toLowerCase() === nome.toLowerCase());
   if (!item) return;
   const sel = document.getElementById('fch-item-tipo');
   if (sel) sel.value = item.tipo;
