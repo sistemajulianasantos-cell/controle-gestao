@@ -198,6 +198,14 @@ function rFestaQuebras(){
   });
   rows.sort((a,b)=>b.data.localeCompare(a.data));
   const totalVal=rows.reduce((a,r)=>a+Number(r.total||0),0);
+  const totalQtdQ=rows.reduce((a,r)=>a+(r.qtd||0),0);
+  const totalPecas=new Set(rows.map(r=>r.prod)).size;
+  const cardsQbr=document.getElementById('fqbr-cards');
+  if(cardsQbr)cardsQbr.innerHTML=`
+    <div class="card"><div class="card-label">Registros</div><div class="card-value">${rows.length}</div></div>
+    <div class="card red"><div class="card-label">🥃 Peças distintas</div><div class="card-value">${totalPecas}</div></div>
+    <div class="card red"><div class="card-label">📦 Qtd total quebrada</div><div class="card-value">${fN(totalQtdQ)}</div></div>
+    <div class="card red"><div class="card-label">💰 Valor total quebras</div><div class="card-value">R$ ${totalVal.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div></div>`;
   document.getElementById('tab-festa-qbr').innerHTML=rows.length
     ?rows.map(r=>`<tr><td style="font-size:11px">${r.evento}</td><td style="font-size:11px;color:var(--text3);white-space:nowrap">${fd(r.data)}</td><td class="bold">${r.prod}</td><td style="font-family:var(--mono);font-weight:600;color:var(--red)">${fN(r.qtd)}</td><td style="font-family:var(--mono);color:var(--text3)">${r.custo?'R$ '+Number(r.custo).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—'}</td><td style="font-family:var(--mono);font-weight:600;color:var(--red)">${r.total?'R$ '+Number(r.total).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—'}</td></tr>`).join('')+`<tr style="background:var(--bg4)"><td colspan="5" style="font-size:11px;font-weight:600;text-align:right;padding-right:16px">Total</td><td style="font-family:var(--mono);font-weight:700;color:var(--red)">R$ ${totalVal.toLocaleString('pt-BR',{minimumFractionDigits:2})}</td></tr>`
     :'<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:16px">Nenhuma quebra registrada</td></tr>';
@@ -288,6 +296,16 @@ function rFestaProdutos(){
     const valorUnit=i.valorUnit||(qtd>0&&i.valor?i.valor/qtd:null);
     rows.push({evento:f.nome,data:f.data,prod:i.prod,qtd,valorUnit,valor:i.valor});
   }});});
+  // Cards de totais
+  const totalQtd=rows.reduce((a,r)=>a+(r.qtd||0),0);
+  const totalVal=rows.reduce((a,r)=>a+Number(r.valor||0),0);
+  const totalProd=new Set(rows.map(r=>r.prod)).size;
+  const cardsEl=document.getElementById('fp-cards');
+  if(cardsEl)cardsEl.innerHTML=`
+    <div class="card"><div class="card-label">Registros</div><div class="card-value">${rows.length}</div></div>
+    <div class="card blue"><div class="card-label">🍾 Produtos distintos</div><div class="card-value">${totalProd}</div></div>
+    <div class="card blue"><div class="card-label">📦 Qtd total consumida</div><div class="card-value">${fN(totalQtd)}</div></div>
+    <div class="card green"><div class="card-label">💰 Valor total</div><div class="card-value">R$ ${totalVal.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div></div>`;
   const fmtR=v=>v?'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—';
   document.getElementById('tab-festa-prods').innerHTML=rows.length?rows.map(r=>`<tr>
     <td style="font-size:11px">${r.evento}</td>
