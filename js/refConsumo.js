@@ -145,21 +145,36 @@ function _rcNormalizarTipo(tipo) {
 // ── Converte festas (fechamentos) no formato RC ───────────────────────────────
 function _rcGetEventosDasFestas() {
   if (typeof _allFestas !== 'function') return [];
-  const festas    = _allFestas();
-  const agenda    = D.agenda    || [];
-  const contratos = D.contratos || [];
+  const festas      = _allFestas();
+  const agenda      = D.agenda      || [];
+  const contratos   = D.contratos   || [];
+  const fechamentos = D.fechamentos || [];
 
   return festas
-    .filter(f => f.itens && f.itens.length && !f._virtual)
+    .filter(f => f.itens && f.itens.length)
     .map(f => {
       const nomeF = (f.nome || '').toLowerCase().trim();
-      const ag = agenda.find(a =>
-        a.data === f.data && (a.nome || '').toLowerCase().trim() === nomeF
-      );
-      let tipo      = ag ? (ag.tipo || '') : '';
-      let convidados = ag ? parseFloat(ag.convidados || 0) : 0;
+      let tipo = '', convidados = 0;
 
-      if (!tipo || convidados <= 0) {
+      // Entradas virtuais (geradas de D.fechamentos): busca tipo/convidados via contratoId
+      if (f._virtual) {
+        const fchId = (f.id || '').replace('_fch_', '');
+        const fch   = fechamentos.find(x => x.id === fchId);
+        if (fch && fch.contratoId) {
+          const ct = contratos.find(c => c.id === fch.contratoId);
+          if (ct) { tipo = ct.tipo || ''; convidados = parseFloat(ct.convidados || 0); }
+        }
+      }
+
+      // Festas reais: busca por nome+data na agenda, depois nos contratos
+      if (!tipo || !(convidados > 0)) {
+        const ag = agenda.find(a =>
+          a.data === f.data && (a.nome || '').toLowerCase().trim() === nomeF
+        );
+        if (ag) { tipo = tipo || ag.tipo || ''; convidados = convidados || parseFloat(ag.convidados || 0); }
+      }
+
+      if (!tipo || !(convidados > 0)) {
         const ct = contratos.find(c =>
           c.data === f.data &&
           ((c.nome||'').toLowerCase().trim()===nomeF ||
