@@ -614,9 +614,6 @@ function rFestaFechamentos() {
 
   const hoje = new Date().toISOString().slice(0, 10);
 
-  const _PROD = ['produto', 'bebida_extra'];
-  const _PECA = ['peca', 'quebra'];
-
   let rows = concluidos.map(c => {
     const fch = fchPorContrato[c.id] || fchPorChave[norm(c.nome) + '|' + (c.data || '')] || null;
     const itens = fch ? (fch.itens || []) : [];
