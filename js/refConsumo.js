@@ -212,43 +212,41 @@ function _rcGetStats() {
 }
 
 function _rcComputeStats(evts) {
-  const rates    = {};  // rates[grupo][bev] = [rate,...]
-  const ratesAll = {};  // global, para fallback
+  const qtysMap = {};  // qtysMap[grupo][bev] = [qty,...]
+  const qtysAll = {};  // global, para fallback
 
   evts.forEach(evt => {
     const g   = (evt.grupo||'').trim().toUpperCase();
     const pax = parseFloat(evt.convidados) || 0;
     if (!g || pax <= 0) return;
-    if (!rates[g]) rates[g] = {};
+    if (!qtysMap[g]) qtysMap[g] = {};
     Object.entries(evt.consumo||{}).forEach(([bev, qty]) => {
       qty = parseFloat(qty) || 0;
       if (qty <= 0) return;
-      const r = qty / pax;
-      if (!rates[g][bev]) rates[g][bev] = [];
-      rates[g][bev].push(r);
-      if (!ratesAll[bev]) ratesAll[bev] = [];
-      ratesAll[bev].push(r);
+      if (!qtysMap[g][bev]) qtysMap[g][bev] = [];
+      qtysMap[g][bev].push(qty);
+      if (!qtysAll[bev]) qtysAll[bev] = [];
+      qtysAll[bev].push(qty);
     });
   });
 
   // Stats globais (fallback para grupos sem histórico naquele insumo)
   const globalAvg = {};
-  Object.entries(ratesAll).forEach(([bev, list]) => {
-    const mn = list.reduce((a,b)=>Math.min(a,b), Infinity);
-    const mx = list.reduce((a,b)=>Math.max(a,b), -Infinity);
-    globalAvg[bev] = _r((mn + mx) / 2);
+  Object.entries(qtysAll).forEach(([bev, list]) => {
+    globalAvg[bev] = list.reduce((a,b)=>a+b, 0) / list.length;
   });
 
-  const allBevs = Object.keys(ratesAll);
+  const allBevs = Object.keys(qtysAll);
   const out = {};
-  Object.keys(rates).forEach(g => {
+  Object.keys(qtysMap).forEach(g => {
     out[g] = {};
     allBevs.forEach(bev => {
-      const list = rates[g][bev] || [];
+      const list = qtysMap[g][bev] || [];
       if (list.length) {
-        const mn = list.reduce((a,b)=>Math.min(a,b), Infinity);
-        const mx = list.reduce((a,b)=>Math.max(a,b), -Infinity);
-        out[g][bev] = { min:_r(mn), max:_r(mx), avg:_r((mn+mx)/2), mediaGeral:null, count:list.length };
+        const mn  = Math.min(...list);
+        const mx  = Math.max(...list);
+        const avg = list.reduce((a,b)=>a+b, 0) / list.length;
+        out[g][bev] = { min:mn, max:mx, avg:avg, mediaGeral:null, count:list.length };
       } else {
         out[g][bev] = { min:null, max:null, avg:null, mediaGeral: globalAvg[bev]??null, count:0 };
       }
@@ -375,17 +373,15 @@ function _rcBuildTabelaComparativa(stats) {
 </table>`;
 }
 
-function _rcSugestao(rate, pax) {
-  const base = rate * pax;
-  return Math.ceil(base * (base < 18 ? 1.20 : 1.15));
+function _rcSugestao(avgQty) {
+  return Math.ceil(avgQty * (avgQty < 18 ? 1.20 : 1.15));
 }
 
 function _rcBuildComparativaRows(statsArg, groupsArg) {
   const stats  = statsArg  || _rcGetStats();
   const groups = groupsArg || (_rcGruposVisiveis.length ? _rcGruposVisiveis : ['CASAMENTO']);
-  const pax    = Math.max(1, _rcPax);
   const filtro = _rcFiltro.toLowerCase().trim();
-  const ceil   = v => v == null ? '—' : Math.ceil(v * pax);
+  const ceil   = v => v == null ? '—' : Math.ceil(v);
   const nCols  = 1 + groups.length * 4;
 
   // União de bebidas com dados em todos os grupos visíveis
@@ -416,10 +412,10 @@ function _rcBuildComparativaRows(statsArg, groupsArg) {
           return `<td style="padding:7px 8px;text-align:right;color:var(--text3);${sep}">—</td><td style="padding:7px 8px;text-align:right;color:var(--text3)">—</td><td style="padding:7px 8px;text-align:right;color:var(--text3)">—</td><td style="padding:7px 8px;text-align:right;color:var(--text3);background:rgba(79,142,247,.04)">—</td>`;
         }
         if (d.count <= 0) {
-          return `<td style="padding:7px 8px;text-align:right;color:var(--text3);opacity:.55;${sep}">—</td><td style="padding:7px 8px;text-align:right;color:var(--text3);opacity:.55">—</td><td style="padding:7px 8px;text-align:right;color:var(--text3);opacity:.55">—</td><td style="padding:7px 8px;text-align:right;font-weight:600;color:#4F8EF7;opacity:.65;background:rgba(79,142,247,.04)">${d.mediaGeral!=null?_rcSugestao(d.mediaGeral,pax):'—'}</td>`;
+          return `<td style="padding:7px 8px;text-align:right;color:var(--text3);opacity:.55;${sep}">—</td><td style="padding:7px 8px;text-align:right;color:var(--text3);opacity:.55">—</td><td style="padding:7px 8px;text-align:right;color:var(--text3);opacity:.55">—</td><td style="padding:7px 8px;text-align:right;font-weight:600;color:#4F8EF7;opacity:.65;background:rgba(79,142,247,.04)">${d.mediaGeral!=null?_rcSugestao(d.mediaGeral):'—'}</td>`;
         }
         const suf = d.count===1 ? '<sup style="color:#F5A623;font-size:9px">*</sup>' : '';
-        return `<td style="padding:7px 8px;text-align:right;color:var(--text2);${sep}">${ceil(d.min)}</td><td style="padding:7px 8px;text-align:right;color:var(--text2)">${ceil(d.avg)}</td><td style="padding:7px 8px;text-align:right;color:var(--text2)">${ceil(d.max)}</td><td style="padding:7px 8px;text-align:right;font-weight:700;color:#4F8EF7;font-size:12px;background:rgba(79,142,247,.04)">${d.avg!=null?_rcSugestao(d.avg,pax):'—'}${suf}</td>`;
+        return `<td style="padding:7px 8px;text-align:right;color:var(--text2);${sep}">${ceil(d.min)}</td><td style="padding:7px 8px;text-align:right;color:var(--text2)">${ceil(d.avg)}</td><td style="padding:7px 8px;text-align:right;color:var(--text2)">${ceil(d.max)}</td><td style="padding:7px 8px;text-align:right;font-weight:700;color:#4F8EF7;font-size:12px;background:rgba(79,142,247,.04)">${d.avg!=null?_rcSugestao(d.avg):'—'}${suf}</td>`;
       }).join('');
 
       html.push(`<tr><td style="padding:7px 14px 7px 22px;color:var(--text);font-weight:500;white-space:nowrap">${b}</td>${cells}</tr>`);
