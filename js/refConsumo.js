@@ -80,9 +80,116 @@ function _rcMigrarLocalStorage() {
   } catch(e) {}
 }
 
+// ── Mapeamento produto → categoria RC ─────────────────────────────────────────
+function _rcMapProdToRC(prod) {
+  const p = (prod || '').toUpperCase()
+    .replace(/[ÁÀÃÂ]/g,'A').replace(/[ÉÈÊ]/g,'E').replace(/[ÍÌÎ]/g,'I')
+    .replace(/[ÓÒÕÔ]/g,'O').replace(/[ÚÙÛ]/g,'U').replace(/Ç/g,'C').trim();
+  if (p.includes('VODKA'))                                                  return 'Vodka';
+  if (p.includes('GIN ') || p==='GIN' || p.startsWith('GIN '))             return 'Gim';
+  if (p.includes('APEROL'))                                                 return 'Aperol';
+  if (p.includes('CAMPARI'))                                                return 'Campari';
+  if (p.includes('TEQUILA'))                                                return 'Tequila';
+  if (p.includes('WHISKY')||p.includes('WHISKEY')||
+      /JAMESON|JACK DANIEL|CHIVAS|BULLEIT|BUFALO|BUFFALO|SINGLETON|DEWAR|HIBIKI|GLENLIVET|BLACK LABEL|RED LABEL|ROYAL SALUTE|TALISKER|BUCHANAN|JIM BEAM|LAMAS|OUL PARR|SARERAL/.test(p)) return 'Whisky';
+  if (p.includes('ESPUMANTE')||p.includes('FOSS MARAI')||p.includes('LE BLANC')) return 'Espumante';
+  if (p.includes('MANZA'))                                                  return 'Manzza';
+  if (p.includes('LILLET'))                                                 return 'Lillet';
+  if (p.includes('CACHACA'))                                                return 'Cachaça';
+  if (p.includes('CARPANO')||p.includes('CINZANO')||p.includes('VERMOUTH')||
+      p.includes('PUNT E MES')||p==='1757'||p.includes('RAMAZZOTTI')||p.includes('AMAROGUTTA')) return 'Vermouth';
+  if (p.includes('VINHO'))                                                  return 'Vinho';
+  if (/\bRUM\b|HAVANA/.test(p))                                             return 'Rum';
+  if (p.includes('FERNET'))                                                 return 'Fernet';
+  if (p.includes('FIREBALL'))                                               return 'Fireball';
+  if (p.includes('LIMONCELLO')||p.includes('LIMONCHELLO'))                  return 'Limonchello';
+  if (p.includes('BANANINHA'))                                              return 'Bananinha';
+  if (p.includes('BALLENA'))                                                return 'Ballena';
+  if (p.includes('NIB'))                                                    return 'Nib Shot';
+  if (p.includes('PISCO'))                                                  return 'Pisco';
+  if (p.includes('SAQUE')||p==='SAKE')                                      return 'Sake';
+  if (p.includes('NEGRONI'))                                                return 'Negroni Romero';
+  if (p.includes('LICOR 43'))                                               return 'Licor 43';
+  if (p.includes('DOCE DE LEITE'))                                          return 'Licor Doce de Leite';
+  if (p.includes('ESPUMA DE GENGIBRE'))                                     return 'Espuma de Gengibre';
+  if (p.includes('ESPUMA DE SICILIANO'))                                    return 'Espuma de Siciliano';
+  if (p.includes('GINGER ALE'))                                             return 'Ginger Ale';
+  if (p.includes('GRAPEFRUIT'))                                             return 'Grapefruit';
+  if (p.includes('AGUA TONICA')||p.includes('TONICO'))                      return 'Agua Tônica';
+  if (p.includes('AGUA COM GAS')||p.includes('CAMBUQUIRA'))                 return 'Agua gasosa';
+  if (p.includes('SUCO DE LIMAO')||p.includes('LIMAO SICILIANO'))           return 'Suco de Limão';
+  if (p.includes('XAROPE DE ACUCAR'))                                       return 'Xarope de Açucar';
+  if (p.includes('FRUTAS VERMELHAS'))                                       return 'Mix Frutas Vermelhas';
+  if (/\bCAFE\b|CAFE SOLUVEL/.test(p))                                      return 'Café';
+  return null;
+}
+
+// ── Normaliza tipo de evento → grupo RC ───────────────────────────────────────
+function _rcNormalizarTipo(tipo) {
+  const t = (tipo || '').toUpperCase()
+    .replace(/[ÁÀÃÂ]/g,'A').replace(/[ÉÈÊ]/g,'E').replace(/[ÍÌÎ]/g,'I')
+    .replace(/[ÓÒÕÔ]/g,'O').replace(/[ÚÙÛ]/g,'U').replace(/Ç/g,'C').trim();
+  if (t.includes('CASAMENTO CIVIL'))           return 'CASAMENTO CIVIL';
+  if (t.includes('CASAMENTO'))                 return 'CASAMENTO';
+  if (t.includes('NOIVADO'))                   return 'NOIVADO';
+  if (t.includes('15 ANOS')||t.includes('QUINZE')) return 'ANIVERSÁRIO 15 ANOS';
+  if (t.includes('18 ANOS'))                   return 'ANIVERSÁRIO 18 ANOS';
+  if (t.includes('ANIVERSARIO'))               return 'ANIVERSÁRIO';
+  if (t.includes('FORMATURA'))                 return 'FORMATURA';
+  if (t.includes('CORPORATIVO'))               return 'CORPORATIVO';
+  if (t.includes('CONFRATERNIZACAO'))          return 'CONFRATERNIZAÇÃO';
+  if (t.includes('ALMOCO'))                    return 'ALMOÇO';
+  return '';
+}
+
+// ── Converte festas (fechamentos) no formato RC ───────────────────────────────
+function _rcGetEventosDasFestas() {
+  if (typeof _allFestas !== 'function') return [];
+  const festas    = _allFestas();
+  const agenda    = D.agenda    || [];
+  const contratos = D.contratos || [];
+
+  return festas
+    .filter(f => f.itens && f.itens.length && !f._virtual)
+    .map(f => {
+      const nomeF = (f.nome || '').toLowerCase().trim();
+      const ag = agenda.find(a =>
+        a.data === f.data && (a.nome || '').toLowerCase().trim() === nomeF
+      );
+      let tipo      = ag ? (ag.tipo || '') : '';
+      let convidados = ag ? parseFloat(ag.convidados || 0) : 0;
+
+      if (!tipo || convidados <= 0) {
+        const ct = contratos.find(c =>
+          c.data === f.data &&
+          ((c.nome||'').toLowerCase().trim()===nomeF ||
+           (c.nomeEvento||'').toLowerCase().trim()===nomeF)
+        );
+        if (ct) { tipo = tipo || ct.tipo || ''; convidados = convidados || parseFloat(ct.convidados||0); }
+      }
+
+      const grupo = _rcNormalizarTipo(tipo);
+      if (!grupo || !(convidados > 0)) return null;
+
+      const consumo = {};
+      f.itens.forEach(item => {
+        const qty = parseFloat(item.consumido ?? item.qtd ?? 0);
+        if (qty <= 0) return;
+        const rc = _rcMapProdToRC(item.prod || '');
+        if (rc) consumo[rc] = (consumo[rc] || 0) + qty;
+      });
+
+      if (!Object.keys(consumo).length) return null;
+      return { id: f.id, data: f.data, cliente: f.nome, grupo, convidados, consumo };
+    })
+    .filter(Boolean);
+}
+
 // ── Cálculo de stats a partir de todos os eventos ─────────────────────────────
 function _rcGetStats() {
-  const all = [..._rcGetEventosImportados(), ..._rcGetEventos()];
+  const dasFestas = _rcGetEventosDasFestas();
+  const manual    = _rcGetEventos();
+  const all       = [...dasFestas, ...manual];
   if (!all.length) return (typeof REF_CONSUMO !== 'undefined') ? REF_CONSUMO : {};
   return _rcComputeStats(all);
 }
@@ -146,18 +253,17 @@ function _rcGetAllBebidas() {
 function rRefConsumo() {
   const el = document.getElementById('refconsumo-content');
   if (!el) return;
-  if      (_rcView==='tabela')   el.innerHTML = _rcBuildTabela();
-  else if (_rcView==='eventos')  el.innerHTML = _rcBuildEventos();
-  else if (_rcView==='novo')     el.innerHTML = _rcBuildNovo();
-  else if (_rcView==='importar') el.innerHTML = _rcBuildImport();
+  if      (_rcView==='tabela')  el.innerHTML = _rcBuildTabela();
+  else if (_rcView==='eventos') el.innerHTML = _rcBuildEventos();
+  else if (_rcView==='novo')    el.innerHTML = _rcBuildNovo();
 }
 
 // ── VIEW: TABELA (comparativa) ────────────────────────────────────────────────
 function _rcBuildTabela() {
-  const imp    = _rcGetEventosImportados();
-  const manual = _rcGetEventos();
-  const stats  = _rcGetStats();
-  const total  = imp.length + manual.length;
+  const dasFestas = _rcGetEventosDasFestas();
+  const manual    = _rcGetEventos();
+  const stats     = _rcGetStats();
+  const total     = dasFestas.length + manual.length;
 
   const grupoToggles = Object.entries(RC_GRUPOS_CAT).map(([cat, gs]) => {
     const btns = gs.map(g => {
@@ -178,15 +284,14 @@ function _rcBuildTabela() {
       <div style="font-size:18px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.5px">Estimativa de Consumo e Quebras</div>
       <div style="font-size:12px;color:var(--text3);margin-top:2px">
         ${total
-          ? `<span style="color:var(--green)">${total} evento${total>1?'s':''} na base</span>${imp.length?` · ${imp.length} importados`:''}${manual.length?` · ${manual.length} manuais`:''}`
-          : `<span style="color:#F5A623">Usando base padrão histórica</span> <span style="color:var(--text3)">· importe seus eventos para substituir</span>`
+          ? `<span style="color:var(--green)">${total} evento${total>1?'s':''} na base</span>${dasFestas.length?` · ${dasFestas.length} do fechamento`:''}${manual.length?` · ${manual.length} manuais`:''}`
+          : `<span style="color:#F5A623">Nenhum fechamento com consumo encontrado</span> <span style="color:var(--text3)">· registre eventos com produtos consumidos para alimentar as estimativas</span>`
         }
       </div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn" style="background:#3DDC84;border-color:#3DDC84;color:#000;font-weight:600" onclick="_rcSetView('novo')">+ Lançar evento</button>
       <button class="btn" onclick="_rcSetView('eventos')">Histórico</button>
-      <button class="btn" onclick="_rcSetView('importar')">Importar base</button>
+      <button class="btn" onclick="_rcSetView('novo')">+ Lançar manual</button>
     </div>
   </div>
 
@@ -312,10 +417,9 @@ function _rcBuildComparativaRows(statsArg, groupsArg) {
 
 // ── VIEW: HISTÓRICO ───────────────────────────────────────────────────────────
 function _rcBuildEventos() {
-  const imp    = _rcGetEventosImportados().map(e => ({...e, _fonte:'importado'}));
-  const manual = _rcGetEventos().map(e => ({...e, _fonte:'manual'}));
-  // Mais recente primeiro — para imp, usamos índice reverso pois não tem timestamp confiável
-  const todos  = [...manual.reverse(), ...imp.slice().reverse()];
+  const dasFestas = _rcGetEventosDasFestas().map(e => ({...e, _fonte:'fechamento'}));
+  const manual    = _rcGetEventos().map(e => ({...e, _fonte:'manual'}));
+  const todos     = [...manual.slice().reverse(), ...dasFestas];
 
   const grupoOpts = ['', ...RC_GRUPOS_LIST].map(g =>
     `<option value="${g}"${_rcHistGrupo===g?' selected':''}>${g||'Todos os tipos'}</option>`
@@ -343,7 +447,7 @@ function _rcBuildEventos() {
         const nitens  = Object.values(e.consumo||{}).filter(v=>parseFloat(v)>0).length;
         const badge   = e._fonte==='manual'
           ? `<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:rgba(61,220,132,.12);border:1px solid rgba(61,220,132,.3);color:#3DDC84">manual</span>`
-          : `<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:rgba(79,142,247,.1);border:1px solid rgba(79,142,247,.25);color:#4F8EF7">importado</span>`;
+          : `<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:rgba(245,166,35,.12);border:1px solid rgba(245,166,35,.3);color:#F5A623">fechamento</span>`;
         return `<tr>
           <td style="padding:8px 12px;color:var(--text2);font-family:var(--mono);font-size:11px">${e.data||'—'}</td>
           <td style="padding:8px 12px;color:var(--text)">${e.cliente||'—'}</td>
@@ -374,7 +478,7 @@ function _rcBuildEventos() {
       <input type="text" placeholder="Buscar por insumo..." value="${_rcHistInsumo}"
         style="width:160px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px"
         oninput="_rcHistFiltrarInsumo(this.value)">
-      <button class="btn" style="background:#3DDC84;border-color:#3DDC84;color:#000;font-weight:600" onclick="_rcSetView('novo')">+ Lançar</button>
+      <button class="btn" style="background:#3DDC84;border-color:#3DDC84;color:#000;font-weight:600" onclick="_rcSetView('novo')">+ Manual</button>
     </div>
   </div>
 
@@ -406,7 +510,6 @@ function _rcBuildEventos() {
 
   <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
     ${manual.length ? `<button class="btn" style="color:var(--red);border-color:var(--red)" onclick="_rcLimparManuais()">Apagar lançamentos manuais</button>` : ''}
-    ${imp.length    ? `<button class="btn" style="color:var(--red);border-color:var(--red)" onclick="_rcLimparImportados()">Apagar base importada</button>` : ''}
   </div>
 </div>`;
 }
