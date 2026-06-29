@@ -473,32 +473,37 @@ function _rcBuildEventos() {
   // Card de auditoria com min/méd/máx/sug calculados a partir dos eventos filtrados
   let auditSummary = '';
   if (auditBev) {
-    const rates = filtrados
+    const dados = filtrados
       .map(e => {
-        const qty = parseFloat((e.consumo||{})[auditBev] || 0);
-        return (qty > 0 && e.convidados > 0) ? qty / e.convidados : null;
+        const qty  = parseFloat((e.consumo||{})[auditBev] || 0);
+        const conv = parseFloat(e.convidados) || 0;
+        return (qty > 0 && conv > 0) ? { qty, conv } : null;
       })
-      .filter(r => r !== null);
-    if (rates.length) {
-      const mn  = Math.min(...rates);
-      const mx  = Math.max(...rates);
-      const avg = (mn + mx) / 2;
-      const pax = _rcPax;
-      const sug = _rcSugestao(avg, pax);
+      .filter(d => d !== null);
+    if (dados.length) {
+      const qtys      = dados.map(d => d.qty);
+      const mn        = Math.min(...qtys);
+      const mx        = Math.max(...qtys);
+      const avgQty    = qtys.reduce((a,b)=>a+b,0) / qtys.length;
+      const totalQty  = qtys.reduce((a,b)=>a+b,0);
+      const totalConv = dados.reduce((a,d)=>a+d.conv,0);
+      const taxaPond  = totalQty / totalConv;  // média ponderada pelo nº de convidados
+      const pax       = _rcPax;
+      const sug       = _rcSugestao(taxaPond, pax);
       const convLabel = (_rcHistConvMin||_rcHistConvMax)
         ? ` · ${_rcHistConvMin||'?'}–${_rcHistConvMax||'?'} conv.` : '';
       auditSummary = `
         <div style="margin-bottom:14px;padding:14px 18px;background:rgba(79,142,247,.06);border-radius:8px;border:1px solid rgba(79,142,247,.25)">
           <div style="font-size:11px;font-weight:700;color:#4F8EF7;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">
-            Auditoria · ${auditBev} · ${rates.length} evento${rates.length!==1?'s':''} · ${_rcHistGrupo||'todos os tipos'}${convLabel}
+            Auditoria · ${auditBev} · ${dados.length} evento${dados.length!==1?'s':''} · ${_rcHistGrupo||'todos os tipos'}${convLabel}
           </div>
           <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:13px">
-            <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Mínimo</div><strong style="color:var(--text);font-size:18px">${Math.ceil(mn*pax)}</strong></div>
-            <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Médio</div><strong style="color:var(--text);font-size:18px">${Math.ceil(avg*pax)}</strong></div>
-            <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Máximo</div><strong style="color:var(--text);font-size:18px">${Math.ceil(mx*pax)}</strong></div>
+            <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Mínimo</div><strong style="color:var(--text);font-size:18px">${mn}</strong></div>
+            <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Médio</div><strong style="color:var(--text);font-size:18px">${Math.ceil(avgQty)}</strong></div>
+            <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Máximo</div><strong style="color:var(--text);font-size:18px">${mx}</strong></div>
             <div style="text-align:center;background:rgba(79,142,247,.12);border-radius:6px;padding:4px 16px"><div style="font-size:10px;color:#4F8EF7;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Sugestão · ${pax} conv.</div><strong style="color:#4F8EF7;font-size:22px">${sug}</strong></div>
           </div>
-          <div style="margin-top:8px;font-size:10px;color:var(--text3)">Taxa média: ${avg.toFixed(4)} unid./convidado · Margem: ${(avg*pax)<18?'×1,20':'×1,15'} (base ${Math.ceil(avg*pax)} unid.)</div>
+          <div style="margin-top:8px;font-size:10px;color:var(--text3)">Taxa ponderada: ${taxaPond.toFixed(4)} unid./convidado · Margem: ${(taxaPond*pax)<18?'×1,20':'×1,15'} (base ${Math.ceil(taxaPond*pax)} unid.) · total histórico: ${totalQty} unid. / ${totalConv} conv.</div>
         </div>`;
     }
   }
