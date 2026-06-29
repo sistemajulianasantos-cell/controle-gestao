@@ -270,8 +270,20 @@ function toggleFesta(uid){
 }
 function rFestaProdutos(){
   const all=_allFestas();const busca=(document.getElementById('fp-busca')?.value||'').toLowerCase();const rows=[];
-  all.forEach(f=>{f.itens.forEach(i=>{if(!busca||i.prod.toLowerCase().includes(busca)||f.nome.toLowerCase().includes(busca)){rows.push({evento:f.nome,data:f.data,prod:i.prod,qtd:i.consumido||i.qtd||0,valor:i.valor});}});});
-  document.getElementById('tab-festa-prods').innerHTML=rows.length?rows.map(r=>`<tr><td style="font-size:11px">${r.evento}</td><td style="font-size:11px;color:var(--text3);white-space:nowrap">${fd(r.data)}</td><td class="bold">${r.prod}</td><td style="font-family:var(--mono);font-weight:600;color:var(--blue)">${fN(r.qtd)}</td><td style="font-family:var(--mono);color:${r.valor?'var(--green)':'var(--text3)'}">${r.valor?'R$ '+Number(r.valor).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—'}</td></tr>`).join(''):'<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:16px">Nenhum produto encontrado</td></tr>';
+  all.forEach(f=>{f.itens.forEach(i=>{if(!busca||i.prod.toLowerCase().includes(busca)||f.nome.toLowerCase().includes(busca)){
+    const qtd=i.consumido||i.qtd||0;
+    const valorUnit=i.valorUnit||(qtd>0&&i.valor?i.valor/qtd:null);
+    rows.push({evento:f.nome,data:f.data,prod:i.prod,qtd,valorUnit,valor:i.valor});
+  }});});
+  const fmtR=v=>v?'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—';
+  document.getElementById('tab-festa-prods').innerHTML=rows.length?rows.map(r=>`<tr>
+    <td style="font-size:11px">${r.evento}</td>
+    <td style="font-size:11px;color:var(--text3);white-space:nowrap">${fd(r.data)}</td>
+    <td class="bold">${r.prod}</td>
+    <td style="font-family:var(--mono);font-weight:600;color:var(--blue)">${fN(r.qtd)}</td>
+    <td style="font-family:var(--mono);color:var(--text3)">${fmtR(r.valorUnit)}</td>
+    <td style="font-family:var(--mono);color:${r.valor?'var(--green)':'var(--text3)'}">${fmtR(r.valor)}</td>
+  </tr>`).join(''):'<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:16px">Nenhum produto encontrado</td></tr>';
 }
 function editarFesta(id){
   let f=D.festas.find(x=>x.id===id);
