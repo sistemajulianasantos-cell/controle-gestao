@@ -3,15 +3,22 @@
 if (!D.fechamentos) D.fechamentos = [];
 
 const TIPOS_FCH = [
-  { id: 'produto',      label: 'Produto',           cor: '#22C55E'       },
-  { id: 'peca',         label: 'Peça',              cor: 'var(--red)'    },
-  { id: 'servico',      label: 'Serviço adicional', cor: '#FBBF24'       },
-  // retrocompatibilidade com dados antigos
-  { id: 'bebida_extra', label: 'Bebida extra',      cor: '#22C55E'       },
-  { id: 'quebra',       label: 'Quebra / Dano',     cor: 'var(--red)'    },
-  { id: 'hora_extra',   label: 'Hora extra',        cor: '#FBBF24'       },
-  { id: 'adicional',    label: 'Serv. adicional',   cor: 'var(--text2)'  },
+  { id: 'produto',      label: 'Produto',           cor: '#22C55E'      },
+  { id: 'peca',         label: 'Peça',              cor: 'var(--red)'   },
+  { id: 'servico',      label: 'Serviço adicional', cor: '#FBBF24'      },
+  // tipos antigos exibem com o mesmo label dos novos
+  { id: 'bebida_extra', label: 'Produto',           cor: '#22C55E'      },
+  { id: 'quebra',       label: 'Peça',              cor: 'var(--red)'   },
+  { id: 'hora_extra',   label: 'Serviço adicional', cor: '#FBBF24'      },
+  { id: 'adicional',    label: 'Serviço adicional', cor: '#FBBF24'      },
 ];
+
+function _fchNormTipo(tipo) {
+  if (tipo === 'bebida_extra')                     return 'produto';
+  if (tipo === 'quebra')                           return 'peca';
+  if (tipo === 'hora_extra' || tipo === 'adicional') return 'servico';
+  return tipo || 'produto';
+}
 
 let _fchItens = [];
 
@@ -34,26 +41,35 @@ function _fchParseItem(it) {
 }
 
 function _fchMigrarItens() {
-  let count = 0;
+  let countFmt = 0, countTipo = 0;
   (D.fechamentos || []).forEach(fch => {
     (fch.itens || []).forEach(it => {
-      if (it.qtd != null && it.valorUnit != null) return;
-      const m = (it.descricao || '').match(/^(.+?)\s*[—\-–]\s*(\d+)\s*un\.\s*[×x]\s*R\$\s*([\d.,]+)/i);
-      if (m) {
-        it.descricao = m[1].trim();
-        it.qtd       = parseInt(m[2]);
-        it.valorUnit = parseFloat(m[3].replace(/\./g, '').replace(',', '.'));
-        count++;
+      // Migra formato antigo de descrição
+      if (it.qtd == null || it.valorUnit == null) {
+        const m = (it.descricao || '').match(/^(.+?)\s*[—\-–]\s*(\d+)\s*un\.\s*[×x]\s*R\$\s*([\d.,]+)/i);
+        if (m) {
+          it.descricao = m[1].trim();
+          it.qtd       = parseInt(m[2]);
+          it.valorUnit = parseFloat(m[3].replace(/\./g, '').replace(',', '.'));
+          countFmt++;
+        }
       }
+      // Normaliza tipo antigo para novo
+      const novoTipo = _fchNormTipo(it.tipo);
+      if (novoTipo !== it.tipo) { it.tipo = novoTipo; countTipo++; }
     });
   });
-  if (count > 0) {
+  const total = countFmt + countTipo;
+  if (total > 0) {
     sv('fechamentos');
-    alert2(`${count} item${count !== 1 ? 's' : ''} atualizado${count !== 1 ? 's' : ''} com sucesso!`, 'success');
+    const partes = [];
+    if (countFmt  > 0) partes.push(`${countFmt} formato${countFmt  !== 1 ? 's' : ''}`);
+    if (countTipo > 0) partes.push(`${countTipo} tipo${countTipo !== 1 ? 's' : ''}`);
+    alert2(`Atualizado: ${partes.join(' e ')}!`, 'success');
     rFechamentos();
     rFestaFechamentos();
   } else {
-    alert2('Nenhum item para migrar — todos já estão no novo formato.', 'info');
+    alert2('Tudo já está no novo formato.', 'info');
   }
 }
 
