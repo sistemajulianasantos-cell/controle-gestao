@@ -1216,7 +1216,8 @@
             <option value="pago">Pagos</option>
           </select>
           <input id="fch-busca" class="inp" type="text" placeholder="Buscar evento ou cliente..." style="width:220px" oninput="rFechamentos()">
-          <button class="btn btn-primary" onclick="go('nova-festa')" style="margin-left:auto">+ Novo fechamento</button>
+          <button class="btn" onclick="_fchMigrarItens()" style="margin-left:auto;font-size:11px;color:var(--text3);border-color:var(--border)" title="Converte itens no formato antigo para colunas separadas">↻ Atualizar formato</button>
+          <button class="btn btn-primary" onclick="go('nova-festa')">+ Novo fechamento</button>
         </div>
         <div style="overflow-x:auto">
           <table style="width:100%;border-collapse:collapse;font-size:13px">

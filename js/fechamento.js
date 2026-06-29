@@ -29,6 +29,30 @@ function _fchParseItem(it) {
   return { produto: it.descricao || '—', qtd: null, valorUnit: null, valor: it.valor };
 }
 
+function _fchMigrarItens() {
+  let count = 0;
+  (D.fechamentos || []).forEach(fch => {
+    (fch.itens || []).forEach(it => {
+      if (it.qtd != null && it.valorUnit != null) return;
+      const m = (it.descricao || '').match(/^(.+?)\s*[—\-–]\s*(\d+)\s*un\.\s*[×x]\s*R\$\s*([\d.,]+)/i);
+      if (m) {
+        it.descricao = m[1].trim();
+        it.qtd       = parseInt(m[2]);
+        it.valorUnit = parseFloat(m[3].replace(/\./g, '').replace(',', '.'));
+        count++;
+      }
+    });
+  });
+  if (count > 0) {
+    sv('fechamentos');
+    alert2(`${count} item${count !== 1 ? 's' : ''} atualizado${count !== 1 ? 's' : ''} com sucesso!`, 'success');
+    rFechamentos();
+    rFestaFechamentos();
+  } else {
+    alert2('Nenhum item para migrar — todos já estão no novo formato.', 'info');
+  }
+}
+
 function _fchCalcTotal() {
   const qtd   = parseFloat(document.getElementById('fch-item-qtd')?.value   || 0);
   const vunit = parseFloat((document.getElementById('fch-item-vunit')?.value || '').replace(',', '.')) || 0;
