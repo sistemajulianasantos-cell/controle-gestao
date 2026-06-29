@@ -67,7 +67,7 @@ function _allFestas(){
       data:                fch.dataEvento,
       local:               '',
       status:              'encerrada',
-      valor_total_evento:  fch.totalExtras || 0,
+      valor_total_evento:  null,
       itens:               (fch.itens || [])
         .filter(it => {
           const t = it.tipo || '';
