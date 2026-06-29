@@ -674,6 +674,9 @@ function rFestaFechamentos() {
       <td style="font-family:var(--mono);font-size:11px;font-weight:${valExtras ? 700 : 400};color:${valExtras ? '#FBBF24' : 'var(--text3)'}">
         ${valExtras ? fR(valExtras) : '—'}
       </td>
+      <td style="font-family:var(--mono);font-size:12px;font-weight:700;color:${fch&&fch.totalExtras?'var(--text)':'var(--text3)'}">
+        ${fch && fch.totalExtras ? fR(fch.totalExtras) : '—'}
+      </td>
       <td>${statusTag}</td>
       <td onclick="event.stopPropagation()">${acoes}</td>`;
     tbody.appendChild(tr);
@@ -682,7 +685,7 @@ function rFestaFechamentos() {
       const trDetail = document.createElement('tr');
       trDetail.id = uid + '-detail';
       trDetail.style.display = 'none';
-      trDetail.innerHTML = `<td colspan="8" style="padding:0;border-bottom:2px solid var(--border2)">
+      trDetail.innerHTML = `<td colspan="9" style="padding:0;border-bottom:2px solid var(--border2)">
         <div style="background:var(--bg3)">
           ${_fchDetalheGrid(fch.itens)}
           ${fch.vencimento ? `<div style="padding:6px 14px;font-size:11px;color:var(--text3)">Vencimento: <strong>${fd(fch.vencimento)}</strong></div>` : ''}
