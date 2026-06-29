@@ -51,6 +51,8 @@ var _rcNovoForm  = {};
 var _rcHistPage      = 0;
 var _rcHistGrupo     = '';
 var _rcHistInsumo    = '';
+var _rcHistConvMin   = '';
+var _rcHistConvMax   = '';
 var _rcGruposVisiveis = ['CASAMENTO','ANIVERSÁRIO','FORMATURA'];
 const RC_HIST_PER_PAGE = 50;
 
@@ -449,6 +451,14 @@ function _rcBuildEventos() {
       Object.keys(e.consumo||{}).some(k => k.toLowerCase().includes(term))
     );
   }
+  if (_rcHistConvMin !== '') {
+    const mn = parseFloat(_rcHistConvMin);
+    if (!isNaN(mn)) filtrados = filtrados.filter(e => parseFloat(e.convidados||0) >= mn);
+  }
+  if (_rcHistConvMax !== '') {
+    const mx = parseFloat(_rcHistConvMax);
+    if (!isNaN(mx)) filtrados = filtrados.filter(e => parseFloat(e.convidados||0) <= mx);
+  }
 
   // Modo auditoria: detecta o insumo exato sendo pesquisado
   const insumoTerm = _rcHistInsumo.toLowerCase().trim();
@@ -475,10 +485,12 @@ function _rcBuildEventos() {
       const avg = (mn + mx) / 2;
       const pax = _rcPax;
       const sug = _rcSugestao(avg, pax);
+      const convLabel = (_rcHistConvMin||_rcHistConvMax)
+        ? ` · ${_rcHistConvMin||'?'}–${_rcHistConvMax||'?'} conv.` : '';
       auditSummary = `
         <div style="margin-bottom:14px;padding:14px 18px;background:rgba(79,142,247,.06);border-radius:8px;border:1px solid rgba(79,142,247,.25)">
           <div style="font-size:11px;font-weight:700;color:#4F8EF7;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">
-            Auditoria · ${auditBev} · ${rates.length} evento${rates.length!==1?'s':''} · ${_rcHistGrupo||'todos os tipos'}
+            Auditoria · ${auditBev} · ${rates.length} evento${rates.length!==1?'s':''} · ${_rcHistGrupo||'todos os tipos'}${convLabel}
           </div>
           <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:13px">
             <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Mínimo</div><strong style="color:var(--text);font-size:18px">${Math.ceil(mn*pax)}</strong></div>
@@ -497,17 +509,26 @@ function _rcBuildEventos() {
   const nPags  = Math.ceil(total / RC_HIST_PER_PAGE);
 
   const auditTh = auditBev ? `
-    <th style="padding:9px 12px;text-align:right;color:#4F8EF7;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Qtd ${auditBev}</th>
+    <th style="padding:9px 12px;text-align:right;color:#4F8EF7;font-weight:600;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap">Qtd ${auditBev}</th>
     <th style="padding:9px 12px;text-align:right;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Unid./Conv.</th>` : '';
 
   const rows = pagina.length === 0
-    ? `<tr><td colspan="${auditBev?8:6}" style="padding:32px;text-align:center;color:var(--text3)">Nenhum evento encontrado.</td></tr>`
+    ? `<tr><td colspan="${auditBev?7:5}" style="padding:32px;text-align:center;color:var(--text3)">Nenhum evento encontrado.</td></tr>`
     : pagina.map((e) => {
         const idxReal = todos.indexOf(e);
-        const nitens  = Object.values(e.consumo||{}).filter(v=>parseFloat(v)>0).length;
         const badge   = e._fonte==='manual'
           ? `<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:rgba(61,220,132,.12);border:1px solid rgba(61,220,132,.3);color:#3DDC84">manual</span>`
           : `<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:rgba(245,166,35,.12);border:1px solid rgba(245,166,35,.3);color:#F5A623">fechamento</span>`;
+
+        // Produtos consumidos em linha, ordenados por qtd desc
+        const prods = Object.entries(e.consumo||{})
+          .filter(([,v]) => parseFloat(v) > 0)
+          .sort((a,b) => b[1]-a[1])
+          .map(([k,v]) => {
+            const destaque = auditBev && k === auditBev;
+            return `<span style="display:inline-block;margin:1px 2px;padding:1px 7px;border-radius:8px;font-size:10px;${destaque?'background:rgba(79,142,247,.15);border:1px solid rgba(79,142,247,.4);color:#4F8EF7;font-weight:700':'background:var(--bg3);border:1px solid var(--border);color:var(--text2)'}">${k} <strong>${v}</strong></span>`;
+          }).join('');
+
         let auditTds = '';
         if (auditBev) {
           const qty  = parseFloat((e.consumo||{})[auditBev] || 0);
@@ -516,15 +537,14 @@ function _rcBuildEventos() {
             <td style="padding:8px 12px;text-align:right;font-weight:700;color:#4F8EF7;font-family:var(--mono)">${qty > 0 ? qty : '—'}</td>
             <td style="padding:8px 12px;text-align:right;color:var(--text3);font-family:var(--mono);font-size:11px">${taxa > 0 ? taxa.toFixed(4) : '—'}</td>`;
         }
-        return `<tr>
-          <td style="padding:8px 12px;color:var(--text2);font-family:var(--mono);font-size:11px">${e.data||'—'}</td>
-          <td style="padding:8px 12px;color:var(--text)">${e.cliente||'—'}</td>
+        return `<tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:8px 12px;color:var(--text2);font-family:var(--mono);font-size:11px;white-space:nowrap">${e.data||'—'}</td>
           <td style="padding:8px 12px">${badge} <span style="font-size:11px;color:var(--text2);margin-left:4px">${e.grupo||'—'}</span></td>
-          <td style="padding:8px 12px;text-align:right;font-family:var(--mono);color:var(--text)">${e.convidados||0}</td>
+          <td style="padding:8px 12px;text-align:right;font-family:var(--mono);color:var(--text);font-weight:600">${e.convidados||0}</td>
           ${auditTds}
-          <td style="padding:8px 12px;text-align:right;color:var(--text3);font-size:11px">${nitens} insumo${nitens!==1?'s':''}</td>
-          <td style="padding:8px 12px;text-align:right">
-            <button onclick="_rcVerEvento(${idxReal})" style="background:none;border:none;color:#4F8EF7;cursor:pointer;font-size:11px;text-decoration:underline;margin-right:8px">ver</button>
+          <td style="padding:6px 12px;line-height:1.8">${prods||'<span style="color:var(--text3);font-size:11px">—</span>'}</td>
+          <td style="padding:8px 12px;text-align:right;white-space:nowrap">
+            <button onclick="_rcVerEvento(${idxReal})" style="background:none;border:none;color:#4F8EF7;cursor:pointer;font-size:11px;text-decoration:underline;margin-right:8px">detalhes</button>
             ${e._fonte==='manual' ? `<button onclick="_rcDeleteEvento(${idxReal})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:11px">excluir</button>` : ''}
           </td>
         </tr>`;
@@ -537,18 +557,44 @@ function _rcBuildEventos() {
       <button class="btn" ${_rcHistPage>=nPags-1?'disabled':''} onclick="_rcHistSetPage(${_rcHistPage+1})">Próxima →</button>
     </div>` : '';
 
+  const activeFilters = [
+    _rcHistGrupo ? _rcHistGrupo : '',
+    (_rcHistConvMin||_rcHistConvMax) ? `${_rcHistConvMin||'0'}–${_rcHistConvMax||'∞'} conv.` : '',
+    _rcHistInsumo.trim() ? `insumo: ${_rcHistInsumo}` : '',
+  ].filter(Boolean).join(' · ');
+
   return `
-<div style="padding:20px 24px;max-width:1000px">
-  <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+<div style="padding:20px 24px;max-width:1200px">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
     <button class="btn" onclick="_rcSetView('tabela')">← Tabela</button>
     <div style="font-size:18px;font-weight:600;color:var(--text)">Histórico de Eventos</div>
-    <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <select style="padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px" onchange="_rcHistFiltrar(this.value)">${grupoOpts}</select>
-      <input type="text" placeholder="Buscar por insumo..." value="${_rcHistInsumo}"
-        style="width:160px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px"
-        oninput="_rcHistFiltrarInsumo(this.value)">
-      <button class="btn" style="background:#3DDC84;border-color:#3DDC84;color:#000;font-weight:600" onclick="_rcSetView('novo')">+ Manual</button>
+    <button class="btn" style="background:#3DDC84;border-color:#3DDC84;color:#000;font-weight:600;margin-left:auto" onclick="_rcSetView('novo')">+ Manual</button>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;padding:12px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)">
+    <div style="display:flex;flex-direction:column;gap:3px">
+      <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Tipo de evento</label>
+      <select style="padding:6px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;min-width:160px" onchange="_rcHistFiltrar(this.value)">${grupoOpts}</select>
     </div>
+    <div style="display:flex;flex-direction:column;gap:3px">
+      <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Conv. mín.</label>
+      <input type="number" min="0" value="${_rcHistConvMin}" placeholder="ex: 80"
+        style="width:80px;padding:6px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px"
+        oninput="_rcHistFiltrarConvMin(this.value)">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:3px">
+      <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Conv. máx.</label>
+      <input type="number" min="0" value="${_rcHistConvMax}" placeholder="ex: 120"
+        style="width:80px;padding:6px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px"
+        oninput="_rcHistFiltrarConvMax(this.value)">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:3px">
+      <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Insumo (auditoria)</label>
+      <input type="text" placeholder="ex: Vodka" value="${_rcHistInsumo}"
+        style="width:140px;padding:6px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px"
+        oninput="_rcHistFiltrarInsumo(this.value)">
+    </div>
+    ${activeFilters ? `<button class="btn" style="color:var(--text3);font-size:11px;align-self:flex-end" onclick="_rcHistLimparFiltros()">✕ Limpar filtros</button>` : ''}
   </div>
 
   <div id="rc-evt-detalhe"></div>
@@ -556,9 +602,7 @@ function _rcBuildEventos() {
   ${auditSummary}
 
   <div style="font-size:12px;color:var(--text3);margin-bottom:10px">
-    ${total} evento${total!==1?'s':''}
-    ${_rcHistGrupo ? ' · tipo: '+_rcHistGrupo : ''}
-    ${_rcHistInsumo.trim() ? ` · insumo: <strong style="color:var(--text2)">${_rcHistInsumo}</strong>` : ''}
+    ${total} evento${total!==1?'s':''}${activeFilters ? ' · ' + activeFilters : ''}
   </div>
 
   <div style="overflow-x:auto">
@@ -566,11 +610,10 @@ function _rcBuildEventos() {
       <thead>
         <tr style="background:var(--bg3);border-bottom:2px solid var(--border)">
           <th style="padding:9px 12px;text-align:left;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Data</th>
-          <th style="padding:9px 12px;text-align:left;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Cliente</th>
           <th style="padding:9px 12px;text-align:left;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Tipo</th>
-          <th style="padding:9px 12px;text-align:right;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Convidados</th>
+          <th style="padding:9px 12px;text-align:right;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Conv.</th>
           ${auditTh}
-          <th style="padding:9px 12px;text-align:right;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Itens</th>
+          <th style="padding:9px 12px;text-align:left;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Produtos consumidos</th>
           <th></th>
         </tr>
       </thead>
@@ -586,9 +629,12 @@ function _rcBuildEventos() {
 </div>`;
 }
 
-function _rcHistSetPage(p)        { _rcHistPage = p; rRefConsumo(); }
-function _rcHistFiltrar(g)        { _rcHistGrupo = g; _rcHistPage = 0; rRefConsumo(); }
-function _rcHistFiltrarInsumo(v)  { _rcHistInsumo = v; _rcHistPage = 0; rRefConsumo(); }
+function _rcHistSetPage(p)           { _rcHistPage = p; rRefConsumo(); }
+function _rcHistFiltrar(g)           { _rcHistGrupo = g; _rcHistPage = 0; rRefConsumo(); }
+function _rcHistFiltrarInsumo(v)     { _rcHistInsumo = v; _rcHistPage = 0; rRefConsumo(); }
+function _rcHistFiltrarConvMin(v)    { _rcHistConvMin = v; _rcHistPage = 0; rRefConsumo(); }
+function _rcHistFiltrarConvMax(v)    { _rcHistConvMax = v; _rcHistPage = 0; rRefConsumo(); }
+function _rcHistLimparFiltros()      { _rcHistGrupo=''; _rcHistInsumo=''; _rcHistConvMin=''; _rcHistConvMax=''; _rcHistPage=0; rRefConsumo(); }
 
 function _rcVerEvento(i) {
   const todos = [..._rcGetEventos().slice().reverse().map(e=>({...e,_fonte:'manual'})), ..._rcGetEventosDasFestas().map(e=>({...e,_fonte:'fechamento'}))];
