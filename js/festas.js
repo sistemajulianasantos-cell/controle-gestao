@@ -107,11 +107,11 @@ function _qbrPorEvento(){
   return map;
 }
 function setFestaView(v){
-  ['geral','produtos','quebras','fechamento','novo','importar-fch','cadastro'].forEach(x=>{
+  if(v==='geral')v='fechamento'; // "Todos os eventos" removido — redireciona para Fechamentos
+  ['produtos','quebras','fechamento','novo','importar-fch','cadastro'].forEach(x=>{
     const btn=document.getElementById('fv-'+x);if(btn)btn.classList.toggle('active',x===v);
     const view=document.getElementById('fview-'+x);if(view)view.style.display=x===v?'block':'none';
   });
-  if(v==='geral')rFestas();
   if(v==='produtos')rFestaProdutos();
   if(v==='quebras')rFestaQuebras();
   if(v==='fechamento')rFestaFechamentos();
