@@ -31,20 +31,22 @@ function gerarAnosFromData(selectId, datas) {
   const anos = [...new Set(
     (datas || []).filter(Boolean).map(d => d.slice(0, 4)).filter(Boolean)
   )].sort((a, b) => b.localeCompare(a));
-  const prev = el.value;
+  const anoAtual = String(new Date().getFullYear());
+  const prev = el.value || (anos.includes(anoAtual) ? anoAtual : (anos[0] || ''));
   el.innerHTML = '<option value="">Ano...</option>';
   anos.forEach(function(a) {
     el.innerHTML += '<option value="' + a + '"' + (a === prev ? ' selected' : '') + '>' + a + '</option>';
   });
 }
 
-// Aplica mês fechado lendo os selects de ano e mês separados
+// Aplica filtro de mês/ano nos campos de data
 function aplicarMesFechado(anoId, mesId, iniId, fimId, fn) {
   const ano = Number(document.getElementById(anoId).value);
   const mes = Number(document.getElementById(mesId).value);
-  if (!ano || !mes) return;
-  const ini = new Date(ano, mes - 1, 1);
-  const fim = new Date(ano, mes, 0);
+  if (!ano) return; // sem ano não filtra
+  const anoEfetivo = ano;
+  const ini = mes ? new Date(anoEfetivo, mes - 1, 1) : new Date(anoEfetivo, 0, 1);
+  const fim = mes ? new Date(anoEfetivo, mes, 0)     : new Date(anoEfetivo, 11, 31);
   document.getElementById(iniId).value = ini.toISOString().slice(0, 10);
   document.getElementById(fimId).value = fim.toISOString().slice(0, 10);
   if (typeof fn === 'function') fn();
