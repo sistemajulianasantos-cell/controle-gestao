@@ -699,6 +699,17 @@ function _calcInsumoQtdCell(ins) {
   </td>`;
 }
 
+function _calcQtdCopo(nome, convidados) {
+  const rc         = D.regrasCopos || {};
+  const fatorBase  = rc.fatorBase  != null ? rc.fatorBase  : 2;
+  const fatorExtra = rc.fatorExtra != null ? rc.fatorExtra : 0.5;
+  const nFichas    = (D.fichas||[]).filter(f =>
+    (f.itens||[]).some(i => i.cat === 'COPOS E TAÇAS' && i.nome === nome)
+  ).length;
+  const fator = fatorBase + Math.max(0, nFichas - 1) * fatorExtra;
+  return Math.ceil(convidados * fator);
+}
+
 function _calcTipoToGrupoRC(tipo) {
   return { casamento:'CASAMENTO', '15anos':'ANIVERSÁRIO 15 ANOS', formatura:'FORMATURA', outros:'CASAMENTO' }[tipo] || 'CASAMENTO';
 }

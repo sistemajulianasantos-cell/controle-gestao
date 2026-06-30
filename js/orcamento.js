@@ -325,7 +325,7 @@ function criarOrcamento() {
   const local      = document.getElementById('orc-m-local')?.value || 'area_central';
   const tipoEvento = document.getElementById('orc-m-tipo')?.value  || 'outros';
 
-  // Auto-preenche insumos a partir das estimativas históricas do tipo de evento
+  // Auto-preenche bebidas a partir das estimativas históricas do tipo de evento
   const insumosAuto = [];
   if (typeof _rcGetStats === 'function' && typeof _calcTipoToGrupoRC === 'function') {
     const grupoRC = _calcTipoToGrupoRC(tipoEvento);
@@ -343,6 +343,25 @@ function criarOrcamento() {
         total: Math.round(sug * precoRef * 100) / 100,
       });
     });
+  }
+
+  // Auto-preenche copos pelas regras de embalagem (COPOS E TAÇAS)
+  if (typeof _calcQtdCopo === 'function') {
+    (D.produtos||[])
+      .filter(p => p.categoria === 'COPOS E TAÇAS' || p.categoria === 'COPOS/TAÇAS')
+      .forEach(p => {
+        if (insumosAuto.find(i => i.nome === p.nome)) return;
+        const qtd = _calcQtdCopo(p.nome, conv);
+        if (qtd <= 0) return;
+        const precoRef = (D.precos && D.precos[p.nome]) ? (D.precos[p.nome].custo || 0) : 0;
+        insumosAuto.push({
+          id: 'ins-' + Date.now() + '-' + Math.random().toString(36).slice(2, 4),
+          nome: p.nome,
+          qtdGarrafas: qtd,
+          custoGarrafa: precoRef,
+          total: Math.round(qtd * precoRef * 100) / 100,
+        });
+      });
   }
 
   D.orcamentos.push({

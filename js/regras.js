@@ -339,7 +339,7 @@ if (!D.produtos) D.produtos = [];
 }
 
 function setRegrasView(v) {
-  ['fichas','proporcoes','nova-ficha','biblioteca'].forEach(function(x) {
+  ['fichas','proporcoes','nova-ficha','biblioteca','copos'].forEach(function(x) {
     var el = document.getElementById('regras-view-' + x);
     if (el) el.style.display = x === v ? '' : 'none';
     var btn = document.getElementById('regras-tab-' + x);
@@ -349,6 +349,7 @@ function setRegrasView(v) {
   if (v === 'proporcoes') rProporcoes();
   if (v === 'nova-ficha') rFormFicha();
   if (v === 'biblioteca') rBiblioteca();
+  if (v === 'copos') rCopos();
 }
 
 // ── Fichas de Coquetéis ─────────────────────────────────
@@ -635,5 +636,132 @@ function cruzarCardapioComFichas(cardapioTexto) {
     });
   });
   return resultado;
+}
+
+// ── Regras de Copos ─────────────────────────────────────
+function rCopos() {
+  var el = document.getElementById('regras-view-copos');
+  if (!el) return;
+
+  var rc         = D.regrasCopos || {};
+  var fatorBase  = rc.fatorBase  != null ? rc.fatorBase  : 2;
+  var fatorExtra = rc.fatorExtra != null ? rc.fatorExtra : 0.5;
+  var prevConv   = rc.prevConv   || 100;
+
+  // Coleta copos das fichas
+  var copoPorFicha = {};
+  (D.fichas||[]).forEach(function(f) {
+    (f.itens||[]).forEach(function(item) {
+      if (item.cat === 'COPOS E TAÇAS') {
+        if (!copoPorFicha[item.nome]) copoPorFicha[item.nome] = [];
+        if (copoPorFicha[item.nome].indexOf(f.nome) === -1) copoPorFicha[item.nome].push(f.nome);
+      }
+    });
+  });
+  // Inclui produtos da categoria ainda sem ficha
+  (D.produtos||[]).filter(function(p) {
+    return p.categoria === 'COPOS E TAÇAS' || p.categoria === 'COPOS/TAÇAS';
+  }).forEach(function(p) {
+    if (!copoPorFicha[p.nome]) copoPorFicha[p.nome] = [];
+  });
+
+  var nomes = Object.keys(copoPorFicha).sort();
+
+  if (!nomes.length) {
+    el.innerHTML = '<div class="sec"><div class="sec-head"><span class="sec-title">🥂 Regras de Copos</span></div>' +
+      '<div style="padding:20px;color:var(--text3)">Cadastre produtos na categoria COPOS E TAÇAS ou inclua copos nas Fichas de Coquetéis para configurar as regras.</div></div>';
+    return;
+  }
+
+  var rows = nomes.map(function(nome) {
+    var fichas = copoPorFicha[nome] || [];
+    var prod   = (D.produtos||[]).find(function(p){ return p.nome === nome; });
+    var emb    = (prod && prod.tamanhoEmbalagem > 1) ? prod.tamanhoEmbalagem : 1;
+    var nF     = fichas.length;
+    var fator  = fatorBase + Math.max(0, nF - 1) * fatorExtra;
+    var qtd    = Math.ceil(prevConv * fator);
+    var cx     = emb > 1 ? Math.ceil(qtd / emb) : null;
+
+    var tags = nF
+      ? fichas.map(function(f){ return '<span style="display:inline-block;margin:1px 2px;font-size:9px;padding:1px 7px;border-radius:8px;background:rgba(79,142,247,.12);border:1px solid rgba(79,142,247,.3);color:#4F8EF7">' + f + '</span>'; }).join('')
+      : '<span style="font-size:9px;color:var(--text3)">sem ficha</span>';
+
+    return '<tr style="border-bottom:1px solid var(--border)">' +
+      '<td style="padding:8px 12px;font-weight:500;color:var(--text)">' + nome + '</td>' +
+      '<td style="padding:8px 10px;line-height:1.8">' + tags + '</td>' +
+      '<td style="padding:8px 12px;text-align:center;font-family:var(--mono);font-size:12px;color:var(--text2)">' + nF + '</td>' +
+      '<td style="padding:8px 12px;text-align:center;font-family:var(--mono);font-size:12px;color:var(--text2)">' + fator.toFixed(1) + '/conv.</td>' +
+      '<td style="padding:8px 12px;text-align:center;font-size:11px;color:var(--text3)">' + (emb > 1 ? emb + ' uni/cx' : '—') + '</td>' +
+      '<td style="padding:8px 12px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--text2)">' + qtd + ' uni</td>' +
+      '<td style="padding:8px 12px;text-align:right;font-weight:700;color:#4F8EF7;font-family:var(--mono)">' + (cx != null ? cx + ' cx' : '—') + '</td>' +
+    '</tr>';
+  }).join('');
+
+  el.innerHTML =
+    '<div class="sec" style="margin-bottom:12px">' +
+      '<div class="sec-head" style="display:flex;justify-content:space-between;align-items:center">' +
+        '<span class="sec-title">🥂 Regras de Copos</span>' +
+        '<button class="btn btn-primary btn-sm" onclick="salvarRegrasCopos()">Salvar regras</button>' +
+      '</div>' +
+      '<div style="padding:14px 16px">' +
+        '<div style="font-size:11px;color:var(--text3);margin-bottom:12px">' +
+          'Fórmula: <strong>fator = base + (nº de coquetéis − 1) × extra</strong> · qtd = teto(convidados × fator) · caixas = teto(qtd ÷ embalagem)' +
+        '</div>' +
+        '<div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-end">' +
+          '<div>' +
+            '<label style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:4px">Base / convidado (mínimo)</label>' +
+            '<div style="display:flex;align-items:center;gap:6px">' +
+              '<input id="rc-fator-base" type="number" step="0.5" min="0.5" value="' + fatorBase + '" ' +
+                'style="width:70px;padding:6px 8px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px;font-family:var(--mono);text-align:center">' +
+              '<span style="font-size:11px;color:var(--text3)">uni/conv.</span>' +
+            '</div>' +
+          '</div>' +
+          '<div>' +
+            '<label style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:4px">Extra por coquetel adicional</label>' +
+            '<div style="display:flex;align-items:center;gap:6px">' +
+              '<input id="rc-fator-extra" type="number" step="0.25" min="0" value="' + fatorExtra + '" ' +
+                'style="width:70px;padding:6px 8px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px;font-family:var(--mono);text-align:center">' +
+              '<span style="font-size:11px;color:var(--text3)">uni/conv. a mais</span>' +
+            '</div>' +
+          '</div>' +
+          '<div>' +
+            '<label style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:4px">Prévia para</label>' +
+            '<div style="display:flex;align-items:center;gap:6px">' +
+              '<input id="rc-prev-conv" type="number" step="10" min="10" value="' + prevConv + '" onchange="rCopos()" ' +
+                'style="width:70px;padding:6px 8px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px;font-family:var(--mono);text-align:center">' +
+              '<span style="font-size:11px;color:var(--text3)">convidados</span>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="sec">' +
+      '<div class="sec-head"><span class="sec-title">Prévia para ' + prevConv + ' convidados</span></div>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
+        '<thead><tr style="font-size:9px;text-transform:uppercase;color:var(--text3);border-bottom:2px solid var(--border)">' +
+          '<th style="padding:7px 12px;text-align:left;font-weight:600">Copo / Taça</th>' +
+          '<th style="padding:7px 10px;text-align:left;font-weight:600">Coquetéis associados</th>' +
+          '<th style="padding:7px 12px;text-align:center;font-weight:600">Nº fichas</th>' +
+          '<th style="padding:7px 12px;text-align:center;font-weight:600">Fator</th>' +
+          '<th style="padding:7px 12px;text-align:center;font-weight:600">Embalagem</th>' +
+          '<th style="padding:7px 12px;text-align:right;font-weight:600">Unidades</th>' +
+          '<th style="padding:7px 12px;text-align:right;font-weight:600">Caixas</th>' +
+        '</tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+      '</table>' +
+    '</div>';
+}
+
+function salvarRegrasCopos() {
+  if (!D.regrasCopos) D.regrasCopos = {};
+  var base  = parseFloat(document.getElementById('rc-fator-base')  ? document.getElementById('rc-fator-base').value  : 2)  || 2;
+  var extra = parseFloat(document.getElementById('rc-fator-extra') ? document.getElementById('rc-fator-extra').value : 0.5) || 0;
+  var prev  = parseInt(document.getElementById('rc-prev-conv')  ? document.getElementById('rc-prev-conv').value  : 100) || 100;
+  D.regrasCopos.fatorBase  = base;
+  D.regrasCopos.fatorExtra = extra;
+  D.regrasCopos.prevConv   = prev;
+  sv('regrasCopos');
+  rCopos();
+  alert2('Regras de copos salvas!');
 }
 

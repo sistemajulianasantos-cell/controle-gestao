@@ -1051,6 +1051,7 @@
         <button class="sort-btn active" id="regras-tab-fichas" onclick="setRegrasView('fichas')">🍹 Fichas</button>
         <button class="sort-btn" id="regras-tab-proporcoes" onclick="setRegrasView('proporcoes')">📐 Proporções</button>
         <button class="sort-btn" id="regras-tab-biblioteca" onclick="setRegrasView('biblioteca')">📦 Biblioteca de Itens</button>
+        <button class="sort-btn" id="regras-tab-copos" onclick="setRegrasView('copos')">🥂 Copos</button>
       </div>
       <div id="regras-view-fichas">
         <div class="sec"><div class="sec-head"><span class="sec-title">Fichas cadastradas</span></div>
@@ -1062,6 +1063,7 @@
       </div>
       <div id="regras-view-nova-ficha" style="display:none"></div>
       <div id="regras-view-biblioteca" style="display:none"></div>
+      <div id="regras-view-copos" style="display:none"></div>
     </div>
 
     <!-- ═══ PRODUÇÃO ═══ -->
@@ -1977,6 +1979,7 @@ window.svFirebase = async function(chave) {
     if(chave==='fichas')       campo.fichas       = D.fichas;
     if(chave==='regrasProp')   campo.regrasProp   = D.regrasProp;
     if(chave==='regrasItens')  campo.regrasItens  = D.regrasItens;
+    if(chave==='regrasCopos')  campo.regrasCopos  = D.regrasCopos;
     if(chave==='bibliotecaItens') campo.bibliotecaItens = D.bibliotecaItens;
     if(chave==='produtos')       campo.produtos       = D.produtos;
     if(chave==='historico')    campo.historico    = D.historico;
@@ -2058,6 +2061,7 @@ async function carregarDados() {
     D.equipe           = r.equipe           || [];
     D.escalas          = r.escalas          || [];
     D.regrasEquipe     = r.regrasEquipe     || {};
+    D.regrasCopos      = r.regrasCopos      || {};
     D.pagamentosEquipe = r.pagamentosEquipe || [];
     D.orcamentos            = r.orcamentos            || [];
     D.senhas                = r.senhas                || {};
