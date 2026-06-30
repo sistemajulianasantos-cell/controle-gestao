@@ -459,14 +459,7 @@ function rOrcCalc() {
             ${insumos.map(ins => `
               <tr style="border-bottom:1px solid var(--border)">
                 <td style="padding:6px 10px;font-weight:500;color:var(--text)">${ins.nome}</td>
-                <td style="padding:4px 6px;text-align:right">
-                  <div style="display:flex;align-items:center;justify-content:flex-end;gap:4px">
-                    <input type="number" value="${ins.qtdGarrafas}" min="0" step="1"
-                      onchange="calcUpdateInsumo('${ins.id}','qtdGarrafas',this.value)"
-                      style="width:65px;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono)">
-                    <span style="font-size:9px;color:var(--text3);white-space:nowrap">${_orcGetUnit(ins.nome)}</span>
-                  </div>
-                </td>
+                ${_calcInsumoQtdCell(ins)}
                 <td style="padding:4px 6px;text-align:right">
                   <input type="number" value="${ins.custoGarrafa || ''}" min="0" step="0.01" placeholder="0,00"
                     onchange="calcUpdateInsumo('${ins.id}','custoGarrafa',this.value)"
@@ -672,6 +665,38 @@ function _orcGetUnit(nome) {
   if (['Espuma de Gengibre','Espuma de Siciliano','Suco de Limão','Xarope de Açucar',
        'Ginger Ale','Grapefruit','Mix Frutas Vermelhas','Agua gasosa','Agua Tônica'].includes(nome)) return 'und';
   return 'garrafas';
+}
+
+function _getEmbalagemProduto(nome) {
+  const p = (D.produtos||[]).find(x => (x.nome||'').toUpperCase() === nome.toUpperCase());
+  return (p && p.tamanhoEmbalagem > 1) ? p.tamanhoEmbalagem : 1;
+}
+
+function _calcInsumoQtdCell(ins) {
+  const isCopo = (typeof RC_ITEM_CAT !== 'undefined') && RC_ITEM_CAT[ins.nome] === 'COPOS E TAÇAS';
+  const emb    = isCopo ? _getEmbalagemProduto(ins.nome) : 1;
+  if (emb > 1) {
+    const cx = Math.ceil((ins.qtdGarrafas||0) / emb);
+    return `<td style="padding:4px 6px;text-align:right">
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+        <div style="display:flex;align-items:center;gap:4px">
+          <input type="number" value="${cx}" min="0" step="1"
+            onchange="calcUpdateInsumo('${ins.id}','qtdGarrafas',this.value*${emb})"
+            style="width:65px;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono)">
+          <span style="font-size:9px;color:var(--text3);white-space:nowrap">cx</span>
+        </div>
+        <div style="font-size:9px;color:var(--text3)">${ins.qtdGarrafas||0} uni · ${emb}/cx</div>
+      </div>
+    </td>`;
+  }
+  return `<td style="padding:4px 6px;text-align:right">
+    <div style="display:flex;align-items:center;justify-content:flex-end;gap:4px">
+      <input type="number" value="${ins.qtdGarrafas}" min="0" step="1"
+        onchange="calcUpdateInsumo('${ins.id}','qtdGarrafas',this.value)"
+        style="width:65px;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono)">
+      <span style="font-size:9px;color:var(--text3);white-space:nowrap">${_orcGetUnit(ins.nome)}</span>
+    </div>
+  </td>`;
 }
 
 function _calcTipoToGrupoRC(tipo) {
