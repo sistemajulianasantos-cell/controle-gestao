@@ -590,7 +590,7 @@ function calcSelectCardapioFicha(fichaId) {
   (ficha.itens || []).forEach(item => {
     const rc  = _rcMapFichaItemToRC(item.nome);
     const d   = rc ? gd[rc] : null;
-    const qtd = (d && d.max != null) ? Math.ceil(d.max * pax) : 0;
+    const qtd = (d && d.avg != null) ? _rcSugestao(d.avg) : 0;
     _orcCardapioItems.push({ cat: item.cat, nome: item.nome, rcNome: rc, qtd });
   });
   rOrcCalc();

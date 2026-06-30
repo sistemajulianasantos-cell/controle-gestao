@@ -324,6 +324,27 @@ function criarOrcamento() {
   const id = 'ORC' + Date.now();
   const local      = document.getElementById('orc-m-local')?.value || 'area_central';
   const tipoEvento = document.getElementById('orc-m-tipo')?.value  || 'outros';
+
+  // Auto-preenche insumos a partir das estimativas históricas do tipo de evento
+  const insumosAuto = [];
+  if (typeof _rcGetStats === 'function' && typeof _calcTipoToGrupoRC === 'function') {
+    const grupoRC = _calcTipoToGrupoRC(tipoEvento);
+    const gd = (_rcGetStats()[grupoRC]) || {};
+    Object.entries(gd).forEach(([bev, d]) => {
+      if (!d || d.count <= 0 || d.avg == null) return;
+      const sug = typeof _rcSugestao === 'function' ? _rcSugestao(d.avg) : Math.ceil(d.avg * 1.2);
+      if (sug <= 0) return;
+      const precoRef = (D.precos && D.precos[bev]) ? (D.precos[bev].custo || 0) : 0;
+      insumosAuto.push({
+        id: 'ins-' + Date.now() + '-' + Math.random().toString(36).slice(2, 4),
+        nome: bev,
+        qtdGarrafas: sug,
+        custoGarrafa: precoRef,
+        total: Math.round(sug * precoRef * 100) / 100,
+      });
+    });
+  }
+
   D.orcamentos.push({
     id,
     nomeCliente:  nome,
@@ -332,7 +353,7 @@ function criarOrcamento() {
     criadoEm:     new Date().toISOString(),
     itens:      [],
     calcItens:  [],
-    insumos:    [],
+    insumos:    insumosAuto,
     calcParams: {
       local,
       tipoEvento,
