@@ -578,26 +578,22 @@ function _calcInsumoQtdCell(ins) {
   const emb    = isCopo ? _getEmbalagemProduto(ins.nome) : 1;
   if (emb > 1) {
     const cx = Math.ceil((ins.qtdGarrafas||0) / emb);
-    return `<td style="padding:4px 6px;text-align:right">
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
-        <div style="display:flex;align-items:center;gap:4px">
-          <input type="number" value="${cx}" min="0" step="1"
-            onchange="calcUpdateInsumo('${ins.id}','qtdGarrafas',this.value*${emb})"
-            style="width:65px;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono)">
-          <span style="font-size:9px;color:var(--text3);white-space:nowrap">cx</span>
-        </div>
-        <div style="font-size:9px;color:var(--text3)">${ins.qtdGarrafas||0} uni · ${emb}/cx</div>
+    return `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+      <div style="display:flex;align-items:center;justify-content:flex-end;gap:4px">
+        <input type="number" value="${cx}" min="0" step="1"
+          onchange="calcUpdateInsumo('${ins.id}','qtdGarrafas',this.value*${emb})"
+          style="width:60px;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono)">
+        <span style="font-size:9px;color:var(--text3);white-space:nowrap;display:inline-block;width:22px;text-align:left">cx</span>
       </div>
-    </td>`;
+      <div style="font-size:9px;color:var(--text3)">${ins.qtdGarrafas||0} uni · ${emb}/cx</div>
+    </div>`;
   }
-  return `<td style="padding:4px 6px;text-align:right">
-    <div style="display:flex;align-items:center;justify-content:flex-end;gap:4px">
-      <input type="number" value="${ins.qtdGarrafas}" min="0" step="1"
-        onchange="calcUpdateInsumo('${ins.id}','qtdGarrafas',this.value)"
-        style="width:65px;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono)">
-      <span style="font-size:9px;color:var(--text3);white-space:nowrap">${_orcGetUnit(ins.nome)}</span>
-    </div>
-  </td>`;
+  return `<div style="display:flex;align-items:center;justify-content:flex-end;gap:4px">
+    <input type="number" value="${ins.qtdGarrafas}" min="0" step="1"
+      onchange="calcUpdateInsumo('${ins.id}','qtdGarrafas',this.value)"
+      style="width:60px;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono)">
+    <span style="font-size:9px;color:var(--text3);white-space:nowrap;display:inline-block;width:34px;text-align:left">${_orcGetUnit(ins.nome)}</span>
+  </div>`;
 }
 
 function _calcQtdCopo(nome, convidados) {
