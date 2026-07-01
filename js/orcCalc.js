@@ -163,11 +163,11 @@ function calcAddInsumoItem() {
   if (!orc.insumos) orc.insumos = [];
 
   orc.insumos.push({
-    id:          'ins-' + Date.now() + Math.random().toString(36).slice(2, 4),
+    id:           'ins-' + Date.now() + Math.random().toString(36).slice(2, 4),
     nome,
-    qtdGarrafas: qtd,
+    qtdGarrafas:  qtd,
     custoGarrafa: custo,
-    total:       Math.round(qtd * custo * 100) / 100,
+    total:        Math.round(qtd * custo * 100) / 100,
   });
 
   document.getElementById('ins-nome').value  = '';
@@ -175,7 +175,7 @@ function calcAddInsumoItem() {
   document.getElementById('ins-custo').value = '';
 
   sv('orcamentos');
-  rOrcCalc();
+  _rTabContent();
 }
 
 function calcUpdateInsumo(itemId, campo, valor) {
@@ -186,7 +186,7 @@ function calcUpdateInsumo(itemId, campo, valor) {
   item[campo] = parseFloat(valor) || 0;
   item.total  = Math.round(item.qtdGarrafas * item.custoGarrafa * 100) / 100;
   sv('orcamentos');
-  rOrcCalc();
+  _rTabContent();
 }
 
 function calcRemoveInsumo(itemId) {
@@ -194,7 +194,7 @@ function calcRemoveInsumo(itemId) {
   if (!orc) return;
   orc.insumos = (orc.insumos || []).filter(i => i.id !== itemId);
   sv('orcamentos');
-  rOrcCalc();
+  _rTabContent();
 }
 
 // ─── RENDER ───────────────────────────────────────────────────────────────────
@@ -436,120 +436,21 @@ function rOrcCalc() {
       </div>` : ''}
     </div>`;
 
-  // ── Insumos / Bebidas HTML ────────────────────────────────────────────────────
-  const insumosHtml = `
-    <div style="background:var(--bg2);border:1px solid var(--border);border-left:3px solid #F97316;border-radius:var(--radius);margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)">
-        <span style="font-size:12px;font-weight:700;color:#F97316">🍾 Insumos / Bebidas</span>
-        <span style="font-size:13px;font-weight:700;font-family:var(--mono);color:#F97316">${fR(custoInsumos)}</span>
+  // ── Resumo de Insumos (gerenciados na aba Cardapio) ──────────────────────────
+  const insumosHtml = custoInsumos > 0 ? `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-left:3px solid #F97316;border-radius:var(--radius);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;padding:10px 14px;cursor:pointer"
+      onclick="setOrcTab('cardapio')">
+      <div>
+        <span style="font-size:12px;font-weight:700;color:#F97316">Insumos / Bebidas</span>
+        <span style="font-size:10px;color:var(--text3);margin-left:8px">${insumos.length} item(ns) &middot; clique para gerenciar</span>
       </div>
-
-      ${insumos.length ? `
-        <table style="width:100%;border-collapse:collapse;font-size:12px">
-          <thead>
-            <tr style="font-size:9px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border)">
-              <th style="padding:5px 10px;text-align:left;font-weight:500">Insumo</th>
-              <th style="padding:5px 6px;text-align:right;font-weight:500">Qtd</th>
-              <th style="padding:5px 6px;text-align:right;font-weight:500">Custo/uni</th>
-              <th style="padding:5px 6px;text-align:right;font-weight:500">Total</th>
-              <th style="width:28px"></th>
-            </tr>
-          </thead>
-          <tbody>
-            ${insumos.map(ins => `
-              <tr style="border-bottom:1px solid var(--border)">
-                <td style="padding:6px 10px;font-weight:500;color:var(--text)">${ins.nome}</td>
-                ${_calcInsumoQtdCell(ins)}
-                <td style="padding:4px 6px;text-align:right">
-                  <input type="number" value="${ins.custoGarrafa || ''}" min="0" step="0.01" placeholder="0,00"
-                    onchange="calcUpdateInsumo('${ins.id}','custoGarrafa',this.value)"
-                    style="width:80px;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono)">
-                </td>
-                <td style="padding:6px 8px;text-align:right;font-family:var(--mono);font-weight:700;color:#F97316">${fR(ins.total || 0)}</td>
-                <td style="padding:6px 8px;text-align:center">
-                  <span onclick="calcRemoveInsumo('${ins.id}')" style="cursor:pointer;color:var(--red);font-size:15px;line-height:1" title="Remover">×</span>
-                </td>
-              </tr>`).join('')}
-          </tbody>
-        </table>` : ''}
-
-      <!-- Preencher via cardápio -->
-      <div style="padding:10px 14px;border-top:1px solid var(--border);background:rgba(79,142,247,.04)">
-        <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none" onclick="calcToggleCardapio()">
-          <span style="font-size:11px;font-weight:600;color:#4F8EF7">🍹 Preencher insumos via cardápio de coquetel</span>
-          <span style="color:#4F8EF7;font-size:13px">${_orcCardapioOpen?'▲':'▼'}</span>
-        </div>
-        ${_orcCardapioOpen ? `
-          <div style="margin-top:12px">
-            <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-              ${(D.fichas||[]).length
-                ? `<select id="orc-card-select" onchange="calcSelectCardapioFicha(this.value)"
-                    style="flex:1;min-width:180px;padding:7px 10px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:12px">
-                    <option value="">— Selecione uma ficha —</option>
-                    ${(D.fichas||[]).map(f=>`<option value="${f.id}"${f.id===_orcCardapioFichaId?' selected':''}>🍹 ${f.nome}${f.variantes?' ('+f.variantes+')':''}</option>`).join('')}
-                  </select>`
-                : '<span style="font-size:11px;color:var(--text3)">Nenhuma ficha cadastrada. Vá em Regras → Fichas de Coquetéis.</span>'
-              }
-              <span style="font-size:10px;color:var(--text3)">Ref.: <strong>${_calcTipoToGrupoRC(p.tipoEvento||'outros')}</strong> · ${pax} pax</span>
-            </div>
-
-            ${_orcCardapioItems.length ? `
-              <div style="border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:10px;font-size:12px">
-                <div style="padding:5px 12px;background:var(--bg3);border-bottom:1px solid var(--border);display:flex;justify-content:space-between">
-                  <span style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase">Item</span>
-                  <span style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase">Qtd</span>
-                </div>
-                ${_orcCardapioItems.map((item,idx)=>`
-                  <div style="display:grid;grid-template-columns:1fr 100px;gap:8px;align-items:center;padding:5px 12px;border-bottom:1px solid var(--border)">
-                    <div>
-                      <span style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-right:5px">${item.cat}</span>
-                      <span style="font-weight:500;color:var(--text)">${item.nome}</span>
-                      ${!item.rcNome?'<span style="font-size:9px;color:var(--text3);margin-left:4px">(sem ref.)</span>':''}
-                    </div>
-                    <div style="display:flex;align-items:center;gap:3px;justify-content:flex-end">
-                      <input type="number" id="orc-card-item-${idx}" value="${item.qtd}" min="0" step="1"
-                        onchange="calcUpdateCardapioItem(${idx},this.value)"
-                        style="width:55px;text-align:center;font-size:12px;font-weight:700;padding:3px 5px;border-radius:4px;border:1px solid ${item.qtd>0?'var(--green-dim)':'var(--border2)'};background:var(--bg);color:${item.qtd>0?'var(--green)':'var(--text3)'};font-family:var(--mono)">
-                      <span style="font-size:9px;color:var(--text3)">${_orcGetUnit(item.rcNome||'')}</span>
-                    </div>
-                  </div>`).join('')}
-              </div>
-              <div style="display:flex;gap:8px;align-items:center">
-                <button onclick="calcPreencherPorCardapio()" style="background:#4F8EF7;border:none;color:white;border-radius:var(--radius);font-size:12px;padding:7px 18px;cursor:pointer;font-weight:600">⚡ Adicionar ao orçamento</button>
-                <button onclick="calcToggleCardapio()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:var(--radius);font-size:12px;padding:7px 12px;cursor:pointer">Cancelar</button>
-              </div>
-            ` : `
-              <div style="display:flex;gap:8px;justify-content:flex-end">
-                <button onclick="calcToggleCardapio()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:var(--radius);font-size:12px;padding:7px 12px;cursor:pointer">Fechar</button>
-              </div>
-            `}
-          </div>` : ''}
-      </div>
-
-      <!-- Formulário inline para adicionar -->
-      <div style="padding:10px 14px;border-top:${insumos.length?'1px solid var(--border)':'none'};background:var(--bg3);border-radius:0 0 var(--radius) var(--radius)">
-        <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:8px">+ Adicionar insumo</div>
-        <div style="display:grid;grid-template-columns:1fr 120px 120px auto;gap:8px;align-items:flex-end">
-          <div>
-            <label style="font-size:9px;color:var(--text3);display:block;margin-bottom:2px">Nome do insumo</label>
-            <input id="ins-nome" type="text" placeholder="Ex: Vodka, Gin, Whisky..."
-              style="width:100%;font-size:11px;padding:5px 7px;background:var(--bg4);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius)">
-          </div>
-          <div>
-            <label style="font-size:9px;color:var(--text3);display:block;margin-bottom:2px">Qtd garrafas</label>
-            <input id="ins-qtd" type="number" min="0" step="1" placeholder="0"
-              style="width:100%;font-size:11px;padding:5px 7px;background:var(--bg4);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius);font-family:var(--mono)">
-          </div>
-          <div>
-            <label style="font-size:9px;color:var(--text3);display:block;margin-bottom:2px">Custo/garrafa (R$)</label>
-            <input id="ins-custo" type="number" min="0" step="0.01" placeholder="0,00"
-              style="width:100%;font-size:11px;padding:5px 7px;background:var(--bg4);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius);font-family:var(--mono)">
-          </div>
-          <button onclick="calcAddInsumoItem()"
-            style="background:#F97316;border:none;color:white;border-radius:var(--radius);font-size:11px;padding:6px 14px;cursor:pointer;white-space:nowrap;font-weight:600">+ Adicionar</button>
-        </div>
-      </div>
-    </div>`;
+      <span style="font-size:13px;font-weight:700;font-family:var(--mono);color:#F97316">${fR(custoInsumos)}</span>
+    </div>` : `
+    <div style="background:var(--bg2);border:1px dashed var(--border);border-radius:var(--radius);margin-bottom:10px;padding:12px 14px;cursor:pointer;opacity:.7"
+      onclick="setOrcTab('cardapio')">
+      <span style="font-size:12px;color:var(--text3)">Nenhum insumo &mdash; <u>ir para aba Cardapio</u></span>
+    </div>
+    `;
 
   el.innerHTML = paramHtml + `
     <div style="display:grid;grid-template-columns:1fr 270px;gap:14px;align-items:start">
