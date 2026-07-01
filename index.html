@@ -1940,7 +1940,7 @@
 
 <script type="module">
 import { initializeApp }    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc, updateDoc }
+import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, deleteDoc }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, signInAnonymously }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -2017,7 +2017,10 @@ window.svFirebase = async function(chave) {
     if(chave==='fechamentos')        campo.fechamentos         = D.fechamentos;
     if(chave==='deletedFestaIds')    campo.deletedFestaIds     = D.deletedFestaIds;
     if (Object.keys(campo).length === 0) return;
-    await setDoc(doc(db, "dados", DOC_ID), campo, { merge: true });
+    // Cada seção vira seu próprio documento na coleção "dados" (evita estourar o limite de 1MB por documento)
+    for (const [k, v] of Object.entries(campo)) {
+      await setDoc(doc(db, "dados", k), { valor: v });
+    }
   } catch(e) {
     console.error('Erro ao salvar ('+chave+'):', e);
     // Exibe erro persistente — não some automaticamente
@@ -2030,8 +2033,21 @@ window.svFirebase = async function(chave) {
 // ─── CARREGAR ────────────────────────────────────────────────────────────────
 async function carregarDados() {
   try {
-    const snap = await getDoc(doc(db, "dados", DOC_ID));
-    const r    = snap.exists() ? snap.data() : {};
+    const colSnap = await getDocs(collection(db, "dados"));
+    const r = {};
+    colSnap.forEach(d => { if (d.id !== DOC_ID) r[d.id] = d.data().valor; });
+
+    // Migração automática: documento antigo único "dados/principal" → um documento por seção
+    const legadoSnap = await getDoc(doc(db, "dados", DOC_ID));
+    if (legadoSnap.exists()) {
+      const legado    = legadoSnap.data();
+      const pendentes = Object.keys(legado).filter(k => !(k in r));
+      pendentes.forEach(k => { r[k] = legado[k]; });
+      try {
+        for (const k of pendentes) await setDoc(doc(db, "dados", k), { valor: legado[k] });
+        await deleteDoc(doc(db, "dados", DOC_ID));
+      } catch(e) { console.error('Erro na migração de dados legados:', e); }
+    }
 
     const qbrs    = r.quebras || [];
     const qbrKeys = new Set(qbrs.map(q => q.prod+"|"+q.data+"|"+q.qtd));
@@ -2081,13 +2097,13 @@ async function carregarDados() {
       const _novo = {};
       for (const [k,v] of Object.entries(_pad)) _novo[await hashSenha(k)] = v;
       D.senhas = _novo;
-      try { await setDoc(doc(db,"dados",DOC_ID),{senhas:D.senhas},{merge:true}); } catch(_){}
+      try { await setDoc(doc(db,"dados","senhas"),{valor:D.senhas}); } catch(_){}
     } else if (Object.keys(_senhasRaw).some(k => !_isHashed(k))) {
       // Migração: converte chaves em texto puro para hash
       const _novo = {};
       for (const [k,v] of Object.entries(_senhasRaw)) _novo[_isHashed(k)?k:await hashSenha(k)] = v;
       D.senhas = _novo;
-      try { await setDoc(doc(db,"dados",DOC_ID),{senhas:D.senhas},{merge:true}); } catch(_){}
+      try { await setDoc(doc(db,"dados","senhas"),{valor:D.senhas}); } catch(_){}
     }
 
     document.getElementById("loading-overlay").style.display = "none";
