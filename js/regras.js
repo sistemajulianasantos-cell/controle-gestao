@@ -335,11 +335,12 @@ function initRegras() {
   if (!D.regrasItens) D.regrasItens = [];
 if (!D.bibliotecaItens) D.bibliotecaItens = {};
 if (!D.produtos) D.produtos = [];
+  if (typeof initMotorCalculo === 'function') initMotorCalculo();
   setRegrasView('fichas');
 }
 
 function setRegrasView(v) {
-  ['fichas','proporcoes','nova-ficha','biblioteca','copos'].forEach(function(x) {
+  ['fichas','proporcoes','nova-ficha','biblioteca','copos','motor-catalogo','motor-fatores','motor-margem'].forEach(function(x) {
     var el = document.getElementById('regras-view-' + x);
     if (el) el.style.display = x === v ? '' : 'none';
     var btn = document.getElementById('regras-tab-' + x);
@@ -350,6 +351,9 @@ function setRegrasView(v) {
   if (v === 'nova-ficha') rFormFicha();
   if (v === 'biblioteca') rBiblioteca();
   if (v === 'copos') rCopos();
+  if (v === 'motor-catalogo') rMotorCatalogo();
+  if (v === 'motor-fatores') rMotorFatores();
+  if (v === 'motor-margem') rMotorMargem();
 }
 
 // ── Fichas de Coquetéis ─────────────────────────────────
