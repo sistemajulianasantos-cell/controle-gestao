@@ -1038,6 +1038,7 @@ function rEscalaEvento() {
                  <th style="padding:7px 12px;text-align:left">Colaborador</th>
                  <th style="padding:7px 10px;text-align:left">Cargo no evento</th>
                  <th style="padding:7px 10px;text-align:left">Nível</th>
+                 <th style="padding:7px 10px;text-align:center">CPF</th>
                  <th style="padding:7px 10px;text-align:center">Chave PIX</th>
                  <th style="padding:7px 10px"></th>
                </tr>
@@ -1047,7 +1048,7 @@ function rEscalaEvento() {
                  if (row.tipo === 'vaga') {
                    return `<tr style="border-bottom:1px solid var(--border);opacity:.5">
                      <td style="padding:7px 12px;font-size:11px;color:var(--text3);font-style:italic">${row.label}</td>
-                     <td style="padding:7px 12px" colspan="4">
+                     <td style="padding:7px 12px" colspan="5">
                        <div style="display:flex;align-items:center;gap:8px">
                          <div style="width:48px;height:48px;border-radius:50%;background:var(--bg3);border:2px dashed var(--border2);flex-shrink:0"></div>
                          <span style="color:var(--text3);font-style:italic">— Vaga em aberto —</span>
@@ -1073,6 +1074,7 @@ function rEscalaEvento() {
                    </td>
                    <td style="padding:7px 10px">${cargoSelect(e.id, e.cargo||col.cargo||'')}</td>
                    <td style="padding:7px 10px;color:${col.nivel==='Novato'?'var(--amber)':'var(--green)'}">${col.nivel||'—'}</td>
+                   <td style="padding:7px 10px;text-align:center;font-size:10px;color:var(--text2);font-family:monospace">${col.cpf||'—'}</td>
                    <td style="padding:7px 10px;text-align:center;font-size:10px;color:#4ade80;font-family:monospace">${col.chave_pix||'—'}</td>
                    <td style="padding:7px 10px;text-align:center">
                      <button class="btn-sm btn-red" onclick="removerEscala('${e.id}');equipeView='evento-detalhe';setTimeout(rEscalaEvento,80)" title="Remover">✕</button>
