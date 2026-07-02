@@ -784,7 +784,8 @@ function rOrcCardapio(orc) {
                 <div style="display:grid;grid-template-columns:1fr 120px;gap:8px;align-items:center;padding:6px 12px;border-bottom:1px solid var(--border)">
                   <div>
                     <span style="font-weight:500;color:var(--text)">${item.nome}</span>
-                    ${!item.rcNome?'<span style="font-size:9px;color:var(--amber);margin-left:4px">(sem ref. histórica)</span>':''}
+                    ${item.origem==='proporcao'?'<span style="font-size:9px;color:var(--blue,#4F8EF7);margin-left:4px">(via Regras de Proporção)</span>':''}
+                    ${!item.origem?'<span style="font-size:9px;color:var(--amber);margin-left:4px">(sem ref. histórica nem regra)</span>':''}
                   </div>
                   <div style="display:flex;align-items:center;gap:3px;justify-content:flex-end">
                     <input type="number" id="orc-card-item-${item.idx}" value="${item.qtd}" min="0" step="1"
@@ -897,11 +898,25 @@ function orcSelecionarFicha(fichaId) {
   const orc = _calcGetOrc();
   if (!fichaId || !orc) { if (orc) rOrcCardapio(orc); return; }
 
-  const p      = orc.calcParams || {};
+  const p       = orc.calcParams || {};
+  const conv    = orc.convidados || 0;
   const grupoRC = (typeof _calcTipoToGrupoRC === 'function') ? _calcTipoToGrupoRC(p.tipoEvento||'outros') : 'CASAMENTO';
   const gd      = (typeof _rcGetStats === 'function') ? (_rcGetStats()[grupoRC] || {}) : {};
   const ficha   = (D.fichas||[]).find(f => f.id === fichaId);
   if (!ficha) { rOrcCardapio(orc); return; }
+
+  // Fallback para Regras de Proporção (Regras e Cálculos → Proporções) quando o item não é uma
+  // bebida rastreada pelo Ref.Consumo (ex: itens de MATERIAL/ESPECIARIAS/PRODUÇÃO como
+  // Descascador, Tesoura, Suco de Limão) — mesma fórmula (calcQtdItem) que a Folha de
+  // Separação já usa para gerar essas quantidades automaticamente.
+  const autoS       = (typeof _calcAutoStaff === 'function') ? _calcAutoStaff(conv) : {bt:0,bb:0,hb:0,cd:0};
+  const bartenders  = p.bartender != null ? Number(p.bartender) : (autoS.bt||0);
+  const equipeTotal = bartenders
+    + (p.barback != null ? Number(p.barback) : (autoS.bb||0))
+    + (p.head    != null ? Number(p.head)    : (autoS.hb||0))
+    + (p.coord   != null ? Number(p.coord)   : (autoS.cd||0))
+    + (p.copeiro != null ? Number(p.copeiro) : 0);
+  const regrasProp  = (typeof getRegrasItens === 'function') ? getRegrasItens() : [];
 
   (ficha.itens||[]).forEach(item => {
     const rc      = (typeof _rcMapFichaItemToRC === 'function') ? _rcMapFichaItemToRC(item.nome) : null;
@@ -910,9 +925,18 @@ function orcSelecionarFicha(fichaId) {
     // entre todos os tipos de evento (d.mediaGeral) — mesma lógica já usada na tabela
     // comparativa do Ref. Consumo (refConsumo.js). Sem isso, qualquer insumo sem histórico
     // "15 Anos"/"Formatura"/etc. específico vinha sempre zerado mesmo tendo dado de outros eventos.
-    const base    = d ? (d.avg != null ? d.avg : d.mediaGeral) : null;
-    const qtd     = (base != null && typeof _rcSugestao === 'function') ? _rcSugestao(base) : 0;
-    _orcCardapioItems.push({ cat: item.cat, nome: item.nome, rcNome: rc, qtd });
+    const base = d ? (d.avg != null ? d.avg : d.mediaGeral) : null;
+    let   qtd    = (base != null && typeof _rcSugestao === 'function') ? _rcSugestao(base) : null;
+    let   origem = qtd != null ? 'refconsumo' : null;
+
+    if (qtd == null) {
+      // categoria da ficha (ex: "MATERIAL (ESPECÍFICO)") não bate literalmente com a categoria
+      // das Regras de Proporção (ex: "MATERIAL") — casa só pelo nome do item, que já é único.
+      const regra = regrasProp.find(r => (r.item||'').trim().toUpperCase() === (item.nome||'').trim().toUpperCase());
+      if (regra && typeof calcQtdItem === 'function') { qtd = calcQtdItem(regra, conv, bartenders, equipeTotal); origem = 'proporcao'; }
+    }
+
+    _orcCardapioItems.push({ cat: item.cat, nome: item.nome, rcNome: rc, origem, qtd: qtd != null ? qtd : 0 });
   });
   rOrcCardapio(orc);
 }
