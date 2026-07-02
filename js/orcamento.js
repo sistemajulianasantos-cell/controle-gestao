@@ -904,9 +904,14 @@ function orcSelecionarFicha(fichaId) {
   if (!ficha) { rOrcCardapio(orc); return; }
 
   (ficha.itens||[]).forEach(item => {
-    const rc  = (typeof _rcMapFichaItemToRC === 'function') ? _rcMapFichaItemToRC(item.nome) : null;
-    const d   = rc ? gd[rc] : null;
-    const qtd = (d && d.avg != null && typeof _rcSugestao === 'function') ? _rcSugestao(d.avg) : 0;
+    const rc      = (typeof _rcMapFichaItemToRC === 'function') ? _rcMapFichaItemToRC(item.nome) : null;
+    const d       = rc ? gd[rc] : null;
+    // Sem histórico específico para este tipo de evento (d.avg), cai para a média geral
+    // entre todos os tipos de evento (d.mediaGeral) — mesma lógica já usada na tabela
+    // comparativa do Ref. Consumo (refConsumo.js). Sem isso, qualquer insumo sem histórico
+    // "15 Anos"/"Formatura"/etc. específico vinha sempre zerado mesmo tendo dado de outros eventos.
+    const base    = d ? (d.avg != null ? d.avg : d.mediaGeral) : null;
+    const qtd     = (base != null && typeof _rcSugestao === 'function') ? _rcSugestao(base) : 0;
     _orcCardapioItems.push({ cat: item.cat, nome: item.nome, rcNome: rc, qtd });
   });
   rOrcCardapio(orc);
