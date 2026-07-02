@@ -273,8 +273,14 @@ function rMotorCatalogo() {
       '<div style="display:flex;gap:8px">' +
         '<button class="btn" onclick="adicionarItemCatalogo()" style="background:var(--blue)">+ Novo Item</button>' +
         '<button class="btn" onclick="salvarMotorCatalogo()" style="background:var(--green)">💾 Salvar</button>' +
+        '<button class="btn" onclick="resetarMotorCatalogo()" style="background:var(--red-dim);color:var(--red)">↺ Restaurar Padrão</button>' +
       '</div>' +
     '</div>' +
+    (catalogo.length < 50 ? (
+      '<div style="margin:12px 16px 0;padding:10px 12px;background:rgba(245,158,11,.12);border:1px solid var(--amber);border-radius:6px;font-size:11px;color:var(--amber)">' +
+      '⚠️ O catálogo tem só ' + catalogo.length + ' item(ns) — provavelmente ainda é a versão antiga/exemplo salva antes da planilha ser importada. Clique em "↺ Restaurar Padrão" acima para carregar o catálogo completo.' +
+      '</div>'
+    ) : '') +
     '<div style="padding:12px 16px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">' +
       '<div><label class="lbl">Categoria</label><select class="inp" onchange="motorSetFiltroCat(this.value)">' +
         '<option value="">Todas</option>' +
@@ -452,6 +458,17 @@ function excluirItemCatalogo(idx) {
 function salvarMotorCatalogo() {
   sv('motorCatalogo');
   alert2('Catálogo salvo!');
+}
+
+// initMotorCalculo() só semeia o catálogo padrão quando D.motorCatalogo está vazio — depois do
+// primeiro save, o array salvo no Firestore sempre vence. Este botão permite recarregar
+// manualmente o catálogo padrão (ex: depois que o número/conteúdo de itens do seed for atualizado).
+function resetarMotorCatalogo() {
+  if (!confirm('Restaurar o catálogo para os ' + MOTOR_CATALOGO_PADRAO.length + ' itens padrão? Isso substitui os itens atuais (edições manuais feitas na tela serão perdidas).')) return;
+  D.motorCatalogo = JSON.parse(JSON.stringify(MOTOR_CATALOGO_PADRAO));
+  sv('motorCatalogo');
+  rMotorCatalogo();
+  alert2('Catálogo restaurado para o padrão (' + MOTOR_CATALOGO_PADRAO.length + ' itens)!');
 }
 
 // ─── ADMIN: FATORES (EXPECTATIVA / COMPLEXIDADE) ──────────────────────────────
