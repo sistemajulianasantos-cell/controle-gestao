@@ -730,6 +730,20 @@ function rOrcCardapio(orc) {
 
   const grupoLabel = (typeof _calcTipoToGrupoRC === 'function') ? _calcTipoToGrupoRC(p.tipoEvento||'outros') : '';
 
+  const coqueteisAplicados = [...new Set(insumos.flatMap(i => i.coqueteis||[]))];
+  const coqueteisHtml = coqueteisAplicados.length ? `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">🍹 Coquetéis aplicados</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        ${coqueteisAplicados.map(nome => `
+          <div style="display:flex;align-items:center;gap:2px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:5px 5px 5px 12px">
+            <span style="font-size:12px;font-weight:600;color:var(--text)">${nome}</span>
+            <button data-nome="${nome}" onclick="orcExcluirCoquetel('${orc.id}',this.dataset.nome)"
+              style="background:none;border:none;color:var(--red);cursor:pointer;font-size:11px;padding:4px 8px;border-radius:4px" title="Excluir este coquetel dos insumos">🗑️ Excluir</button>
+          </div>`).join('')}
+      </div>
+    </div>` : '';
+
   const fichaSelectHtml = `
     <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px">
       <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">🍹 Selecionar Cardápio</div>
@@ -854,7 +868,25 @@ function rOrcCardapio(orc) {
       </div>
     </div>`;
 
-  el.innerHTML = fichaSelectHtml + insumosHtml;
+  el.innerHTML = fichaSelectHtml + coqueteisHtml + insumosHtml;
+}
+
+function orcExcluirCoquetel(orcId, nomeCoquetel) {
+  const orc = (D.orcamentos||[]).find(o => o.id === orcId);
+  if (!orc || !orc.insumos) return;
+  if (!confirm(`Excluir "${nomeCoquetel}"?\n\nInsumos usados só por este coquetel serão removidos. Insumos compartilhados com outros coquetéis aplicados serão mantidos.`)) return;
+
+  let removidos = 0;
+  orc.insumos = orc.insumos.filter(ins => {
+    if (!ins.coqueteis || !ins.coqueteis.includes(nomeCoquetel)) return true;
+    ins.coqueteis = ins.coqueteis.filter(c => c !== nomeCoquetel);
+    if (ins.coqueteis.length === 0) { removidos++; return false; }
+    return true;
+  });
+
+  sv('orcamentos');
+  alert2(`🗑️ "${nomeCoquetel}" removido${removidos ? ' · ' + removidos + ' insumo(s) exclusivo(s) excluído(s)' : ''}.`);
+  rOrcCardapio(orc);
 }
 
 function orcSelecionarFicha(fichaId) {
