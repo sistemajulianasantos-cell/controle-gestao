@@ -1052,9 +1052,6 @@
         <button class="sort-btn" id="regras-tab-proporcoes" onclick="setRegrasView('proporcoes')">📐 Proporções</button>
         <button class="sort-btn" id="regras-tab-biblioteca" onclick="setRegrasView('biblioteca')">📦 Biblioteca de Itens</button>
         <button class="sort-btn" id="regras-tab-copos" onclick="setRegrasView('copos')">🥂 Copos</button>
-        <button class="sort-btn" id="regras-tab-motor-catalogo" onclick="setRegrasView('motor-catalogo')">🧾 Catálogo (Motor)</button>
-        <button class="sort-btn" id="regras-tab-motor-fatores" onclick="setRegrasView('motor-fatores')">🎚️ Fatores (Motor)</button>
-        <button class="sort-btn" id="regras-tab-motor-margem" onclick="setRegrasView('motor-margem')">🛡️ Margem Segurança (Motor)</button>
       </div>
       <div id="regras-view-fichas">
         <div class="sec"><div class="sec-head"><span class="sec-title">Fichas cadastradas</span></div>
@@ -1067,9 +1064,6 @@
       <div id="regras-view-nova-ficha" style="display:none"></div>
       <div id="regras-view-biblioteca" style="display:none"></div>
       <div id="regras-view-copos" style="display:none"></div>
-      <div id="regras-view-motor-catalogo" style="display:none"></div>
-      <div id="regras-view-motor-fatores" style="display:none"></div>
-      <div id="regras-view-motor-margem" style="display:none"></div>
     </div>
 
     <!-- ═══ PRODUÇÃO ═══ -->
@@ -1942,7 +1936,6 @@
 <script src="js/orcCalc.js?v=20260701a"></script>
 <script src="js/_refConsumoData.js?v=20260610z"></script>
 <script src="js/refConsumo.js?v=20260610z"></script>
-<script src="js/motorCalculo.js?v=20260701c"></script>
 <script src="js/seguranca-admin.js?v=20260610z"></script>
 
 <script type="module">
@@ -1988,9 +1981,6 @@ window.svFirebase = async function(chave) {
     if(chave==='regrasItens')  campo.regrasItens  = D.regrasItens;
     if(chave==='regrasCopos')  campo.regrasCopos  = D.regrasCopos;
     if(chave==='bibliotecaItens') campo.bibliotecaItens = D.bibliotecaItens;
-    if(chave==='motorCatalogo')        campo.motorCatalogo        = D.motorCatalogo;
-    if(chave==='motorFatores')         campo.motorFatores         = D.motorFatores;
-    if(chave==='motorMargemSeguranca') campo.motorMargemSeguranca = D.motorMargemSeguranca;
     if(chave==='produtos')       campo.produtos       = D.produtos;
     if(chave==='historico')    campo.historico    = D.historico;
     if(chave==='metas')        campo.metas        = D.metas;
@@ -2088,9 +2078,6 @@ async function carregarDados() {
     D.escalas          = r.escalas          || [];
     D.regrasEquipe     = r.regrasEquipe     || {};
     D.regrasCopos      = r.regrasCopos      || {};
-    D.motorCatalogo        = r.motorCatalogo        || [];
-    D.motorFatores         = r.motorFatores         || null;
-    D.motorMargemSeguranca = r.motorMargemSeguranca || null;
     D.pagamentosEquipe = r.pagamentosEquipe || [];
     D.orcamentos            = r.orcamentos            || [];
     D.senhas                = r.senhas                || {};

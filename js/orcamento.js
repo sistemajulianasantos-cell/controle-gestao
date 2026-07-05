@@ -176,7 +176,6 @@ function rOrcDetalhe() {
       <button class="sort-btn ${orcDetTab==='servicos'?'active':''}" onclick="setOrcTab('servicos')">➕ Serviços</button>
       <button class="sort-btn ${orcDetTab==='calc'?'active':''}" onclick="setOrcTab('calc')">📊 Calculadora</button>
       <button class="sort-btn ${orcDetTab==='real'?'active':''}" onclick="setOrcTab('real')">📋 Orçado vs Real</button>
-      <button class="sort-btn ${orcDetTab==='motor'?'active':''}" onclick="setOrcTab('motor')">⚙️ Motor de Cálculo</button>
     </div>
 
     <div id="orc-det-content"></div>`;
@@ -638,7 +637,6 @@ function _rTabContent() {
   else if (orcDetTab === 'servicos') rOrcServicos(orc);
   else if (orcDetTab === 'calc')     rOrcCalc();
   else if (orcDetTab === 'real')     _rOrcRealContent(orc);
-  else if (orcDetTab === 'motor')    rOrcMotor(orc);
 }
 
 // ─── ABA EVENTO ──────────────────────────────────────────────────────────────
