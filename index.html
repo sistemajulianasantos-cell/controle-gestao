@@ -1817,7 +1817,22 @@
       </div>
 
       <div>
-        <label class="lbl">Comprovante de pagamento *</label>
+        <label class="lbl">Forma de pagamento *</label>
+        <select id="pag-modal-forma" class="inp" style="width:100%;box-sizing:border-box">
+          <option value="">Selecione...</option>
+          <option value="dinheiro">Dinheiro</option>
+          <option value="pix">PIX</option>
+          <option value="cartao_credito">Cartão de Crédito</option>
+          <option value="cartao_debito">Cartão de Débito</option>
+          <option value="boleto">Boleto</option>
+          <option value="transferencia">Transferência</option>
+          <option value="cheque">Cheque</option>
+          <option value="outros">Outros</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="lbl">Comprovante de pagamento * <span style="font-weight:400;color:var(--text3)">(opcional se for em dinheiro)</span></label>
         <input type="file" id="pag-modal-comprovante-input" accept="image/*,.pdf" class="inp" style="width:100%;box-sizing:border-box" onchange="pagPreviewComprovante(this)">
         <div id="pag-modal-comprovante-nome" style="font-size:11px;color:var(--green);margin-top:4px"></div>
         <input type="hidden" id="pag-modal-comprovante-b64">
@@ -1970,7 +1985,7 @@
 <script src="js/contratos.js?v=20260610z"></script>
 <script src="js/agenda.js?v=20260610z"></script>
 <script src="js/producao.js?v=20260610z"></script>
-<script src="js/financeiro.js?v=20260707b"></script>
+<script src="js/financeiro.js?v=20260707c"></script>
 <script src="js/fechamento.js?v=20260707a"></script>
 <script src="js/despesas.js?v=20260616c"></script>
 <script src="js/producao2.js?v=20260610z"></script>

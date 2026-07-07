@@ -215,7 +215,7 @@ function rFinanceiro() {
         <span class="tag ${f.status==='pago'?'tag-green':atrasado?'tag-red':'tag-yellow'}">
           ${f.status==='pago'?'Pago':atrasado?'Atrasado':'Pendente'}
         </span>
-        ${f.status==='pago' && f.dataPagamento ? `<div style="font-size:10px;color:var(--text3);margin-top:3px">${fd(f.dataPagamento)}</div>` : ''}
+        ${f.status==='pago' && f.dataPagamento ? `<div style="font-size:10px;color:var(--text3);margin-top:3px">${fd(f.dataPagamento)}${f.formaPagamento ? ' · ' + (FORMAS_PAGAMENTO[f.formaPagamento]||f.formaPagamento) : ''}</div>` : ''}
         ${f.status==='pago' && f.comprovante ? `<button class="btn-sm" onclick="verComprovante('${f.id}')" style="font-size:9px;padding:1px 6px;margin-top:3px" title="Ver comprovante">📎 Comprovante</button>` : ''}
       </td>
       <td>
@@ -313,7 +313,7 @@ function _finPilula(parc, hoje) {
   const cor   = pago ? '#4ADE80' : atrasado ? '#F87171' : '#FBBF24';
   const label = pago ? 'Pago'    : atrasado ? '⚠ Atrasado' : 'Pendente';
   const venc  = parc.vencimento ? `<div style="font-size:10px;opacity:0.75;margin-top:2px">venc. ${fd(parc.vencimento)}</div>` : '';
-  const pagoEm = pago && parc.dataPagamento ? `<div style="font-size:10px;opacity:0.75;margin-top:2px">pago em ${fd(parc.dataPagamento)}</div>` : '';
+  const pagoEm = pago && parc.dataPagamento ? `<div style="font-size:10px;opacity:0.75;margin-top:2px">pago em ${fd(parc.dataPagamento)}${parc.formaPagamento ? ' · ' + (FORMAS_PAGAMENTO[parc.formaPagamento]||parc.formaPagamento) : ''}</div>` : '';
   const botao = pago
     ? `<div style="margin-top:4px;display:flex;gap:4px;justify-content:center;flex-wrap:wrap">
          ${parc.comprovante ? `<button class="btn-sm" onclick="verComprovante('${parc.id}')" style="font-size:9px;padding:1px 6px" title="Ver comprovante">📎</button>` : ''}
@@ -338,6 +338,12 @@ function _finChaveContrato(f) {
   return 'nd|' + norm(f.contrato || f.evento) + '|' + (f.data || '');
 }
 
+const FORMAS_PAGAMENTO = {
+  dinheiro: 'Dinheiro', pix: 'PIX', cartao_credito: 'Cartão de Crédito',
+  cartao_debito: 'Cartão de Débito', boleto: 'Boleto', transferencia: 'Transferência',
+  cheque: 'Cheque', outros: 'Outros',
+};
+
 function abrirModalPagamento(id) {
   const f = (D.financeiro || []).find(x => x.id === id);
   if (!f) return;
@@ -346,6 +352,7 @@ function abrirModalPagamento(id) {
   document.getElementById('pag-modal-esperado').textContent = 'Valor previsto desta parcela: ' + fR(f.valorNum);
   document.getElementById('pag-modal-data').value = new Date().toISOString().slice(0, 10);
   document.getElementById('pag-modal-valor').value = (f.valorNum || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+  document.getElementById('pag-modal-forma').value = '';
   document.getElementById('pag-modal-comprovante-input').value = '';
   document.getElementById('pag-modal-comprovante-b64').value = '';
   document.getElementById('pag-modal-comprovante-tipo').value = '';
@@ -482,6 +489,7 @@ function confirmarPagamento() {
 
   const dataPagamento     = document.getElementById('pag-modal-data').value;
   const valorStr          = document.getElementById('pag-modal-valor').value.trim();
+  const formaPagamento    = document.getElementById('pag-modal-forma').value;
   const comprovante       = document.getElementById('pag-modal-comprovante-b64').value;
   const comprovanteTipo   = document.getElementById('pag-modal-comprovante-tipo').value;
   const comprovanteNome   = document.getElementById('pag-modal-comprovante-nome').textContent;
@@ -489,7 +497,9 @@ function confirmarPagamento() {
   if (!dataPagamento) { alert2('Informe a data do pagamento.', 'error'); return; }
   const valorPago = parseFloat(valorStr.replace(/\./g, '').replace(',', '.'));
   if (!valorPago || valorPago <= 0) { alert2('Informe um valor pago válido.', 'error'); return; }
-  if (!comprovante) { alert2('Anexe o comprovante de pagamento.', 'error'); return; }
+  if (!formaPagamento) { alert2('Selecione a forma de pagamento.', 'error'); return; }
+  // Pagamento em dinheiro costuma não ter comprovante — só exige anexo para as demais formas
+  if (!comprovante && formaPagamento !== 'dinheiro') { alert2('Anexe o comprovante de pagamento.', 'error'); return; }
 
   if (f.valorOriginal === undefined) f.valorOriginal = f.valorNum;
   const diff = Math.round((valorPago - f.valorOriginal) * 100) / 100;
@@ -499,6 +509,7 @@ function confirmarPagamento() {
   f.valorPago         = valorPago;
   f.valorNum           = valorPago;
   f.valor             = 'R$ ' + valorPago.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+  f.formaPagamento     = formaPagamento;
   f.comprovante        = comprovante;
   f.comprovanteTipo    = comprovanteTipo;
   f.comprovanteNome    = comprovanteNome;
@@ -541,6 +552,7 @@ function marcarPendente(id) {
   f.status = 'pendente';
   f.dataPagamento = '';
   f.valorPago = null;
+  f.formaPagamento = '';
   f.comprovante = '';
   f.comprovanteTipo = '';
   f.comprovanteNome = '';
