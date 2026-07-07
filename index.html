@@ -1790,6 +1790,52 @@
   </div>
 </div>
 
+<!-- ═══ MODAL REGISTRAR PAGAMENTO (CONTAS A RECEBER) ═══ -->
+<div class="modal-overlay" id="mpagamento">
+  <div class="modal" style="max-width:460px;width:95%">
+    <div class="modal-head">
+      <span class="modal-title">💰 Registrar pagamento recebido</span>
+      <button class="modal-close" onclick="closeM('mpagamento')">×</button>
+    </div>
+    <input type="hidden" id="pag-modal-id">
+    <div style="padding:14px 18px;display:flex;flex-direction:column;gap:12px">
+
+      <div>
+        <div id="pag-modal-info" style="font-size:13px;font-weight:600;color:var(--text)"></div>
+        <div id="pag-modal-esperado" style="font-size:11px;color:var(--text3);margin-top:2px"></div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <label class="lbl">Data do pagamento *</label>
+          <input type="date" id="pag-modal-data" class="inp" style="width:100%;box-sizing:border-box">
+        </div>
+        <div>
+          <label class="lbl">Valor pago (R$) *</label>
+          <input type="text" id="pag-modal-valor" class="inp" style="width:100%;box-sizing:border-box" placeholder="0,00">
+        </div>
+      </div>
+
+      <div>
+        <label class="lbl">Comprovante de pagamento *</label>
+        <input type="file" id="pag-modal-comprovante-input" accept="image/*,.pdf" class="inp" style="width:100%;box-sizing:border-box" onchange="pagPreviewComprovante(this)">
+        <div id="pag-modal-comprovante-nome" style="font-size:11px;color:var(--green);margin-top:4px"></div>
+        <input type="hidden" id="pag-modal-comprovante-b64">
+        <input type="hidden" id="pag-modal-comprovante-tipo">
+      </div>
+
+      <div style="font-size:11px;color:var(--text3);background:var(--bg4);border:1px solid var(--border2);border-radius:var(--radius);padding:8px 10px">
+        Se o valor pago for diferente do valor esperado desta parcela, a diferença é aplicada automaticamente à(s) próxima(s) parcela(s) pendente(s) do mesmo contrato — garantindo que o valor total do contrato continue correto.
+      </div>
+
+    </div>
+    <div class="form-actions">
+      <button class="btn" onclick="closeM('mpagamento')">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarPagamento()">💾 Confirmar recebimento</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ MODAL NOVO ORÇAMENTO ═══ -->
 <div id="m-novo-orc" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5000;align-items:center;justify-content:center">
   <div style="background:#161A26;border:1px solid #2A2F42;border-radius:12px;padding:28px 32px;width:100%;max-width:540px;max-height:90vh;overflow-y:auto">
@@ -1924,7 +1970,7 @@
 <script src="js/contratos.js?v=20260610z"></script>
 <script src="js/agenda.js?v=20260610z"></script>
 <script src="js/producao.js?v=20260610z"></script>
-<script src="js/financeiro.js?v=20260610z"></script>
+<script src="js/financeiro.js?v=20260707a"></script>
 <script src="js/fechamento.js?v=20260622a"></script>
 <script src="js/despesas.js?v=20260616c"></script>
 <script src="js/producao2.js?v=20260610z"></script>

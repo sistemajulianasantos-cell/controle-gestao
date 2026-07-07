@@ -165,10 +165,12 @@ function rFinanceiro() {
         <span class="tag ${f.status==='pago'?'tag-green':atrasado?'tag-red':'tag-yellow'}">
           ${f.status==='pago'?'Pago':atrasado?'Atrasado':'Pendente'}
         </span>
+        ${f.status==='pago' && f.dataPagamento ? `<div style="font-size:10px;color:var(--text3);margin-top:3px">${fd(f.dataPagamento)}</div>` : ''}
+        ${f.status==='pago' && f.comprovante ? `<button class="btn-sm" onclick="verComprovante('${f.id}')" style="font-size:9px;padding:1px 6px;margin-top:3px" title="Ver comprovante">📎 Comprovante</button>` : ''}
       </td>
       <td>
         ${f.status==='pendente'
-          ?`<button class="btn-sm btn-green" onclick="marcarPago('${f.id}')">Recebido</button>`
+          ?`<button class="btn-sm btn-green" onclick="abrirModalPagamento('${f.id}')">Recebido</button>`
           :`<button class="btn-sm" onclick="marcarPendente('${f.id}')">Desfazer</button>`
         }
         <button class="btn-sm btn-red" onclick="excluirFinanceiro('${f.id}')">✕</button>
@@ -260,29 +262,239 @@ function _finPilula(parc, hoje) {
   const cor   = pago ? '#4ADE80' : atrasado ? '#F87171' : '#FBBF24';
   const label = pago ? 'Pago'    : atrasado ? '⚠ Atrasado' : 'Pendente';
   const venc  = parc.vencimento ? `<div style="font-size:10px;opacity:0.75;margin-top:2px">venc. ${fd(parc.vencimento)}</div>` : '';
+  const pagoEm = pago && parc.dataPagamento ? `<div style="font-size:10px;opacity:0.75;margin-top:2px">pago em ${fd(parc.dataPagamento)}</div>` : '';
   const botao = pago
-    ? `<div style="margin-top:4px"><button class="btn-sm" onclick="marcarPendente('${parc.id}')" style="font-size:9px;padding:1px 6px">Desfazer</button></div>`
-    : `<div style="margin-top:4px"><button class="btn-sm btn-green" onclick="marcarPagoSint('${parc.id}')" style="font-size:9px;padding:1px 6px">Recebido</button></div>`;
+    ? `<div style="margin-top:4px;display:flex;gap:4px;justify-content:center;flex-wrap:wrap">
+         ${parc.comprovante ? `<button class="btn-sm" onclick="verComprovante('${parc.id}')" style="font-size:9px;padding:1px 6px" title="Ver comprovante">📎</button>` : ''}
+         <button class="btn-sm" onclick="marcarPendente('${parc.id}')" style="font-size:9px;padding:1px 6px">Desfazer</button>
+       </div>`
+    : `<div style="margin-top:4px"><button class="btn-sm btn-green" onclick="abrirModalPagamento('${parc.id}')" style="font-size:9px;padding:1px 6px">Recebido</button></div>`;
   return `<div style="background:${bg};color:${cor};border-radius:8px;padding:7px 10px;display:inline-block;min-width:110px;text-align:center">
     <div style="font-family:var(--mono);font-weight:700;font-size:13px">${fR(parc.valorNum)}</div>
     ${venc}
+    ${pagoEm}
     <div style="font-size:10px;margin-top:1px">${label}</div>
     ${botao}
   </div>`;
 }
 
-function marcarPagoSint(id) {
-  marcarPago(id);
-  rFinanceiroSintetico();
+// ─── REGISTRO DE PAGAMENTO (com comprovante e reconciliação automática) ─────
+
+// Chave que identifica o contrato de uma parcela, para agrupar as parcelas irmãs
+function _finChaveContrato(f) {
+  if (f.contratoId) return 'id|' + f.contratoId;
+  const norm = s => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+  return 'nd|' + norm(f.contrato || f.evento) + '|' + (f.data || '');
 }
 
-function marcarPago(id) {
-  const f = (D.financeiro||[]).find(f => f.id === id);
-  if (f) { f.status = 'pago'; sv('financeiro'); _finRefresh(); }
+function abrirModalPagamento(id) {
+  const f = (D.financeiro || []).find(x => x.id === id);
+  if (!f) return;
+  document.getElementById('pag-modal-id').value = id;
+  document.getElementById('pag-modal-info').textContent = (f.evento || f.contrato || '—') + ' — ' + (f.descricao || '');
+  document.getElementById('pag-modal-esperado').textContent = 'Valor previsto desta parcela: ' + fR(f.valorNum);
+  document.getElementById('pag-modal-data').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('pag-modal-valor').value = (f.valorNum || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+  document.getElementById('pag-modal-comprovante-input').value = '';
+  document.getElementById('pag-modal-comprovante-b64').value = '';
+  document.getElementById('pag-modal-comprovante-tipo').value = '';
+  document.getElementById('pag-modal-comprovante-nome').textContent = '';
+  openM('mpagamento');
 }
+
+// Todos os comprovantes ficam guardados dentro do mesmo documento "financeiro"
+// no Firestore (limite de 1MB por documento), então precisam ser bem pequenos.
+function _comprimirComprovante(file, cb) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      const tentativas = [
+        { maxPx: 1400, q: 0.75 },
+        { maxPx: 1100, q: 0.6  },
+        { maxPx: 900,  q: 0.5  },
+        { maxPx: 700,  q: 0.4  },
+      ];
+      let resultado = '';
+      for (const t of tentativas) {
+        const scale = Math.min(t.maxPx / img.width, t.maxPx / img.height, 1);
+        const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resultado = canvas.toDataURL('image/jpeg', t.q);
+        if (resultado.length <= 200000) break; // ~200KB em base64
+      }
+      cb(resultado);
+    };
+    img.onerror = () => cb('');
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function pagPreviewComprovante(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const nomeEl = document.getElementById('pag-modal-comprovante-nome');
+  if (file.type === 'application/pdf') {
+    if (file.size > 400 * 1024) {
+      alert2('PDF muito grande (máx. 400KB). Prefira uma foto/print do comprovante ou um PDF menor.', 'error');
+      input.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = e => {
+      document.getElementById('pag-modal-comprovante-b64').value = e.target.result;
+      document.getElementById('pag-modal-comprovante-tipo').value = file.type;
+      if (nomeEl) nomeEl.textContent = '📄 ' + file.name;
+    };
+    reader.readAsDataURL(file);
+  } else if (file.type.startsWith('image/')) {
+    if (nomeEl) nomeEl.textContent = 'Comprimindo imagem…';
+    _comprimirComprovante(file, base64 => {
+      if (!base64) { alert2('Não foi possível processar essa imagem.', 'error'); input.value = ''; if (nomeEl) nomeEl.textContent = ''; return; }
+      document.getElementById('pag-modal-comprovante-b64').value = base64;
+      document.getElementById('pag-modal-comprovante-tipo').value = 'image/jpeg';
+      if (nomeEl) nomeEl.textContent = '🖼️ ' + file.name;
+    });
+  } else {
+    alert2('Formato não suportado. Envie uma imagem ou PDF.', 'error');
+    input.value = '';
+  }
+}
+
+function verComprovante(id) {
+  const f = (D.financeiro || []).find(x => x.id === id);
+  if (!f || !f.comprovante) { alert2('Nenhum comprovante anexado.', 'error'); return; }
+  const w = window.open('');
+  if (!w) { alert2('Permita pop-ups para visualizar o comprovante.', 'error'); return; }
+  w.document.title = f.comprovanteNome || 'Comprovante';
+  if ((f.comprovanteTipo || '').includes('pdf')) {
+    w.document.write(`<iframe src="${f.comprovante}" style="width:100%;height:100vh;border:none"></iframe>`);
+  } else {
+    w.document.write(`<body style="margin:0;background:#111"><img src="${f.comprovante}" style="max-width:100%;display:block;margin:0 auto"></body>`);
+  }
+}
+
+// Aplica a diferença entre o valor pago e o valor previsto às próximas parcelas
+// pendentes do mesmo contrato, para que o total do contrato permaneça correto.
+// diff > 0: pagou a mais → abate das próximas parcelas (em cascata, se necessário)
+// diff < 0: pagou a menos → soma o saldo devedor na próxima parcela pendente
+function _aplicarAjusteContrato(f, diff) {
+  const chave = _finChaveContrato(f);
+  const pendentes = (D.financeiro || [])
+    .filter(o => o.id !== f.id && o.status === 'pendente' && _finChaveContrato(o) === chave)
+    .sort((a, b) => (a.vencimento || '').localeCompare(b.vencimento || '') || a.id.localeCompare(b.id));
+
+  const ajustes = [];
+  const fmt = v => 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+  let resto = diff;
+
+  for (const p of pendentes) {
+    if (resto === 0) break;
+    if (resto > 0) {
+      const reduz = Math.min(resto, p.valorNum || 0);
+      if (reduz <= 0) continue;
+      p.valorNum -= reduz; p.valor = fmt(p.valorNum);
+      resto -= reduz;
+      ajustes.push({ id: p.id, delta: -reduz });
+    } else {
+      p.valorNum += -resto; p.valor = fmt(p.valorNum);
+      ajustes.push({ id: p.id, delta: -resto });
+      resto = 0;
+    }
+  }
+
+  if (resto !== 0) {
+    // Não há mais parcelas pendentes para absorver a diferença: cria um lançamento
+    // de ajuste, para não perder o saldo (crédito do cliente ou saldo ainda devido).
+    const novo = {
+      id: _gerarId('FIN'), contrato: f.contrato, data: f.data, evento: f.evento,
+      contratoId: f.contratoId || '', tipo: f.tipo, convidados: f.convidados,
+      descricao: resto > 0 ? 'Crédito do cliente — pagamento acima do valor do contrato' : 'Ajuste — saldo restante do contrato',
+      valorNum: Math.abs(resto), valor: fmt(Math.abs(resto)),
+      vencimento: f.vencimento || new Date().toISOString().slice(0, 10),
+      status: 'pendente',
+    };
+    D.financeiro.push(novo);
+    ajustes.push({ id: novo.id, delta: -resto, criado: true });
+  }
+
+  return ajustes;
+}
+
+function confirmarPagamento() {
+  const id = document.getElementById('pag-modal-id').value;
+  const f = (D.financeiro || []).find(x => x.id === id);
+  if (!f) { closeM('mpagamento'); return; }
+
+  const dataPagamento     = document.getElementById('pag-modal-data').value;
+  const valorStr          = document.getElementById('pag-modal-valor').value.trim();
+  const comprovante       = document.getElementById('pag-modal-comprovante-b64').value;
+  const comprovanteTipo   = document.getElementById('pag-modal-comprovante-tipo').value;
+  const comprovanteNome   = document.getElementById('pag-modal-comprovante-nome').textContent;
+
+  if (!dataPagamento) { alert2('Informe a data do pagamento.', 'error'); return; }
+  const valorPago = parseFloat(valorStr.replace(/\./g, '').replace(',', '.'));
+  if (!valorPago || valorPago <= 0) { alert2('Informe um valor pago válido.', 'error'); return; }
+  if (!comprovante) { alert2('Anexe o comprovante de pagamento.', 'error'); return; }
+
+  if (f.valorOriginal === undefined) f.valorOriginal = f.valorNum;
+  const diff = Math.round((valorPago - f.valorOriginal) * 100) / 100;
+
+  f.status           = 'pago';
+  f.dataPagamento     = dataPagamento;
+  f.valorPago         = valorPago;
+  f.valorNum           = valorPago;
+  f.valor             = 'R$ ' + valorPago.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+  f.comprovante        = comprovante;
+  f.comprovanteTipo    = comprovanteTipo;
+  f.comprovanteNome    = comprovanteNome;
+  f._ajustes           = diff !== 0 ? _aplicarAjusteContrato(f, diff) : [];
+
+  sv('financeiro');
+  closeM('mpagamento');
+  _finRefresh();
+
+  if (diff > 0) alert2(`Pagamento registrado! Excedente de ${fR(diff)} aplicado automaticamente à(s) próxima(s) parcela(s).`, 'success');
+  else if (diff < 0) alert2(`Pagamento registrado! Diferença de ${fR(-diff)} somada à próxima parcela pendente.`, 'success');
+  else alert2('Pagamento registrado com sucesso!', 'success');
+}
+
 function marcarPendente(id) {
-  const f = (D.financeiro||[]).find(f => f.id === id);
-  if (f) { f.status = 'pendente'; sv('financeiro'); _finRefresh(); }
+  const f = (D.financeiro || []).find(x => x.id === id);
+  if (!f) return;
+  if (f.status === 'pago' && !confirm('Desfazer este pagamento? O comprovante e os ajustes automáticos aplicados às parcelas seguintes serão revertidos (quando possível).')) return;
+
+  if (f._ajustes && f._ajustes.length) {
+    f._ajustes.forEach(a => {
+      if (a.criado) {
+        D.financeiro = D.financeiro.filter(o => o.id !== a.id);
+      } else {
+        const alvo = D.financeiro.find(o => o.id === a.id);
+        if (alvo && alvo.status === 'pendente') {
+          alvo.valorNum = Math.max(0, alvo.valorNum - a.delta);
+          alvo.valor = 'R$ ' + alvo.valorNum.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+        }
+      }
+    });
+    f._ajustes = [];
+  }
+
+  if (f.valorOriginal !== undefined) {
+    f.valorNum = f.valorOriginal;
+    f.valor = 'R$ ' + f.valorOriginal.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+  }
+
+  f.status = 'pendente';
+  f.dataPagamento = '';
+  f.valorPago = null;
+  f.comprovante = '';
+  f.comprovanteTipo = '';
+  f.comprovanteNome = '';
+
+  sv('financeiro'); _finRefresh();
 }
 function _finRefresh() {
   _finAtualizarKpis();
