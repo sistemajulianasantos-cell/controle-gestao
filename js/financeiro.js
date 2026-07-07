@@ -110,8 +110,58 @@ function _finAtualizarKpis() {
   set('fin-total-atrasado', fR(totAtras));
 }
 
+// ── Sincronização Fechamentos → Financeiro ────────────────────────────────────
+// Todo fechamento em D.fechamentos precisa de uma parcela espelhada em
+// D.financeiro (isFechamento:true) para aparecer em "Contas a Receber". Se essa
+// parcela se perder (ex: contrato recriado com novo id, limpeza de órfãos etc.),
+// o fechamento continua visível na aba "Fechamentos" mas some do Financeiro.
+// Esta função recria a parcela que estiver faltando, sem duplicar as existentes.
+function _finRepararFechamentosOrfaos() {
+  const fechamentos = D.fechamentos || [];
+  if (!fechamentos.length) return false;
+  if (!D.financeiro) D.financeiro = [];
+
+  const norm = s => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+  let mudou = false;
+
+  fechamentos.forEach(f => {
+    const jaExiste = f.financeiroId && D.financeiro.some(x => x.id === f.financeiroId);
+    if (jaExiste) return;
+
+    // Evita duplicar caso já exista uma parcela isFechamento equivalente sem financeiroId salvo nela
+    let fin = D.financeiro.find(x => x.isFechamento && (
+      (f.contratoId && x.contratoId === f.contratoId) ||
+      (norm(x.evento || x.contrato) === norm(f.eventoNome) && x.data === f.dataEvento)
+    ));
+
+    if (!fin) {
+      fin = {
+        id:           _gerarId('FIN') + 'FCH',
+        contrato:     f.clienteNome || '',
+        contratoId:   f.contratoId || '',
+        data:         f.dataEvento || '',
+        evento:       f.eventoNome || f.clienteNome || '—',
+        descricao:    'Fechamento — acerto pós-evento',
+        valor:        'R$ ' + (f.totalExtras || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
+        valorNum:     f.totalExtras || 0,
+        vencimento:   f.vencimento || '',
+        status:       f.status || 'pendente',
+        isFechamento: true,
+      };
+      D.financeiro.push(fin);
+      mudou = true;
+    }
+
+    if (f.financeiroId !== fin.id) { f.financeiroId = fin.id; mudou = true; }
+  });
+
+  if (mudou) { sv('financeiro'); sv('fechamentos'); }
+  return mudou;
+}
+
 // ── Vista Analítica ───────────────────────────────────────────────────────────
 function rFinanceiro() {
+  if (_finRepararFechamentosOrfaos()) alert2('Alguns fechamentos estavam sem parcela no Financeiro — sincronizados automaticamente.', 'success');
   rKpiFaturamento();
   _finAtualizarKpis();
   const fin = D.financeiro || [];
@@ -182,6 +232,7 @@ function rFinanceiro() {
 
 // ── Vista Sintética ───────────────────────────────────────────────────────────
 function rFinanceiroSintetico() {
+  if (_finRepararFechamentosOrfaos()) alert2('Alguns fechamentos estavam sem parcela no Financeiro — sincronizados automaticamente.', 'success');
   _finAtualizarKpis();
   const fin  = D.financeiro || [];
   const hoje = new Date().toISOString().slice(0, 10);

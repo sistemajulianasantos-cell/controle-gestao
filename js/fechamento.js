@@ -360,15 +360,28 @@ function salvarFechamento() {
       existing.totalExtras = totalExtras;
       existing.observacoes = obs;
       if (semCobranca || totalExtras === 0) existing.status = 'pago';
-      if (existing.financeiroId) {
-        const fin = (D.financeiro || []).find(f => f.id === existing.financeiroId);
-        if (fin) {
-          fin.valorNum   = totalExtras;
-          fin.valor      = 'R$ ' + totalExtras.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-          fin.vencimento = vencimento;
-          sv('financeiro');
-        }
+
+      // Sincroniza a parcela no Financeiro — recria se estiver órfã (perdida),
+      // para o fechamento não sumir de "Contas a Receber".
+      let fin = existing.financeiroId ? (D.financeiro || []).find(f => f.id === existing.financeiroId) : null;
+      if (!fin) {
+        if (!D.financeiro) D.financeiro = [];
+        fin = { id: _gerarId('FIN') + 'FCH', isFechamento: true, status: existing.status };
+        D.financeiro.push(fin);
+        existing.financeiroId = fin.id;
       }
+      fin.contrato   = existing.clienteNome;
+      fin.contratoId = contratoId;
+      fin.evento     = eventoNome;
+      fin.data       = dataEvento;
+      fin.tipo       = c?.tipo || fin.tipo || '—';
+      fin.convidados = c?.convidados || fin.convidados || '—';
+      fin.descricao  = fin.descricao || 'Fechamento — acerto pós-evento';
+      fin.valorNum   = totalExtras;
+      fin.valor      = 'R$ ' + totalExtras.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+      fin.vencimento = vencimento;
+      if (semCobranca || totalExtras === 0) fin.status = 'pago';
+      sv('financeiro');
     }
   } else {
     const newId = 'FCH' + Date.now();
