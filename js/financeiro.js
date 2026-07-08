@@ -204,9 +204,7 @@ function sincronizarFechamentosFinanceiro() {
 }
 
 // ── Diagnóstico: contratos com parcela 20%/80% faltando no Financeiro ───────
-// Só lista — não cria nem corrige nada sozinho, porque não dá pra adivinhar
-// com segurança qual seria o valor certo de uma parcela que sumiu.
-function verificarParcelasContratos() {
+function _finContratosComParcelaFaltando() {
   const grupos = _finAgruparEventos(D.financeiro || []);
   const porContratoId = {};
   Object.values(grupos).forEach(g => { if (g.contratoId) porContratoId[g.contratoId] = g; });
@@ -223,29 +221,74 @@ function verificarParcelasContratos() {
 
     const faltaP20 = !g || !g.p20;
     const faltaP80 = !g || !g.p80;
-    if (faltaP20 || faltaP80) {
-      problemas.push({
-        nome: c.nomeEvento || c.nome, data: c.data, valorContrato,
-        falta: [faltaP20 ? '20%' : null, faltaP80 ? '80%' : null].filter(Boolean).join(' e '),
-      });
-    }
+    if (faltaP20 || faltaP80) problemas.push({ contrato: c, valorContrato, faltaP20, faltaP80 });
   });
+
+  problemas.sort((a, b) => (b.contrato.data || '').localeCompare(a.contrato.data || ''));
+  return problemas;
+}
+
+function verificarParcelasContratos() {
+  const problemas = _finContratosComParcelaFaltando();
 
   if (!problemas.length) {
     alert2('✅ Todos os contratos com valor definido têm as duas parcelas (20%/80%) lançadas no Financeiro.', 'success');
     return;
   }
 
-  problemas.sort((a, b) => (b.data || '').localeCompare(a.data || ''));
+  const desc = p => [p.faltaP20 ? '20%' : null, p.faltaP80 ? '80%' : null].filter(Boolean).join(' e ');
   const preview = problemas.slice(0, 15).map(p =>
-    `• ${p.nome} — ${fd(p.data)} — falta a parcela ${p.falta} (valor do contrato: ${fR(p.valorContrato)})`
+    `• ${p.contrato.nomeEvento || p.contrato.nome} — ${fd(p.contrato.data)} — falta a parcela ${desc(p)} (valor do contrato: ${fR(p.valorContrato)})`
   ).join('\n');
   const mais = problemas.length > 15 ? `\n... e mais ${problemas.length - 15} contrato(s).` : '';
 
-  alert(
+  if (!confirm(
     `⚠️ ${problemas.length} contrato(s) com parcela faltando no Financeiro:\n\n${preview}${mais}\n\n` +
-    `O valor exato dessas parcelas não é recriado automaticamente, para não arriscar lançar um valor errado — confira o contrato original e lance manualmente.`
-  );
+    `Criar agora as parcelas que faltam, usando a divisão padrão do contrato (20% de entrada + 80% do restante)?\n` +
+    `Elas entram como PENDENTES — se algum desses pagamentos já tiver sido recebido, confira e marque como "Recebido" (com comprovante) depois.`
+  )) return;
+
+  criarParcelasFaltando(problemas);
+}
+
+function criarParcelasFaltando(problemas) {
+  if (!D.financeiro) D.financeiro = [];
+  let criadas = 0;
+
+  problemas.forEach(({ contrato: c, valorContrato, faltaP20, faltaP80 }) => {
+    const base = {
+      contratoId: c.id || '', contrato: c.nome || '', evento: c.nomeEvento || c.nome || '—',
+      data: c.data || '', tipo: c.tipo || '—', convidados: c.convidados || '—', status: 'pendente',
+    };
+    if (faltaP20) {
+      const v = Math.round(valorContrato * 0.2 * 100) / 100;
+      D.financeiro.push({
+        ...base, id: _gerarId('FIN'), descricao: '20% — Assinatura do contrato',
+        valorNum: v, valor: 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
+        vencimento: '',
+      });
+      criadas++;
+    }
+    if (faltaP80) {
+      const v = Math.round(valorContrato * 0.8 * 100) / 100;
+      let venc = '';
+      if (c.data) {
+        const d = new Date(c.data + 'T12:00:00');
+        d.setDate(d.getDate() - 7);
+        venc = d.toISOString().slice(0, 10);
+      }
+      D.financeiro.push({
+        ...base, id: _gerarId('FIN'), descricao: '80% — 7 dias antes do evento',
+        valorNum: v, valor: 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
+        vencimento: venc,
+      });
+      criadas++;
+    }
+  });
+
+  sv('financeiro');
+  rFinanceiro();
+  alert2(`✅ ${criadas} parcela(s) criada(s) como pendente. Confira os pagamentos já recebidos e marque "Recebido" onde for o caso.`, 'success');
 }
 
 // ── Vista Analítica ───────────────────────────────────────────────────────────
