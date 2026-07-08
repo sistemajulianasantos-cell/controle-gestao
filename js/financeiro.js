@@ -101,7 +101,11 @@ function _finAtualizarKpis() {
   const pend  = fin.filter(f => f.status === 'pendente');
   const atras = pend.filter(f => f.vencimento && f.vencimento < hoje);
   const totPago  = pagos.reduce((a, f) => a + (f.valorNum || 0), 0);
-  const totPend  = pend.reduce((a, f) => a + (f.valorNum || 0), 0);
+  // Inclui o saldo que falta lançar em relação ao valor do contrato (ver
+  // _finSaldoContratosTotal) — sem isso, uma parcela paga abaixo do previsto
+  // parece "quitada" mesmo sem cobrir o valor total do contrato.
+  const saldoContratos = typeof _finSaldoContratosTotal === 'function' ? _finSaldoContratosTotal() : 0;
+  const totPend  = pend.reduce((a, f) => a + (f.valorNum || 0), 0) + saldoContratos;
   const totAtras = atras.reduce((a, f) => a + (f.valorNum || 0), 0);
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   set('fin-total-geral',    fR(totPago + totPend));
@@ -295,6 +299,58 @@ function rFinanceiro() {
   });
 }
 
+// Acha o contrato de um grupo (evento+data) e devolve seu valor total numérico,
+// para comparar com o que já foi lançado nas parcelas 20%/80% — a fonte da
+// verdade do valor do contrato é a aba Contratos, não a soma das parcelas.
+function _finValorContrato(g) {
+  const norm = s => (s || '').toLowerCase().trim();
+  const c = (g.contratoId && (D.contratos || []).find(x => x.id === g.contratoId))
+    || (D.contratos || []).find(x => norm(x.nome) === norm(g.nome) && x.data === g.data);
+  if (!c) return 0;
+  return parseFloat((c.opcao || '0').toString().replace(/[^\d,]/g, '').replace(',', '.')) || 0;
+}
+
+// Agrupa as parcelas do financeiro por evento+data (usado pela vista sintética
+// e pelos KPIs). Sem contratoId no key para unir entradas antigas com novas.
+function _finAgruparEventos(fin) {
+  const grupos = {};
+  fin.forEach(f => {
+    const chave = (f.evento || f.contrato || '') + '||' + (f.data || '');
+    if (!grupos[chave]) grupos[chave] = {
+      contratoId: f.contratoId || '',
+      nome:       f.evento || f.contrato || '—',
+      data:       f.data   || '',
+      tipo:       f.tipo   || '—',
+      convidados: f.convidados || '—',
+      p20: null, p80: null, pFch: null,
+    };
+    const g = grupos[chave];
+    if (!g.contratoId && f.contratoId) g.contratoId = f.contratoId;
+    const desc = (f.descricao || '').toLowerCase();
+    if (f.isFechamento)                                                          g.pFch = f;
+    else if (desc.includes('20%') || desc.includes('sinal') || desc.includes('assinatura')) g.p20 = g.p20 || f;
+    else if (desc.includes('80%') || desc.includes('restante') || desc.includes('saldo'))   g.p80 = g.p80 || f;
+    else if (!g.p20)                                                             g.p20  = f;
+    else if (!g.p80)                                                             g.p80  = f;
+  });
+  return grupos;
+}
+
+// Soma, entre todos os eventos, quanto falta lançar nas parcelas 20%/80% para
+// bater com o valor do contrato (aba Contratos) — parte do "Em aberto" que
+// não tem nenhuma parcela pendente representando ela.
+function _finSaldoContratosTotal() {
+  const grupos = _finAgruparEventos(D.financeiro || []);
+  let soma = 0;
+  Object.values(grupos).forEach(g => {
+    const valorContrato = _finValorContrato(g);
+    if (!valorContrato) return;
+    const diff = valorContrato - ((g.p20?.valorNum||0) + (g.p80?.valorNum||0));
+    if (diff > 0.01) soma += diff;
+  });
+  return Math.round(soma * 100) / 100;
+}
+
 // ── Vista Sintética ───────────────────────────────────────────────────────────
 function rFinanceiroSintetico() {
   _finAtualizarKpis();
@@ -306,31 +362,9 @@ function rFinanceiroSintetico() {
   const filtroI = document.getElementById('fins-data-ini')?.value || '';
   const filtroF = document.getElementById('fins-data-fim')?.value || '';
 
-  // Agrupa por evento+data (sem contratoId no key para unir entradas antigas com novas)
-  const grupos = {};
-  fin
+  const grupos = _finAgruparEventos(fin
     .filter(f => !filtroI || (f.data && f.data >= filtroI))
-    .filter(f => !filtroF || (f.data && f.data <= filtroF))
-    .forEach(f => {
-      const chave = (f.evento || f.contrato || '') + '||' + (f.data || '');
-      if (!grupos[chave]) grupos[chave] = {
-        contratoId: f.contratoId || '',
-        nome:       f.evento || f.contrato || '—',
-        data:       f.data   || '',
-        tipo:       f.tipo   || '—',
-        convidados: f.convidados || '—',
-        p20: null, p80: null, pFch: null,
-      };
-      const g = grupos[chave];
-      // Preenche contratoId se essa entrada tiver e o grupo ainda não tiver
-      if (!g.contratoId && f.contratoId) g.contratoId = f.contratoId;
-      const desc = (f.descricao || '').toLowerCase();
-      if (f.isFechamento)                                                          g.pFch = f;
-      else if (desc.includes('20%') || desc.includes('sinal') || desc.includes('assinatura')) g.p20 = g.p20 || f;
-      else if (desc.includes('80%') || desc.includes('restante') || desc.includes('saldo'))   g.p80 = g.p80 || f;
-      else if (!g.p20)                                                             g.p20  = f;
-      else if (!g.p80)                                                             g.p80  = f;
-    });
+    .filter(f => !filtroF || (f.data && f.data <= filtroF)));
 
   const tbody = document.getElementById('fins-body');
   if (!tbody) return;
@@ -347,8 +381,17 @@ function rFinanceiroSintetico() {
   linhas.forEach(g => {
     const total = (g.p20?.valorNum||0) + (g.p80?.valorNum||0) + (g.pFch?.valorNum||0);
     const quitado = p => p.status === 'pago' || (!p.valorNum && !p.aprovacaoPendente);
-    const todoPago = [g.p20, g.p80, g.pFch].filter(Boolean).every(quitado);
     const temAtras = [g.p20, g.p80, g.pFch].some(p => p && p.status === 'pendente' && !quitado(p) && p.vencimento && p.vencimento < hoje);
+
+    // Confere o valor lançado nas parcelas 20%/80% contra o valor do contrato
+    // (aba Contratos) — a coluna Fechamento é acerto pós-evento à parte, não
+    // entra nessa conta. Se sobrar diferença, mostra alerta em vez de esconder.
+    const valorContrato  = _finValorContrato(g);
+    const totalParcelas  = (g.p20?.valorNum||0) + (g.p80?.valorNum||0);
+    const saldoContrato  = valorContrato ? Math.round((valorContrato - totalParcelas) * 100) / 100 : 0;
+    const faltaContrato  = saldoContrato > 0.01;
+
+    const todoPago = [g.p20, g.p80, g.pFch].filter(Boolean).every(quitado) && !faltaContrato;
 
     const tr = document.createElement('tr');
     tr.style.borderBottom = '1px solid var(--border)';
@@ -363,8 +406,9 @@ function rFinanceiroSintetico() {
       <td style="padding:10px 14px;text-align:center">${_finPilula(g.p20, hoje)}</td>
       <td style="padding:10px 14px;text-align:center">${_finPilula(g.p80, hoje)}</td>
       <td style="padding:10px 14px;text-align:center">${_finPilula(g.pFch, hoje)}</td>
-      <td style="padding:12px;text-align:right;font-family:var(--mono);font-weight:700;font-size:14px;color:${todoPago?'var(--green)':temAtras?'var(--red)':'var(--text)'}">
+      <td style="padding:12px;text-align:right;font-family:var(--mono);font-weight:700;font-size:14px;color:${todoPago?'var(--green)':temAtras||faltaContrato?'var(--red)':'var(--text)'}">
         ${total ? fR(total) : '—'}
+        ${faltaContrato ? `<div style="font-size:10px;font-weight:600;color:#F87171;margin-top:2px" title="Valor do contrato: ${fR(valorContrato)} · Lançado em 20%/80%: ${fR(totalParcelas)}">⚠ falta ${fR(saldoContrato)} do contrato</div>` : ''}
       </td>`;
     tbody.appendChild(tr);
   });
