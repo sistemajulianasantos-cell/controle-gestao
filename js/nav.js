@@ -91,10 +91,17 @@ function applyTheme(){
     if (btn) btn.textContent = '🌙 Escuro';
   }
 }
+let _alertHideTimer = null;
 function alert2(msg,t='success'){
   const el=document.getElementById('alertbox');
+  if (_alertHideTimer) { clearTimeout(_alertHideTimer); _alertHideTimer = null; }
   el.textContent=msg;el.className='alert alert-'+t;el.style.display='block';
-  setTimeout(()=>el.style.display='none',3000);
+  // Erros ficam na tela até a próxima ação — os demais somem sozinhos.
+  // (Sem isso, um alerta de sucesso agendado antes podia "comer" um erro
+  // que apareceu depois, escondendo-o quase na hora.)
+  if (t !== 'error') {
+    _alertHideTimer = setTimeout(()=>{ el.style.display='none'; _alertHideTimer = null; }, 3000);
+  }
 }
 function openM(id){document.getElementById(id).classList.add('open')}
 function closeM(id){document.getElementById(id).classList.remove('open')}

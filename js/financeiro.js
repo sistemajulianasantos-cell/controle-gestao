@@ -350,7 +350,7 @@ function rFinanceiro() {
           ${f.status==='pago'?'Pago':atrasado?'Atrasado':'Pendente'}
         </span>
         ${f.status==='pago' && f.dataPagamento ? `<div style="font-size:10px;color:var(--text3);margin-top:3px">${fd(f.dataPagamento)}${f.formaPagamento ? ' · ' + (FORMAS_PAGAMENTO[f.formaPagamento]||f.formaPagamento) : ''}</div>` : ''}
-        ${f.status==='pago' && f.comprovante ? `<button class="btn-sm" onclick="verComprovante('${f.id}')" style="font-size:9px;padding:1px 6px;margin-top:3px" title="Ver comprovante">📎 Comprovante</button>` : ''}
+        ${f.status==='pago' && (f.comprovante || f.temComprovante) ? `<button class="btn-sm" onclick="verComprovante('${f.id}')" style="font-size:9px;padding:1px 6px;margin-top:3px" title="Ver comprovante">📎 Comprovante</button>` : ''}
       `;
     }
 
@@ -544,7 +544,7 @@ function _finPilula(parc, hoje) {
   const pagoEm = pago && parc.dataPagamento ? `<div style="font-size:10px;opacity:0.75;margin-top:2px">pago em ${fd(parc.dataPagamento)}${parc.formaPagamento ? ' · ' + (FORMAS_PAGAMENTO[parc.formaPagamento]||parc.formaPagamento) : ''}${parc._quitadoPorAjuste ? ' · quitado automaticamente' : ''}</div>` : '';
   const botao = pago
     ? `<div style="margin-top:4px;display:flex;gap:4px;justify-content:center;flex-wrap:wrap">
-         ${parc.comprovante ? `<button class="btn-sm" onclick="verComprovante('${parc.id}')" style="font-size:9px;padding:1px 6px" title="Ver comprovante">📎</button>` : ''}
+         ${(parc.comprovante || parc.temComprovante) ? `<button class="btn-sm" onclick="verComprovante('${parc.id}')" style="font-size:9px;padding:1px 6px" title="Ver comprovante">📎</button>` : ''}
          <button class="btn-sm" onclick="marcarPendente('${parc.id}')" style="font-size:9px;padding:1px 6px">Desfazer</button>
        </div>`
     : `<div style="margin-top:4px"><button class="btn-sm btn-green" onclick="abrirModalPagamento('${parc.id}')" style="font-size:9px;padding:1px 6px">Recebido</button></div>`;
@@ -650,17 +650,45 @@ function pagPreviewComprovante(input) {
   }
 }
 
-function verComprovante(id) {
+function _abrirComprovanteJanela(base64, tipo, nome) {
+  const w = window.open('');
+  if (!w) { alert2('Permita pop-ups para visualizar o comprovante.', 'error'); return null; }
+  w.document.title = nome || 'Comprovante';
+  if ((tipo || '').includes('pdf')) {
+    w.document.write(`<iframe src="${base64}" style="width:100%;height:100vh;border:none"></iframe>`);
+  } else {
+    w.document.write(`<body style="margin:0;background:#111"><img src="${base64}" style="max-width:100%;display:block;margin:0 auto"></body>`);
+  }
+  return w;
+}
+
+// Comprovantes recentes ficam num documento próprio no Firestore (não embutidos
+// no financeiro — ver salvarComprovante em index.html). Entradas antigas ainda
+// podem ter o comprovante embutido direto em f.comprovante (compatibilidade).
+async function verComprovante(id) {
   const f = (D.financeiro || []).find(x => x.id === id);
-  if (!f || !f.comprovante) { alert2('Nenhum comprovante anexado.', 'error'); return; }
+  if (!f) { alert2('Lançamento não encontrado.', 'error'); return; }
+  if (!f.comprovante && !f.temComprovante) { alert2('Nenhum comprovante anexado.', 'error'); return; }
+
+  if (f.comprovante) {
+    _abrirComprovanteJanela(f.comprovante, f.comprovanteTipo, f.comprovanteNome);
+    return;
+  }
+
+  // Abre a janela já (dentro do clique do usuário, senão o navegador bloqueia
+  // o pop-up) e preenche assim que o comprovante chegar do Firestore.
   const w = window.open('');
   if (!w) { alert2('Permita pop-ups para visualizar o comprovante.', 'error'); return; }
-  w.document.title = f.comprovanteNome || 'Comprovante';
-  if ((f.comprovanteTipo || '').includes('pdf')) {
-    w.document.write(`<iframe src="${f.comprovante}" style="width:100%;height:100vh;border:none"></iframe>`);
-  } else {
-    w.document.write(`<body style="margin:0;background:#111"><img src="${f.comprovante}" style="max-width:100%;display:block;margin:0 auto"></body>`);
-  }
+  w.document.write('<body style="margin:0;background:#111;color:#ccc;font-family:sans-serif;padding:20px">Carregando comprovante…</body>');
+
+  if (!window.buscarComprovante) { w.document.body.textContent = 'Não foi possível carregar o comprovante.'; return; }
+  const dados = await window.buscarComprovante(id);
+  if (!dados) { w.document.body.textContent = 'Comprovante não encontrado.'; return; }
+
+  w.document.title = dados.nome || 'Comprovante';
+  w.document.body.innerHTML = (dados.tipo || '').includes('pdf')
+    ? `<iframe src="${dados.base64}" style="width:100%;height:100vh;border:none"></iframe>`
+    : `<img src="${dados.base64}" style="max-width:100%;display:block;margin:0 auto">`;
 }
 
 // Aplica um EXCEDENTE (pagou a mais) às próximas parcelas pendentes do mesmo
@@ -705,7 +733,7 @@ function _aplicarAjusteContrato(f, diff) {
   return ajustes;
 }
 
-function confirmarPagamento() {
+async function confirmarPagamento() {
   const id = document.getElementById('pag-modal-id').value;
   const f = (D.financeiro || []).find(x => x.id === id);
   if (!f) { closeM('mpagamento'); return; }
@@ -724,6 +752,15 @@ function confirmarPagamento() {
   // Pagamento em dinheiro costuma não ter comprovante — só exige anexo para as demais formas
   if (!comprovante && formaPagamento !== 'dinheiro') { alert2('Anexe o comprovante de pagamento.', 'error'); return; }
 
+  // Comprovante fica num documento próprio no Firestore (nunca embutido no
+  // array "financeiro" — ver salvarComprovante em index.html), pra esse
+  // documento único nunca chegar perto do limite de 1MB por documento.
+  if (comprovante) {
+    if (!window.salvarComprovante) { alert2('Não foi possível salvar o comprovante. Recarregue a página e tente de novo.', 'error'); return; }
+    const ok = await window.salvarComprovante(id, comprovante, comprovanteTipo, comprovanteNome);
+    if (!ok) return; // erro já mostrado por salvarComprovante
+  }
+
   if (f.valorOriginal === undefined) f.valorOriginal = f.valorNum;
   const diff = Math.round((valorPago - f.valorOriginal) * 100) / 100;
   const souAdmin = typeof perfilAtual !== 'undefined' && perfilAtual === 'admin';
@@ -733,7 +770,7 @@ function confirmarPagamento() {
   // que um admin confirmar — o financeiro não pode liberar isso sozinho.
   if (diff < 0 && !souAdmin) {
     f.aprovacaoPendente = {
-      valorPago, dataPagamento, formaPagamento, comprovante, comprovanteTipo, comprovanteNome,
+      valorPago, dataPagamento, formaPagamento, temComprovante: !!comprovante, comprovanteTipo, comprovanteNome,
       registradoPor: (typeof perfilAtual !== 'undefined' && perfilAtual) || '',
       registradoEm: new Date().toISOString(),
     };
@@ -750,7 +787,7 @@ function confirmarPagamento() {
   f.valorNum           = valorPago;
   f.valor             = 'R$ ' + valorPago.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
   f.formaPagamento     = formaPagamento;
-  f.comprovante        = comprovante;
+  f.temComprovante     = !!comprovante;
   f.comprovanteTipo    = comprovanteTipo;
   f.comprovanteNome    = comprovanteNome;
   f.aprovacaoPendente  = null;
@@ -786,7 +823,7 @@ function aprovarPagamentoMenor(id) {
   f.valorNum           = p.valorPago;
   f.valor             = 'R$ ' + p.valorPago.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
   f.formaPagamento     = p.formaPagamento;
-  f.comprovante        = p.comprovante;
+  f.temComprovante     = p.temComprovante; // já salvo no Firestore em confirmarPagamento
   f.comprovanteTipo    = p.comprovanteTipo;
   f.comprovanteNome    = p.comprovanteNome;
   f.aprovadoPor        = (typeof perfilAtual !== 'undefined' && perfilAtual) || '';
@@ -800,6 +837,7 @@ function rejeitarPagamentoMenor(id) {
   const f = (D.financeiro || []).find(x => x.id === id);
   if (!f || !f.aprovacaoPendente) return;
   if (!confirm('Rejeitar este pagamento? O comprovante enviado será descartado e a parcela volta a ficar pendente para lançar novamente.')) return;
+  if (f.aprovacaoPendente.temComprovante && window.excluirComprovante) window.excluirComprovante(id);
   f.aprovacaoPendente = null;
   sv('financeiro'); _finRefresh();
   alert2('Pagamento rejeitado. A parcela voltou a ficar pendente.', 'success');
@@ -837,11 +875,14 @@ function marcarPendente(id) {
     f.valor = 'R$ ' + f.valorOriginal.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
   }
 
+  if ((f.comprovante || f.temComprovante) && window.excluirComprovante) window.excluirComprovante(id);
+
   f.status = 'pendente';
   f.dataPagamento = '';
   f.valorPago = null;
   f.formaPagamento = '';
   f.comprovante = '';
+  f.temComprovante = false;
   f.comprovanteTipo = '';
   f.comprovanteNome = '';
   f.aprovacaoPendente = null;
