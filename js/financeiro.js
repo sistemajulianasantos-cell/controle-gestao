@@ -1,6 +1,42 @@
 ﻿// ─── FINANCEIRO ────────────────────────────────────────
 // ═══════════════════════════════════════════════════════
 
+// ── Migração de comprovantes antigos embutidos no documento "financeiro" ────
+// Antes da correção de 2026-07-08, comprovantes ficavam embutidos (base64)
+// direto no array financeiro — como esse documento junta as parcelas de TODOS
+// os contratos, isso pode estourar o limite de 1MB por documento do Firestore
+// e travar QUALQUER salvamento no Financeiro (mesmo sem anexar nada novo).
+// Esta função move os comprovantes que ainda estiverem embutidos para
+// documentos próprios (coleção "comprovantes"), encolhendo o documento.
+async function migrarComprovantesEmbutidos() {
+  const alvos = (D.financeiro || []).filter(f => f.comprovante);
+  if (!alvos.length) {
+    alert2('Nenhum comprovante embutido encontrado no Financeiro — nada para migrar.', 'success');
+    return;
+  }
+  if (!confirm(
+    `Encontrado(s) ${alvos.length} comprovante(s) ainda embutido(s) dentro do documento "financeiro" — isso pode estar estourando o limite de 1MB do Firestore e travando os salvamentos.\n\n` +
+    `Mover agora para documentos separados (não afeta os comprovantes, só onde eles ficam guardados)?`
+  )) return;
+
+  if (!window.salvarComprovante) { alert2('Não foi possível migrar — recarregue a página e tente de novo.', 'error'); return; }
+
+  let migrados = 0, falhas = 0;
+  for (const f of alvos) {
+    const ok = await window.salvarComprovante(f.id, f.comprovante, f.comprovanteTipo, f.comprovanteNome);
+    if (ok) { delete f.comprovante; f.temComprovante = true; migrados++; }
+    else falhas++;
+  }
+
+  sv('financeiro');
+  _finRefresh();
+  alert2(
+    `✅ ${migrados} comprovante(s) migrado(s) para documentos separados.` +
+    (falhas ? ` ⚠️ ${falhas} falharam ao migrar (tente de novo).` : ' O Financeiro deve voltar a salvar normalmente agora.'),
+    falhas ? 'error' : 'success'
+  );
+}
+
 function registrarParcelasFinanceiro(info) {
   if (!D.financeiro) D.financeiro = [];
   const id = 'FIN' + Date.now();
