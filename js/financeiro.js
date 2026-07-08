@@ -110,31 +110,51 @@ function _finAtualizarKpis() {
   set('fin-total-atrasado', fR(totAtras));
 }
 
-// ── Sincronização Fechamentos → Financeiro ────────────────────────────────────
+// ── Sincronização Fechamentos → Financeiro (ação manual, com confirmação) ────
 // Todo fechamento em D.fechamentos precisa de uma parcela espelhada em
 // D.financeiro (isFechamento:true) para aparecer em "Contas a Receber". Se essa
 // parcela se perder (ex: contrato recriado com novo id, limpeza de órfãos etc.),
 // o fechamento continua visível na aba "Fechamentos" mas some do Financeiro.
-// Esta função recria a parcela que estiver faltando, sem duplicar as existentes.
-function _finRepararFechamentosOrfaos() {
+// Não roda sozinha: só grava no banco quando o usuário confirma, como as demais
+// rotinas de reparo do sistema (ex: "Limpar órfãos").
+function _finFechamentosSemParcela() {
   const fechamentos = D.fechamentos || [];
-  if (!fechamentos.length) return false;
-  if (!D.financeiro) D.financeiro = [];
+  const finIds = new Set((D.financeiro || []).map(x => x.id));
+  return fechamentos.filter(f => !(f.financeiroId && finIds.has(f.financeiroId)));
+}
+
+function sincronizarFechamentosFinanceiro() {
+  const orfaos = _finFechamentosSemParcela();
+  if (!orfaos.length) {
+    alert2('✅ Nenhum fechamento pendente de sincronização. Tudo certo!', 'success');
+    return;
+  }
+
+  const preview = orfaos.slice(0, 8).map(f =>
+    `• ${f.eventoNome || f.clienteNome || '(sem nome)'} — ${fd(f.dataEvento) || 'sem data'} — ${fR(f.totalExtras || 0)}`
+  ).join('\n');
+  const mais = orfaos.length > 8 ? `\n... e mais ${orfaos.length - 8} fechamento(s).` : '';
+
+  if (!confirm(
+    `${orfaos.length} fechamento(s) sem parcela correspondente em Contas a Receber:\n\n${preview}${mais}\n\nCriar/recuperar as parcelas agora?`
+  )) return;
 
   const norm = s => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
-  let mudou = false;
+  if (!D.financeiro) D.financeiro = [];
+  // Marca como "já usados" os financeiroId que outros fechamentos já apontam,
+  // para nunca ligar duas parcelas diferentes ao mesmo fechamento por engano.
+  const idsUsados = new Set((D.fechamentos || []).map(f => f.financeiroId).filter(Boolean));
+  let criados = 0, recuperados = 0;
 
-  fechamentos.forEach(f => {
-    const jaExiste = f.financeiroId && D.financeiro.some(x => x.id === f.financeiroId);
-    if (jaExiste) return;
-
-    // Evita duplicar caso já exista uma parcela isFechamento equivalente sem financeiroId salvo nela
-    let fin = D.financeiro.find(x => x.isFechamento && (
+  orfaos.forEach(f => {
+    let fin = D.financeiro.find(x => x.isFechamento && !idsUsados.has(x.id) && (
       (f.contratoId && x.contratoId === f.contratoId) ||
       (norm(x.evento || x.contrato) === norm(f.eventoNome) && x.data === f.dataEvento)
     ));
 
-    if (!fin) {
+    if (fin) {
+      recuperados++;
+    } else {
       fin = {
         id:           _gerarId('FIN') + 'FCH',
         contrato:     f.clienteNome || '',
@@ -149,19 +169,20 @@ function _finRepararFechamentosOrfaos() {
         isFechamento: true,
       };
       D.financeiro.push(fin);
-      mudou = true;
+      criados++;
     }
 
-    if (f.financeiroId !== fin.id) { f.financeiroId = fin.id; mudou = true; }
+    idsUsados.add(fin.id);
+    f.financeiroId = fin.id;
   });
 
-  if (mudou) { sv('financeiro'); sv('fechamentos'); }
-  return mudou;
+  sv('financeiro'); sv('fechamentos');
+  rFinanceiro(); rFechamentos(); rFestaFechamentos();
+  alert2(`✅ Sincronização concluída! ${criados} parcela(s) criada(s), ${recuperados} recuperada(s).`, 'success');
 }
 
 // ── Vista Analítica ───────────────────────────────────────────────────────────
 function rFinanceiro() {
-  if (_finRepararFechamentosOrfaos()) alert2('Alguns fechamentos estavam sem parcela no Financeiro — sincronizados automaticamente.', 'success');
   rKpiFaturamento();
   _finAtualizarKpis();
   const fin = D.financeiro || [];
@@ -232,7 +253,6 @@ function rFinanceiro() {
 
 // ── Vista Sintética ───────────────────────────────────────────────────────────
 function rFinanceiroSintetico() {
-  if (_finRepararFechamentosOrfaos()) alert2('Alguns fechamentos estavam sem parcela no Financeiro — sincronizados automaticamente.', 'success');
   _finAtualizarKpis();
   const fin  = D.financeiro || [];
   const hoje = new Date().toISOString().slice(0, 10);
