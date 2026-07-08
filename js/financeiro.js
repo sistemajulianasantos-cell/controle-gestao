@@ -110,11 +110,15 @@ function _finAtualizarKpis() {
   set('fin-total-atrasado', fR(totAtras));
 }
 
-// ── Sincronização Fechamentos → Financeiro (ação manual, com confirmação) ────
+// ── Sincronização Fechamentos ↔ Financeiro (ação manual, com confirmação) ───
 // Todo fechamento em D.fechamentos precisa de uma parcela espelhada em
-// D.financeiro (isFechamento:true) para aparecer em "Contas a Receber". Se essa
-// parcela se perder (ex: contrato recriado com novo id, limpeza de órfãos etc.),
-// o fechamento continua visível na aba "Fechamentos" mas some do Financeiro.
+// D.financeiro (isFechamento:true) para aparecer em "Contas a Receber", e
+// vice-versa. Duas coisas podem quebrar esse vínculo:
+//  a) fechamento sem parcela no Financeiro (ex: contrato recriado com novo id)
+//     → continua visível em "Fechamentos" mas some do Financeiro.
+//  b) parcela isFechamento no Financeiro sem nenhum fechamento correspondente
+//     (ex: fechamento excluído sem remover a parcela junto) → aparece na
+//     coluna "Fechamento" de Contas a Receber sem existir na aba Fechamentos.
 // Não roda sozinha: só grava no banco quando o usuário confirma, como as demais
 // rotinas de reparo do sistema (ex: "Limpar órfãos").
 function _finFechamentosSemParcela() {
@@ -124,61 +128,75 @@ function _finFechamentosSemParcela() {
 }
 
 function sincronizarFechamentosFinanceiro() {
-  const orfaos = _finFechamentosSemParcela();
-  if (!orfaos.length) {
-    alert2('✅ Nenhum fechamento pendente de sincronização. Tudo certo!', 'success');
-    return;
-  }
-
-  const preview = orfaos.slice(0, 8).map(f =>
-    `• ${f.eventoNome || f.clienteNome || '(sem nome)'} — ${fd(f.dataEvento) || 'sem data'} — ${fR(f.totalExtras || 0)}`
-  ).join('\n');
-  const mais = orfaos.length > 8 ? `\n... e mais ${orfaos.length - 8} fechamento(s).` : '';
-
-  if (!confirm(
-    `${orfaos.length} fechamento(s) sem parcela correspondente em Contas a Receber:\n\n${preview}${mais}\n\nCriar/recuperar as parcelas agora?`
-  )) return;
-
+  const faltando = _finFechamentosSemParcela();
   const norm = s => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
   if (!D.financeiro) D.financeiro = [];
+
   // Marca como "já usados" os financeiroId que outros fechamentos já apontam,
   // para nunca ligar duas parcelas diferentes ao mesmo fechamento por engano.
   const idsUsados = new Set((D.fechamentos || []).map(f => f.financeiroId).filter(Boolean));
-  let criados = 0, recuperados = 0;
+  const relinks = [];
+  const aCriar = [];
 
-  orfaos.forEach(f => {
-    let fin = D.financeiro.find(x => x.isFechamento && !idsUsados.has(x.id) && (
+  faltando.forEach(f => {
+    const fin = D.financeiro.find(x => x.isFechamento && !idsUsados.has(x.id) && (
       (f.contratoId && x.contratoId === f.contratoId) ||
       (norm(x.evento || x.contrato) === norm(f.eventoNome) && x.data === f.dataEvento)
     ));
+    if (fin) { idsUsados.add(fin.id); relinks.push({ fechamento: f, fin }); }
+    else aCriar.push(f);
+  });
 
-    if (fin) {
-      recuperados++;
-    } else {
-      fin = {
-        id:           _gerarId('FIN') + 'FCH',
-        contrato:     f.clienteNome || '',
-        contratoId:   f.contratoId || '',
-        data:         f.dataEvento || '',
-        evento:       f.eventoNome || f.clienteNome || '—',
-        descricao:    'Fechamento — acerto pós-evento',
-        valor:        'R$ ' + (f.totalExtras || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
-        valorNum:     f.totalExtras || 0,
-        vencimento:   f.vencimento || '',
-        status:       f.status || 'pendente',
-        isFechamento: true,
-      };
-      D.financeiro.push(fin);
-      criados++;
-    }
+  // Sobrou como parcela isFechamento sem NENHUM fechamento que a reivindique
+  // (nem existente, nem prestes a ser religado acima) → é órfã de verdade.
+  const orfaosFinanceiro = D.financeiro.filter(x => x.isFechamento && !idsUsados.has(x.id));
 
-    idsUsados.add(fin.id);
+  if (!relinks.length && !aCriar.length && !orfaosFinanceiro.length) {
+    alert2('✅ Nenhuma pendência de sincronização de fechamentos. Tudo certo!', 'success');
+    return;
+  }
+
+  const partes = [];
+  const faltandoTodos = [...relinks.map(r => r.fechamento), ...aCriar];
+  if (faltandoTodos.length) {
+    partes.push(`${faltandoTodos.length} fechamento(s) sem parcela no Financeiro (serão criadas/recuperadas):\n` +
+      faltandoTodos.slice(0, 8).map(f => `• ${f.eventoNome || f.clienteNome || '(sem nome)'} — ${fd(f.dataEvento) || 'sem data'} — ${fR(f.totalExtras || 0)}`).join('\n'));
+  }
+  if (orfaosFinanceiro.length) {
+    partes.push(`${orfaosFinanceiro.length} lançamento(s) de Fechamento no Financeiro sem nenhum fechamento correspondente (serão excluídos):\n` +
+      orfaosFinanceiro.slice(0, 8).map(f => `• ${f.evento || f.contrato || '(sem nome)'} — ${fd(f.data) || 'sem data'} — ${f.valor || '—'}`).join('\n'));
+  }
+
+  if (!confirm(`${partes.join('\n\n')}\n\nAplicar essas correções agora?`)) return;
+
+  relinks.forEach(({ fechamento, fin }) => { fechamento.financeiroId = fin.id; });
+
+  aCriar.forEach(f => {
+    const fin = {
+      id:           _gerarId('FIN') + 'FCH',
+      contrato:     f.clienteNome || '',
+      contratoId:   f.contratoId || '',
+      data:         f.dataEvento || '',
+      evento:       f.eventoNome || f.clienteNome || '—',
+      descricao:    'Fechamento — acerto pós-evento',
+      valor:        'R$ ' + (f.totalExtras || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
+      valorNum:     f.totalExtras || 0,
+      vencimento:   f.vencimento || '',
+      status:       f.status || 'pendente',
+      isFechamento: true,
+    };
+    D.financeiro.push(fin);
     f.financeiroId = fin.id;
   });
 
+  if (orfaosFinanceiro.length) {
+    const idsRemover = new Set(orfaosFinanceiro.map(x => x.id));
+    D.financeiro = D.financeiro.filter(x => !idsRemover.has(x.id));
+  }
+
   sv('financeiro'); sv('fechamentos');
   rFinanceiro(); rFechamentos(); rFestaFechamentos();
-  alert2(`✅ Sincronização concluída! ${criados} parcela(s) criada(s), ${recuperados} recuperada(s).`, 'success');
+  alert2(`✅ Sincronização concluída! ${aCriar.length} parcela(s) criada(s), ${relinks.length} recuperada(s), ${orfaosFinanceiro.length} órfã(s) removida(s).`, 'success');
 }
 
 // ── Vista Analítica ───────────────────────────────────────────────────────────
