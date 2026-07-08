@@ -484,7 +484,10 @@ async function _lerPDFFechamento(file) {
 }
 
 function _parsearPDFFechamento(txt) {
-  const SKIP = /^(ITEM|UNIDADES|VALOR|VALOR UNIT|UNIT[ÁA]RIO|TOTAL|PIX|Dados Banc|Banco|Ag[eê]ncia|Conta|CNPJ|Gentileza|Proposta|Cliente|E-mail|Telefone|Evento|Convidados|Data:|Local|FECHAMENTO|QUEBRAS|DADOS DO)/i;
+  // "Convidados:" (com dois-pontos) é o cabeçalho "Convidados: 220" do
+  // orçamento — não pode casar sem o dois-pontos, senão descarta também a
+  // linha do item "Convidados Extras" (acontecia sempre, por isso sumia).
+  const SKIP = /^(ITEM|UNIDADES|VALOR|VALOR UNIT|UNIT[ÁA]RIO|TOTAL|PIX|Dados Banc|Banco|Ag[eê]ncia|Conta|CNPJ|Gentileza|Proposta|Cliente|E-mail|Telefone|Evento:|Convidados:|Data:|Local:|FECHAMENTO|QUEBRAS|DADOS DO)/i;
   const itens = [];
 
   txt.split('\n').map(l => l.trim()).filter(Boolean).forEach(linha => {
