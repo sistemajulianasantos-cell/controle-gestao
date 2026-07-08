@@ -107,7 +107,12 @@ select option{background:var(--bg3)}
 .period-bar .form-group{flex:1;min-width:130px;padding:0}
 
 /* ALERT */
-.alert{padding:10px 14px;border-radius:var(--radius);font-size:12px;margin-bottom:12px;display:none;border:1px solid}
+/* position:fixed + z-index alto: sem isso, o alerta fica escondido atrás de
+   qualquer modal aberto (modais chegam a z-index:5000) e o usuário não vê
+   nem sucesso nem erro enquanto um modal estiver na tela. */
+.alert{padding:10px 14px;border-radius:var(--radius);font-size:12px;display:none;border:1px solid;
+  position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:9999;max-width:90vw;
+  box-shadow:0 4px 16px rgba(0,0,0,.4)}
 .alert-success{background:var(--green-bg);color:var(--green);border-color:var(--green-dim)}
 .alert-error{background:var(--red-bg);color:var(--red);border-color:var(--red-dim)}
 

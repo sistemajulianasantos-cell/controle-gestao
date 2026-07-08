@@ -755,10 +755,13 @@ async function confirmarPagamento() {
   // Comprovante fica num documento próprio no Firestore (nunca embutido no
   // array "financeiro" — ver salvarComprovante em index.html), pra esse
   // documento único nunca chegar perto do limite de 1MB por documento.
+  // Falha ao salvar o comprovante NÃO bloqueia o pagamento — só avisa depois,
+  // pra um problema de permissão/rede no upload não travar o financeiro inteiro.
+  let comprovanteSalvo = false;
+  let avisoComprovante = '';
   if (comprovante) {
-    if (!window.salvarComprovante) { alert2('Não foi possível salvar o comprovante. Recarregue a página e tente de novo.', 'error'); return; }
-    const ok = await window.salvarComprovante(id, comprovante, comprovanteTipo, comprovanteNome);
-    if (!ok) return; // erro já mostrado por salvarComprovante
+    comprovanteSalvo = window.salvarComprovante ? await window.salvarComprovante(id, comprovante, comprovanteTipo, comprovanteNome) : false;
+    if (!comprovanteSalvo) avisoComprovante = ' ⚠️ O comprovante NÃO pôde ser salvo (erro acima) — anexe de novo quando o problema for resolvido.';
   }
 
   if (f.valorOriginal === undefined) f.valorOriginal = f.valorNum;
@@ -770,14 +773,14 @@ async function confirmarPagamento() {
   // que um admin confirmar — o financeiro não pode liberar isso sozinho.
   if (diff < 0 && !souAdmin) {
     f.aprovacaoPendente = {
-      valorPago, dataPagamento, formaPagamento, temComprovante: !!comprovante, comprovanteTipo, comprovanteNome,
+      valorPago, dataPagamento, formaPagamento, temComprovante: comprovanteSalvo, comprovanteTipo, comprovanteNome,
       registradoPor: (typeof perfilAtual !== 'undefined' && perfilAtual) || '',
       registradoEm: new Date().toISOString(),
     };
     sv('financeiro');
     closeM('mpagamento');
     _finRefresh();
-    alert2(`Valor pago (${fR(valorPago)}) é menor que o previsto (${fR(f.valorOriginal)}). Enviado para aprovação do administrador — só fica quitado depois da liberação.`, 'error');
+    alert2(`Valor pago (${fR(valorPago)}) é menor que o previsto (${fR(f.valorOriginal)}). Enviado para aprovação do administrador — só fica quitado depois da liberação.${avisoComprovante}`, 'error');
     return;
   }
 
@@ -787,7 +790,7 @@ async function confirmarPagamento() {
   f.valorNum           = valorPago;
   f.valor             = 'R$ ' + valorPago.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
   f.formaPagamento     = formaPagamento;
-  f.temComprovante     = !!comprovante;
+  f.temComprovante     = comprovanteSalvo;
   f.comprovanteTipo    = comprovanteTipo;
   f.comprovanteNome    = comprovanteNome;
   f.aprovacaoPendente  = null;
@@ -797,9 +800,10 @@ async function confirmarPagamento() {
   closeM('mpagamento');
   _finRefresh();
 
-  if (diff > 0) alert2(`Pagamento registrado! Excedente de ${fR(diff)} aplicado automaticamente à(s) próxima(s) parcela(s).`, 'success');
-  else if (diff < 0) alert2(`Pagamento registrado com valor abaixo do previsto (faltam ${fR(-diff)}), autorizado como administrador.`, 'success');
-  else alert2('Pagamento registrado com sucesso!', 'success');
+  let msg = 'Pagamento registrado com sucesso!';
+  if (diff > 0) msg = `Pagamento registrado! Excedente de ${fR(diff)} aplicado automaticamente à(s) próxima(s) parcela(s).`;
+  else if (diff < 0) msg = `Pagamento registrado com valor abaixo do previsto (faltam ${fR(-diff)}), autorizado como administrador.`;
+  alert2(msg + avisoComprovante, avisoComprovante ? 'error' : 'success');
 }
 
 // ── Aprovação de pagamento abaixo do valor previsto (somente admin) ─────────
