@@ -221,9 +221,47 @@ function rFinanceiro() {
 
   const hoje = new Date().toISOString().slice(0, 10);
   lista.forEach(f => {
-    const atrasado = f.status === 'pendente' && f.vencimento && f.vencimento < hoje;
+    const semCobranca = f.status !== 'pago' && !f.valorNum && !f.aprovacaoPendente;
+    const atrasado = !semCobranca && f.status === 'pendente' && f.vencimento && f.vencimento < hoje;
     const tr = document.createElement('tr');
     tr.style.background = atrasado ? 'rgba(248,113,113,0.05)' : '';
+
+    let statusCell;
+    if (f.aprovacaoPendente) {
+      statusCell = `
+        <span class="tag" style="background:#3D2E0F;color:#FBBF24">⚠ Aguardando aprovação</span>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px">pago ${fR(f.aprovacaoPendente.valorPago)} · previsto ${fR(f.valorOriginal)}</div>
+      `;
+    } else if (semCobranca) {
+      statusCell = `<span class="tag tag-green">Sem cobrança</span>`;
+    } else {
+      statusCell = `
+        <span class="tag ${f.status==='pago'?'tag-green':atrasado?'tag-red':'tag-yellow'}">
+          ${f.status==='pago'?'Pago':atrasado?'Atrasado':'Pendente'}
+        </span>
+        ${f.status==='pago' && f.dataPagamento ? `<div style="font-size:10px;color:var(--text3);margin-top:3px">${fd(f.dataPagamento)}${f.formaPagamento ? ' · ' + (FORMAS_PAGAMENTO[f.formaPagamento]||f.formaPagamento) : ''}</div>` : ''}
+        ${f.status==='pago' && f.comprovante ? `<button class="btn-sm" onclick="verComprovante('${f.id}')" style="font-size:9px;padding:1px 6px;margin-top:3px" title="Ver comprovante">📎 Comprovante</button>` : ''}
+      `;
+    }
+
+    let acoesCell;
+    if (f.aprovacaoPendente) {
+      acoesCell = (typeof perfilAtual !== 'undefined' && perfilAtual === 'admin')
+        ? `<button class="btn-sm btn-green" onclick="aprovarPagamentoMenor('${f.id}')">✓ Aprovar</button>
+           <button class="btn-sm btn-red" onclick="rejeitarPagamentoMenor('${f.id}')">✕ Rejeitar</button>`
+        : `<span style="font-size:10px;color:var(--text3)">Aguardando admin</span>`;
+    } else if (semCobranca) {
+      acoesCell = `<button class="btn-sm btn-red" onclick="excluirFinanceiro('${f.id}')">✕</button>`;
+    } else {
+      acoesCell = `
+        ${f.status==='pendente'
+          ?`<button class="btn-sm btn-green" onclick="abrirModalPagamento('${f.id}')">Recebido</button>`
+          :`<button class="btn-sm" onclick="marcarPendente('${f.id}')">Desfazer</button>`
+        }
+        <button class="btn-sm btn-red" onclick="excluirFinanceiro('${f.id}')">✕</button>
+      `;
+    }
+
     tr.innerHTML = `
       <td style="${atrasado?'color:#F87171;font-weight:600':''}">${fd(f.vencimento)||'—'}</td>
       <td><strong>${f.evento||f.contrato||'—'}</strong>${f.isFechamento?'<span class="tag tag-blue" style="margin-left:6px;font-size:10px">Fechamento</span>':''}</td>
@@ -232,20 +270,8 @@ function rFinanceiro() {
       <td style="text-align:center">${f.convidados||'—'}</td>
       <td style="font-size:11px;color:var(--text3)">${f.descricao||'—'}</td>
       <td><strong style="font-family:var(--mono)">${f.valor||'—'}</strong></td>
-      <td>
-        <span class="tag ${f.status==='pago'?'tag-green':atrasado?'tag-red':'tag-yellow'}">
-          ${f.status==='pago'?'Pago':atrasado?'Atrasado':'Pendente'}
-        </span>
-        ${f.status==='pago' && f.dataPagamento ? `<div style="font-size:10px;color:var(--text3);margin-top:3px">${fd(f.dataPagamento)}${f.formaPagamento ? ' · ' + (FORMAS_PAGAMENTO[f.formaPagamento]||f.formaPagamento) : ''}</div>` : ''}
-        ${f.status==='pago' && f.comprovante ? `<button class="btn-sm" onclick="verComprovante('${f.id}')" style="font-size:9px;padding:1px 6px;margin-top:3px" title="Ver comprovante">📎 Comprovante</button>` : ''}
-      </td>
-      <td>
-        ${f.status==='pendente'
-          ?`<button class="btn-sm btn-green" onclick="abrirModalPagamento('${f.id}')">Recebido</button>`
-          :`<button class="btn-sm" onclick="marcarPendente('${f.id}')">Desfazer</button>`
-        }
-        <button class="btn-sm btn-red" onclick="excluirFinanceiro('${f.id}')">✕</button>
-      </td>
+      <td>${statusCell}</td>
+      <td>${acoesCell}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -302,8 +328,9 @@ function rFinanceiroSintetico() {
 
   linhas.forEach(g => {
     const total = (g.p20?.valorNum||0) + (g.p80?.valorNum||0) + (g.pFch?.valorNum||0);
-    const todoPago = [g.p20, g.p80, g.pFch].filter(Boolean).every(p => p.status === 'pago');
-    const temAtras = [g.p20, g.p80, g.pFch].some(p => p && p.status === 'pendente' && p.vencimento && p.vencimento < hoje);
+    const quitado = p => p.status === 'pago' || (!p.valorNum && !p.aprovacaoPendente);
+    const todoPago = [g.p20, g.p80, g.pFch].filter(Boolean).every(quitado);
+    const temAtras = [g.p20, g.p80, g.pFch].some(p => p && p.status === 'pendente' && !quitado(p) && p.vencimento && p.vencimento < hoje);
 
     const tr = document.createElement('tr');
     tr.style.borderBottom = '1px solid var(--border)';
@@ -327,13 +354,41 @@ function rFinanceiroSintetico() {
 
 function _finPilula(parc, hoje) {
   if (!parc) return '<span style="color:var(--text3);font-size:12px">—</span>';
+
+  // Aguardando aprovação do admin (valor pago abaixo do previsto)
+  if (parc.aprovacaoPendente) {
+    const p = parc.aprovacaoPendente;
+    const souAdmin = typeof perfilAtual !== 'undefined' && perfilAtual === 'admin';
+    const acoes = souAdmin
+      ? `<div style="margin-top:4px;display:flex;gap:4px;justify-content:center;flex-wrap:wrap">
+           <button class="btn-sm btn-green" onclick="aprovarPagamentoMenor('${parc.id}')" style="font-size:9px;padding:1px 6px">✓ Aprovar</button>
+           <button class="btn-sm btn-red" onclick="rejeitarPagamentoMenor('${parc.id}')" style="font-size:9px;padding:1px 6px">✕</button>
+         </div>`
+      : `<div style="font-size:9px;opacity:0.8;margin-top:4px">Aguardando admin</div>`;
+    return `<div style="background:#3D2E0F;color:#FBBF24;border-radius:8px;padding:7px 10px;display:inline-block;min-width:110px;text-align:center">
+      <div style="font-family:var(--mono);font-weight:700;font-size:13px">${fR(p.valorPago)}</div>
+      <div style="font-size:10px;opacity:0.75;margin-top:2px">previsto ${fR(parc.valorOriginal)}</div>
+      <div style="font-size:10px;margin-top:1px">⚠ Abaixo do valor</div>
+      ${acoes}
+    </div>`;
+  }
+
+  // Sem valor a receber (fechamento sem cobrança, ou parcela zerada por uma
+  // cascata de excedente) — não exige ação, mesmo que o status ainda diga "pendente"
+  const semCobranca = parc.status !== 'pago' && !parc.valorNum;
+  if (semCobranca) {
+    return `<div style="background:#1A3D2B;color:#4ADE80;border-radius:8px;padding:7px 10px;display:inline-block;min-width:110px;text-align:center">
+      <div style="font-size:10px">Sem cobrança</div>
+    </div>`;
+  }
+
   const atrasado = parc.status === 'pendente' && parc.vencimento && parc.vencimento < hoje;
   const pago     = parc.status === 'pago';
   const bg    = pago ? '#1A3D2B' : atrasado ? '#3D1A1A' : '#2A2F42';
   const cor   = pago ? '#4ADE80' : atrasado ? '#F87171' : '#FBBF24';
   const label = pago ? 'Pago'    : atrasado ? '⚠ Atrasado' : 'Pendente';
   const venc  = parc.vencimento ? `<div style="font-size:10px;opacity:0.75;margin-top:2px">venc. ${fd(parc.vencimento)}</div>` : '';
-  const pagoEm = pago && parc.dataPagamento ? `<div style="font-size:10px;opacity:0.75;margin-top:2px">pago em ${fd(parc.dataPagamento)}${parc.formaPagamento ? ' · ' + (FORMAS_PAGAMENTO[parc.formaPagamento]||parc.formaPagamento) : ''}</div>` : '';
+  const pagoEm = pago && parc.dataPagamento ? `<div style="font-size:10px;opacity:0.75;margin-top:2px">pago em ${fd(parc.dataPagamento)}${parc.formaPagamento ? ' · ' + (FORMAS_PAGAMENTO[parc.formaPagamento]||parc.formaPagamento) : ''}${parc._quitadoPorAjuste ? ' · quitado automaticamente' : ''}</div>` : '';
   const botao = pago
     ? `<div style="margin-top:4px;display:flex;gap:4px;justify-content:center;flex-wrap:wrap">
          ${parc.comprovante ? `<button class="btn-sm" onclick="verComprovante('${parc.id}')" style="font-size:9px;padding:1px 6px" title="Ver comprovante">📎</button>` : ''}
@@ -455,14 +510,17 @@ function verComprovante(id) {
   }
 }
 
-// Aplica a diferença entre o valor pago e o valor previsto às próximas parcelas
-// pendentes do mesmo contrato, para que o total do contrato permaneça correto.
-// diff > 0: pagou a mais → abate das próximas parcelas (em cascata, se necessário)
-// diff < 0: pagou a menos → soma o saldo devedor na próxima parcela pendente
+// Aplica um EXCEDENTE (pagou a mais) às próximas parcelas pendentes do mesmo
+// contrato, em cascata, para que o valor total do contrato permaneça correto.
+// Parcela totalmente quitada pelo excedente já é marcada como paga na hora —
+// não fica pendente esperando um "Recebido" de R$ 0,00 (ver marcarPendente para o desfazer).
+// Só lida com excedente (diff > 0). Falta de pagamento (diff < 0) nunca cria
+// lançamento automático nem mexe em outras parcelas — depende de aprovação do
+// admin, ver confirmarPagamento/aprovarPagamentoMenor.
 function _aplicarAjusteContrato(f, diff) {
   const chave = _finChaveContrato(f);
   const pendentes = (D.financeiro || [])
-    .filter(o => o.id !== f.id && o.status === 'pendente' && _finChaveContrato(o) === chave)
+    .filter(o => o.id !== f.id && o.status === 'pendente' && !o.aprovacaoPendente && _finChaveContrato(o) === chave)
     .sort((a, b) => (a.vencimento || '').localeCompare(b.vencimento || '') || a.id.localeCompare(b.id));
 
   const ajustes = [];
@@ -470,33 +528,25 @@ function _aplicarAjusteContrato(f, diff) {
   let resto = diff;
 
   for (const p of pendentes) {
-    if (resto === 0) break;
-    if (resto > 0) {
-      const reduz = Math.min(resto, p.valorNum || 0);
-      if (reduz <= 0) continue;
-      p.valorNum -= reduz; p.valor = fmt(p.valorNum);
-      resto -= reduz;
-      ajustes.push({ id: p.id, delta: -reduz });
-    } else {
-      p.valorNum += -resto; p.valor = fmt(p.valorNum);
-      ajustes.push({ id: p.id, delta: -resto });
-      resto = 0;
+    if (resto <= 0) break;
+    const reduz = Math.min(resto, p.valorNum || 0);
+    if (reduz <= 0) continue;
+    if (p.valorOriginal === undefined) p.valorOriginal = p.valorNum;
+    p.valorNum -= reduz; p.valor = fmt(p.valorNum);
+    resto -= reduz;
+    ajustes.push({ id: p.id, delta: -reduz });
+    if (p.valorNum <= 0) {
+      // Excedente cobriu essa parcela inteira: já quita automaticamente.
+      p.status = 'pago';
+      p.valorPago = 0;
+      p.dataPagamento = f.dataPagamento;
+      p.formaPagamento = f.formaPagamento;
+      p._quitadoPorAjuste = true;
     }
   }
 
-  if (resto !== 0) {
-    // Não há mais parcelas pendentes para absorver a diferença: cria um lançamento
-    // de ajuste, para não perder o saldo (crédito do cliente ou saldo ainda devido).
-    const novo = {
-      id: _gerarId('FIN'), contrato: f.contrato, data: f.data, evento: f.evento,
-      contratoId: f.contratoId || '', tipo: f.tipo, convidados: f.convidados,
-      descricao: resto > 0 ? 'Crédito do cliente — pagamento acima do valor do contrato' : 'Ajuste — saldo restante do contrato',
-      valorNum: Math.abs(resto), valor: fmt(Math.abs(resto)),
-      vencimento: f.vencimento || new Date().toISOString().slice(0, 10),
-      status: 'pendente',
-    };
-    D.financeiro.push(novo);
-    ajustes.push({ id: novo.id, delta: -resto, criado: true });
+  if (resto > 0) {
+    alert2(`Atenção: sobraram ${fR(resto)} do pagamento que não foi possível aplicar a nenhuma parcela pendente. Verifique com o administrador.`, 'warning');
   }
 
   return ajustes;
@@ -523,6 +573,23 @@ function confirmarPagamento() {
 
   if (f.valorOriginal === undefined) f.valorOriginal = f.valorNum;
   const diff = Math.round((valorPago - f.valorOriginal) * 100) / 100;
+  const souAdmin = typeof perfilAtual !== 'undefined' && perfilAtual === 'admin';
+
+  // Valor abaixo do previsto (ex: NF com desconto) e quem está lançando não é
+  // admin: fica pendente de aprovação. A parcela só é dada como quitada depois
+  // que um admin confirmar — o financeiro não pode liberar isso sozinho.
+  if (diff < 0 && !souAdmin) {
+    f.aprovacaoPendente = {
+      valorPago, dataPagamento, formaPagamento, comprovante, comprovanteTipo, comprovanteNome,
+      registradoPor: (typeof perfilAtual !== 'undefined' && perfilAtual) || '',
+      registradoEm: new Date().toISOString(),
+    };
+    sv('financeiro');
+    closeM('mpagamento');
+    _finRefresh();
+    alert2(`Valor pago (${fR(valorPago)}) é menor que o previsto (${fR(f.valorOriginal)}). Enviado para aprovação do administrador — só fica quitado depois da liberação.`, 'error');
+    return;
+  }
 
   f.status           = 'pago';
   f.dataPagamento     = dataPagamento;
@@ -533,15 +600,56 @@ function confirmarPagamento() {
   f.comprovante        = comprovante;
   f.comprovanteTipo    = comprovanteTipo;
   f.comprovanteNome    = comprovanteNome;
-  f._ajustes           = diff !== 0 ? _aplicarAjusteContrato(f, diff) : [];
+  f.aprovacaoPendente  = null;
+  f._ajustes           = diff > 0 ? _aplicarAjusteContrato(f, diff) : [];
 
   sv('financeiro');
   closeM('mpagamento');
   _finRefresh();
 
   if (diff > 0) alert2(`Pagamento registrado! Excedente de ${fR(diff)} aplicado automaticamente à(s) próxima(s) parcela(s).`, 'success');
-  else if (diff < 0) alert2(`Pagamento registrado! Diferença de ${fR(-diff)} somada à próxima parcela pendente.`, 'success');
+  else if (diff < 0) alert2(`Pagamento registrado com valor abaixo do previsto (faltam ${fR(-diff)}), autorizado como administrador.`, 'success');
   else alert2('Pagamento registrado com sucesso!', 'success');
+}
+
+// ── Aprovação de pagamento abaixo do valor previsto (somente admin) ─────────
+function aprovarPagamentoMenor(id) {
+  if (!(typeof perfilAtual !== 'undefined' && perfilAtual === 'admin')) {
+    alert2('Somente o administrador pode aprovar pagamentos abaixo do valor do contrato.', 'error');
+    return;
+  }
+  const f = (D.financeiro || []).find(x => x.id === id);
+  if (!f || !f.aprovacaoPendente) return;
+  const p = f.aprovacaoPendente;
+  if (!confirm(
+    `Confirmar aprovação de pagamento abaixo do valor previsto?\n\n` +
+    `Valor previsto: ${fR(f.valorOriginal)}\nValor pago: ${fR(p.valorPago)}\nDiferença: ${fR(p.valorPago - f.valorOriginal)}\n\n` +
+    `Essa diferença será aceita como definitiva — nenhum valor será cobrado a mais em outra parcela.`
+  )) return;
+
+  f.status           = 'pago';
+  f.dataPagamento     = p.dataPagamento;
+  f.valorPago         = p.valorPago;
+  f.valorNum           = p.valorPago;
+  f.valor             = 'R$ ' + p.valorPago.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+  f.formaPagamento     = p.formaPagamento;
+  f.comprovante        = p.comprovante;
+  f.comprovanteTipo    = p.comprovanteTipo;
+  f.comprovanteNome    = p.comprovanteNome;
+  f.aprovadoPor        = (typeof perfilAtual !== 'undefined' && perfilAtual) || '';
+  f.aprovacaoPendente  = null;
+
+  sv('financeiro'); _finRefresh();
+  alert2('Pagamento aprovado e quitado!', 'success');
+}
+
+function rejeitarPagamentoMenor(id) {
+  const f = (D.financeiro || []).find(x => x.id === id);
+  if (!f || !f.aprovacaoPendente) return;
+  if (!confirm('Rejeitar este pagamento? O comprovante enviado será descartado e a parcela volta a ficar pendente para lançar novamente.')) return;
+  f.aprovacaoPendente = null;
+  sv('financeiro'); _finRefresh();
+  alert2('Pagamento rejeitado. A parcela voltou a ficar pendente.', 'success');
 }
 
 function marcarPendente(id) {
@@ -555,9 +663,16 @@ function marcarPendente(id) {
         D.financeiro = D.financeiro.filter(o => o.id !== a.id);
       } else {
         const alvo = D.financeiro.find(o => o.id === a.id);
-        if (alvo && alvo.status === 'pendente') {
+        if (alvo && (alvo.status === 'pendente' || alvo._quitadoPorAjuste)) {
           alvo.valorNum = Math.max(0, alvo.valorNum - a.delta);
           alvo.valor = 'R$ ' + alvo.valorNum.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+          if (alvo._quitadoPorAjuste) {
+            alvo.status = 'pendente';
+            alvo.dataPagamento = '';
+            alvo.formaPagamento = '';
+            alvo.valorPago = null;
+            alvo._quitadoPorAjuste = false;
+          }
         }
       }
     });
@@ -576,6 +691,8 @@ function marcarPendente(id) {
   f.comprovante = '';
   f.comprovanteTipo = '';
   f.comprovanteNome = '';
+  f.aprovacaoPendente = null;
+  f._quitadoPorAjuste = false;
 
   sv('financeiro'); _finRefresh();
 }
