@@ -1171,6 +1171,7 @@
         <button class="sort-btn active" id="fin-tab-sint" onclick="finSetView('sintetico')">📊 Sintético</button>
         <button class="sort-btn"        id="fin-tab-anal" onclick="finSetView('analitico')">📋 Analítico</button>
         <div style="margin-left:auto;display:flex;gap:8px">
+          <button class="btn-sm" onclick="verificarParcelasContratos()" style="background:#2A2F42;color:#FBBF24;border:1px solid #FBBF24" title="Lista contratos com a parcela 20% ou 80% faltando no Financeiro">🔍 Verificar parcelas</button>
           <button class="btn-sm" onclick="sincronizarFechamentosFinanceiro()" style="background:#2A2F42;color:#60A5FA;border:1px solid #60A5FA" title="Recria a parcela de fechamentos que sumiram do Financeiro">🔧 Sincronizar fechamentos</button>
           <button class="btn-sm" onclick="limparFinanceiroOrfaos()" style="background:#2A2F42;color:#F74F6B;border:1px solid #F74F6B" title="Remove lançamentos cujo contrato foi excluído">🗑️ Limpar órfãos</button>
         </div>
@@ -1986,7 +1987,7 @@
 <script src="js/contratos.js?v=20260610z"></script>
 <script src="js/agenda.js?v=20260610z"></script>
 <script src="js/producao.js?v=20260610z"></script>
-<script src="js/financeiro.js?v=20260707g"></script>
+<script src="js/financeiro.js?v=20260707h"></script>
 <script src="js/fechamento.js?v=20260707a"></script>
 <script src="js/despesas.js?v=20260616c"></script>
 <script src="js/producao2.js?v=20260610z"></script>

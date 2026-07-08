@@ -203,6 +203,51 @@ function sincronizarFechamentosFinanceiro() {
   alert2(`✅ Sincronização concluída! ${aCriar.length} parcela(s) criada(s), ${relinks.length} recuperada(s), ${orfaosFinanceiro.length} órfã(s) removida(s).`, 'success');
 }
 
+// ── Diagnóstico: contratos com parcela 20%/80% faltando no Financeiro ───────
+// Só lista — não cria nem corrige nada sozinho, porque não dá pra adivinhar
+// com segurança qual seria o valor certo de uma parcela que sumiu.
+function verificarParcelasContratos() {
+  const grupos = _finAgruparEventos(D.financeiro || []);
+  const porContratoId = {};
+  Object.values(grupos).forEach(g => { if (g.contratoId) porContratoId[g.contratoId] = g; });
+  const norm = s => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+
+  const problemas = [];
+  (D.contratos || []).forEach(c => {
+    if (!c.data || c.status === 'cancelado') return;
+    const valorContrato = parseFloat((c.opcao || '0').toString().replace(/[^\d,]/g, '').replace(',', '.')) || 0;
+    if (!valorContrato) return; // contrato sem valor definido, nada a checar
+
+    const g = (c.id && porContratoId[c.id])
+      || Object.values(grupos).find(x => norm(x.nome) === norm(c.nomeEvento || c.nome) && x.data === c.data);
+
+    const faltaP20 = !g || !g.p20;
+    const faltaP80 = !g || !g.p80;
+    if (faltaP20 || faltaP80) {
+      problemas.push({
+        nome: c.nomeEvento || c.nome, data: c.data, valorContrato,
+        falta: [faltaP20 ? '20%' : null, faltaP80 ? '80%' : null].filter(Boolean).join(' e '),
+      });
+    }
+  });
+
+  if (!problemas.length) {
+    alert2('✅ Todos os contratos com valor definido têm as duas parcelas (20%/80%) lançadas no Financeiro.', 'success');
+    return;
+  }
+
+  problemas.sort((a, b) => (b.data || '').localeCompare(a.data || ''));
+  const preview = problemas.slice(0, 15).map(p =>
+    `• ${p.nome} — ${fd(p.data)} — falta a parcela ${p.falta} (valor do contrato: ${fR(p.valorContrato)})`
+  ).join('\n');
+  const mais = problemas.length > 15 ? `\n... e mais ${problemas.length - 15} contrato(s).` : '';
+
+  alert(
+    `⚠️ ${problemas.length} contrato(s) com parcela faltando no Financeiro:\n\n${preview}${mais}\n\n` +
+    `O valor exato dessas parcelas não é recriado automaticamente, para não arriscar lançar um valor errado — confira o contrato original e lance manualmente.`
+  );
+}
+
 // ── Vista Analítica ───────────────────────────────────────────────────────────
 function rFinanceiro() {
   rKpiFaturamento();
@@ -310,12 +355,15 @@ function _finValorContrato(g) {
   return parseFloat((c.opcao || '0').toString().replace(/[^\d,]/g, '').replace(',', '.')) || 0;
 }
 
-// Agrupa as parcelas do financeiro por evento+data (usado pela vista sintética
-// e pelos KPIs). Sem contratoId no key para unir entradas antigas com novas.
+// Agrupa as parcelas do financeiro por contrato (usado pela vista sintética e
+// pelos KPIs). Usa contratoId quando existe — assim, se uma parcela ficar com
+// o nome/data do evento levemente diferente das outras (ex: contrato editado
+// depois de criar as parcelas), elas continuam caindo na mesma linha em vez
+// de "sumir" numa segunda linha escondida.
 function _finAgruparEventos(fin) {
   const grupos = {};
   fin.forEach(f => {
-    const chave = (f.evento || f.contrato || '') + '||' + (f.data || '');
+    const chave = _finChaveContrato(f);
     if (!grupos[chave]) grupos[chave] = {
       contratoId: f.contratoId || '',
       nome:       f.evento || f.contrato || '—',
