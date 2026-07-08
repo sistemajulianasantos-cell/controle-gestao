@@ -2036,7 +2036,6 @@ window.svFirebase = async function(chave) {
     if(chave==='contagens')    campo.contagens    = D.contagens;
     if(chave==='precos')       campo.precos       = D.precos;
     if(chave==='agenda')       campo.agenda       = D.agenda;
-    if(chave==='financeiro')   campo.financeiro   = D.financeiro;
     if(chave==='contratos')    campo.contratos    = D.contratos;
     if(chave==='producoes')    campo.producoes    = D.producoes;
     if(chave==='separacoes')   campo.separacoes   = D.separacoes;
@@ -2080,6 +2079,25 @@ window.svFirebase = async function(chave) {
     if(chave==='categoriasDespesas') campo.categoriasDespesas  = D.categoriasDespesas;
     if(chave==='fechamentos')        campo.fechamentos         = D.fechamentos;
     if(chave==='deletedFestaIds')    campo.deletedFestaIds     = D.deletedFestaIds;
+
+    if (chave === 'financeiro') {
+      // Fatiado por ano (financeiro_AAAA) em vez de um documento único com
+      // TODAS as parcelas de todos os anos — um documento só cresceria pra
+      // sempre e acabaria estourando de novo o limite de 1MB do Firestore,
+      // mesmo sem nenhum comprovante embutido.
+      const porAno = {};
+      (D.financeiro || []).forEach(f => {
+        const ano = (f.data || f.vencimento || '').slice(0, 4) || 'outros';
+        (porAno[ano] || (porAno[ano] = [])).push(f);
+      });
+      for (const [ano, lista] of Object.entries(porAno)) {
+        await setDoc(doc(db, "dados", "financeiro_" + ano), { valor: lista });
+      }
+      // Esvazia o documento legado (dados já redistribuídos acima); mantém
+      // como array vazio — carregarDados() já sabe juntar os dois formatos.
+      await setDoc(doc(db, "dados", "financeiro"), { valor: [] });
+    }
+
     if (Object.keys(campo).length === 0) return;
     // Cada seção vira seu próprio documento na coleção "dados" (evita estourar o limite de 1MB por documento)
     for (const [k, v] of Object.entries(campo)) {
@@ -2158,7 +2176,11 @@ async function carregarDados() {
     D.contagens    = r.contagens    || [];
     D.precos       = r.precos       || {};
     D.agenda       = r.agenda       || [];
-    D.financeiro   = r.financeiro   || [];
+    // financeiro pode vir fatiado por ano (financeiro_AAAA, ver svFirebase) —
+    // junta tudo num array só, como o resto do app já espera.
+    D.financeiro   = Object.keys(r)
+      .filter(k => k === 'financeiro' || /^financeiro_\d{4}$/.test(k))
+      .flatMap(k => r[k] || []);
     D.contratos    = r.contratos    || [];
     if (typeof atualizarStatusContratos === 'function') atualizarStatusContratos();
     D.producoes    = r.producoes    || [];
