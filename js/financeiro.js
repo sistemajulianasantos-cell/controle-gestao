@@ -741,9 +741,16 @@ async function verComprovante(id) {
 // lançamento automático nem mexe em outras parcelas — depende de aprovação do
 // admin, ver confirmarPagamento/aprovarPagamentoMenor.
 function _aplicarAjusteContrato(f, diff) {
-  const chave = _finChaveContrato(f);
+  const norm = s => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+  // Casa por contratoId OU por nome+data do evento — não só uma coisa ou só a
+  // outra. Se uma parcela tiver o contratoId e a parcela irmã não (ou os dois
+  // tiverem, mas divergentes por algum problema de cadastro), ainda assim
+  // acham uma a outra pelo nome+data em vez de a cascata falhar silenciosamente.
+  const mesmoContrato = o =>
+    (f.contratoId && o.contratoId && o.contratoId === f.contratoId) ||
+    (norm(o.contrato || o.evento) === norm(f.contrato || f.evento) && (o.data || '') === (f.data || ''));
   const pendentes = (D.financeiro || [])
-    .filter(o => o.id !== f.id && o.status === 'pendente' && !o.aprovacaoPendente && _finChaveContrato(o) === chave)
+    .filter(o => o.id !== f.id && o.status === 'pendente' && !o.aprovacaoPendente && mesmoContrato(o))
     .sort((a, b) => (a.vencimento || '').localeCompare(b.vencimento || '') || a.id.localeCompare(b.id));
 
   const ajustes = [];
@@ -768,11 +775,7 @@ function _aplicarAjusteContrato(f, diff) {
     }
   }
 
-  if (resto > 0) {
-    alert2(`Atenção: sobraram ${fR(resto)} do pagamento que não foi possível aplicar a nenhuma parcela pendente. Verifique com o administrador.`, 'warning');
-  }
-
-  return ajustes;
+  return { ajustes, resto };
 }
 
 async function confirmarPagamento() {
@@ -836,16 +839,33 @@ async function confirmarPagamento() {
   f.comprovanteTipo    = comprovanteTipo;
   f.comprovanteNome    = comprovanteNome;
   f.aprovacaoPendente  = null;
-  f._ajustes           = diff > 0 ? _aplicarAjusteContrato(f, diff) : [];
+
+  let resto = 0;
+  if (diff > 0) {
+    const r = _aplicarAjusteContrato(f, diff);
+    f._ajustes = r.ajustes;
+    resto = r.resto;
+  } else {
+    f._ajustes = [];
+  }
 
   sv('financeiro');
   closeM('mpagamento');
   _finRefresh();
 
   let msg = 'Pagamento registrado com sucesso!';
-  if (diff > 0) msg = `Pagamento registrado! Excedente de ${fR(diff)} aplicado automaticamente à(s) próxima(s) parcela(s).`;
-  else if (diff < 0) msg = `Pagamento registrado com valor abaixo do previsto (faltam ${fR(-diff)}), autorizado como administrador.`;
-  alert2(msg + avisoComprovante, avisoComprovante ? 'error' : 'success');
+  let ehErro = false;
+  if (diff > 0) {
+    if (resto > 0) {
+      msg = `Pagamento registrado, mas sobraram ${fR(resto)} do excedente que NÃO foi possível aplicar a nenhuma parcela pendente do contrato (nenhuma parcela irmã encontrada, ou já estão todas quitadas). Verifique manualmente.`;
+      ehErro = true;
+    } else {
+      msg = `Pagamento registrado! Excedente de ${fR(diff)} aplicado automaticamente à(s) próxima(s) parcela(s).`;
+    }
+  } else if (diff < 0) {
+    msg = `Pagamento registrado com valor abaixo do previsto (faltam ${fR(-diff)}), autorizado como administrador.`;
+  }
+  alert2(msg + avisoComprovante, (avisoComprovante || ehErro) ? 'error' : 'success');
 }
 
 // ── Aprovação de pagamento abaixo do valor previsto (somente admin) ─────────
