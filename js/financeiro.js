@@ -1122,9 +1122,14 @@ async function confirmarPagamento() {
   let msg = 'Pagamento registrado com sucesso!';
   let ehErro = false;
   if (diff > 0) {
-    if (resto > 0) {
+    if (resto > 1) {
       msg = `Pagamento registrado, mas sobraram ${fR(resto)} do excedente que NÃO foi possível aplicar a nenhuma parcela pendente do contrato (nenhuma parcela irmã encontrada, ou já estão todas quitadas). Verifique manualmente.`;
       ehErro = true;
+    } else if (resto > 0) {
+      // Sobra de até R$1 — provavelmente diferença de centavos no pagamento
+      // real (arredondamento do cliente/banco), não um problema do sistema.
+      // Avisa sem soar alarme de erro.
+      msg = `Pagamento registrado! Excedente de ${fR(diff)} aplicado, com ${fR(resto)} de diferença de centavos que não afetou nenhuma parcela.`;
     } else if (f._ajustes.length) {
       msg = `Pagamento registrado! Excedente de ${fR(diff)} aplicado automaticamente à(s) próxima(s) parcela(s).`;
     } else {
