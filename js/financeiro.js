@@ -1,6 +1,43 @@
 ﻿// ─── FINANCEIRO ────────────────────────────────────────
 // ═══════════════════════════════════════════════════════
 
+// ── Detecta/remove parcelas duplicadas (mesmo id repetido) ──────────────────
+// Pode acontecer se a mesma parcela ficar salva tanto no documento legado
+// "financeiro" quanto em algum "financeiro_AAAA" (ex: divisão por ano
+// interrompida no meio) — o valor de cada uma entra duas vezes nos totais.
+function verificarDuplicatasFinanceiro() {
+  const porId = {};
+  (D.financeiro || []).forEach(f => { (porId[f.id] || (porId[f.id] = [])).push(f); });
+  const duplicados = Object.values(porId).filter(arr => arr.length > 1);
+
+  if (!duplicados.length) {
+    alert2('✅ Nenhuma parcela duplicada encontrada no Financeiro.', 'success');
+    return;
+  }
+
+  const valorDuplicado = duplicados.reduce((s, arr) => s + (arr.length - 1) * (arr[0].valorNum || 0), 0);
+  const preview = duplicados.slice(0, 10).map(arr =>
+    `• ${arr[0].evento || arr[0].contrato || '(sem nome)'} — ${arr[0].descricao || ''} — ${fR(arr[0].valorNum)} (${arr.length}x repetida)`
+  ).join('\n');
+  const mais = duplicados.length > 10 ? `\n... e mais ${duplicados.length - 10} grupo(s).` : '';
+
+  if (!confirm(
+    `⚠️ ${duplicados.length} parcela(s) duplicada(s) no Financeiro, somando ${fR(valorDuplicado)} contado(s) a mais nos totais:\n\n${preview}${mais}\n\n` +
+    `Remover as cópias extras agora (mantém só 1 de cada)?`
+  )) return;
+
+  const idsVistos = new Set();
+  D.financeiro = (D.financeiro || []).filter(f => {
+    if (idsVistos.has(f.id)) return false;
+    idsVistos.add(f.id);
+    return true;
+  });
+
+  sv('financeiro');
+  rFinanceiro();
+  alert2(`✅ Duplicatas removidas! ${fR(valorDuplicado)} retirado(s) do total.`, 'success');
+}
+
 // ── Migração de comprovantes antigos embutidos no documento "financeiro" ────
 // Antes da correção de 2026-07-08, comprovantes ficavam embutidos (base64)
 // direto no array financeiro — como esse documento junta as parcelas de TODOS
