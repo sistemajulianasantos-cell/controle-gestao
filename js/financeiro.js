@@ -278,7 +278,12 @@ function sincronizarFechamentosFinanceiro() {
   alert2(`✅ Sincronização concluída! ${aCriar.length} parcela(s) criada(s), ${relinks.length} recuperada(s), ${orfaosFinanceiro.length} órfã(s) removida(s).`, 'success');
 }
 
-// ── Diagnóstico: contratos com parcela 20%/80% faltando no Financeiro ───────
+// ── Diagnóstico: contratos com parcela 20%/80% faltando OU com valor errado ─
+// A divisão 20%/80% do valor do contrato nunca deve ser editada manualmente —
+// o sistema é quem calcula e mantém essas parcelas batendo com o contrato.
+// Detecta tanto parcela totalmente ausente quanto parcela que existe mas tem
+// valor diferente de 20%/80% do contrato (erro comum de cadastro/importação).
+// Só considera parcelas ainda PENDENTES — nunca mexe em nada já pago.
 function _finContratosComParcelaFaltando() {
   const grupos = _finAgruparEventos(D.financeiro || []);
   const porContratoId = {};
@@ -296,7 +301,14 @@ function _finContratosComParcelaFaltando() {
 
     const faltaP20 = !g || !g.p20;
     const faltaP80 = !g || !g.p80;
-    if (faltaP20 || faltaP80) problemas.push({ contrato: c, valorContrato, faltaP20, faltaP80 });
+    const esperadoP20 = Math.round(valorContrato * 0.2 * 100) / 100;
+    const esperadoP80 = Math.round(valorContrato * 0.8 * 100) / 100;
+    const p20Errado = !faltaP20 && g.p20.status === 'pendente' && Math.abs((g.p20.valorNum || 0) - esperadoP20) > 0.01;
+    const p80Errado = !faltaP80 && g.p80.status === 'pendente' && Math.abs((g.p80.valorNum || 0) - esperadoP80) > 0.01;
+
+    if (faltaP20 || faltaP80 || p20Errado || p80Errado) {
+      problemas.push({ contrato: c, valorContrato, esperadoP20, esperadoP80, faltaP20, faltaP80, p20Errado, p80Errado, g });
+    }
   });
 
   problemas.sort((a, b) => (b.contrato.data || '').localeCompare(a.contrato.data || ''));
@@ -307,63 +319,64 @@ function verificarParcelasContratos() {
   const problemas = _finContratosComParcelaFaltando();
 
   if (!problemas.length) {
-    alert2('✅ Todos os contratos com valor definido têm as duas parcelas (20%/80%) lançadas no Financeiro.', 'success');
+    alert2('✅ Todos os contratos com valor definido têm as parcelas 20%/80% lançadas e corretas no Financeiro.', 'success');
     return;
   }
 
-  const desc = p => [p.faltaP20 ? '20%' : null, p.faltaP80 ? '80%' : null].filter(Boolean).join(' e ');
+  const desc = p => {
+    const partes = [];
+    if (p.faltaP20) partes.push('falta a parcela de 20%');
+    else if (p.p20Errado) partes.push(`20% incorreta (está ${fR(p.g.p20.valorNum)}, deveria ser ${fR(p.esperadoP20)})`);
+    if (p.faltaP80) partes.push('falta a parcela de 80%');
+    else if (p.p80Errado) partes.push(`80% incorreta (está ${fR(p.g.p80.valorNum)}, deveria ser ${fR(p.esperadoP80)})`);
+    return partes.join('; ');
+  };
   const preview = problemas.slice(0, 15).map(p =>
-    `• ${p.contrato.nomeEvento || p.contrato.nome} — ${fd(p.contrato.data)} — falta a parcela ${desc(p)} (valor do contrato: ${fR(p.valorContrato)})`
+    `• ${p.contrato.nomeEvento || p.contrato.nome} — ${fd(p.contrato.data)} — ${desc(p)}`
   ).join('\n');
   const mais = problemas.length > 15 ? `\n... e mais ${problemas.length - 15} contrato(s).` : '';
 
   if (!confirm(
-    `⚠️ ${problemas.length} contrato(s) com parcela faltando no Financeiro:\n\n${preview}${mais}\n\n` +
-    `Criar agora as parcelas que faltam, usando a divisão padrão do contrato (20% de entrada + 80% do restante)?\n` +
-    `Elas entram como PENDENTES — se algum desses pagamentos já tiver sido recebido, confira e marque como "Recebido" (com comprovante) depois.`
+    `⚠️ ${problemas.length} contrato(s) com parcela 20%/80% faltando ou com valor diferente do contrato:\n\n${preview}${mais}\n\n` +
+    `Corrigir agora, usando sempre 20%/80% do valor cadastrado na aba Contratos? Só mexe em parcelas ainda PENDENTES — nenhuma parcela já paga é alterada.`
   )) return;
 
-  criarParcelasFaltando(problemas);
+  corrigirParcelasContratos(problemas);
 }
 
-function criarParcelasFaltando(problemas) {
+function corrigirParcelasContratos(problemas) {
   if (!D.financeiro) D.financeiro = [];
-  let criadas = 0;
+  let criadas = 0, corrigidas = 0;
+  const fmt = v => 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
 
-  problemas.forEach(({ contrato: c, valorContrato, faltaP20, faltaP80 }) => {
+  problemas.forEach(({ contrato: c, esperadoP20, esperadoP80, faltaP20, faltaP80, p20Errado, p80Errado, g }) => {
     const base = {
       contratoId: c.id || '', contrato: c.nome || '', evento: c.nomeEvento || c.nome || '—',
       data: c.data || '', tipo: c.tipo || '—', convidados: c.convidados || '—', status: 'pendente',
     };
     if (faltaP20) {
-      const v = Math.round(valorContrato * 0.2 * 100) / 100;
-      D.financeiro.push({
-        ...base, id: _gerarId('FIN'), descricao: '20% — Assinatura do contrato',
-        valorNum: v, valor: 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
-        vencimento: '',
-      });
+      D.financeiro.push({ ...base, id: _gerarId('FIN'), descricao: '20% — Assinatura do contrato',
+        valorNum: esperadoP20, valor: fmt(esperadoP20), vencimento: '' });
       criadas++;
+    } else if (p20Errado) {
+      g.p20.valorNum = esperadoP20; g.p20.valor = fmt(esperadoP20); g.p20.valorOriginal = esperadoP20;
+      corrigidas++;
     }
     if (faltaP80) {
-      const v = Math.round(valorContrato * 0.8 * 100) / 100;
       let venc = '';
-      if (c.data) {
-        const d = new Date(c.data + 'T12:00:00');
-        d.setDate(d.getDate() - 7);
-        venc = d.toISOString().slice(0, 10);
-      }
-      D.financeiro.push({
-        ...base, id: _gerarId('FIN'), descricao: '80% — 7 dias antes do evento',
-        valorNum: v, valor: 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
-        vencimento: venc,
-      });
+      if (c.data) { const d = new Date(c.data + 'T12:00:00'); d.setDate(d.getDate() - 7); venc = d.toISOString().slice(0, 10); }
+      D.financeiro.push({ ...base, id: _gerarId('FIN'), descricao: '80% — 7 dias antes do evento',
+        valorNum: esperadoP80, valor: fmt(esperadoP80), vencimento: venc });
       criadas++;
+    } else if (p80Errado) {
+      g.p80.valorNum = esperadoP80; g.p80.valor = fmt(esperadoP80); g.p80.valorOriginal = esperadoP80;
+      corrigidas++;
     }
   });
 
   sv('financeiro');
   rFinanceiro();
-  alert2(`✅ ${criadas} parcela(s) criada(s) como pendente. Confira os pagamentos já recebidos e marque "Recebido" onde for o caso.`, 'success');
+  alert2(`✅ ${criadas} parcela(s) criada(s), ${corrigidas} corrigida(s) para bater com o valor do contrato.`, 'success');
 }
 
 // ── Vista Analítica ───────────────────────────────────────────────────────────
@@ -438,13 +451,11 @@ function rFinanceiro() {
     } else if (semCobranca) {
       acoesCell = `<button class="btn-sm btn-red" onclick="excluirFinanceiro('${f.id}')">✕</button>`;
     } else {
-      const souAdminRow = typeof perfilAtual !== 'undefined' && perfilAtual === 'admin';
       acoesCell = `
         ${f.status==='pendente'
           ?`<button class="btn-sm btn-green" onclick="abrirModalPagamento('${f.id}')">Recebido</button>`
           :`<button class="btn-sm" onclick="marcarPendente('${f.id}')">Desfazer</button>`
         }
-        ${f.status==='pendente' && souAdminRow ? `<button class="btn-sm" onclick="corrigirValorParcela('${f.id}')" title="Corrigir valor esperado desta parcela (ex: erro de importação)">✏️</button>` : ''}
         <button class="btn-sm btn-red" onclick="excluirFinanceiro('${f.id}')">✕</button>
       `;
     }
@@ -611,16 +622,12 @@ function _finPilula(parc, hoje) {
   const label = pago ? 'Pago'    : atrasado ? '⚠ Atrasado' : 'Pendente';
   const venc  = parc.vencimento ? `<div style="font-size:10px;opacity:0.75;margin-top:2px">venc. ${fd(parc.vencimento)}</div>` : '';
   const pagoEm = pago && parc.dataPagamento ? `<div style="font-size:10px;opacity:0.75;margin-top:2px">pago em ${fd(parc.dataPagamento)}${parc.formaPagamento ? ' · ' + (FORMAS_PAGAMENTO[parc.formaPagamento]||parc.formaPagamento) : ''}${parc._quitadoPorAjuste ? ' · quitado automaticamente' : ''}</div>` : '';
-  const souAdminPil = typeof perfilAtual !== 'undefined' && perfilAtual === 'admin';
   const botao = pago
     ? `<div style="margin-top:4px;display:flex;gap:4px;justify-content:center;flex-wrap:wrap">
          ${(parc.comprovante || parc.temComprovante) ? `<button class="btn-sm" onclick="verComprovante('${parc.id}')" style="font-size:9px;padding:1px 6px" title="Ver comprovante">📎</button>` : ''}
          <button class="btn-sm" onclick="marcarPendente('${parc.id}')" style="font-size:9px;padding:1px 6px">Desfazer</button>
        </div>`
-    : `<div style="margin-top:4px;display:flex;gap:4px;justify-content:center;flex-wrap:wrap">
-         <button class="btn-sm btn-green" onclick="abrirModalPagamento('${parc.id}')" style="font-size:9px;padding:1px 6px">Recebido</button>
-         ${souAdminPil ? `<button class="btn-sm" onclick="corrigirValorParcela('${parc.id}')" style="font-size:9px;padding:1px 6px" title="Corrigir valor esperado desta parcela">✏️</button>` : ''}
-       </div>`;
+    : `<div style="margin-top:4px"><button class="btn-sm btn-green" onclick="abrirModalPagamento('${parc.id}')" style="font-size:9px;padding:1px 6px">Recebido</button></div>`;
   return `<div style="background:${bg};color:${cor};border-radius:8px;padding:7px 10px;display:inline-block;min-width:110px;text-align:center">
     <div style="font-family:var(--mono);font-weight:700;font-size:13px">${fR(parc.valorNum)}</div>
     ${venc}
@@ -994,35 +1001,6 @@ function _finRefresh() {
   else rFinanceiro();
 }
 
-// ── Corrigir valor esperado de uma parcela pendente (somente admin) ─────────
-// Para casos de erro de cadastro/importação (ex: parcela de 20% gravada com
-// o valor total do contrato em vez de 20% dele). Só mexe em parcela ainda
-// pendente — não altera nada que já foi marcado como pago.
-function corrigirValorParcela(id) {
-  if (!(typeof perfilAtual !== 'undefined' && perfilAtual === 'admin')) {
-    alert2('Somente o administrador pode corrigir o valor de uma parcela.', 'error');
-    return;
-  }
-  const f = (D.financeiro || []).find(x => x.id === id);
-  if (!f || f.status !== 'pendente') return;
-
-  const atual = f.valorNum || 0;
-  const novoStr = prompt(
-    `Corrigir valor esperado desta parcela\n(${f.evento || f.contrato || '—'} — ${f.descricao || ''})\n\n` +
-    `Valor atual: ${fR(atual)}\n\nNovo valor (R$):`,
-    atual.toFixed(2).replace('.', ',')
-  );
-  if (novoStr === null) return;
-  const novo = parseFloat(novoStr.replace(/\./g, '').replace(',', '.'));
-  if (!novo || novo <= 0) { alert2('Valor inválido.', 'error'); return; }
-
-  f.valorNum = novo;
-  f.valor = 'R$ ' + novo.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-  f.valorOriginal = novo; // esse passa a ser o valor correto de referência
-
-  sv('financeiro'); _finRefresh();
-  alert2('Valor da parcela corrigido!', 'success');
-}
 function excluirFinanceiro(id) {
   if (!confirm('Excluir este lançamento?')) return;
   D.financeiro = (D.financeiro||[]).filter(f => f.id !== id);
