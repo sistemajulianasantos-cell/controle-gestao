@@ -206,7 +206,10 @@ function _finAtualizarKpis() {
         }
       }
     }
-    if (g.pFch && g.pFch.status === 'pago') {
+    // _quitadoPorAjuste = zerado por excedente de outra parcela (cascata) —
+    // é uma quitação legítima, não uma falta real. Não compara com o valor
+    // do fechamento, senão qualquer fechamento quitado assim sempre "falta".
+    if (g.pFch && g.pFch.status === 'pago' && !g.pFch._quitadoPorAjuste) {
       const fchRecord = _finFechamentoDoGrupo(g);
       const valorFechamentoReal = fchRecord ? (fchRecord.totalExtras || 0) : (g.pFch.valorNum || 0);
       const diferenca = Math.round((valorFechamentoReal - (g.pFch.valorNum || 0)) * 100) / 100;
@@ -724,10 +727,12 @@ function rFinanceiroSintetico() {
     // Mesma lógica pro Fechamento: o valor real vem do registro em D.fechamentos
     // (totalExtras), não do que ficou marcado como "pago" na parcela — senão dá
     // pra marcar como quitado com um valor menor sem ninguém perceber.
+    // _quitadoPorAjuste = zerado por excedente de outra parcela (cascata) — é
+    // uma quitação legítima, não entra nessa comparação (senão "falta" sempre).
     const fchRecord          = _finFechamentoDoGrupo(g);
     const valorFechamentoReal = fchRecord ? (fchRecord.totalExtras || 0) : (g.pFch?.valorNum || 0);
     const diferencaFechamento = g.pFch ? Math.round((valorFechamentoReal - (g.pFch.valorNum || 0)) * 100) / 100 : 0;
-    const faltaFechamento    = g.pFch && g.pFch.status === 'pago' && Math.abs(diferencaFechamento) > 0.01;
+    const faltaFechamento    = g.pFch && g.pFch.status === 'pago' && !g.pFch._quitadoPorAjuste && Math.abs(diferencaFechamento) > 0.01;
     const fchDivergAprovada  = faltaFechamento && fchRecord?.divergenciaAprovada
       && Math.abs(fchRecord.divergenciaAprovada.diferenca - diferencaFechamento) < 0.01;
 
@@ -1006,11 +1011,11 @@ function _aplicarAjusteContrato(f, diff) {
 
   for (const p of pendentes) {
     if (resto <= 0) break;
-    const reduz = Math.min(resto, p.valorNum || 0);
+    const reduz = Math.round(Math.min(resto, p.valorNum || 0) * 100) / 100;
     if (reduz <= 0) continue;
     if (p.valorOriginal === undefined) p.valorOriginal = p.valorNum;
-    p.valorNum -= reduz; p.valor = fmt(p.valorNum);
-    resto -= reduz;
+    p.valorNum = Math.round((p.valorNum - reduz) * 100) / 100; p.valor = fmt(p.valorNum);
+    resto = Math.round((resto - reduz) * 100) / 100;
     ajustes.push({ id: p.id, delta: -reduz });
     if (p.valorNum <= 0) {
       // Excedente cobriu essa parcela inteira: já quita automaticamente.
@@ -1032,7 +1037,10 @@ function _aplicarAjusteContrato(f, diff) {
   if (resto > 0) {
     const irmaos20e80 = (D.financeiro || []).filter(o => !o.isFechamento && mesmoContrato(o));
     const somaAtual = irmaos20e80.reduce((s, o) => s + (o.valorNum || 0), 0);
-    const contratoRef = _finContratoDoGrupo({ contratoId: f.contratoId, nome: f.contrato || f.evento, data: f.data });
+    // nome na mesma ordem usada em _finAgruparEventos (evento primeiro) —
+    // usar ordem diferente aqui podia falhar em achar o contrato certo no
+    // fallback por nome+data quando contrato/evento têm textos diferentes.
+    const contratoRef = _finContratoDoGrupo({ contratoId: f.contratoId, nome: f.evento || f.contrato, data: f.data });
     const valorContratoReal = contratoRef
       ? parseFloat((contratoRef.opcao || '0').toString().replace(/[^\d,]/g, '').replace(',', '.')) || 0
       : 0;

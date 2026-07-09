@@ -377,10 +377,19 @@ function salvarFechamento() {
       fin.tipo       = c?.tipo || fin.tipo || '—';
       fin.convidados = c?.convidados || fin.convidados || '—';
       fin.descricao  = fin.descricao || 'Fechamento — acerto pós-evento';
-      fin.valorNum   = totalExtras;
-      fin.valor      = 'R$ ' + totalExtras.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
       fin.vencimento = vencimento;
-      if (semCobranca || totalExtras === 0) fin.status = 'pago';
+      // Se já foi pago (valorNum reflete o que o cliente realmente pagou),
+      // editar os itens do fechamento NÃO pode sobrescrever esse valor —
+      // senão o pagamento registrado (com comprovante, data, forma) fica
+      // corrompido pelo novo total de itens. Deixa como está e quem cuida de
+      // uma eventual diferença é o alerta de divergência (Contas a Receber),
+      // com aprovação do admin. Só atualiza o valor livremente se ainda não
+      // foi pago (a parcela pendente deve sempre refletir o total atual).
+      if (fin.status !== 'pago') {
+        fin.valorNum = totalExtras;
+        fin.valor    = 'R$ ' + totalExtras.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+        if (semCobranca || totalExtras === 0) fin.status = 'pago';
+      }
       sv('financeiro');
     }
   } else {
