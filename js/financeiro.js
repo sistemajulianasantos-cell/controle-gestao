@@ -1022,6 +1022,25 @@ function _aplicarAjusteContrato(f, diff) {
     }
   }
 
+  // Sobrou excedente sem parcela pendente pra aplicar — antes de reclamar,
+  // confere se o contrato já bate no total (20%+80%, com os valores atuais).
+  // Cliente pode ter dividido o pagamento diferente do 20/80 padrão (pagou
+  // menos numa parcela, mais na outra) — cada parcela sozinha parece
+  // "errada" contra a própria fórmula, mas o CONTRATO já está reconciliado.
+  // Isso não é uma falta real: é só um jeito diferente de dividir que já
+  // fecha a conta, então não faz sentido soar alarme.
+  if (resto > 0) {
+    const irmaos20e80 = (D.financeiro || []).filter(o => !o.isFechamento && mesmoContrato(o));
+    const somaAtual = irmaos20e80.reduce((s, o) => s + (o.valorNum || 0), 0);
+    const contratoRef = _finContratoDoGrupo({ contratoId: f.contratoId, nome: f.contrato || f.evento, data: f.data });
+    const valorContratoReal = contratoRef
+      ? parseFloat((contratoRef.opcao || '0').toString().replace(/[^\d,]/g, '').replace(',', '.')) || 0
+      : 0;
+    if (valorContratoReal && Math.abs(somaAtual - valorContratoReal) <= 0.01) {
+      resto = 0;
+    }
+  }
+
   return { ajustes, resto };
 }
 
@@ -1106,8 +1125,10 @@ async function confirmarPagamento() {
     if (resto > 0) {
       msg = `Pagamento registrado, mas sobraram ${fR(resto)} do excedente que NÃO foi possível aplicar a nenhuma parcela pendente do contrato (nenhuma parcela irmã encontrada, ou já estão todas quitadas). Verifique manualmente.`;
       ehErro = true;
-    } else {
+    } else if (f._ajustes.length) {
       msg = `Pagamento registrado! Excedente de ${fR(diff)} aplicado automaticamente à(s) próxima(s) parcela(s).`;
+    } else {
+      msg = `Pagamento registrado! O valor é maior que o previsto para esta parcela, mas o contrato já bate no total (outra parcela foi paga a menos, compensando).`;
     }
   } else if (diff < 0) {
     msg = `Pagamento registrado com valor abaixo do previsto (faltam ${fR(-diff)}), autorizado como administrador.`;
