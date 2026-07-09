@@ -180,27 +180,10 @@ function _finVencimentoEfetivo(f) {
   return d.toISOString().slice(0, 10);
 }
 
-// ── KPIs globais ─────────────────────────────────────────────────────────────
+// ── KPIs globais (cards "Detalhamento por categoria": Contrato/Fechamento/Geral) ──
 function _finAtualizarKpis() {
-  const fin   = D.financeiro || [];
-  const hoje  = new Date().toISOString().slice(0, 10);
-  const pagos = fin.filter(f => f.status === 'pago');
-  const pend  = fin.filter(f => f.status === 'pendente');
-  const atras = pend.filter(f => { const v = _finVencimentoEfetivo(f); return v && v < hoje; });
-  const totPago  = pagos.reduce((a, f) => a + (f.valorNum || 0), 0);
-  // OBS: não soma _finSaldoContratosTotal() aqui de propósito — esse card é o
-  // número de confiança do dia a dia. A divergência entre parcelas e valor do
-  // contrato (comum em contratos antigos com problema de cadastro na
-  // importação) já aparece por contrato na vista Sintética ("⚠ falta do
-  // contrato"); somar tudo aqui infla o total geral de forma enganosa quando
-  // há muitos contratos com esse problema histórico.
-  const totPend  = pend.reduce((a, f) => a + (f.valorNum || 0), 0);
-  const totAtras = atras.reduce((a, f) => a + (f.valorNum || 0), 0);
-  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-  set('fin-total-geral',    fR(totPago + totPend));
-  set('fin-total-pend',     fR(totPend));
-  set('fin-total-pago',     fR(totPago));
-  set('fin-total-atrasado', fR(totAtras));
+  const fin  = D.financeiro || [];
+  const hoje = new Date().toISOString().slice(0, 10);
 
   // Detalhamento por categoria: Contrato (20%/80%) x Fechamento x Geral
   const contratoRecs   = fin.filter(f => !f.isFechamento);
