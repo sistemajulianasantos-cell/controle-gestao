@@ -185,6 +185,37 @@ function _finAtualizarKpis() {
   const fin  = D.financeiro || [];
   const hoje = new Date().toISOString().slice(0, 10);
 
+  // Alerta persistente de pendências: parcelas aguardando aprovação (valor
+  // abaixo do previsto) + contratos com parcelas 20%/80% divergindo do valor
+  // cadastrado, sem aprovação — fica visível até alguém decidir (aprovar ou
+  // corrigir), pra não passar despercebido dentro da lista de eventos.
+  const parcelasAguardando = fin.filter(f => f.aprovacaoPendente).length;
+  const grupos = _finAgruparEventos(fin);
+  let contratosDivergentes = 0;
+  Object.values(grupos).forEach(g => {
+    const contrato = _finContratoDoGrupo(g);
+    if (!contrato) return;
+    const valorContrato = parseFloat((contrato.opcao || '0').toString().replace(/[^\d,]/g, '').replace(',', '.')) || 0;
+    if (!valorContrato) return;
+    const totalParcelas = (g.p20?.valorNum || 0) + (g.p80?.valorNum || 0);
+    const saldo = Math.round((valorContrato - totalParcelas) * 100) / 100;
+    if (Math.abs(saldo) <= 0.01) return;
+    const aprovada = contrato.divergenciaAprovada && Math.abs(contrato.divergenciaAprovada.diferenca - saldo) < 0.01;
+    if (!aprovada) contratosDivergentes++;
+  });
+  const alertaEl = document.getElementById('fin-pendencias-alerta');
+  if (alertaEl) {
+    const partes = [];
+    if (parcelasAguardando) partes.push(`${parcelasAguardando} pagamento(s) aguardando aprovação (valor abaixo do previsto)`);
+    if (contratosDivergentes) partes.push(`${contratosDivergentes} contrato(s) com parcelas divergindo do valor cadastrado`);
+    if (partes.length) {
+      alertaEl.style.display = 'block';
+      alertaEl.innerHTML = `⚠️ <strong>Pendências:</strong> ${partes.join(' · ')}`;
+    } else {
+      alertaEl.style.display = 'none';
+    }
+  }
+
   // Detalhamento por categoria: Contrato (20%/80%) x Fechamento x Geral
   const contratoRecs   = fin.filter(f => !f.isFechamento);
   const fechamentoRecs = fin.filter(f => f.isFechamento);
@@ -512,15 +543,55 @@ function rFinanceiro() {
   });
 }
 
-// Acha o contrato de um grupo (evento+data) e devolve seu valor total numérico,
-// para comparar com o que já foi lançado nas parcelas 20%/80% — a fonte da
-// verdade do valor do contrato é a aba Contratos, não a soma das parcelas.
-function _finValorContrato(g) {
+// Acha o contrato de um grupo (evento+data) — usado tanto pra ler o valor real
+// do contrato quanto pra gravar a aprovação de divergência nele.
+function _finContratoDoGrupo(g) {
   const norm = s => (s || '').toLowerCase().trim();
-  const c = (g.contratoId && (D.contratos || []).find(x => x.id === g.contratoId))
-    || (D.contratos || []).find(x => norm(x.nome) === norm(g.nome) && x.data === g.data);
+  return (g.contratoId && (D.contratos || []).find(x => x.id === g.contratoId))
+    || (D.contratos || []).find(x => norm(x.nome) === norm(g.nome) && x.data === g.data)
+    || null;
+}
+
+// Valor total numérico do contrato de um grupo, para comparar com o que já
+// foi lançado nas parcelas 20%/80% — a fonte da verdade do valor do contrato
+// é a aba Contratos, não a soma das parcelas.
+function _finValorContrato(g) {
+  const c = _finContratoDoGrupo(g);
   if (!c) return 0;
   return parseFloat((c.opcao || '0').toString().replace(/[^\d,]/g, '').replace(',', '.')) || 0;
+}
+
+// ── Aprovação de divergência contrato x parcelas 20%/80% (somente admin) ────
+// Diferente do excedente/falta de UMA parcela paga: aqui a divergência é
+// estrutural (parcelas não somam o valor do contrato) e pode não ter nenhum
+// pagamento específico associado — por isso a aprovação fica presa ao
+// contrato, não a uma parcela. Fica "válida" só enquanto a diferença não
+// mudar; se alguém corrigir/pagar algo depois e o valor mudar, a aprovação
+// anterior não vale mais e o alerta volta a aparecer.
+function aprovarDivergenciaContrato(contratoId, diferenca) {
+  if (!(typeof perfilAtual !== 'undefined' && perfilAtual === 'admin')) {
+    alert2('Somente o administrador pode aprovar essa divergência.', 'error');
+    return;
+  }
+  const c = (D.contratos || []).find(x => x.id === contratoId);
+  if (!c) return;
+
+  const motivo = prompt(
+    `Aprovar divergência entre o valor do contrato e as parcelas 20%/80% lançadas?\n\n` +
+    `Diferença: ${fR(Math.abs(diferenca))} (${diferenca > 0 ? 'falta lançar' : 'lançado a mais'})\n\n` +
+    `Informe o motivo da aprovação (obrigatório):`
+  );
+  if (motivo === null) return;
+  if (!motivo.trim()) { alert2('É necessário informar um motivo para aprovar.', 'error'); return; }
+
+  c.divergenciaAprovada = {
+    diferenca, motivo: motivo.trim(),
+    aprovadoPor: (typeof perfilAtual !== 'undefined' && perfilAtual) || '',
+    aprovadoEm: new Date().toISOString(),
+  };
+  sv('contratos');
+  rFinanceiroSintetico();
+  alert2('Divergência aprovada!', 'success');
 }
 
 // Agrupa as parcelas do financeiro por contrato (usado pela vista sintética e
@@ -589,7 +660,8 @@ function rFinanceiroSintetico() {
     // pagamento, correção manual, erro histórico de cadastro na importação).
     // O contrato é a fonte da verdade; se não achar o contrato vinculado, usa
     // a soma das parcelas lançadas como única alternativa disponível.
-    const valorContrato   = _finValorContrato(g);
+    const contrato         = _finContratoDoGrupo(g);
+    const valorContrato   = contrato ? (parseFloat((contrato.opcao || '0').toString().replace(/[^\d,]/g, '').replace(',', '.')) || 0) : 0;
     const totalParcelas   = (g.p20?.valorNum||0) + (g.p80?.valorNum||0);
     const subtotal         = valorContrato || totalParcelas;
     const valorFechamento = g.pFch?.valorNum || 0;
@@ -597,6 +669,20 @@ function rFinanceiroSintetico() {
 
     const saldoContrato = valorContrato ? Math.round((valorContrato - totalParcelas) * 100) / 100 : 0;
     const faltaContrato = Math.abs(saldoContrato) > 0.01;
+    const divergAprovada = faltaContrato && contrato?.divergenciaAprovada
+      && Math.abs(contrato.divergenciaAprovada.diferenca - saldoContrato) < 0.01;
+    const souAdminSub = typeof perfilAtual !== 'undefined' && perfilAtual === 'admin';
+
+    let subtotalAviso = '';
+    if (faltaContrato && divergAprovada) {
+      const dv = contrato.divergenciaAprovada;
+      subtotalAviso = `<div style="font-size:10px;font-weight:600;color:var(--text3);margin-top:2px" title="Aprovado por ${dv.aprovadoPor||'admin'}: ${dv.motivo}">✓ divergência aprovada</div>`;
+    } else if (faltaContrato) {
+      subtotalAviso = `
+        <div style="font-size:10px;font-weight:600;color:#F87171;margin-top:2px" title="Valor do contrato: ${fR(valorContrato)} · Lançado nas parcelas 20%/80%: ${fR(totalParcelas)}">⚠ ${saldoContrato>0?'falta':'excedeu'} ${fR(Math.abs(saldoContrato))}</div>
+        ${souAdminSub && contrato ? `<button class="btn-sm" onclick="aprovarDivergenciaContrato('${contrato.id}', ${saldoContrato})" style="font-size:9px;padding:1px 6px;margin-top:2px">✓ Aprovar</button>` : ''}
+      `;
+    }
 
     const tr = document.createElement('tr');
     tr.style.borderBottom = '1px solid var(--border)';
@@ -611,9 +697,9 @@ function rFinanceiroSintetico() {
       <td style="padding:10px 14px;text-align:center">${_finPilula(g.p20, hoje)}</td>
       <td style="padding:10px 14px;text-align:center">${_finPilula(g.p80, hoje)}</td>
       <td style="padding:10px 14px;text-align:center">${_finPilula(g.pFch, hoje)}</td>
-      <td style="padding:12px;text-align:right;font-family:var(--mono);font-weight:700;font-size:13px;color:${faltaContrato?'var(--red)':'var(--text)'}">
+      <td style="padding:12px;text-align:right;font-family:var(--mono);font-weight:700;font-size:13px;color:${faltaContrato && !divergAprovada?'var(--red)':'var(--text)'}">
         ${fR(subtotal)}
-        ${faltaContrato ? `<div style="font-size:10px;font-weight:600;color:#F87171;margin-top:2px" title="Valor do contrato: ${fR(valorContrato)} · Lançado nas parcelas 20%/80%: ${fR(totalParcelas)}">⚠ ${saldoContrato>0?'falta':'excedeu'} ${fR(Math.abs(saldoContrato))}</div>` : ''}
+        ${subtotalAviso}
       </td>
       <td style="padding:12px;text-align:right;font-family:var(--mono);font-weight:700;font-size:14px;color:${todoPago&&!faltaContrato?'var(--green)':temAtras?'var(--red)':'var(--text)'}">
         ${fR(total)}
@@ -661,7 +747,7 @@ function _finPilula(parc, hoje) {
   const venc  = vencEfetivo
     ? `<div style="font-size:10px;opacity:0.75;margin-top:2px">venc. ${fd(vencEfetivo)}${!parc.vencimento ? ' (estimado)' : ''}</div>`
     : '';
-  const pagoEm = pago && parc.dataPagamento ? `<div style="font-size:10px;opacity:0.75;margin-top:2px">pago em ${fd(parc.dataPagamento)}${parc.formaPagamento ? ' · ' + (FORMAS_PAGAMENTO[parc.formaPagamento]||parc.formaPagamento) : ''}${parc._quitadoPorAjuste ? ' · quitado automaticamente' : ''}</div>` : '';
+  const pagoEm = pago && parc.dataPagamento ? `<div style="font-size:10px;opacity:0.75;margin-top:2px"${parc.motivoAprovacao ? ` title="Aprovado por ${parc.aprovadoPor||'admin'}: ${parc.motivoAprovacao}"` : ''}>pago em ${fd(parc.dataPagamento)}${parc.formaPagamento ? ' · ' + (FORMAS_PAGAMENTO[parc.formaPagamento]||parc.formaPagamento) : ''}${parc._quitadoPorAjuste ? ' · quitado automaticamente' : ''}${parc.motivoAprovacao ? ' · ⓘ' : ''}</div>` : '';
   const botao = pago
     ? `<div style="margin-top:4px;display:flex;gap:4px;justify-content:center;flex-wrap:wrap">
          ${(parc.comprovante || parc.temComprovante) ? `<button class="btn-sm" onclick="verComprovante('${parc.id}')" style="font-size:9px;padding:1px 6px" title="Ver comprovante">📎</button>` : ''}
@@ -955,11 +1041,15 @@ function aprovarPagamentoMenor(id) {
   const f = (D.financeiro || []).find(x => x.id === id);
   if (!f || !f.aprovacaoPendente) return;
   const p = f.aprovacaoPendente;
-  if (!confirm(
-    `Confirmar aprovação de pagamento abaixo do valor previsto?\n\n` +
+
+  const motivo = prompt(
+    `Aprovar pagamento abaixo do valor previsto?\n\n` +
     `Valor previsto: ${fR(f.valorOriginal)}\nValor pago: ${fR(p.valorPago)}\nDiferença: ${fR(p.valorPago - f.valorOriginal)}\n\n` +
-    `Essa diferença será aceita como definitiva — nenhum valor será cobrado a mais em outra parcela.`
-  )) return;
+    `Essa diferença será aceita como definitiva — nenhum valor será cobrado a mais em outra parcela.\n\n` +
+    `Informe o motivo da aprovação (obrigatório):`
+  );
+  if (motivo === null) return;
+  if (!motivo.trim()) { alert2('É necessário informar um motivo para aprovar.', 'error'); return; }
 
   f.status           = 'pago';
   f.dataPagamento     = p.dataPagamento;
@@ -971,6 +1061,7 @@ function aprovarPagamentoMenor(id) {
   f.comprovanteTipo    = p.comprovanteTipo;
   f.comprovanteNome    = p.comprovanteNome;
   f.aprovadoPor        = (typeof perfilAtual !== 'undefined' && perfilAtual) || '';
+  f.motivoAprovacao    = motivo.trim();
   f.aprovacaoPendente  = null;
 
   sv('financeiro'); _finRefresh();
@@ -1031,6 +1122,8 @@ function marcarPendente(id) {
   f.comprovanteNome = '';
   f.aprovacaoPendente = null;
   f._quitadoPorAjuste = false;
+  f.motivoAprovacao = '';
+  f.aprovadoPor = '';
 
   sv('financeiro'); _finRefresh();
 }
