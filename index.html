@@ -2093,16 +2093,18 @@ window.svFirebase = async function(chave) {
         const ano = (f.data || f.vencimento || '').slice(0, 4) || 'outros';
         (porAno[ano] || (porAno[ano] = [])).push(f);
       });
-      // writeBatch: grava todos os anos + esvazia o documento legado numa
-      // operação atômica só — ou tudo entra, ou nada entra. Sem isso, se um
-      // ano específico falhasse no meio da sequência (ex: ele sozinho já
-      // muito grande), os anos já gravados ficavam duplicados (existindo lá
-      // E no documento legado, que nunca chegava a ser esvaziado).
+      // NÃO esvazia mais o documento legado "financeiro" automaticamente aqui.
+      // Se duas pessoas usarem o sistema ao mesmo tempo em abas diferentes (uma
+      // com código antigo, sem essa divisão por ano), a aba antiga continua
+      // escrevendo tudo no documento legado — se esse passo limpasse ele na
+      // sequência, apagava silenciosamente o que a outra pessoa acabou de
+      // salvar. Prefere duplicar (recuperável com "🧮 Verificar duplicatas") a
+      // apagar dado de verdade. Ver carregarDados(): a leitura já junta
+      // "financeiro" + "financeiro_AAAA" num array só, então nada fica invisível.
       const batch = writeBatch(db);
       for (const [ano, lista] of Object.entries(porAno)) {
         batch.set(doc(db, "dados", "financeiro_" + ano), { valor: lista });
       }
-      batch.set(doc(db, "dados", "financeiro"), { valor: [] });
       await batch.commit();
     }
 
