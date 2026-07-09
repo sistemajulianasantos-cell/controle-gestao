@@ -137,11 +137,13 @@ function _finAtualizarKpis() {
   const pend  = fin.filter(f => f.status === 'pendente');
   const atras = pend.filter(f => f.vencimento && f.vencimento < hoje);
   const totPago  = pagos.reduce((a, f) => a + (f.valorNum || 0), 0);
-  // Inclui o saldo que falta lançar em relação ao valor do contrato (ver
-  // _finSaldoContratosTotal) — sem isso, uma parcela paga abaixo do previsto
-  // parece "quitada" mesmo sem cobrir o valor total do contrato.
-  const saldoContratos = typeof _finSaldoContratosTotal === 'function' ? _finSaldoContratosTotal() : 0;
-  const totPend  = pend.reduce((a, f) => a + (f.valorNum || 0), 0) + saldoContratos;
+  // OBS: não soma _finSaldoContratosTotal() aqui de propósito — esse card é o
+  // número de confiança do dia a dia. A divergência entre parcelas e valor do
+  // contrato (comum em contratos antigos com problema de cadastro na
+  // importação) já aparece por contrato na vista Sintética ("⚠ falta do
+  // contrato"); somar tudo aqui infla o total geral de forma enganosa quando
+  // há muitos contratos com esse problema histórico.
+  const totPend  = pend.reduce((a, f) => a + (f.valorNum || 0), 0);
   const totAtras = atras.reduce((a, f) => a + (f.valorNum || 0), 0);
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   set('fin-total-geral',    fR(totPago + totPend));
@@ -463,21 +465,6 @@ function _finAgruparEventos(fin) {
     else if (!g.p80)                                                             g.p80  = f;
   });
   return grupos;
-}
-
-// Soma, entre todos os eventos, quanto falta lançar nas parcelas 20%/80% para
-// bater com o valor do contrato (aba Contratos) — parte do "Em aberto" que
-// não tem nenhuma parcela pendente representando ela.
-function _finSaldoContratosTotal() {
-  const grupos = _finAgruparEventos(D.financeiro || []);
-  let soma = 0;
-  Object.values(grupos).forEach(g => {
-    const valorContrato = _finValorContrato(g);
-    if (!valorContrato) return;
-    const diff = valorContrato - ((g.p20?.valorNum||0) + (g.p80?.valorNum||0));
-    if (diff > 0.01) soma += diff;
-  });
-  return Math.round(soma * 100) / 100;
 }
 
 // ── Vista Sintética ───────────────────────────────────────────────────────────
