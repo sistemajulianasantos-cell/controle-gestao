@@ -1163,6 +1163,7 @@ function abrirEdicaoContrato(id) {
   if (!c) return;
   document.getElementById('ec-id').value         = id;
   document.getElementById('ec-nome').value        = c.nome || '';
+  document.getElementById('ec-nome-evento').value = c.nomeEvento || '';
   document.getElementById('ec-cpf').value         = c.cpf || '';
   document.getElementById('ec-tipo').value        = c.tipo || '';
   document.getElementById('ec-data').value        = c.data || '';
@@ -1213,6 +1214,7 @@ function salvarEdicaoContrato() {
   D.contratos[idx] = {
     ...D.contratos[idx],
     nome,
+    nomeEvento:   document.getElementById('ec-nome-evento').value.trim(),
     cpf:          document.getElementById('ec-cpf').value.trim(),
     tipo:         document.getElementById('ec-tipo').value.trim(),
     data,

@@ -218,16 +218,27 @@ function _finAtualizarKpis() {
     linhaCategoria('Fechamento', fechamentoRecs),
     linhaCategoria('Geral', fin),
   ];
-  const bodyEl = document.getElementById('fin-breakdown-body');
-  if (bodyEl) {
-    bodyEl.innerHTML = linhas.map(l => `
-      <tr style="border-bottom:1px solid var(--border)">
-        <td style="padding:8px 12px;font-weight:600">${l.nome}</td>
-        <td style="padding:8px 12px;text-align:right;font-family:var(--mono)">${fR(l.total)}</td>
-        <td style="padding:8px 12px;text-align:right;font-family:var(--mono);color:var(--green)">${fR(l.recebido)}</td>
-        <td style="padding:8px 12px;text-align:right;font-family:var(--mono);color:#FBBF24">${fR(l.pendente)}</td>
-        <td style="padding:8px 12px;text-align:right;font-family:var(--mono);color:var(--red)">${fR(l.atrasado)}</td>
-      </tr>`).join('');
+  const cardsEl = document.getElementById('fin-breakdown-cards');
+  if (cardsEl) {
+    cardsEl.innerHTML = linhas.map(l => `
+      <div class="card">
+        <div class="card-label">${l.nome}</div>
+        <div class="card-value" style="font-size:18px;margin-bottom:10px">${fR(l.total)}</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-size:11px">
+          <div>
+            <div style="color:var(--text3);text-transform:uppercase;font-size:10px">Recebido</div>
+            <div style="font-family:var(--mono);font-weight:700;color:var(--green)">${fR(l.recebido)}</div>
+          </div>
+          <div>
+            <div style="color:var(--text3);text-transform:uppercase;font-size:10px">Pendente</div>
+            <div style="font-family:var(--mono);font-weight:700;color:#FBBF24">${fR(l.pendente)}</div>
+          </div>
+          <div>
+            <div style="color:var(--text3);text-transform:uppercase;font-size:10px">Atrasado</div>
+            <div style="font-family:var(--mono);font-weight:700;color:var(--red)">${fR(l.atrasado)}</div>
+          </div>
+        </div>
+      </div>`).join('');
   }
 }
 
