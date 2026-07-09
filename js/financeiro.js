@@ -611,13 +611,13 @@ function aprovarDivergenciaContrato(contratoId, diferenca) {
 // Acha o registro de fechamento (D.fechamentos) de um grupo — mesma ideia do
 // _finContratoDoGrupo, mas pro valor real do fechamento (totalExtras), que é
 // quem manda, não o valor que ficou marcado como pago na parcela do Financeiro.
+// Só usa o vínculo EXATO (financeiroId) — sem fallback por contratoId/nome+data
+// aqui, porque um contrato pode ter mais de um registro de fechamento (ex:
+// duplicata antiga) e um "achado por aproximação" pode pegar o errado,
+// comparando o valor pago contra o total de um fechamento que não é esse.
 function _finFechamentoDoGrupo(g) {
   if (!g.pFch) return null;
-  const norm = s => (s || '').toLowerCase().trim();
-  return (D.fechamentos || []).find(fc => fc.financeiroId === g.pFch.id)
-    || (g.contratoId && (D.fechamentos || []).find(fc => fc.contratoId === g.contratoId))
-    || (D.fechamentos || []).find(fc => norm(fc.eventoNome || fc.clienteNome) === norm(g.nome) && fc.dataEvento === g.data)
-    || null;
+  return (D.fechamentos || []).find(fc => fc.financeiroId === g.pFch.id) || null;
 }
 
 // ── Aprovação de divergência no valor do Fechamento (somente admin) ─────────
