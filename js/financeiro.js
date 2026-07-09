@@ -488,30 +488,34 @@ function rFinanceiroSintetico() {
   const linhas = Object.values(grupos).sort((a, b) => b.data.localeCompare(a.data));
 
   if (!linhas.length) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#8B91A8;padding:24px">Nenhum lançamento encontrado</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#8B91A8;padding:24px">Nenhum lançamento encontrado</td></tr>';
     return;
   }
 
   tbody.innerHTML = '';
 
   linhas.forEach(g => {
-    const total = (g.p20?.valorNum||0) + (g.p80?.valorNum||0) + (g.pFch?.valorNum||0);
     const quitado = p => p.status === 'pago' || (!p.valorNum && !p.aprovacaoPendente);
     const temAtras = [g.p20, g.p80, g.pFch].some(p => p && p.status === 'pendente' && !quitado(p) && p.vencimento && p.vencimento < hoje);
+    const todoPago = [g.p20, g.p80, g.pFch].filter(Boolean).every(quitado);
 
-    // Confere o valor lançado nas parcelas 20%/80% contra o valor do contrato
-    // (aba Contratos) — a coluna Fechamento é acerto pós-evento à parte, não
-    // entra nessa conta. Se sobrar diferença, mostra alerta em vez de esconder.
-    const valorContrato  = _finValorContrato(g);
-    const totalParcelas  = (g.p20?.valorNum||0) + (g.p80?.valorNum||0);
-    const saldoContrato  = valorContrato ? Math.round((valorContrato - totalParcelas) * 100) / 100 : 0;
-    const faltaContrato  = saldoContrato > 0.01;
+    // Subtotal = valor do contrato direto da aba Contratos — NUNCA a soma das
+    // parcelas 20%/80%, que pode ficar fora de sincronia (reconciliação de
+    // pagamento, correção manual, erro histórico de cadastro na importação).
+    // O contrato é a fonte da verdade; se não achar o contrato vinculado, usa
+    // a soma das parcelas lançadas como única alternativa disponível.
+    const valorContrato   = _finValorContrato(g);
+    const totalParcelas   = (g.p20?.valorNum||0) + (g.p80?.valorNum||0);
+    const subtotal         = valorContrato || totalParcelas;
+    const valorFechamento = g.pFch?.valorNum || 0;
+    const total            = subtotal + valorFechamento;
 
-    const todoPago = [g.p20, g.p80, g.pFch].filter(Boolean).every(quitado) && !faltaContrato;
+    const saldoContrato = valorContrato ? Math.round((valorContrato - totalParcelas) * 100) / 100 : 0;
+    const faltaContrato = Math.abs(saldoContrato) > 0.01;
 
     const tr = document.createElement('tr');
     tr.style.borderBottom = '1px solid var(--border)';
-    if (todoPago) tr.style.opacity = '0.7';
+    if (todoPago && !faltaContrato) tr.style.opacity = '0.7';
 
     tr.innerHTML = `
       <td style="padding:12px;font-size:11px;color:var(--text3);white-space:nowrap">${fd(g.data)||'—'}</td>
@@ -522,9 +526,12 @@ function rFinanceiroSintetico() {
       <td style="padding:10px 14px;text-align:center">${_finPilula(g.p20, hoje)}</td>
       <td style="padding:10px 14px;text-align:center">${_finPilula(g.p80, hoje)}</td>
       <td style="padding:10px 14px;text-align:center">${_finPilula(g.pFch, hoje)}</td>
-      <td style="padding:12px;text-align:right;font-family:var(--mono);font-weight:700;font-size:14px;color:${todoPago?'var(--green)':temAtras||faltaContrato?'var(--red)':'var(--text)'}">
-        ${total ? fR(total) : '—'}
-        ${faltaContrato ? `<div style="font-size:10px;font-weight:600;color:#F87171;margin-top:2px" title="Valor do contrato: ${fR(valorContrato)} · Lançado em 20%/80%: ${fR(totalParcelas)}">⚠ falta ${fR(saldoContrato)} do contrato</div>` : ''}
+      <td style="padding:12px;text-align:right;font-family:var(--mono);font-weight:700;font-size:13px;color:${faltaContrato?'var(--red)':'var(--text)'}">
+        ${fR(subtotal)}
+        ${faltaContrato ? `<div style="font-size:10px;font-weight:600;color:#F87171;margin-top:2px" title="Valor do contrato: ${fR(valorContrato)} · Lançado nas parcelas 20%/80%: ${fR(totalParcelas)}">⚠ ${saldoContrato>0?'falta':'excedeu'} ${fR(Math.abs(saldoContrato))}</div>` : ''}
+      </td>
+      <td style="padding:12px;text-align:right;font-family:var(--mono);font-weight:700;font-size:14px;color:${todoPago&&!faltaContrato?'var(--green)':temAtras?'var(--red)':'var(--text)'}">
+        ${fR(total)}
       </td>`;
     tbody.appendChild(tr);
   });
