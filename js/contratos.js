@@ -146,7 +146,15 @@ function extrairDadosContratoRomero(txt) {
   d.tipo = mTipo ? mTipo[1].trim() : 'Evento';
 
   // ── NOME DO EVENTO ─────────────────────────────────────────────────────────
-  const mEvento = t.match(/(Casamento entre [^\n,\.]{3,60}|festa de casamento de [^\n,\.]{3,60}|noivado (?:da?|de) [^\n,\.]{3,60}|Aniversário de [^\n,\.]{3,60}|Formatura de [^\n,\.]{3,60}|15 [Aa]nos de [^\n,\.]{3,60})/i);
+  // {3,60} sem limite de parada "engolia" o texto seguinte quando não havia
+  // vírgula/ponto logo depois do nome (ex: "Casamento entre Vanessa e Allan
+  // que será realizado no dia..." virava nome = "Vanessa e Allan que será
+  // realizado no dia 07 de março de 202", cortado no limite de 60 caracteres).
+  // Lookahead pára em " que ", vírgula, ponto, quebra de linha ou fim do texto.
+  const paraNomeEvento = '[^\\n,.]{3,60}?(?=\\s+que\\s|[,.\\n]|$)';
+  const mEvento = t.match(new RegExp(
+    `(Casamento entre ${paraNomeEvento}|festa de casamento de ${paraNomeEvento}|noivado (?:da?|de) ${paraNomeEvento}|Aniversário de ${paraNomeEvento}|Formatura de ${paraNomeEvento}|15 [Aa]nos de ${paraNomeEvento})`, 'i'
+  ));
   if (mEvento) d.nomeEvento = mEvento[1].trim();
 
   // ── DATA ───────────────────────────────────────────────────────────────────
