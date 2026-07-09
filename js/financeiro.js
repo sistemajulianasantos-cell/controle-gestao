@@ -399,11 +399,13 @@ function rFinanceiro() {
     } else if (semCobranca) {
       acoesCell = `<button class="btn-sm btn-red" onclick="excluirFinanceiro('${f.id}')">✕</button>`;
     } else {
+      const souAdminRow = typeof perfilAtual !== 'undefined' && perfilAtual === 'admin';
       acoesCell = `
         ${f.status==='pendente'
           ?`<button class="btn-sm btn-green" onclick="abrirModalPagamento('${f.id}')">Recebido</button>`
           :`<button class="btn-sm" onclick="marcarPendente('${f.id}')">Desfazer</button>`
         }
+        ${f.status==='pendente' && souAdminRow ? `<button class="btn-sm" onclick="corrigirValorParcela('${f.id}')" title="Corrigir valor esperado desta parcela (ex: erro de importação)">✏️</button>` : ''}
         <button class="btn-sm btn-red" onclick="excluirFinanceiro('${f.id}')">✕</button>
       `;
     }
@@ -578,12 +580,16 @@ function _finPilula(parc, hoje) {
   const label = pago ? 'Pago'    : atrasado ? '⚠ Atrasado' : 'Pendente';
   const venc  = parc.vencimento ? `<div style="font-size:10px;opacity:0.75;margin-top:2px">venc. ${fd(parc.vencimento)}</div>` : '';
   const pagoEm = pago && parc.dataPagamento ? `<div style="font-size:10px;opacity:0.75;margin-top:2px">pago em ${fd(parc.dataPagamento)}${parc.formaPagamento ? ' · ' + (FORMAS_PAGAMENTO[parc.formaPagamento]||parc.formaPagamento) : ''}${parc._quitadoPorAjuste ? ' · quitado automaticamente' : ''}</div>` : '';
+  const souAdminPil = typeof perfilAtual !== 'undefined' && perfilAtual === 'admin';
   const botao = pago
     ? `<div style="margin-top:4px;display:flex;gap:4px;justify-content:center;flex-wrap:wrap">
          ${(parc.comprovante || parc.temComprovante) ? `<button class="btn-sm" onclick="verComprovante('${parc.id}')" style="font-size:9px;padding:1px 6px" title="Ver comprovante">📎</button>` : ''}
          <button class="btn-sm" onclick="marcarPendente('${parc.id}')" style="font-size:9px;padding:1px 6px">Desfazer</button>
        </div>`
-    : `<div style="margin-top:4px"><button class="btn-sm btn-green" onclick="abrirModalPagamento('${parc.id}')" style="font-size:9px;padding:1px 6px">Recebido</button></div>`;
+    : `<div style="margin-top:4px;display:flex;gap:4px;justify-content:center;flex-wrap:wrap">
+         <button class="btn-sm btn-green" onclick="abrirModalPagamento('${parc.id}')" style="font-size:9px;padding:1px 6px">Recebido</button>
+         ${souAdminPil ? `<button class="btn-sm" onclick="corrigirValorParcela('${parc.id}')" style="font-size:9px;padding:1px 6px" title="Corrigir valor esperado desta parcela">✏️</button>` : ''}
+       </div>`;
   return `<div style="background:${bg};color:${cor};border-radius:8px;padding:7px 10px;display:inline-block;min-width:110px;text-align:center">
     <div style="font-family:var(--mono);font-weight:700;font-size:13px">${fR(parc.valorNum)}</div>
     ${venc}
@@ -935,6 +941,36 @@ function _finRefresh() {
   const sint = document.getElementById('fin-view-sint');
   if (sint && sint.style.display !== 'none') rFinanceiroSintetico();
   else rFinanceiro();
+}
+
+// ── Corrigir valor esperado de uma parcela pendente (somente admin) ─────────
+// Para casos de erro de cadastro/importação (ex: parcela de 20% gravada com
+// o valor total do contrato em vez de 20% dele). Só mexe em parcela ainda
+// pendente — não altera nada que já foi marcado como pago.
+function corrigirValorParcela(id) {
+  if (!(typeof perfilAtual !== 'undefined' && perfilAtual === 'admin')) {
+    alert2('Somente o administrador pode corrigir o valor de uma parcela.', 'error');
+    return;
+  }
+  const f = (D.financeiro || []).find(x => x.id === id);
+  if (!f || f.status !== 'pendente') return;
+
+  const atual = f.valorNum || 0;
+  const novoStr = prompt(
+    `Corrigir valor esperado desta parcela\n(${f.evento || f.contrato || '—'} — ${f.descricao || ''})\n\n` +
+    `Valor atual: ${fR(atual)}\n\nNovo valor (R$):`,
+    atual.toFixed(2).replace('.', ',')
+  );
+  if (novoStr === null) return;
+  const novo = parseFloat(novoStr.replace(/\./g, '').replace(',', '.'));
+  if (!novo || novo <= 0) { alert2('Valor inválido.', 'error'); return; }
+
+  f.valorNum = novo;
+  f.valor = 'R$ ' + novo.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+  f.valorOriginal = novo; // esse passa a ser o valor correto de referência
+
+  sv('financeiro'); _finRefresh();
+  alert2('Valor da parcela corrigido!', 'success');
 }
 function excluirFinanceiro(id) {
   if (!confirm('Excluir este lançamento?')) return;
