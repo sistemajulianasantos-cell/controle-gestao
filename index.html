@@ -1166,6 +1166,25 @@
         <div class="card amber"><div class="card-label">Atrasado</div><div class="card-value" id="fin-total-atrasado">—</div></div>
       </div>
 
+      <!-- Detalhamento por categoria: contrato (20%+80%) x fechamento x geral -->
+      <div class="sec" style="margin-bottom:14px">
+        <div class="sec-head"><span class="sec-title">📊 Detalhamento por categoria</span></div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead>
+              <tr style="color:#8B91A8;border-bottom:1px solid #2A2F42;background:var(--bg4)">
+                <th style="padding:8px 12px;text-align:left;font-weight:600">Categoria</th>
+                <th style="padding:8px 12px;text-align:right;font-weight:600">Total</th>
+                <th style="padding:8px 12px;text-align:right;font-weight:600;color:var(--green)">Recebido</th>
+                <th style="padding:8px 12px;text-align:right;font-weight:600;color:#FBBF24">Pendente</th>
+                <th style="padding:8px 12px;text-align:right;font-weight:600;color:var(--red)">Atrasado</th>
+              </tr>
+            </thead>
+            <tbody id="fin-breakdown-body"></tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- Abas -->
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
         <button class="sort-btn active" id="fin-tab-sint" onclick="finSetView('sintetico')">📊 Sintético</button>
@@ -1990,7 +2009,7 @@
 <script src="js/contratos.js?v=20260709a"></script>
 <script src="js/agenda.js?v=20260610z"></script>
 <script src="js/producao.js?v=20260610z"></script>
-<script src="js/financeiro.js?v=20260709f"></script>
+<script src="js/financeiro.js?v=20260709g"></script>
 <script src="js/fechamento.js?v=20260707a"></script>
 <script src="js/despesas.js?v=20260616c"></script>
 <script src="js/producao2.js?v=20260610z"></script>

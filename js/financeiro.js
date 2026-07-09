@@ -166,13 +166,27 @@ function finSetView(v) {
   if (v === 'analitico') rFinanceiro();
 }
 
+// Vencimento "efetivo" para decidir pendente x atrasado: usa o vencimento
+// cadastrado quando existe; se estiver em branco (comum em contratos antigos
+// importados sem essa data), cai para 7 dias antes do evento — o mesmo prazo
+// padrão que o sistema já usa pra calcular o vencimento da parcela de 80%.
+// Sem isso, uma parcela sem vencimento cadastrado nunca ficava "Atrasada",
+// mesmo com o evento há meses no passado — sempre aparecia como "Pendente".
+function _finVencimentoEfetivo(f) {
+  if (f.vencimento) return f.vencimento;
+  if (!f.data) return '';
+  const d = new Date(f.data + 'T12:00:00');
+  d.setDate(d.getDate() - 7);
+  return d.toISOString().slice(0, 10);
+}
+
 // ── KPIs globais ─────────────────────────────────────────────────────────────
 function _finAtualizarKpis() {
   const fin   = D.financeiro || [];
   const hoje  = new Date().toISOString().slice(0, 10);
   const pagos = fin.filter(f => f.status === 'pago');
   const pend  = fin.filter(f => f.status === 'pendente');
-  const atras = pend.filter(f => f.vencimento && f.vencimento < hoje);
+  const atras = pend.filter(f => { const v = _finVencimentoEfetivo(f); return v && v < hoje; });
   const totPago  = pagos.reduce((a, f) => a + (f.valorNum || 0), 0);
   // OBS: não soma _finSaldoContratosTotal() aqui de propósito — esse card é o
   // número de confiança do dia a dia. A divergência entre parcelas e valor do
@@ -187,6 +201,34 @@ function _finAtualizarKpis() {
   set('fin-total-pend',     fR(totPend));
   set('fin-total-pago',     fR(totPago));
   set('fin-total-atrasado', fR(totAtras));
+
+  // Detalhamento por categoria: Contrato (20%/80%) x Fechamento x Geral
+  const contratoRecs   = fin.filter(f => !f.isFechamento);
+  const fechamentoRecs = fin.filter(f => f.isFechamento);
+  const linhaCategoria = (nome, recs) => {
+    const pg = recs.filter(f => f.status === 'pago').reduce((s, f) => s + (f.valorNum || 0), 0);
+    const pd = recs.filter(f => f.status === 'pendente');
+    const at = pd.filter(f => { const v = _finVencimentoEfetivo(f); return v && v < hoje; });
+    const pdValor = pd.reduce((s, f) => s + (f.valorNum || 0), 0);
+    const atValor = at.reduce((s, f) => s + (f.valorNum || 0), 0);
+    return { nome, total: pg + pdValor, recebido: pg, pendente: pdValor - atValor, atrasado: atValor };
+  };
+  const linhas = [
+    linhaCategoria('Contrato (20% + 80%)', contratoRecs),
+    linhaCategoria('Fechamento', fechamentoRecs),
+    linhaCategoria('Geral', fin),
+  ];
+  const bodyEl = document.getElementById('fin-breakdown-body');
+  if (bodyEl) {
+    bodyEl.innerHTML = linhas.map(l => `
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px 12px;font-weight:600">${l.nome}</td>
+        <td style="padding:8px 12px;text-align:right;font-family:var(--mono)">${fR(l.total)}</td>
+        <td style="padding:8px 12px;text-align:right;font-family:var(--mono);color:var(--green)">${fR(l.recebido)}</td>
+        <td style="padding:8px 12px;text-align:right;font-family:var(--mono);color:#FBBF24">${fR(l.pendente)}</td>
+        <td style="padding:8px 12px;text-align:right;font-family:var(--mono);color:var(--red)">${fR(l.atrasado)}</td>
+      </tr>`).join('');
+  }
 }
 
 // ── Sincronização Fechamentos ↔ Financeiro (ação manual, com confirmação) ───
@@ -420,7 +462,8 @@ function rFinanceiro() {
   const hoje = new Date().toISOString().slice(0, 10);
   lista.forEach(f => {
     const semCobranca = f.status !== 'pago' && !f.valorNum && !f.aprovacaoPendente;
-    const atrasado = !semCobranca && f.status === 'pendente' && f.vencimento && f.vencimento < hoje;
+    const vencEfetivo = _finVencimentoEfetivo(f);
+    const atrasado = !semCobranca && f.status === 'pendente' && vencEfetivo && vencEfetivo < hoje;
     const tr = document.createElement('tr');
     tr.style.background = atrasado ? 'rgba(248,113,113,0.05)' : '';
 
@@ -461,7 +504,7 @@ function rFinanceiro() {
     }
 
     tr.innerHTML = `
-      <td style="${atrasado?'color:#F87171;font-weight:600':''}">${fd(f.vencimento)||'—'}</td>
+      <td style="${atrasado?'color:#F87171;font-weight:600':''}">${fd(vencEfetivo)||'—'}${!f.vencimento && vencEfetivo ? ' <span style="font-size:10px;color:var(--text3)">(estimado)</span>' : ''}</td>
       <td><strong>${f.evento||f.contrato||'—'}</strong>${f.isFechamento?'<span class="tag tag-blue" style="margin-left:6px;font-size:10px">Fechamento</span>':''}</td>
       <td>${fd(f.data)||'—'}</td>
       <td>${f.tipo||'—'}</td>
@@ -544,7 +587,7 @@ function rFinanceiroSintetico() {
 
   linhas.forEach(g => {
     const quitado = p => p.status === 'pago' || (!p.valorNum && !p.aprovacaoPendente);
-    const temAtras = [g.p20, g.p80, g.pFch].some(p => p && p.status === 'pendente' && !quitado(p) && p.vencimento && p.vencimento < hoje);
+    const temAtras = [g.p20, g.p80, g.pFch].some(p => { if (!p || p.status !== 'pendente' || quitado(p)) return false; const v = _finVencimentoEfetivo(p); return v && v < hoje; });
     const todoPago = [g.p20, g.p80, g.pFch].filter(Boolean).every(quitado);
 
     // Subtotal = valor do contrato direto da aba Contratos — NUNCA a soma das
@@ -615,12 +658,15 @@ function _finPilula(parc, hoje) {
     </div>`;
   }
 
-  const atrasado = parc.status === 'pendente' && parc.vencimento && parc.vencimento < hoje;
+  const vencEfetivo = _finVencimentoEfetivo(parc);
+  const atrasado = parc.status === 'pendente' && vencEfetivo && vencEfetivo < hoje;
   const pago     = parc.status === 'pago';
   const bg    = pago ? '#1A3D2B' : atrasado ? '#3D1A1A' : '#2A2F42';
   const cor   = pago ? '#4ADE80' : atrasado ? '#F87171' : '#FBBF24';
   const label = pago ? 'Pago'    : atrasado ? '⚠ Atrasado' : 'Pendente';
-  const venc  = parc.vencimento ? `<div style="font-size:10px;opacity:0.75;margin-top:2px">venc. ${fd(parc.vencimento)}</div>` : '';
+  const venc  = vencEfetivo
+    ? `<div style="font-size:10px;opacity:0.75;margin-top:2px">venc. ${fd(vencEfetivo)}${!parc.vencimento ? ' (estimado)' : ''}</div>`
+    : '';
   const pagoEm = pago && parc.dataPagamento ? `<div style="font-size:10px;opacity:0.75;margin-top:2px">pago em ${fd(parc.dataPagamento)}${parc.formaPagamento ? ' · ' + (FORMAS_PAGAMENTO[parc.formaPagamento]||parc.formaPagamento) : ''}${parc._quitadoPorAjuste ? ' · quitado automaticamente' : ''}</div>` : '';
   const botao = pago
     ? `<div style="margin-top:4px;display:flex;gap:4px;justify-content:center;flex-wrap:wrap">
