@@ -1251,6 +1251,30 @@ function _finRefresh() {
   else rFinanceiro();
 }
 
+// ── Restaurar backup de um ano do Financeiro (somente admin) ────────────────
+// Cada gravação no Financeiro cria automaticamente um backup da versão
+// anterior (ver svFirebase em index.html). Isso desfaz a ÚLTIMA gravação
+// daquele ano — útil se uma gravação acabou baseada em dado desatualizado
+// (ex: duas pessoas editando ao mesmo tempo) e apagou algo que não devia.
+async function restaurarBackupFinanceiro() {
+  if (!(typeof perfilAtual !== 'undefined' && perfilAtual === 'admin')) {
+    alert2('Somente o administrador pode restaurar um backup.', 'error');
+    return;
+  }
+  const anoStr = prompt('Restaurar o backup de qual ano? (ex: 2026)\n\nIsso substitui os lançamentos desse ano pelo que estava salvo ANTES da última gravação. A gravação atual desse ano será perdida.');
+  if (anoStr === null) return;
+  const ano = anoStr.trim();
+  if (!/^\d{4}$/.test(ano)) { alert2('Informe um ano válido (ex: 2026).', 'error'); return; }
+  if (!confirm(`Tem certeza? Isso substitui TODOS os lançamentos de ${ano} no Financeiro pela última cópia de segurança salva. Não pode ser desfeito depois.`)) return;
+
+  if (!window.restaurarBackupFinanceiroAno) { alert2('Função de restauração não disponível — recarregue a página e tente de novo.', 'error'); return; }
+  const resultado = await window.restaurarBackupFinanceiroAno(ano);
+  if (!resultado.ok) { alert2('❌ ' + (resultado.msg || 'Erro ao restaurar backup.'), 'error'); return; }
+
+  const quando = resultado.salvoEm ? new Date(resultado.salvoEm).toLocaleString('pt-BR') : '—';
+  alert2(`✅ Backup restaurado! ${resultado.count} parcela(s) de ${ano} recuperada(s) (salvo em ${quando}). Recarregue a página (Ctrl+Shift+R) para ver os dados atualizados.`, 'success');
+}
+
 function excluirFinanceiro(id) {
   if (!confirm('Excluir este lançamento?')) return;
   D.financeiro = (D.financeiro||[]).filter(f => f.id !== id);

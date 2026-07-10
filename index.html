@@ -1177,6 +1177,7 @@
           <button class="btn-sm" onclick="verificarParcelasContratos()" style="background:#2A2F42;color:#FBBF24;border:1px solid #FBBF24" title="Corrige parcelas 20%/80% faltando ou com valor diferente do contrato">🔍 Verificar parcelas</button>
           <button class="btn-sm" onclick="sincronizarFechamentosFinanceiro()" style="background:#2A2F42;color:#60A5FA;border:1px solid #60A5FA" title="Recria a parcela de fechamentos que sumiram do Financeiro">🔧 Sincronizar fechamentos</button>
           <button class="btn-sm" onclick="limparFinanceiroOrfaos()" style="background:#2A2F42;color:#F74F6B;border:1px solid #F74F6B" title="Remove lançamentos cujo contrato foi excluído">🗑️ Limpar órfãos</button>
+          <button class="btn-sm" onclick="restaurarBackupFinanceiro()" style="background:#2A2F42;color:#34D399;border:1px solid #34D399" title="Desfaz a última gravação de um ano específico, voltando pra cópia de segurança automática">🛟 Restaurar backup</button>
         </div>
       </div>
 
@@ -1991,7 +1992,7 @@
 <script src="js/contratos.js?v=20260709b"></script>
 <script src="js/agenda.js?v=20260610z"></script>
 <script src="js/producao.js?v=20260610z"></script>
-<script src="js/financeiro.js?v=20260709o"></script>
+<script src="js/financeiro.js?v=20260710a"></script>
 <script src="js/fechamento.js?v=20260709a"></script>
 <script src="js/despesas.js?v=20260616c"></script>
 <script src="js/producao2.js?v=20260610z"></script>
@@ -2101,6 +2102,25 @@ window.svFirebase = async function(chave) {
       // salvar. Prefere duplicar (recuperável com "🧮 Verificar duplicatas") a
       // apagar dado de verdade. Ver carregarDados(): a leitura já junta
       // "financeiro" + "financeiro_AAAA" num array só, então nada fica invisível.
+
+      // Backup automático: antes de sobrescrever cada documento por ano, guarda
+      // o estado ATUAL dele (de antes dessa gravação) na coleção "backups".
+      // Guarda só a última versão anterior (não histórico completo) — o
+      // suficiente para desfazer uma gravação ruim (ex: baseada em dado
+      // desatualizado de duas pessoas editando ao mesmo tempo). Restaurável
+      // pelo botão "🛟 Restaurar backup" no Financeiro.
+      for (const ano of Object.keys(porAno)) {
+        try {
+          const atual = await getDoc(doc(db, "dados", "financeiro_" + ano));
+          if (atual.exists()) {
+            await setDoc(doc(db, "backups", "financeiro_" + ano), {
+              valor: atual.data().valor || [],
+              salvoEm: new Date().toISOString(),
+            });
+          }
+        } catch (e) { console.error('Erro ao criar backup de financeiro_' + ano + ':', e); }
+      }
+
       const batch = writeBatch(db);
       for (const [ano, lista] of Object.entries(porAno)) {
         batch.set(doc(db, "dados", "financeiro_" + ano), { valor: lista });
@@ -2150,6 +2170,24 @@ window.buscarComprovante = async function(parcelaId) {
 window.excluirComprovante = async function(parcelaId) {
   try { await deleteDoc(doc(db, "comprovantes", parcelaId)); }
   catch(e) { console.error('Erro ao excluir comprovante:', e); }
+};
+
+// ─── BACKUP/RESTAURAÇÃO DO FINANCEIRO ──────────────────────────────────────
+// Backup é criado automaticamente em svFirebase antes de cada gravação (ver
+// acima) — guarda só a última versão anterior de cada ano, não histórico
+// completo. Isso dá um jeito de desfazer uma gravação ruim (ex: duas pessoas
+// editando ao mesmo tempo, uma delas com aba desatualizada).
+window.restaurarBackupFinanceiroAno = async function(ano) {
+  try {
+    const backupSnap = await getDoc(doc(db, "backups", "financeiro_" + ano));
+    if (!backupSnap.exists()) return { ok: false, msg: 'Nenhum backup encontrado para esse ano.' };
+    const dados = backupSnap.data();
+    await setDoc(doc(db, "dados", "financeiro_" + ano), { valor: dados.valor || [] });
+    return { ok: true, count: (dados.valor || []).length, salvoEm: dados.salvoEm };
+  } catch (e) {
+    console.error('Erro ao restaurar backup:', e);
+    return { ok: false, msg: e.message };
+  }
 };
 
 // ─── CARREGAR ────────────────────────────────────────────────────────────────
