@@ -12,7 +12,24 @@ var CATEGORIAS_INSUMO = [
 // Margem mínima usada só para sugerir o preço-teto (alerta, não bloqueia).
 var MARGEM_MINIMA_INSUMO = 0.30;
 
+var CLASSIFICACOES_PRODUCAO = [
+  ['materia_prima', 'Matéria-Prima'],
+  ['semiacabado',   'Semiacabado'],
+  ['acabado',       'Produto Acabado'],
+];
+
 var _insumoEditandoId = null;
+
+// Código sequencial curto (tipo "000454" do Eide) — só pra identificar/anotar
+// rápido, não substitui o id interno.
+function _proximoCodigoInsumo() {
+  var max = 0;
+  (D.insumos || []).forEach(function(i) {
+    var n = parseInt(i.codigo, 10);
+    if (!isNaN(n) && n > max) max = n;
+  });
+  return String(max + 1).padStart(6, '0');
+}
 
 function initCadastro() {
   if (!D.insumos) D.insumos = [];
@@ -32,8 +49,10 @@ function setCadastroView(v) {
 // Roda toda vez que a tela abre — idempotente (pula quem já foi migrado) e
 // pega automaticamente produtos novos cadastrados depois.
 function migrarInsumosDeProdutos() {
-  if (!D.produtos || !D.produtos.length) return;
   if (!D.insumos) D.insumos = [];
+  var mudou = _preencherCamposNovosDosInsumos();
+
+  if (!D.produtos || !D.produtos.length) { if (mudou) sv('insumos'); return; }
   var jaMigrados = new Set(D.insumos.map(function(i){ return i.origemProdutoId; }).filter(Boolean));
   var criados = 0;
   D.produtos.forEach(function(p) {
@@ -41,12 +60,15 @@ function migrarInsumosDeProdutos() {
     var pr = (D.precos && D.precos[p.nome]) || {};
     D.insumos.push({
       id: 'INS' + Date.now() + Math.random().toString(36).slice(2, 6),
+      codigo: _proximoCodigoInsumo(),
       origemProdutoId: p.id,
       nome: p.nome,
       aliases: (p.aliases || []).slice(),
       categoria: p.categoria || 'OUTROS',
       unidadeCompra: p.unidade || 'UN',
       tamanhoEmbalagem: p.tamanhoEmbalagem || 1,
+      estoqueMinimo: p.minimo || 0,
+      classificacaoProducao: 'materia_prima',
       custoReposicao: pr.custo || 0,
       precoManual: null,
       ultimaCompra: pr.ultimaCompra || '',
@@ -54,7 +76,19 @@ function migrarInsumosDeProdutos() {
     });
     criados++;
   });
-  if (criados > 0) sv('insumos');
+  if (criados > 0 || mudou) sv('insumos');
+}
+
+// Completa campos novos (codigo, classificacaoProducao, estoqueMinimo) em
+// insumos que já existiam de uma versão anterior do cadastro, sem os ter.
+function _preencherCamposNovosDosInsumos() {
+  var mudou = false;
+  (D.insumos || []).forEach(function(i) {
+    if (!i.codigo) { i.codigo = _proximoCodigoInsumo(); mudou = true; }
+    if (!i.classificacaoProducao) { i.classificacaoProducao = 'materia_prima'; mudou = true; }
+    if (i.estoqueMinimo == null) { i.estoqueMinimo = 0; mudou = true; }
+  });
+  return mudou;
 }
 
 // ── Helpers de leitura ──────────────────────────────────────────────────────
@@ -103,10 +137,25 @@ function precoEfetivoInsumo(insumo) {
   return Number(insumo.custoReposicao || 0);
 }
 
-// Fase 2 (ainda não implementada): fichas de coquetel passarão a referenciar
-// insumos por ID — até lá, não há como listar "onde é usado".
-function _fichasQueUsamInsumo(insumoId) {
-  return [];
+// Onde é usado — até a Fase 2 (fichas referenciando insumo por ID), faz o
+// mesmo tipo de casamento por nome/apelido que o resto do sistema já usa hoje
+// (ex: _rcMapFichaItemToRC em orcCalc.js). Não é definitivo, mas evita ficar
+// em branco até a migração de verdade acontecer.
+function _fichasQueUsamInsumo(insumo) {
+  if (!D.fichas || !D.fichas.length) return [];
+  var candidatos = [(insumo.nome || '').toUpperCase()]
+    .concat((insumo.aliases || []).map(function(a) { return (a || '').toUpperCase(); }))
+    .filter(function(c) { return c && c.length >= 3; }); // evita falso-positivo com apelido muito curto
+  var resultado = [];
+  D.fichas.forEach(function(f) {
+    var achou = (f.itens || []).some(function(item) {
+      var n = (item.nome || '').toUpperCase();
+      if (!n) return false;
+      return candidatos.some(function(c) { return n === c || n.includes(c) || c.includes(n); });
+    });
+    if (achou) resultado.push(f.nome);
+  });
+  return resultado;
 }
 
 // ── Render: lista ───────────────────────────────────────────────────────────
@@ -149,6 +198,7 @@ function rCadastroInsumos() {
         var efetivo = precoEfetivoInsumo(i);
         var abaixoTeto = efetivo > 0 && teto > 0 && efetivo < teto;
         return '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;display:flex;align-items:center;gap:10px">' +
+          '<span style="font-family:var(--mono);font-size:10px;color:var(--text3);white-space:nowrap">' + (i.codigo || '—') + '</span>' +
           '<div style="flex:1">' +
             '<span style="font-size:12px;font-weight:600;color:var(--text)">' + i.nome + '</span>' +
             (i.aliases && i.aliases.length ? '<div style="font-size:10px;color:var(--text3);margin-top:2px">Apelidos: ' + i.aliases.join(', ') + '</div>' : '') +
@@ -180,10 +230,12 @@ function rFormInsumo(id) {
   var custoRepos = i ? (i.custoReposicao || 0) : 0;
   var custoMedio = i ? calcCustoMedioEstoque(i.nome) : 0;
   var teto = i ? calcPrecoTetoSugerido(i) : 0;
-  var usadoEm = i ? _fichasQueUsamInsumo(i.id) : [];
+  var usadoEm = i ? _fichasQueUsamInsumo(i) : [];
+  var classProd = (i && i.classificacaoProducao) || 'materia_prima';
 
   cont.innerHTML = '<div class="sec">' +
     '<div class="sec-head"><span class="sec-title">' + (i ? '✏️ Editar Insumo' : '+ Novo Insumo') + '</span>' +
+      (i && i.codigo ? '<span style="font-family:var(--mono);font-size:11px;color:var(--text3);margin-left:10px">Código ' + i.codigo + '</span>' : '') +
       '<button class="btn-sm" onclick="setCadastroView(\'lista\')" style="margin-left:auto">← Voltar</button>' +
     '</div>' +
     '<div style="padding:16px">' +
@@ -211,6 +263,22 @@ function rFormInsumo(id) {
           '<input class="inp" id="cad-embalagem" type="number" min="1" value="' + (i && i.tamanhoEmbalagem ? i.tamanhoEmbalagem : 1) + '"></div>' +
       '</div>' +
 
+      '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">Classificação na Produção</div>' +
+      '<div style="display:flex;gap:16px;margin-bottom:20px">' +
+        CLASSIFICACOES_PRODUCAO.map(function(cp) {
+          return '<label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text);cursor:pointer">' +
+            '<input type="radio" name="cad-classprod" value="' + cp[0] + '"' + (classProd === cp[0] ? ' checked' : '') + '> ' + cp[1] +
+          '</label>';
+        }).join('') +
+      '</div>' +
+
+      '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">Estoque</div>' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:20px">' +
+        '<div><label class="lbl">Quantidade mínima em estoque</label>' +
+          '<input class="inp" id="cad-estoque-minimo" type="number" min="0" value="' + (i && i.estoqueMinimo ? i.estoqueMinimo : 0) + '" placeholder="0">' +
+          '<div style="font-size:10px;color:var(--text3);margin-top:2px">Nunca deixar o estoque cair abaixo disso. 0 = sem mínimo.</div></div>' +
+      '</div>' +
+
       '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">Custo e Preço</div>' +
       '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:8px">' +
         '<div><label class="lbl">Custo de Reposição (última compra)</label>' +
@@ -225,7 +293,8 @@ function rFormInsumo(id) {
       (i ? (
         '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">Onde é usado</div>' +
         '<div style="font-size:12px;color:var(--text3);margin-bottom:8px">' +
-          (usadoEm.length ? usadoEm.map(function(f) { return '• ' + f; }).join('<br>') : 'Ainda não disponível — as fichas de coquetel ainda não referenciam insumos por ID.') +
+          (usadoEm.length ? usadoEm.map(function(f) { return '• ' + f; }).join('<br>') : 'Nenhuma ficha de coquetel usa este insumo (ou o nome/apelido ainda não bate com a ficha).') +
+          '<div style="font-size:10px;color:var(--text3);margin-top:6px;font-style:italic">Casamento por nome, provisório — na Fase 2 a ficha passa a referenciar o insumo por ID.</div>' +
         '</div>'
       ) : '') +
 
@@ -248,14 +317,19 @@ function salvarInsumo() {
   if (!D.insumos) D.insumos = [];
   var existente = _insumoEditandoId ? buscarInsumoPorId(_insumoEditandoId) : null;
 
+  var classProdEl = document.querySelector('input[name="cad-classprod"]:checked');
+
   var insumo = {
     id: existente ? existente.id : ('INS' + Date.now()),
+    codigo: existente ? existente.codigo : _proximoCodigoInsumo(),
     origemProdutoId: existente ? existente.origemProdutoId : null,
     nome: nome,
     aliases: aliases,
     categoria: document.getElementById('cad-categoria')?.value || 'OUTROS',
     unidadeCompra: document.getElementById('cad-unidade')?.value || 'UN',
     tamanhoEmbalagem: parseInt(document.getElementById('cad-embalagem')?.value) || 1,
+    classificacaoProducao: classProdEl ? classProdEl.value : 'materia_prima',
+    estoqueMinimo: parseFloat(document.getElementById('cad-estoque-minimo')?.value) || 0,
     custoReposicao: existente ? existente.custoReposicao : 0,
     precoManual: (precoManualVal != null && precoManualVal !== '') ? Number(precoManualVal) : null,
     ultimaCompra: existente ? existente.ultimaCompra : '',
