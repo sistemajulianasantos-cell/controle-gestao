@@ -94,6 +94,14 @@
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
           Insumos
         </div>
+        <div class="nav-item" data-page="cargos" data-modulo="estoque" onclick="go('cargos')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="3"/><path d="M2 15c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>
+          Cargos
+        </div>
+        <div class="nav-item" data-page="enderecos" data-modulo="estoque" onclick="go('enderecos')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 15s5-4.5 5-8.5A5 5 0 0 0 3 6.5C3 10.5 8 15 8 15z"/><circle cx="8" cy="6.5" r="1.7"/></svg>
+          Bairros/Endereços
+        </div>
       </div>
     </div>
 
@@ -889,6 +897,35 @@
         </div>
       </div>
       <div id="cad-view-form" style="display:none"></div>
+    </div>
+
+    <!-- ═══ CADASTRO DE CARGOS ═══ -->
+    <div id="page-cargos" class="page">
+      <div style="margin-bottom:14px">
+        <div style="font-size:15px;font-weight:600">Cadastro de Cargos</div>
+        <div style="font-size:11px;color:var(--text3)">Custo (o que você paga) e Preço (o que você cobra) por Região/Local — fonte única, substitui as regras de Equipe e Preços do Orçamento</div>
+      </div>
+      <div id="crg-view-lista">
+        <div class="sec">
+          <div class="sec-head"><span class="sec-title">👥 Cargos cadastrados</span></div>
+          <div id="crg-lista-body" style="padding:8px 16px"></div>
+        </div>
+      </div>
+      <div id="crg-view-form" style="display:none"></div>
+    </div>
+
+    <!-- ═══ CADASTRO DE BAIRROS/ENDEREÇOS ═══ -->
+    <div id="page-enderecos" class="page">
+      <div style="margin-bottom:14px">
+        <div style="font-size:15px;font-weight:600">Bairros / Endereços</div>
+        <div style="font-size:11px;color:var(--text3)">Vincula bairro, cidade ou condomínio a uma faixa de Região/Local — evita escolher a região errada na hora do orçamento ou contrato</div>
+      </div>
+      <div class="sec">
+        <div class="sec-head"><span class="sec-title">📍 Endereços cadastrados</span>
+          <input class="inp" id="end-busca" type="text" placeholder="🔍 Buscar..." style="max-width:220px;margin-left:auto" oninput="rEnderecos()">
+        </div>
+        <div id="end-lista-body" style="padding:8px 16px"></div>
+      </div>
     </div>
 
     <!-- ═══ CONTRATOS ═══ -->
@@ -2052,6 +2089,7 @@
 <script src="js/producao2.js?v=20260610z"></script>
 <script src="js/produtos.js?v=20260610z"></script>
 <script src="js/insumos.js?v=20260712a"></script>
+<script src="js/cargos.js?v=20260712a"></script>
 <script src="js/regras.js?v=20260712a"></script>
 <script src="js/separacao.js?v=20260610z"></script>
 <script src="js/equipe.js?v=20260613b"></script>
@@ -2106,6 +2144,8 @@ window.svFirebase = async function(chave) {
     if(chave==='bibliotecaItens') campo.bibliotecaItens = D.bibliotecaItens;
     if(chave==='produtos')       campo.produtos       = D.produtos;
     if(chave==='insumos')        campo.insumos        = D.insumos;
+    if(chave==='cargos')         campo.cargos         = D.cargos;
+    if(chave==='enderecos')      campo.enderecos      = D.enderecos;
     if(chave==='historico')    campo.historico    = D.historico;
     if(chave==='metas')        campo.metas        = D.metas;
     if(chave==='equipe'){
@@ -2298,6 +2338,8 @@ async function carregarDados() {
     D.metas        = r.metas        || {};
     D.produtos     = r.produtos     || [];
     D.insumos      = r.insumos      || [];
+    D.cargos       = r.cargos       || [];
+    D.enderecos    = r.enderecos    || [];
     D.equipe           = r.equipe           || [];
     D.escalas          = r.escalas          || [];
     D.regrasEquipe     = r.regrasEquipe     || {};
