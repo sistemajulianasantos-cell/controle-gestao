@@ -86,6 +86,19 @@
 
     <div class="nav-group">
       <div class="nav-group-header" onclick="toggleNavGroup(this)">
+        <span>Cadastro</span>
+        <span class="nav-group-chevron">›</span>
+      </div>
+      <div class="nav-group-items">
+        <div class="nav-item" data-page="cadastro" data-modulo="estoque" onclick="go('cadastro')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
+          Insumos
+        </div>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-header" onclick="toggleNavGroup(this)">
         <span>Comercial</span>
         <span class="nav-group-chevron">›</span>
       </div>
@@ -837,6 +850,45 @@
         </div>
       </div>
       <div id="prd-view-form" style="display:none"></div>
+    </div>
+
+    <!-- ═══ CADASTRO DE INSUMOS ═══ -->
+    <div id="page-cadastro" class="page">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+        <div>
+          <div style="font-size:15px;font-weight:600">Cadastro de Insumos</div>
+          <div style="font-size:11px;color:var(--text3)">Custo, preço e apelidos — fonte única usada pelo Orçamento e pelas Fichas de Coquetel</div>
+        </div>
+        <button class="btn" onclick="setCadastroView('form');rFormInsumo()" style="background:var(--green)">+ Novo Insumo</button>
+      </div>
+      <!-- Filtros -->
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+        <input class="inp" id="cad-busca" type="text" placeholder="🔍 Buscar por nome ou apelido..." style="flex:1;min-width:200px" oninput="rCadastroInsumos()">
+        <select class="inp" id="cad-cat-filtro" style="width:200px" onchange="rCadastroInsumos()">
+          <option value="">Todas as categorias</option>
+          <option value="BEBIDAS ALCOÓLICAS">BEBIDAS ALCOÓLICAS</option>
+          <option value="BEBIDAS SEM ÁLCOOL">BEBIDAS SEM ÁLCOOL</option>
+          <option value="COPOS E TAÇAS">COPOS E TAÇAS</option>
+          <option value="HORTIFRUTI">HORTIFRUTI</option>
+          <option value="ESPECIARIAS">ESPECIARIAS</option>
+          <option value="MIX ARTESANAL">MIX ARTESANAL</option>
+          <option value="PRODUÇÃO">PRODUÇÃO</option>
+          <option value="XAROPES">XAROPES</option>
+          <option value="MATERIAL">MATERIAL</option>
+          <option value="GELO">GELO</option>
+          <option value="DESCARTÁVEIS">DESCARTÁVEIS</option>
+          <option value="KIT BARTENDER">KIT BARTENDER</option>
+          <option value="OUTROS">OUTROS</option>
+        </select>
+      </div>
+      <!-- Views -->
+      <div id="cad-view-lista">
+        <div class="sec">
+          <div class="sec-head"><span class="sec-title">📦 Insumos cadastrados</span></div>
+          <div id="cad-lista-body" style="padding:8px 16px"></div>
+        </div>
+      </div>
+      <div id="cad-view-form" style="display:none"></div>
     </div>
 
     <!-- ═══ CONTRATOS ═══ -->
@@ -1999,6 +2051,7 @@
 <script src="js/despesas.js?v=20260616c"></script>
 <script src="js/producao2.js?v=20260610z"></script>
 <script src="js/produtos.js?v=20260610z"></script>
+<script src="js/insumos.js?v=20260712a"></script>
 <script src="js/regras.js?v=20260712a"></script>
 <script src="js/separacao.js?v=20260610z"></script>
 <script src="js/equipe.js?v=20260613b"></script>
@@ -2052,6 +2105,7 @@ window.svFirebase = async function(chave) {
     if(chave==='orcPrecos')    campo.orcPrecos    = D.orcPrecos;
     if(chave==='bibliotecaItens') campo.bibliotecaItens = D.bibliotecaItens;
     if(chave==='produtos')       campo.produtos       = D.produtos;
+    if(chave==='insumos')        campo.insumos        = D.insumos;
     if(chave==='historico')    campo.historico    = D.historico;
     if(chave==='metas')        campo.metas        = D.metas;
     if(chave==='equipe'){
@@ -2243,6 +2297,7 @@ async function carregarDados() {
     D.historico    = r.historico    || {};
     D.metas        = r.metas        || {};
     D.produtos     = r.produtos     || [];
+    D.insumos      = r.insumos      || [];
     D.equipe           = r.equipe           || [];
     D.escalas          = r.escalas          || [];
     D.regrasEquipe     = r.regrasEquipe     || {};
