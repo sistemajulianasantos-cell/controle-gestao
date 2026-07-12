@@ -280,18 +280,19 @@ function rFormInsumo(id) {
       '</div>' +
 
       '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">Custo e Preço</div>' +
-      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:8px">' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:20px">' +
         '<div><label class="lbl">Custo de Reposição (última compra)</label>' +
           '<div class="inp" style="background:var(--bg3);color:var(--text3)">' + (custoRepos ? fR(custoRepos) : '— sem compras ainda') + '</div></div>' +
         '<div><label class="lbl">Custo Médio do Estoque</label>' +
           '<div class="inp" style="background:var(--bg3);color:var(--text3)">' + (custoMedio ? fR(custoMedio) : '— sem compras ainda') + '</div></div>' +
         '<div><label class="lbl">Preço Manual (opcional)</label>' +
           '<input class="inp" id="cad-preco-manual" type="number" min="0" step="0.01" placeholder="vazio = usa o de reposição" value="' + (i && i.precoManual != null ? i.precoManual : '') + '"></div>' +
+        '<div><label class="lbl">Preço-teto sugerido</label>' +
+          '<div class="inp" style="background:var(--bg3);color:var(--amber)" title="Mínimo recomendado — é só um alerta, não bloqueia nada">' + (teto ? fR(teto) : '—') + '</div></div>' +
       '</div>' +
-      '<div style="font-size:11px;color:var(--text3);margin-bottom:20px">Preço-teto sugerido (mínimo recomendado): <b>' + (teto ? fR(teto) : '—') + '</b> — é só um alerta, não bloqueia nada.</div>' +
 
       (i ? (
-        '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">Onde é usado</div>' +
+        '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">Ficha Técnica</div>' +
         '<div style="font-size:12px;color:var(--text3);margin-bottom:8px">' +
           (usadoEm.length ? usadoEm.map(function(f) { return '• ' + f; }).join('<br>') : 'Nenhuma ficha de coquetel usa este insumo (ou o nome/apelido ainda não bate com a ficha).') +
           '<div style="font-size:10px;color:var(--text3);margin-top:6px;font-style:italic">Casamento por nome, provisório — na Fase 2 a ficha passa a referenciar o insumo por ID.</div>' +
