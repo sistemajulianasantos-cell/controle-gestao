@@ -4,39 +4,38 @@
 // (D.orcPrecos.locais, orcCalc.js) numa única faixa de Região/Local — as duas
 // telas antigas continuam existindo e não foram migradas ainda (fase futura).
 
-// Lista única de faixas — substitui as duas divergentes (REGIOES_PAGAMENTO
-// em equipe.js e CALC_LOCAIS_PADRAO em orcCalc.js) só dentro deste cadastro novo.
+// Lista única de faixas — usa EXATAMENTE as mesmas faixas/nomes que já
+// existem em Equipe → Regras de Pagamento (REGIOES_PAGAMENTO, equipe.js),
+// por pedido da Juliana: são as faixas com histórico mais completo e
+// detalhado (vão até "acima de 400 km"). Quem precisa se encaixar aqui é o
+// preço do orçamento, que usava uma régua diferente (até 300km).
 var REGIOES_LOCAL = [
-  { key: 'area_central',     label: 'Área Central BH' },
-  { key: 'jardim_canada',    label: 'Jardim Canadá / Condomínios Nova Lima' },
-  { key: 'reg_metro',        label: 'Região Metropolitana (Grande BH)' },
-  { key: 'viagem_60',        label: 'Viagem até 60 km' },
-  { key: 'viagem_100',       label: 'Viagem até 100 km' },
-  { key: 'viagem_200',       label: 'Viagem até 200 km' },
-  { key: 'viagem_300',       label: 'Viagem até 300 km' },
-  { key: 'viagem_acima_300', label: 'Viagem acima de 300 km' },
+  { key: 'area_central',  label: 'Área Central BH' },
+  { key: 'jardim_canada', label: 'Jardim Canadá / C. Nova' },
+  { key: 'reg_metro',     label: 'Região Metropolitana' },
+  { key: 'viagem_100',    label: 'Viagem 50 a 100 km' },
+  { key: 'viagem_250',    label: 'Viagem 101 a 250 km' },
+  { key: 'viagem_400',    label: 'Viagem 251 a 400 km' },
+  { key: 'viagem_mais',   label: 'Viagem acima de 400 km' },
 ];
 
-// As 3 primeiras faixas batem exatamente com a lista antiga de Região
-// (equipe.js/REGIOES_PAGAMENTO) — migração direta, sem aproximação.
-var _REGIOES_EXATAS = ['area_central', 'jardim_canada', 'reg_metro'];
-
-// Mapa região antiga (equipe.js/REGIOES_PAGAMENTO) → faixa(s) nova(s)
-// (REGIOES_LOCAL). Cada região antiga pode alimentar mais de uma faixa nova
-// (ex: "viagem_60" nunca existiu separada no pagamento antigo — a Juliana
-// pediu pra usar o mesmo valor de "50 a 100 km" nela também). As 3 primeiras
-// são exatas; as faixas de "viagem" são uma aproximação (os cortes de km
-// mudaram) — todo valor de custo que entrar por essa via fica marcado com
-// custoAproximado:true pra ela revisar, nunca escondido.
-var _MAPA_REGIAO_ANTIGA_PARA_NOVA = {
-  area_central:  ['area_central'],
-  jardim_canada: ['jardim_canada'],
-  reg_metro:     ['reg_metro'],
-  viagem_100:    ['viagem_60', 'viagem_100'],  // antiga "50 a 100 km" → novas "até 60 km" (pedido dela) e "até 100 km"
-  viagem_250:    ['viagem_200'],               // antiga "101 a 250 km" → nova "até 200 km" (aproximado)
-  viagem_400:    ['viagem_300'],               // antiga "251 a 400 km" → nova "até 300 km" (aproximado)
-  viagem_mais:   ['viagem_acima_300'],         // antiga "acima de 400 km" → nova "acima de 300 km"
+// Mapa faixa antiga do ORÇAMENTO (CALC_LOCAIS_PADRAO/orcCalc.js) → faixa
+// nova (REGIOES_LOCAL). As 3 primeiras são exatas (mesmo nome/corte nas
+// duas telas). As de "viagem" são aproximação, porque a régua do orçamento
+// ia só até 300km em cortes diferentes dos da Equipe — todo preço que
+// entrar por essa via fica marcado com precoAproximado:true, nunca escondido.
+var _MAPA_LOCAL_ORCAMENTO_PARA_REGIAO = {
+  area_central:  'area_central',
+  jardim_canada: 'jardim_canada',
+  reg_metro:     'reg_metro',
+  viagem_60:     'viagem_100',  // até 60km (orçamento) → 50 a 100km (aproximado)
+  viagem_100:    'viagem_100',  // até 100km (orçamento) → 50 a 100km (mais próximo — processado por último, prevalece)
+  viagem_200:    'viagem_250',  // até 200km (orçamento) → 101 a 250km (aproximado)
+  viagem_300:    'viagem_400',  // até 300km (orçamento) → 251 a 400km (aproximado)
 };
+var _LOCAIS_ORCAMENTO_EXATOS = ['area_central', 'jardim_canada', 'reg_metro'];
+// "Viagem acima de 400 km" não tem nenhuma faixa equivalente no orçamento
+// antigo (que ia só até 300km) — fica sem preço migrado, precisa preencher na mão.
 
 var _CARGOS_DEF = [
   { key: 'hb', nome: 'Head Bartender' },
@@ -69,38 +68,44 @@ function setCargosView(v) {
 // ── Migração a partir de D.regrasEquipe + D.orcPrecos.locais (não apaga nada) ──
 function migrarCargos() {
   if (!D.cargos) D.cargos = [];
+
+  // A lista de faixas mudou (agora usa as 7 faixas de Equipe, não as 8 que
+  // a gente tinha inventado antes). Cargos migrados na versão anterior
+  // ficaram com chaves que não existem mais — reconstrói do zero (a
+  // Juliana confirmou que ainda não tinha editado nada manualmente).
+  var esquemaAntigo = D.cargos.some(function(c) {
+    return c.porRegiao && (c.porRegiao.viagem_60 || c.porRegiao.viagem_200 || c.porRegiao.viagem_300 || c.porRegiao.viagem_acima_300);
+  });
+  if (esquemaAntigo) D.cargos = [];
+
   var rg = D.regrasEquipe || {};
   var precos = (typeof getOrcPrecos === 'function') ? getOrcPrecos() : null;
   var locais = (precos && precos.locais) || {};
-  var mudou = false;
+  var mudou = esquemaAntigo;
 
   _CARGOS_DEF.forEach(function(def) {
     if (D.cargos.some(function(c) { return c.key === def.key; })) return; // já existe, não sobrescreve edições
 
     var porRegiao = {};
     REGIOES_LOCAL.forEach(function(r) {
-      // Preço (o que cobra) migra sempre que a chave existir em Preços do
-      // Orçamento — as faixas de viagem daqui usam a MESMA nomenclatura
-      // (viagem_60/100/200/300) que orcCalc.js já usava, é o mesmo dado.
-      var loc = locais[r.key] || {};
+      // Custo (o que paga): migração exata — a lista nova É a lista antiga
+      // de Região usada em Equipe → Regras de Pagamento.
+      var baseReg = ((rg.base || {})[r.key] || {})[def.key] || {};
       porRegiao[r.key] = {
-        custoNovato: 0,
-        custoAntigo: 0,
-        precoOrcamento: loc[def.key] || 0,
-        custoAproximado: false,
+        custoNovato: baseReg.novato || 0,
+        custoAntigo: baseReg.antigo || 0,
+        precoOrcamento: 0,
+        precoAproximado: false,
       };
     });
 
-    // Custo (o que paga), via mapa região antiga → nova(s). Exato pras 3
-    // faixas fixas; aproximado (marcado) pras faixas de viagem remapeadas.
-    Object.keys(_MAPA_REGIAO_ANTIGA_PARA_NOVA).forEach(function(regiaoAntiga) {
-      var baseReg = ((rg.base || {})[regiaoAntiga] || {})[def.key] || {};
-      if (!baseReg.novato && !baseReg.antigo) return;
-      _MAPA_REGIAO_ANTIGA_PARA_NOVA[regiaoAntiga].forEach(function(novaKey) {
-        porRegiao[novaKey].custoNovato = baseReg.novato || 0;
-        porRegiao[novaKey].custoAntigo = baseReg.antigo || 0;
-        porRegiao[novaKey].custoAproximado = _REGIOES_EXATAS.indexOf(regiaoAntiga) === -1;
-      });
+    // Preço (o que cobra): mapeado a partir das faixas antigas do orçamento.
+    Object.keys(_MAPA_LOCAL_ORCAMENTO_PARA_REGIAO).forEach(function(localAntigo) {
+      var novaKey = _MAPA_LOCAL_ORCAMENTO_PARA_REGIAO[localAntigo];
+      var valor = (locais[localAntigo] || {})[def.key] || 0;
+      if (!valor) return;
+      porRegiao[novaKey].precoOrcamento = valor;
+      porRegiao[novaKey].precoAproximado = _LOCAIS_ORCAMENTO_EXATOS.indexOf(localAntigo) === -1;
     });
 
     D.cargos.push({
@@ -112,43 +117,7 @@ function migrarCargos() {
     mudou = true;
   });
 
-  if (_backfillCargosExistentes()) mudou = true;
   if (mudou) sv('cargos');
-}
-
-// Corrige cargos já migrados numa versão anterior (que zerou preço/custo de
-// viagem por excesso de cautela) — preenche só onde ainda está 0 (custoNovato
-// E custoAntigo, ou precoOrcamento), sem tocar em valor que ela já editou.
-function _backfillCargosExistentes() {
-  var precos = (typeof getOrcPrecos === 'function') ? getOrcPrecos() : null;
-  var locais = (precos && precos.locais) || {};
-  var rg = D.regrasEquipe || {};
-  var mudou = false;
-
-  (D.cargos || []).forEach(function(c) {
-    // Preço
-    REGIOES_LOCAL.forEach(function(r) {
-      var v = (c.porRegiao || {})[r.key];
-      if (!v) return;
-      var doOrcamento = (locais[r.key] || {})[c.key] || 0;
-      if (!v.precoOrcamento && doOrcamento) { v.precoOrcamento = doOrcamento; mudou = true; }
-    });
-    // Custo (via mapa antigo → novo), só se a faixa ainda estiver zerada
-    Object.keys(_MAPA_REGIAO_ANTIGA_PARA_NOVA).forEach(function(regiaoAntiga) {
-      var baseReg = ((rg.base || {})[regiaoAntiga] || {})[c.key] || {};
-      if (!baseReg.novato && !baseReg.antigo) return;
-      _MAPA_REGIAO_ANTIGA_PARA_NOVA[regiaoAntiga].forEach(function(novaKey) {
-        var v = (c.porRegiao || {})[novaKey];
-        if (!v || v.custoNovato || v.custoAntigo) return; // já preenchido, não sobrescreve
-        v.custoNovato = baseReg.novato || 0;
-        v.custoAntigo = baseReg.antigo || 0;
-        v.custoAproximado = _REGIOES_EXATAS.indexOf(regiaoAntiga) === -1;
-        mudou = true;
-      });
-    });
-  });
-
-  return mudou;
 }
 
 // ── Helpers de leitura ──────────────────────────────────────────────────────
@@ -165,8 +134,7 @@ function buscarCargoPorKey(key) {
   return (D.cargos || []).find(function(c) { return c.key === key; }) || null;
 }
 
-// "Falta preencher" = falta o custo (o que paga) — o preço (o que cobra) já
-// vem migrado automaticamente pra quase todas as faixas.
+// "Falta preencher" = falta o custo (o que paga) pra essa faixa.
 function _cargoFaixasSemValor(cargo) {
   return REGIOES_LOCAL.filter(function(r) {
     var v = (cargo.porRegiao || {})[r.key] || {};
@@ -190,7 +158,7 @@ function rCargosLista() {
     var faltando = _cargoFaixasSemValor(c).length;
     return '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;display:flex;align-items:center;gap:10px;margin-bottom:6px">' +
       '<div style="flex:1"><span style="font-size:13px;font-weight:600;color:var(--text)">' + c.nome + '</span></div>' +
-      (faltando ? '<span style="font-size:10px;color:var(--amber)">⚠️ ' + faltando + ' faixa(s) sem valor</span>' : '<span style="font-size:10px;color:var(--green)">completo</span>') +
+      (faltando ? '<span style="font-size:10px;color:var(--amber)">⚠️ ' + faltando + ' faixa(s) sem custo</span>' : '<span style="font-size:10px;color:var(--green)">completo</span>') +
       '<button class="btn-sm" style="background:var(--blue)" onclick="editarCargo(\'' + c.id + '\')">✏️ Editar</button>' +
     '</div>';
   }).join('');
@@ -217,21 +185,24 @@ function rFormCargo(id) {
         '<th style="text-align:center;padding:6px 8px">Preço Orçamento<br><span style="font-weight:400;text-transform:none">(o que você cobra)</span></th>' +
       '</tr></thead><tbody>' +
       REGIOES_LOCAL.map(function(r) {
-        var v = (c.porRegiao || {})[r.key] || { custoNovato: 0, custoAntigo: 0, precoOrcamento: 0, custoAproximado: false };
-        var vazio = !v.custoNovato && !v.custoAntigo;
-        var aproximado = !vazio && v.custoAproximado;
-        var aviso = vazio ? ' <span style="color:var(--amber);font-size:9px">⚠️ sem custo cadastrado</span>'
-                  : aproximado ? ' <span style="color:var(--amber);font-size:9px">⚠️ aproximado, confira</span>'
-                  : '';
-        return '<tr style="border-top:1px solid var(--border)' + (vazio || aproximado ? ';background:rgba(247,195,90,.06)' : '') + '">' +
-          '<td style="padding:6px 8px">' + r.label + aviso + '</td>' +
+        var v = (c.porRegiao || {})[r.key] || { custoNovato: 0, custoAntigo: 0, precoOrcamento: 0, precoAproximado: false };
+        var custoVazio = !v.custoNovato && !v.custoAntigo;
+        var precoVazio = !v.precoOrcamento;
+        var precoAprox = !precoVazio && v.precoAproximado;
+        var avisos = [];
+        if (custoVazio) avisos.push('<span style="color:var(--amber);font-size:9px">⚠️ sem custo</span>');
+        if (precoVazio) avisos.push('<span style="color:var(--amber);font-size:9px">⚠️ sem preço</span>');
+        if (precoAprox) avisos.push('<span style="color:var(--amber);font-size:9px">⚠️ preço aproximado</span>');
+        var destaque = custoVazio || precoVazio || precoAprox;
+        return '<tr style="border-top:1px solid var(--border)' + (destaque ? ';background:rgba(247,195,90,.06)' : '') + '">' +
+          '<td style="padding:6px 8px">' + r.label + (avisos.length ? ' ' + avisos.join(' ') : '') + '</td>' +
           '<td style="padding:4px 6px;text-align:center"><input type="number" min="0" step="1" value="' + (v.custoNovato || 0) + '" onchange="atualizarCargoValor(\'' + r.key + '\',\'custoNovato\',this.value)" style="width:90px;text-align:center;font-size:12px;padding:4px 6px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px"></td>' +
           '<td style="padding:4px 6px;text-align:center"><input type="number" min="0" step="1" value="' + (v.custoAntigo || 0) + '" onchange="atualizarCargoValor(\'' + r.key + '\',\'custoAntigo\',this.value)" style="width:90px;text-align:center;font-size:12px;padding:4px 6px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px"></td>' +
           '<td style="padding:4px 6px;text-align:center"><input type="number" min="0" step="1" value="' + (v.precoOrcamento || 0) + '" onchange="atualizarCargoValor(\'' + r.key + '\',\'precoOrcamento\',this.value)" style="width:90px;text-align:center;font-size:12px;padding:4px 6px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px"></td>' +
         '</tr>';
       }).join('') +
     '</tbody></table>' +
-    '<div style="font-size:11px;color:var(--text3);margin-top:10px">⚠️ "sem custo cadastrado" = nenhum histórico encontrado pra essa faixa. ⚠️ "aproximado" = trazido de uma faixa antiga de km diferente (a régua mudou) — o preço cobrado já veio exato, mas confira se o valor pago faz sentido pra essa nova faixa.</div>' +
+    '<div style="font-size:11px;color:var(--text3);margin-top:10px">⚠️ "sem custo/preço" = nenhum histórico encontrado pra essa faixa. ⚠️ "preço aproximado" = o orçamento usava faixas de km diferentes até 300km — o valor veio da faixa mais parecida, confira se faz sentido.</div>' +
     '</div>' +
     '<div style="padding:0 16px 16px;display:flex;gap:8px">' +
       '<button class="btn" onclick="setCargosView(\'lista\')" style="background:var(--green)">💾 Concluído</button>' +
@@ -245,8 +216,8 @@ function atualizarCargoValor(regiaoKey, campo, valor) {
   if (!c.porRegiao) c.porRegiao = {};
   if (!c.porRegiao[regiaoKey]) c.porRegiao[regiaoKey] = {};
   c.porRegiao[regiaoKey][campo] = parseFloat(valor) || 0;
-  // Uma vez editado à mão, o custo deixa de ser "aproximado" — ela confirmou o valor.
-  if (campo === 'custoNovato' || campo === 'custoAntigo') c.porRegiao[regiaoKey].custoAproximado = false;
+  // Uma vez editado à mão, o preço deixa de ser "aproximado" — ela confirmou o valor.
+  if (campo === 'precoOrcamento') c.porRegiao[regiaoKey].precoAproximado = false;
   sv('cargos');
 }
 
@@ -270,34 +241,28 @@ function getEnderecos() {
 }
 
 // Puxa histórico real: D.contratos[].local (endereço em texto livre) +
-// D.contratos[].folhaConfig.regiao (região usada na folha de pagamento
-// daquele contrato) já ficam salvos juntos em cada contrato — dá pra
-// reconstruir "esse endereço já foi classificado como região X" sem
-// perguntar de novo. Roda toda vez que a tela abre, idempotente (pula
+// D.contratos[].folhaConfig.regiao já ficam salvos juntos em cada contrato.
+// Como REGIOES_LOCAL agora usa exatamente as mesmas chaves de região que
+// equipe.js já usava, o valor de folhaConfig.regiao bate direto, sem
+// aproximação nenhuma. Roda toda vez que a tela abre, idempotente (pula
 // endereço já cadastrado, nunca sobrescreve).
 function importarEnderecosDeContratos() {
   if (!D.contratos || !D.contratos.length) return 0;
   if (!D.enderecos) D.enderecos = [];
   var existentes = new Set(D.enderecos.map(function(e) { return (e.nome || '').toUpperCase(); }));
+  var chavesValidas = new Set(REGIOES_LOCAL.map(function(r) { return r.key; }));
   var importados = 0;
 
   D.contratos.forEach(function(ct) {
     var local = (ct.local || '').trim();
-    var regiaoAntiga = ct.folhaConfig && ct.folhaConfig.regiao;
-    if (!local || !regiaoAntiga || existentes.has(local.toUpperCase())) return;
-    var novasKeys = _MAPA_REGIAO_ANTIGA_PARA_NOVA[regiaoAntiga];
-    if (!novasKeys || !novasKeys.length) return;
-    // Uma região antiga pode virar mais de uma faixa nova (ex: "50 a 100 km"
-    // virou "até 60km" e "até 100km") — pro endereço (um local físico só),
-    // usa a faixa mais ampla como sugestão de partida; ela corrige se precisar.
-    var novaKey = novasKeys[novasKeys.length - 1];
+    var regiao = ct.folhaConfig && ct.folhaConfig.regiao;
+    if (!local || !regiao || !chavesValidas.has(regiao) || existentes.has(local.toUpperCase())) return;
 
     D.enderecos.push({
       id: 'END' + Date.now() + Math.random().toString(36).slice(2, 6),
       nome: local,
-      regiaoKey: novaKey,
+      regiaoKey: regiao,
       origemHistorico: true,
-      aproximado: _REGIOES_EXATAS.indexOf(regiaoAntiga) === -1,
     });
     existentes.add(local.toUpperCase());
     importados++;
@@ -328,7 +293,7 @@ function rEnderecos() {
     return '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;display:flex;align-items:center;gap:10px;margin-bottom:6px">' +
       '<div style="flex:1">' +
         '<span style="font-size:12px;font-weight:600;color:var(--text)">' + e.nome + '</span>' +
-        (e.origemHistorico ? '<div style="font-size:9px;color:var(--text3);margin-top:2px">Importado do histórico de contratos' + (e.aproximado ? ' — <span style="color:var(--amber)">⚠️ faixa aproximada, confira</span>' : '') + '</div>' : '') +
+        (e.origemHistorico ? '<div style="font-size:9px;color:var(--text3);margin-top:2px">Importado do histórico de contratos</div>' : '') +
       '</div>' +
       '<select class="inp" style="width:240px;font-size:11px;padding:4px 6px" onchange="atualizarRegiaoEndereco(\'' + e.id + '\',this.value)">' +
         REGIOES_LOCAL.map(function(r) { return '<option value="' + r.key + '"' + (r.key === e.regiaoKey ? ' selected' : '') + '>' + r.label + '</option>'; }).join('') +
@@ -352,7 +317,6 @@ function atualizarRegiaoEndereco(id, regiaoKey) {
   var e = (D.enderecos || []).find(function(x) { return x.id === id; });
   if (!e) return;
   e.regiaoKey = regiaoKey;
-  e.aproximado = false; // ela confirmou/corrigiu, não é mais aproximado
   sv('enderecos');
 }
 
