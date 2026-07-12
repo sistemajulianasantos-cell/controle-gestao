@@ -274,11 +274,26 @@ function importarEnderecosDeContratos() {
 
 // Usado por outras telas (futuramente) pra sugerir a região automaticamente
 // a partir do nome do bairro/cidade digitado.
+// Casa por nome exato OU por trecho contido no texto (nos dois sentidos) —
+// permite cadastrar só o bairro/cidade resumido (ex: "Lourdes", "Funilândia")
+// e reconhecer isso dentro de um endereço completo digitado depois
+// (ex: "Rua X, 123 - Lourdes - Belo Horizonte"). Prioriza o casamento mais
+// específico (nome mais longo) quando mais de um bater.
 function buscarRegiaoPorEndereco(nome) {
   if (!nome) return null;
-  var n = nome.trim().toUpperCase();
-  var e = (D.enderecos || []).find(function(x) { return (x.nome || '').toUpperCase() === n; });
-  return e ? e.regiaoKey : null;
+  var n = (nome || '').trim().toUpperCase();
+  if (!n) return null;
+
+  var exato = (D.enderecos || []).find(function(x) { return (x.nome || '').toUpperCase() === n; });
+  if (exato) return exato.regiaoKey;
+
+  var candidatos = (D.enderecos || []).filter(function(x) {
+    var cad = (x.nome || '').toUpperCase();
+    return cad && cad.length >= 3 && (n.includes(cad) || cad.includes(n));
+  });
+  if (!candidatos.length) return null;
+  candidatos.sort(function(a, b) { return (b.nome || '').length - (a.nome || '').length; });
+  return candidatos[0].regiaoKey;
 }
 
 function rEnderecos() {
