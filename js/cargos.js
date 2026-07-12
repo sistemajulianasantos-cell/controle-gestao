@@ -21,18 +21,21 @@ var REGIOES_LOCAL = [
 // (equipe.js/REGIOES_PAGAMENTO) — migração direta, sem aproximação.
 var _REGIOES_EXATAS = ['area_central', 'jardim_canada', 'reg_metro'];
 
-// Mapa região antiga (equipe.js/REGIOES_PAGAMENTO) → faixa nova (REGIOES_LOCAL).
-// As 3 primeiras são exatas; as faixas de "viagem" são uma aproximação (os
-// cortes de km mudaram) — todo valor de custo que entrar por essa via fica
-// marcado com custoAproximado:true pra ela revisar, nunca escondido.
+// Mapa região antiga (equipe.js/REGIOES_PAGAMENTO) → faixa(s) nova(s)
+// (REGIOES_LOCAL). Cada região antiga pode alimentar mais de uma faixa nova
+// (ex: "viagem_60" nunca existiu separada no pagamento antigo — a Juliana
+// pediu pra usar o mesmo valor de "50 a 100 km" nela também). As 3 primeiras
+// são exatas; as faixas de "viagem" são uma aproximação (os cortes de km
+// mudaram) — todo valor de custo que entrar por essa via fica marcado com
+// custoAproximado:true pra ela revisar, nunca escondido.
 var _MAPA_REGIAO_ANTIGA_PARA_NOVA = {
-  area_central:  'area_central',
-  jardim_canada: 'jardim_canada',
-  reg_metro:     'reg_metro',
-  viagem_100:    'viagem_100',        // antiga "50 a 100 km" → nova "até 100 km"
-  viagem_250:    'viagem_200',        // antiga "101 a 250 km" → nova "até 200 km" (aproximado)
-  viagem_400:    'viagem_300',        // antiga "251 a 400 km" → nova "até 300 km" (aproximado)
-  viagem_mais:   'viagem_acima_300',  // antiga "acima de 400 km" → nova "acima de 300 km"
+  area_central:  ['area_central'],
+  jardim_canada: ['jardim_canada'],
+  reg_metro:     ['reg_metro'],
+  viagem_100:    ['viagem_60', 'viagem_100'],  // antiga "50 a 100 km" → novas "até 60 km" (pedido dela) e "até 100 km"
+  viagem_250:    ['viagem_200'],               // antiga "101 a 250 km" → nova "até 200 km" (aproximado)
+  viagem_400:    ['viagem_300'],               // antiga "251 a 400 km" → nova "até 300 km" (aproximado)
+  viagem_mais:   ['viagem_acima_300'],         // antiga "acima de 400 km" → nova "acima de 300 km"
 };
 
 var _CARGOS_DEF = [
@@ -88,15 +91,16 @@ function migrarCargos() {
       };
     });
 
-    // Custo (o que paga), via mapa região antiga → nova. Exato pras 3 faixas
-    // fixas; aproximado (marcado) pras faixas de viagem remapeadas.
+    // Custo (o que paga), via mapa região antiga → nova(s). Exato pras 3
+    // faixas fixas; aproximado (marcado) pras faixas de viagem remapeadas.
     Object.keys(_MAPA_REGIAO_ANTIGA_PARA_NOVA).forEach(function(regiaoAntiga) {
-      var novaKey = _MAPA_REGIAO_ANTIGA_PARA_NOVA[regiaoAntiga];
       var baseReg = ((rg.base || {})[regiaoAntiga] || {})[def.key] || {};
       if (!baseReg.novato && !baseReg.antigo) return;
-      porRegiao[novaKey].custoNovato = baseReg.novato || 0;
-      porRegiao[novaKey].custoAntigo = baseReg.antigo || 0;
-      porRegiao[novaKey].custoAproximado = _REGIOES_EXATAS.indexOf(regiaoAntiga) === -1;
+      _MAPA_REGIAO_ANTIGA_PARA_NOVA[regiaoAntiga].forEach(function(novaKey) {
+        porRegiao[novaKey].custoNovato = baseReg.novato || 0;
+        porRegiao[novaKey].custoAntigo = baseReg.antigo || 0;
+        porRegiao[novaKey].custoAproximado = _REGIOES_EXATAS.indexOf(regiaoAntiga) === -1;
+      });
     });
 
     D.cargos.push({
@@ -131,15 +135,16 @@ function _backfillCargosExistentes() {
     });
     // Custo (via mapa antigo → novo), só se a faixa ainda estiver zerada
     Object.keys(_MAPA_REGIAO_ANTIGA_PARA_NOVA).forEach(function(regiaoAntiga) {
-      var novaKey = _MAPA_REGIAO_ANTIGA_PARA_NOVA[regiaoAntiga];
-      var v = (c.porRegiao || {})[novaKey];
-      if (!v || v.custoNovato || v.custoAntigo) return; // já preenchido, não sobrescreve
       var baseReg = ((rg.base || {})[regiaoAntiga] || {})[c.key] || {};
       if (!baseReg.novato && !baseReg.antigo) return;
-      v.custoNovato = baseReg.novato || 0;
-      v.custoAntigo = baseReg.antigo || 0;
-      v.custoAproximado = _REGIOES_EXATAS.indexOf(regiaoAntiga) === -1;
-      mudou = true;
+      _MAPA_REGIAO_ANTIGA_PARA_NOVA[regiaoAntiga].forEach(function(novaKey) {
+        var v = (c.porRegiao || {})[novaKey];
+        if (!v || v.custoNovato || v.custoAntigo) return; // já preenchido, não sobrescreve
+        v.custoNovato = baseReg.novato || 0;
+        v.custoAntigo = baseReg.antigo || 0;
+        v.custoAproximado = _REGIOES_EXATAS.indexOf(regiaoAntiga) === -1;
+        mudou = true;
+      });
     });
   });
 
@@ -280,8 +285,12 @@ function importarEnderecosDeContratos() {
     var local = (ct.local || '').trim();
     var regiaoAntiga = ct.folhaConfig && ct.folhaConfig.regiao;
     if (!local || !regiaoAntiga || existentes.has(local.toUpperCase())) return;
-    var novaKey = _MAPA_REGIAO_ANTIGA_PARA_NOVA[regiaoAntiga];
-    if (!novaKey) return;
+    var novasKeys = _MAPA_REGIAO_ANTIGA_PARA_NOVA[regiaoAntiga];
+    if (!novasKeys || !novasKeys.length) return;
+    // Uma região antiga pode virar mais de uma faixa nova (ex: "50 a 100 km"
+    // virou "até 60km" e "até 100km") — pro endereço (um local físico só),
+    // usa a faixa mais ampla como sugestão de partida; ela corrige se precisar.
+    var novaKey = novasKeys[novasKeys.length - 1];
 
     D.enderecos.push({
       id: 'END' + Date.now() + Math.random().toString(36).slice(2, 6),
