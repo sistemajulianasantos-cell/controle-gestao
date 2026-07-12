@@ -1052,6 +1052,7 @@
         <button class="sort-btn" id="regras-tab-proporcoes" onclick="setRegrasView('proporcoes')">📐 Proporções</button>
         <button class="sort-btn" id="regras-tab-biblioteca" onclick="setRegrasView('biblioteca')">📦 Biblioteca de Itens</button>
         <button class="sort-btn" id="regras-tab-copos" onclick="setRegrasView('copos')">🥂 Copos</button>
+        <button class="sort-btn" id="regras-tab-precos" onclick="setRegrasView('precos')">💰 Preços do Orçamento</button>
       </div>
       <div id="regras-view-fichas">
         <div class="sec"><div class="sec-head"><span class="sec-title">Fichas cadastradas</span></div>
@@ -1064,6 +1065,7 @@
       <div id="regras-view-nova-ficha" style="display:none"></div>
       <div id="regras-view-biblioteca" style="display:none"></div>
       <div id="regras-view-copos" style="display:none"></div>
+      <div id="regras-view-precos" style="display:none"></div>
     </div>
 
     <!-- ═══ PRODUÇÃO ═══ -->
@@ -1997,11 +1999,11 @@
 <script src="js/despesas.js?v=20260616c"></script>
 <script src="js/producao2.js?v=20260610z"></script>
 <script src="js/produtos.js?v=20260610z"></script>
-<script src="js/regras.js?v=20260701a"></script>
+<script src="js/regras.js?v=20260712a"></script>
 <script src="js/separacao.js?v=20260610z"></script>
 <script src="js/equipe.js?v=20260613b"></script>
 <script src="js/orcamento.js?v=20260702a"></script>
-<script src="js/orcCalc.js?v=20260701a"></script>
+<script src="js/orcCalc.js?v=20260712a"></script>
 <script src="js/_refConsumoData.js?v=20260610z"></script>
 <script src="js/refConsumo.js?v=20260610z"></script>
 <script src="js/seguranca-admin.js?v=20260610z"></script>
@@ -2047,6 +2049,7 @@ window.svFirebase = async function(chave) {
     if(chave==='regrasProp')   campo.regrasProp   = D.regrasProp;
     if(chave==='regrasItens')  campo.regrasItens  = D.regrasItens;
     if(chave==='regrasCopos')  campo.regrasCopos  = D.regrasCopos;
+    if(chave==='orcPrecos')    campo.orcPrecos    = D.orcPrecos;
     if(chave==='bibliotecaItens') campo.bibliotecaItens = D.bibliotecaItens;
     if(chave==='produtos')       campo.produtos       = D.produtos;
     if(chave==='historico')    campo.historico    = D.historico;
@@ -2235,6 +2238,8 @@ async function carregarDados() {
     D.separacoes   = r.separacoes   || [];
     D.fichas       = r.fichas       || [];
     D.regrasProp   = r.regrasProp   || [];
+    D.regrasItens  = r.regrasItens  || [];
+    D.orcPrecos    = r.orcPrecos    || {};
     D.historico    = r.historico    || {};
     D.metas        = r.metas        || {};
     D.produtos     = r.produtos     || [];

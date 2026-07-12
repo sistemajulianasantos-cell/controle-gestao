@@ -4,7 +4,10 @@ var _orcCardapioOpen  = false;
 var _orcCardapioFichaId = '';
 var _orcCardapioItems = []; // [{cat, nome, rcNome, qtd}]
 
-var CALC_LOCAIS = {
+// Valores padrão (fallback). O valor efetivo usado nos cálculos vem de
+// getOrcPrecos(), que sobrepõe D.orcPrecos (editável em Regras e Cálculos →
+// 💰 Preços do Orçamento) por cima destes padrões.
+var CALC_LOCAIS_PADRAO = {
   area_central:  { label:'Área Central BH',         bt:320, bb:320, hb:230, cd:230, cp:230, la:35, rf:35, ca:400  },
   jardim_canada: { label:'Jardim Canadá / C.Nova',  bt:320, bb:320, hb:250, cd:250, cp:250, la:35, rf:35, ca:600  },
   reg_metro:     { label:'Região Metropolitana',    bt:320, bb:320, hb:260, cd:260, cp:260, la:35, rf:35, ca:800  },
@@ -14,12 +17,41 @@ var CALC_LOCAIS = {
   viagem_300:    { label:'Viagem até 300 km',       bt:320, bb:320, hb:500, cd:500, cp:500, la:45, rf:45, ca:6500 },
 };
 
-var CALC_COND  = { padrao:1.0417, simples:0.63 };
-var CALC_DESC  = 0.6417;
-var CALC_CI    = { normal:3.4417, reduzido:2.53 };
-var CALC_PERDA = { reduzida:0.42, padrao:0.60, alta:0.85 };
-var CALC_SEG   = { casamento:1.67, '15anos':1.67, formatura:3.30, outros:2.20 };
-var CALC_VAS   = { simples:133.33, padrao:191.67, complexo:241.67 };
+var CALC_COND_PADRAO  = { padrao:1.0417, simples:0.63 };
+var CALC_DESC_PADRAO  = 0.6417;
+var CALC_CI_PADRAO    = { normal:3.4417, reduzido:2.53 };
+var CALC_PERDA_PADRAO = { reduzida:0.42, padrao:0.60, alta:0.85 };
+var CALC_SEG_PADRAO   = { casamento:1.67, '15anos':1.67, formatura:3.30, outros:2.20 };
+var CALC_VAS_PADRAO   = { simples:133.33, padrao:191.67, complexo:241.67 };
+
+// ─── PREÇOS EDITÁVEIS ─────────────────────────────────────────────────────────
+// Mescla os padrões acima com o que estiver salvo em D.orcPrecos, campo a
+// campo — assim um valor que ela não editou continua vindo do padrão, mesmo
+// que ela já tenha customizado outros.
+function _orcMergeCat(padrao, salvo) {
+  var keys = Object.keys(padrao);
+  Object.keys(salvo || {}).forEach(function(k) { if (keys.indexOf(k) === -1) keys.push(k); });
+  var out = {};
+  keys.forEach(function(k) {
+    var d = padrao[k], s = salvo && salvo[k];
+    if ((d && typeof d === 'object') || (s && typeof s === 'object')) out[k] = Object.assign({}, d || {}, s || {});
+    else out[k] = (s != null) ? s : d;
+  });
+  return out;
+}
+
+function getOrcPrecos() {
+  var salvo = D.orcPrecos || {};
+  return {
+    locais: _orcMergeCat(CALC_LOCAIS_PADRAO, salvo.locais),
+    cond:   _orcMergeCat(CALC_COND_PADRAO,   salvo.cond),
+    ci:     _orcMergeCat(CALC_CI_PADRAO,     salvo.ci),
+    perda:  _orcMergeCat(CALC_PERDA_PADRAO,  salvo.perda),
+    seg:    _orcMergeCat(CALC_SEG_PADRAO,    salvo.seg),
+    vas:    _orcMergeCat(CALC_VAS_PADRAO,    salvo.vas),
+    desc:   salvo.desc != null ? Number(salvo.desc) : CALC_DESC_PADRAO,
+  };
+}
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
@@ -54,7 +86,8 @@ function recalcularAutos() {
 
   const p    = orc.calcParams || {};
   const pax  = orc.convidados || 0;
-  const loc  = CALC_LOCAIS[p.local || 'area_central'];
+  const precos = getOrcPrecos();
+  const loc  = precos.locais[p.local || 'area_central'] || Object.values(precos.locais)[0];
   const autoS = _calcAutoStaff(pax);
 
   const qt = {
@@ -81,12 +114,12 @@ function recalcularAutos() {
     _mk('auto-ca',   'logistica', 'Carregamento',        1,        loc.ca),
     _mk('auto-rf',   'logistica', 'Refrigério equipe',   eqTotal,  loc.rf),
     _mk('auto-la',   'logistica', 'Limpeza equipe',      eqTotal,  loc.la),
-    _mk('auto-cond', 'custos',    'Condicional',         pax,      CALC_COND[cfCond]),
-    _mk('auto-desc', 'custos',    'Descartáveis',        pax,      CALC_DESC),
-    _mk('auto-ci',   'custos',    'Cobertura de insumos',pax,      CALC_CI[cfCI]),
-    _mk('auto-perd', 'custos',    'Previsão de perda',   pax,      CALC_PERDA[cfPerda]),
-    _mk('auto-seg',  'seguro',    'Seguro',              pax,      CALC_SEG[tipoEvt]),
-    _mk('auto-vas',  'copos',     'Vasilhames',          1,        CALC_VAS[cfVas]),
+    _mk('auto-cond', 'custos',    'Condicional',         pax,      precos.cond[cfCond]),
+    _mk('auto-desc', 'custos',    'Descartáveis',        pax,      precos.desc),
+    _mk('auto-ci',   'custos',    'Cobertura de insumos',pax,      precos.ci[cfCI]),
+    _mk('auto-perd', 'custos',    'Previsão de perda',   pax,      precos.perda[cfPerda]),
+    _mk('auto-seg',  'seguro',    'Seguro',              pax,      precos.seg[tipoEvt]),
+    _mk('auto-vas',  'copos',     'Vasilhames',          1,        precos.vas[cfVas]),
   ].filter(i => i.qtd > 0);
 
   const manuais = (orc.calcItens || []).filter(i => !i.auto);
@@ -206,6 +239,7 @@ function rOrcCalc() {
 
   const p    = orc.calcParams || {};
   const pax  = orc.convidados || 0;
+  const precos = getOrcPrecos();
   const autoS = _calcAutoStaff(pax);
   const itens  = orc.calcItens || [];
   const insumos = orc.insumos || [];
@@ -240,7 +274,7 @@ function rOrcCalc() {
         <div>
           <label style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:3px">Local</label>
           <select onchange="calcSetParam('local',this.value)" style="width:100%;font-size:12px;padding:6px 8px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius)">
-            ${Object.entries(CALC_LOCAIS).map(([k,v])=>`<option value="${k}"${k===localKey?' selected':''}>${v.label}</option>`).join('')}
+            ${Object.entries(precos.locais).map(([k,v])=>`<option value="${k}"${k===localKey?' selected':''}>${v.label}</option>`).join('')}
           </select>
         </div>
 

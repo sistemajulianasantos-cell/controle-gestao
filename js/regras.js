@@ -339,7 +339,7 @@ if (!D.produtos) D.produtos = [];
 }
 
 function setRegrasView(v) {
-  ['fichas','proporcoes','nova-ficha','biblioteca','copos'].forEach(function(x) {
+  ['fichas','proporcoes','nova-ficha','biblioteca','copos','precos'].forEach(function(x) {
     var el = document.getElementById('regras-view-' + x);
     if (el) el.style.display = x === v ? '' : 'none';
     var btn = document.getElementById('regras-tab-' + x);
@@ -350,6 +350,7 @@ function setRegrasView(v) {
   if (v === 'nova-ficha') rFormFicha();
   if (v === 'biblioteca') rBiblioteca();
   if (v === 'copos') rCopos();
+  if (v === 'precos') rPrecosOrcamento();
 }
 
 // ── Fichas de Coquetéis ─────────────────────────────────
@@ -610,6 +611,115 @@ function adicionarItemRegra() {
   if (!D.regrasItens || !D.regrasItens.length) D.regrasItens = JSON.parse(JSON.stringify(REGRAS_ITENS_PADRAO));
   D.regrasItens.push({item:nome.toUpperCase(), cat:cat.toUpperCase(), tipo:'fixo', valor:1, min:1, soSeCardapio:false});
   rProporcoes();
+}
+
+// ── Preços do Orçamento (Local, Condicional, Insumos, Perda, Seguro, Vasilhames) ──
+// Estes valores alimentam os itens "auto" da Calculadora de Orçamento (orcCalc.js).
+// getOrcPrecos() (definida em orcCalc.js) mescla D.orcPrecos por cima dos padrões.
+
+function _ensureOrcPrecos() {
+  if (!D.orcPrecos || !Object.keys(D.orcPrecos).length) {
+    D.orcPrecos = JSON.parse(JSON.stringify(getOrcPrecos()));
+  }
+  return D.orcPrecos;
+}
+
+function atualizarPrecoLocal(localKey, campo, valor) {
+  var p = _ensureOrcPrecos();
+  if (!p.locais[localKey]) p.locais[localKey] = {};
+  p.locais[localKey][campo] = (campo === 'label') ? valor : (parseFloat(valor) || 0);
+}
+
+function atualizarPrecoFator(grupo, chave, valor) {
+  var p = _ensureOrcPrecos();
+  if (!p[grupo]) p[grupo] = {};
+  p[grupo][chave] = parseFloat(valor) || 0;
+}
+
+function atualizarPrecoDesc(valor) {
+  var p = _ensureOrcPrecos();
+  p.desc = parseFloat(valor) || 0;
+}
+
+function salvarPrecosOrcamento() {
+  _ensureOrcPrecos();
+  sv('orcPrecos');
+  alert('Preços do orçamento salvos!');
+}
+
+function resetarPrecosOrcamento() {
+  if (!confirm('Restaurar todos os preços do orçamento para o padrão?')) return;
+  D.orcPrecos = {};
+  sv('orcPrecos');
+  rPrecosOrcamento();
+}
+
+function rPrecosOrcamento() {
+  var cont = document.getElementById('regras-view-precos');
+  if (!cont) return;
+  var precos = getOrcPrecos();
+
+  var colsLocais = [
+    ['bt','Bartender'],['bb','Bar Back'],['hb','Head BT'],['cd','Coordenador'],
+    ['cp','Copeiro'],['rf','Refrigério'],['la','Limpeza'],['ca','Carregamento'],
+  ];
+
+  var htmlLocais = '<div class="sec" style="margin-bottom:14px">' +
+    '<div class="sec-head"><span class="sec-title">📍 Preços por Local</span></div>' +
+    '<div style="padding:12px 16px;overflow-x:auto">' +
+    '<table style="width:100%;border-collapse:collapse;font-size:11px">' +
+    '<thead><tr style="color:var(--text3);text-transform:uppercase;font-size:9px">' +
+      '<th style="text-align:left;padding:4px 8px">Local</th>' +
+      colsLocais.map(function(c){ return '<th style="text-align:center;padding:4px 6px">'+c[1]+'</th>'; }).join('') +
+    '</tr></thead><tbody>' +
+    Object.entries(precos.locais).map(function(entry) {
+      var key = entry[0], v = entry[1];
+      return '<tr style="border-top:1px solid var(--border)">' +
+        '<td style="padding:6px 8px"><input type="text" value="' + (v.label||'') + '" ' +
+          'onchange="atualizarPrecoLocal(\'' + key + '\',\'label\',this.value)" ' +
+          'style="width:170px;font-size:11px;padding:3px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)"></td>' +
+        colsLocais.map(function(c) {
+          return '<td style="padding:4px 4px"><input type="number" value="' + (v[c[0]]!=null?v[c[0]]:0) + '" step="1" ' +
+            'onchange="atualizarPrecoLocal(\'' + key + '\',\'' + c[0] + '\',this.value)" ' +
+            'style="width:70px;text-align:right;font-size:11px;padding:3px 5px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)"></td>';
+        }).join('') +
+      '</tr>';
+    }).join('') +
+    '</tbody></table></div></div>';
+
+  function bloco(titulo, grupo, labels) {
+    return '<div class="sec" style="margin-bottom:14px">' +
+      '<div class="sec-head"><span class="sec-title">' + titulo + '</span></div>' +
+      '<div style="padding:12px 16px;display:flex;gap:16px;flex-wrap:wrap">' +
+      Object.keys(precos[grupo]).map(function(k) {
+        return '<div><label style="font-size:9px;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:3px">' + (labels[k]||k) + '</label>' +
+          '<input type="number" value="' + precos[grupo][k] + '" step="0.01" ' +
+          'onchange="atualizarPrecoFator(\'' + grupo + '\',\'' + k + '\',this.value)" ' +
+          'style="width:100px;font-size:12px;padding:5px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)"></div>';
+      }).join('') +
+      '</div></div>';
+  }
+
+  var htmlCond  = bloco('⚖️ Condicional (por convidado)',                    'cond',  { padrao:'Padrão', simples:'Simples' });
+  var htmlCI    = bloco('🧴 Cobertura de Insumos (por convidado)',            'ci',    { normal:'Normal', reduzido:'Reduzido' });
+  var htmlPerda = bloco('📉 Previsão de Perda (por convidado)',               'perda', { reduzida:'Reduzida', padrao:'Padrão', alta:'Alta' });
+  var htmlSeg   = bloco('🛡️ Seguro (por convidado, por tipo de evento)',      'seg',   { casamento:'Casamento', '15anos':'15 Anos', formatura:'Formatura', outros:'Outros' });
+  var htmlVas   = bloco('🥂 Vasilhames (valor fixo, por complexidade)',       'vas',   { simples:'Simples', padrao:'Padrão', complexo:'Complexo' });
+
+  var htmlDesc = '<div class="sec" style="margin-bottom:14px">' +
+    '<div class="sec-head"><span class="sec-title">🗑️ Descartáveis (por convidado)</span></div>' +
+    '<div style="padding:12px 16px">' +
+    '<input type="number" value="' + precos.desc + '" step="0.01" onchange="atualizarPrecoDesc(this.value)" ' +
+    'style="width:100px;font-size:12px;padding:5px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">' +
+    '</div></div>';
+
+  cont.innerHTML =
+    '<div style="font-size:12px;color:var(--text3);margin-bottom:14px">Esses valores preenchem automaticamente os itens do orçamento (Bartender, Carregamento, Seguro etc.) conforme o Local, Tipo de Evento e Complexidade escolhidos na Calculadora de Orçamento.</div>' +
+    htmlLocais + htmlCond + htmlDesc + htmlCI + htmlPerda + htmlSeg + htmlVas +
+    '<div style="display:flex;gap:8px">' +
+      '<button class="btn" onclick="salvarPrecosOrcamento()" style="background:var(--green)">💾 Salvar Preços</button>' +
+      '<button class="btn" onclick="resetarPrecosOrcamento()" style="background:var(--red-dim);color:var(--red)">↺ Restaurar Padrão</button>' +
+    '</div>';
 }
 
 // ── Cruzar cardápio com fichas ──────────────────────────
