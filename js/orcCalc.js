@@ -7,14 +7,20 @@ var _orcCardapioItems = []; // [{cat, nome, rcNome, qtd}]
 // Valores padrão (fallback). O valor efetivo usado nos cálculos vem de
 // getOrcPrecos(), que sobrepõe D.orcPrecos (editável em Regras e Cálculos →
 // 💰 Preços do Orçamento) por cima destes padrões.
+//
+// bt/bb/hb/cd/cp (preço de equipe) NÃO ficam mais aqui — vêm do Cadastro de
+// Cargos (js/cargos.js, buscarCargoPorKey()). Este objeto guarda só o que
+// ainda é específico do orçamento: Carregamento (ca), Refrigério (rf) e
+// Limpeza (la) da equipe. As faixas usam as mesmas 7 de REGIOES_LOCAL
+// (cargos.js) — antes eram 7 faixas diferentes, específicas do orçamento.
 var CALC_LOCAIS_PADRAO = {
-  area_central:  { label:'Área Central BH',         bt:320, bb:320, hb:230, cd:230, cp:230, la:35, rf:35, ca:400  },
-  jardim_canada: { label:'Jardim Canadá / C.Nova',  bt:320, bb:320, hb:250, cd:250, cp:250, la:35, rf:35, ca:600  },
-  reg_metro:     { label:'Região Metropolitana',    bt:320, bb:320, hb:260, cd:260, cp:260, la:35, rf:35, ca:800  },
-  viagem_60:     { label:'Viagem até 60 km',        bt:320, bb:320, hb:270, cd:270, cp:270, la:20, rf:45, ca:1500 },
-  viagem_100:    { label:'Viagem até 100 km',       bt:320, bb:320, hb:350, cd:350, cp:350, la:35, rf:45, ca:2500 },
-  viagem_200:    { label:'Viagem até 200 km',       bt:320, bb:320, hb:450, cd:450, cp:450, la:35, rf:45, ca:4500 },
-  viagem_300:    { label:'Viagem até 300 km',       bt:320, bb:320, hb:500, cd:500, cp:500, la:45, rf:45, ca:6500 },
+  area_central:  { label:'Área Central BH',           la:35, rf:35, ca:400  },
+  jardim_canada: { label:'Jardim Canadá / C. Nova',    la:35, rf:35, ca:600  },
+  reg_metro:     { label:'Região Metropolitana',       la:35, rf:35, ca:800  },
+  viagem_100:    { label:'Viagem 50 a 100 km',         la:35, rf:45, ca:2500 },
+  viagem_250:    { label:'Viagem 101 a 250 km',        la:35, rf:45, ca:4500 },
+  viagem_400:    { label:'Viagem 251 a 400 km',        la:45, rf:45, ca:6500 },
+  viagem_mais:   { label:'Viagem acima de 400 km',     la:0,  rf:0,  ca:0    },
 };
 
 var CALC_COND_PADRAO  = { padrao:1.0417, simples:0.63 };
@@ -41,6 +47,7 @@ function _orcMergeCat(padrao, salvo) {
 }
 
 function getOrcPrecos() {
+  _migrarOrcPrecosLocaisSeNecessario();
   var salvo = D.orcPrecos || {};
   return {
     locais: _orcMergeCat(CALC_LOCAIS_PADRAO, salvo.locais),
@@ -51,6 +58,50 @@ function getOrcPrecos() {
     vas:    _orcMergeCat(CALC_VAS_PADRAO,    salvo.vas),
     desc:   salvo.desc != null ? Number(salvo.desc) : CALC_DESC_PADRAO,
   };
+}
+
+// D.orcPrecos.locais foi editado numa versão anterior (esquema de 7 faixas
+// próprio do orçamento: viagem_60/100/200/300) — traduz pro esquema novo,
+// compartilhado com o Cadastro de Cargos (viagem_100/250/400/mais), usando o
+// mesmo mapa de aproximação de js/cargos.js. Idempotente: só roda uma vez,
+// nunca sobrescreve um valor que já esteja no formato novo.
+function _migrarOrcPrecosLocaisSeNecessario() {
+  var salvo = D.orcPrecos && D.orcPrecos.locais;
+  if (!salvo) return false;
+  var temEsquemaAntigo = salvo.viagem_60 || salvo.viagem_200 || salvo.viagem_300;
+  if (!temEsquemaAntigo) return false;
+  if (typeof _MAPA_LOCAL_ORCAMENTO_PARA_REGIAO === 'undefined') return false;
+
+  var novo = {};
+  Object.keys(salvo).forEach(function(chaveAntiga) {
+    var chaveNova = _MAPA_LOCAL_ORCAMENTO_PARA_REGIAO[chaveAntiga] || chaveAntiga;
+    var aproximado = chaveNova !== chaveAntiga;
+    var atual = salvo[chaveAntiga] || {};
+    if (!novo[chaveNova]) novo[chaveNova] = {};
+    ['la', 'rf', 'ca'].forEach(function(campo) {
+      if (atual[campo] != null && novo[chaveNova][campo] == null) novo[chaveNova][campo] = atual[campo];
+    });
+    if (aproximado) novo[chaveNova].aproximado = true;
+  });
+
+  D.orcPrecos.locais = novo;
+  sv('orcPrecos');
+  return true;
+}
+
+// Traduz orc.calcParams.local do esquema antigo (viagem_60/100/200/300) pro
+// novo (viagem_100/250/400/mais, igual ao Cadastro de Cargos) e persiste a
+// tradução no próprio orçamento. Idempotente — se já estiver no novo esquema
+// (ou for uma das 3 regiões fixas), não faz nada.
+function _migrarLocalOrcamento(calcParams) {
+  var localKey = calcParams.local || 'area_central';
+  if (typeof _MAPA_LOCAL_ORCAMENTO_PARA_REGIAO === 'undefined') return localKey;
+  var chaveNova = _MAPA_LOCAL_ORCAMENTO_PARA_REGIAO[localKey];
+  if (chaveNova && chaveNova !== localKey) {
+    calcParams.local = chaveNova;
+    return chaveNova;
+  }
+  return localKey;
 }
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -87,7 +138,8 @@ function recalcularAutos() {
   const p    = orc.calcParams || {};
   const pax  = orc.convidados || 0;
   const precos = getOrcPrecos();
-  const loc  = precos.locais[p.local || 'area_central'] || Object.values(precos.locais)[0];
+  const localKey = _migrarLocalOrcamento(p);
+  const loc  = precos.locais[localKey] || Object.values(precos.locais)[0];
   const autoS = _calcAutoStaff(pax);
 
   const qt = {
@@ -106,11 +158,11 @@ function recalcularAutos() {
   const tipoEvt = p.tipoEvento|| 'outros';
 
   const autos = [
-    _mk('auto-bt',   'equipe',    'Bartender',           qt.bt,    loc.bt),
-    _mk('auto-bb',   'equipe',    'Bar Back',            qt.bb,    loc.bb),
-    _mk('auto-hb',   'equipe',    'Head Bartender',      qt.hb,    loc.hb),
-    _mk('auto-cd',   'equipe',    'Coordenador',         qt.cd,    loc.cd),
-    _mk('auto-cp',   'equipe',    'Copeiro',             qt.cp,    loc.cp),
+    _mk('auto-bt',   'equipe',    'Bartender',           qt.bt,    _precoCargo('bt', localKey)),
+    _mk('auto-bb',   'equipe',    'Bar Back',            qt.bb,    _precoCargo('bb', localKey)),
+    _mk('auto-hb',   'equipe',    'Head Bartender',      qt.hb,    _precoCargo('hb', localKey)),
+    _mk('auto-cd',   'equipe',    'Coordenador',         qt.cd,    _precoCargo('cd', localKey)),
+    _mk('auto-cp',   'equipe',    'Copeiro',             qt.cp,    _precoCargo('cp', localKey)),
     _mk('auto-ca',   'logistica', 'Carregamento',        1,        loc.ca),
     _mk('auto-rf',   'logistica', 'Refrigério equipe',   eqTotal,  loc.rf),
     _mk('auto-la',   'logistica', 'Limpeza equipe',      eqTotal,  loc.la),
@@ -126,6 +178,14 @@ function recalcularAutos() {
   orc.calcItens = [...autos, ...manuais];
   sv('orcamentos');
   rOrcCalc();
+}
+
+// Preço de equipe (o que cobra do cliente) por cargo/faixa — vem do Cadastro
+// de Cargos (js/cargos.js), não mais deste arquivo.
+function _precoCargo(cargoKey, localKey) {
+  var cargo = (typeof buscarCargoPorKey === 'function') ? buscarCargoPorKey(cargoKey) : null;
+  var pr = (cargo && cargo.porRegiao && cargo.porRegiao[localKey]) || {};
+  return pr.precoOrcamento || 0;
 }
 
 // ─── PARÂMETROS ───────────────────────────────────────────────────────────────
@@ -254,7 +314,7 @@ function rOrcCalc() {
   const valorTotal = custoEst  * (1 + margLuc / 100);
   const porPessoa  = pax > 0 ? valorTotal / pax : 0;
 
-  const localKey = p.local || 'area_central';
+  const localKey = _migrarLocalOrcamento(p);
 
   const secoes = [
     { id:'equipe',    label:'👥 Equipe',             cor:'#4F8EF7' },

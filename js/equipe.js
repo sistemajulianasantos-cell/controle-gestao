@@ -522,7 +522,11 @@ function _calcHorasEvento(ini, fim) {
 function _calcPagamento(cargoKey, nivel, regiao, horasContr, horasNH, convidados) {
   const rg = D.regrasEquipe || {};
   const nk = (nivel||'').toLowerCase().includes('novato') ? 'novato' : 'antigo';
-  const valorBase     = (((rg.base||{})[regiao]||{})[cargoKey]||{})[nk] || 0;
+  // Valor base vem do Cadastro de Cargos (js/cargos.js) — não mais de
+  // D.regrasEquipe.base. As faixas de região são as mesmas nos dois lugares.
+  const cargo   = (typeof buscarCargoPorKey === 'function') ? buscarCargoPorKey(cargoKey) : null;
+  const porReg  = (cargo && cargo.porRegiao && cargo.porRegiao[regiao]) || {};
+  const valorBase     = (nk === 'novato' ? porReg.custoNovato : porReg.custoAntigo) || 0;
   const horasBase     = rg.horasBase || 6;
   const ehViagem      = (regiao||'').startsWith('viagem');
   const tabHE         = ehViagem ? (rg.horaExtraViagem||{}) : (rg.horaExtra||{});
@@ -1606,7 +1610,6 @@ function rEquipeRegras() {
   if (!el) return;
 
   const rg  = D.regrasEquipe || {};
-  const base = rg.base || {};
   const he   = rg.horaExtra        || {};
   const hev  = rg.horaExtraViagem  || {};
   const bc   = rg.bonusConvidados  || {};
@@ -1632,13 +1635,13 @@ function rEquipeRegras() {
         </thead>
         <tbody>
           ${REGIOES_PAGAMENTO.map(r => {
-            const rv = base[r.key] || {};
             return `<tr style="border-bottom:1px solid var(--border)">
               <td style="padding:6px 10px;font-weight:600;color:var(--text);white-space:nowrap">${r.label}</td>
               ${CARGOS_PAGAMENTO.map(c => {
-                const cv = rv[c.key] || {};
-                return `<td style="${tdStyle}border-left:1px solid var(--border2)">${_rpInp(`rp-b-${r.key}-${c.key}-n`, cv.novato)}</td>
-                        <td style="${tdStyle}">${_rpInp(`rp-b-${r.key}-${c.key}-a`, cv.antigo)}</td>`;
+                const cargo = (typeof buscarCargoPorKey === 'function') ? buscarCargoPorKey(c.key) : null;
+                const cv = (cargo && cargo.porRegiao && cargo.porRegiao[r.key]) || {};
+                return `<td style="${tdStyle}border-left:1px solid var(--border2);color:var(--text2);font-family:var(--mono)">${cv.custoNovato ? fR(cv.custoNovato) : '—'}</td>
+                        <td style="${tdStyle}color:var(--text2);font-family:var(--mono)">${cv.custoAntigo ? fR(cv.custoAntigo) : '—'}</td>`;
               }).join('')}
             </tr>`;
           }).join('')}
@@ -1742,10 +1745,12 @@ function rEquipeRegras() {
 
     <!-- Valor base -->
     <div class="sec" style="margin-bottom:12px">
-      <div class="sec-head"><span class="sec-title">💰 Valor base por cargo, região e nível (R$)</span></div>
+      <div class="sec-head"><span class="sec-title">💰 Valor base por cargo, região e nível (R$)</span>
+        <button class="btn-sm" style="margin-left:auto;background:var(--blue)" onclick="go('cargos')">✏️ Editar em Cadastro → Cargos</button>
+      </div>
       <div style="padding:12px 14px">
         <div style="font-size:11px;color:var(--text3);margin-bottom:10px">
-          <span style="color:#6EE7B7">■</span> Novato &nbsp;&nbsp;
+          Somente leitura — para alterar, use o <b>Cadastro → Cargos</b>. <span style="color:#6EE7B7">■</span> Novato &nbsp;&nbsp;
           <span style="color:#93C5FD">■</span> Antigo / Experiente
         </div>
         ${tabelaBase}
@@ -1774,17 +1779,8 @@ function salvarRegrasEquipe() {
   if (!D.regrasEquipe) D.regrasEquipe = {};
 
   D.regrasEquipe.horasBase = parseInt(document.getElementById('rp-horas-base')?.value) || 6;
-
-  if (!D.regrasEquipe.base) D.regrasEquipe.base = {};
-  REGIOES_PAGAMENTO.forEach(r => {
-    if (!D.regrasEquipe.base[r.key]) D.regrasEquipe.base[r.key] = {};
-    CARGOS_PAGAMENTO.forEach(c => {
-      D.regrasEquipe.base[r.key][c.key] = {
-        novato: parseFloat(document.getElementById(`rp-b-${r.key}-${c.key}-n`)?.value) || 0,
-        antigo: parseFloat(document.getElementById(`rp-b-${r.key}-${c.key}-a`)?.value) || 0,
-      };
-    });
-  });
+  // Valor base por cargo/região/nível não é mais editado aqui — vem do
+  // Cadastro de Cargos (js/cargos.js), somente leitura nesta tela.
 
   D.regrasEquipe.horaExtra = {
     antecipada: {

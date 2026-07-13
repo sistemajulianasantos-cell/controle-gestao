@@ -628,6 +628,7 @@ function atualizarPrecoLocal(localKey, campo, valor) {
   var p = _ensureOrcPrecos();
   if (!p.locais[localKey]) p.locais[localKey] = {};
   p.locais[localKey][campo] = (campo === 'label') ? valor : (parseFloat(valor) || 0);
+  if (campo !== 'label') p.locais[localKey].aproximado = false; // ela confirmou o valor
 }
 
 function atualizarPrecoFator(grupo, chave, valor) {
@@ -659,13 +660,15 @@ function rPrecosOrcamento() {
   if (!cont) return;
   var precos = getOrcPrecos();
 
+  // bt/bb/hb/cd/cp (preço de equipe) saíram daqui — vêm do Cadastro de
+  // Cargos agora. Só Refrigério/Limpeza/Carregamento continuam editáveis
+  // nesta tela (não fazem parte do Cadastro de Cargos).
   var colsLocais = [
-    ['bt','Bartender'],['bb','Bar Back'],['hb','Head BT'],['cd','Coordenador'],
-    ['cp','Copeiro'],['rf','Refrigério'],['la','Limpeza'],['ca','Carregamento'],
+    ['rf','Refrigério'],['la','Limpeza'],['ca','Carregamento'],
   ];
 
   var htmlLocais = '<div class="sec" style="margin-bottom:14px">' +
-    '<div class="sec-head"><span class="sec-title">📍 Preços por Local</span></div>' +
+    '<div class="sec-head"><span class="sec-title">📍 Preços por Local (Refrigério, Limpeza, Carregamento)</span></div>' +
     '<div style="padding:12px 16px;overflow-x:auto">' +
     '<table style="width:100%;border-collapse:collapse;font-size:11px">' +
     '<thead><tr style="color:var(--text3);text-transform:uppercase;font-size:9px">' +
@@ -674,10 +677,12 @@ function rPrecosOrcamento() {
     '</tr></thead><tbody>' +
     Object.entries(precos.locais).map(function(entry) {
       var key = entry[0], v = entry[1];
-      return '<tr style="border-top:1px solid var(--border)">' +
+      return '<tr style="border-top:1px solid var(--border)' + (v.aproximado ? ';background:rgba(247,195,90,.06)' : '') + '">' +
         '<td style="padding:6px 8px"><input type="text" value="' + (v.label||'') + '" ' +
           'onchange="atualizarPrecoLocal(\'' + key + '\',\'label\',this.value)" ' +
-          'style="width:170px;font-size:11px;padding:3px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)"></td>' +
+          'style="width:170px;font-size:11px;padding:3px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">' +
+          (v.aproximado ? ' <span title="Valor trazido de uma faixa antiga de km diferente — confira" style="color:var(--amber);font-size:9px">⚠️ aproximado</span>' : '') +
+        '</td>' +
         colsLocais.map(function(c) {
           return '<td style="padding:4px 4px"><input type="number" value="' + (v[c[0]]!=null?v[c[0]]:0) + '" step="1" ' +
             'onchange="atualizarPrecoLocal(\'' + key + '\',\'' + c[0] + '\',this.value)" ' +
@@ -685,6 +690,30 @@ function rPrecosOrcamento() {
         }).join('') +
       '</tr>';
     }).join('') +
+    '</tbody></table></div></div>';
+
+  // Preço de equipe (bt/bb/hb/cd/cp) — somente leitura, vem do Cadastro de Cargos.
+  var htmlPrecoEquipe = '<div class="sec" style="margin-bottom:14px">' +
+    '<div class="sec-head"><span class="sec-title">👥 Preço de Equipe por Local</span>' +
+      '<button class="btn-sm" style="margin-left:auto;background:var(--blue)" onclick="go(\'cargos\')">✏️ Editar em Cadastro → Cargos</button>' +
+    '</div>' +
+    '<div style="padding:12px 16px;overflow-x:auto">' +
+    '<div style="font-size:10px;color:var(--text3);margin-bottom:8px">Somente leitura — para alterar, use o Cadastro → Cargos.</div>' +
+    '<table style="width:100%;border-collapse:collapse;font-size:11px">' +
+    '<thead><tr style="color:var(--text3);text-transform:uppercase;font-size:9px">' +
+      '<th style="text-align:left;padding:4px 8px">Local</th>' +
+      (typeof _CARGOS_DEF !== 'undefined' ? _CARGOS_DEF.map(function(c){ return '<th style="text-align:center;padding:4px 6px">'+c.nome+'</th>'; }).join('') : '') +
+    '</tr></thead><tbody>' +
+    (typeof REGIOES_LOCAL !== 'undefined' && typeof _CARGOS_DEF !== 'undefined' ? REGIOES_LOCAL.map(function(r) {
+      return '<tr style="border-top:1px solid var(--border)">' +
+        '<td style="padding:6px 8px;color:var(--text)">' + r.label + '</td>' +
+        _CARGOS_DEF.map(function(c) {
+          var cargo = (typeof buscarCargoPorKey === 'function') ? buscarCargoPorKey(c.key) : null;
+          var pr = (cargo && cargo.porRegiao && cargo.porRegiao[r.key]) || {};
+          return '<td style="padding:4px 6px;text-align:center;font-family:var(--mono);color:var(--text2)">' + (pr.precoOrcamento ? fR(pr.precoOrcamento) : '—') + '</td>';
+        }).join('') +
+      '</tr>';
+    }).join('') : '') +
     '</tbody></table></div></div>';
 
   function bloco(titulo, grupo, labels) {
@@ -715,7 +744,7 @@ function rPrecosOrcamento() {
 
   cont.innerHTML =
     '<div style="font-size:12px;color:var(--text3);margin-bottom:14px">Esses valores preenchem automaticamente os itens do orçamento (Bartender, Carregamento, Seguro etc.) conforme o Local, Tipo de Evento e Complexidade escolhidos na Calculadora de Orçamento.</div>' +
-    htmlLocais + htmlCond + htmlDesc + htmlCI + htmlPerda + htmlSeg + htmlVas +
+    htmlPrecoEquipe + htmlLocais + htmlCond + htmlDesc + htmlCI + htmlPerda + htmlSeg + htmlVas +
     '<div style="display:flex;gap:8px">' +
       '<button class="btn" onclick="salvarPrecosOrcamento()" style="background:var(--green)">💾 Salvar Preços</button>' +
       '<button class="btn" onclick="resetarPrecosOrcamento()" style="background:var(--red-dim);color:var(--red)">↺ Restaurar Padrão</button>' +

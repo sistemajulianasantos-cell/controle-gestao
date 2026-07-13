@@ -645,12 +645,10 @@ function rOrcEvento(orc) {
   const el = document.getElementById('orc-det-content');
   if (!el) return;
   const p = orc.calcParams || {};
-  const LOCAIS = {
-    area_central:'Área Central BH', jardim_canada:'Jardim Canadá / C.Nova',
-    reg_metro:'Região Metropolitana', viagem_60:'Viagem até 60 km',
-    viagem_100:'Viagem até 100 km', viagem_200:'Viagem até 200 km',
-    viagem_300:'Viagem até 300 km'
-  };
+  const localAtual = (typeof _migrarLocalOrcamento === 'function') ? _migrarLocalOrcamento(p) : (p.local || 'area_central');
+  const LOCAIS = (typeof REGIOES_LOCAL !== 'undefined')
+    ? Object.fromEntries(REGIOES_LOCAL.map(r => [r.key, r.label]))
+    : { area_central:'Área Central BH', jardim_canada:'Jardim Canadá / C. Nova', reg_metro:'Região Metropolitana' };
   const TIPOS = {casamento:'Casamento', '15anos':'15 Anos', formatura:'Formatura', outros:'Outros'};
 
   el.innerHTML = `
@@ -672,7 +670,7 @@ function rOrcEvento(orc) {
         <div>
           <label class="lbl">Local</label>
           <select id="ev-local" class="inp">
-            ${Object.entries(LOCAIS).map(([k,v])=>`<option value="${k}"${(p.local||'area_central')===k?' selected':''}>${v}</option>`).join('')}
+            ${Object.entries(LOCAIS).map(([k,v])=>`<option value="${k}"${localAtual===k?' selected':''}>${v}</option>`).join('')}
           </select>
         </div>
         <div>
