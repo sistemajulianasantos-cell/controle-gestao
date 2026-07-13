@@ -19,14 +19,38 @@ function _fmAnoMes() {
   return ano + '-' + mes;
 }
 
+// Compara ano-mês tolerando formatos diferentes (mês sem zero à esquerda,
+// data com hora embutida etc.) — não confia em .startsWith() puro, porque
+// lançamentos antigos/importados nem sempre têm a data no mesmo formato
+// exato que os campos <input type="date"> geram.
+function _fmDataNoMes(dataStr, anoMes) {
+  if (!dataStr) return false;
+  var partes = String(dataStr).split(/[-T/]/);
+  if (partes.length < 2) return false;
+  var ano = partes[0].trim();
+  var mes = partes[1].trim().padStart(2, '0');
+  if (ano.length !== 4) return false; // formato inesperado (ex: DD/MM/AAAA) — não arrisca interpretar errado
+  return (ano + '-' + mes) === anoMes;
+}
+
 function rFechamentoMensal() {
   var cont = document.getElementById('fm-body');
   if (!cont) return;
   var anoMes = _fmAnoMes();
 
   // Receita recebida em caixa: parcelas pagas com data de pagamento no mês.
-  var parcelasRecebidas = (D.financeiro || []).filter(function(f) {
-    return f.status === 'pago' && f.dataPagamento && f.dataPagamento.startsWith(anoMes);
+  // Quando falta a data de pagamento (lançamento antigo/importado sem esse
+  // campo), cai como aproximado usando vencimento ou data do evento — nunca
+  // fica de fora só por falta de campo, mas fica marcado pra ela conferir.
+  var parcelasRecebidas = [], parcelasRecebidasAprox = 0;
+  (D.financeiro || []).forEach(function(f) {
+    if (f.status !== 'pago') return;
+    if (f.dataPagamento) {
+      if (_fmDataNoMes(f.dataPagamento, anoMes)) parcelasRecebidas.push(f);
+    } else if (_fmDataNoMes(f.vencimento || f.data, anoMes)) {
+      parcelasRecebidas.push(f);
+      parcelasRecebidasAprox++;
+    }
   });
   var receitaRecebida = parcelasRecebidas.reduce(function(s, f) { return s + (f.valorNum || 0); }, 0);
 
@@ -34,26 +58,35 @@ function rFechamentoMensal() {
   // vencimento ou data do evento cai no mês.
   var aReceber = (D.financeiro || []).filter(function(f) {
     if (f.status === 'pago') return false;
-    var ref = f.vencimento || f.data || '';
-    return ref.startsWith(anoMes);
+    return _fmDataNoMes(f.vencimento || f.data, anoMes);
   }).reduce(function(s, f) { return s + (f.valorNum || 0); }, 0);
 
-  // Despesa paga em caixa: lançamentos com data de pagamento no mês.
-  var despesasPagas = (D.despesas || []).filter(function(d) {
-    return d.dataPagamento && d.dataPagamento.startsWith(anoMes);
+  // Despesa paga em caixa: mesmo raciocínio — usa dataPagamento quando existe,
+  // aproxima por data/vencimento quando a despesa foi marcada paga sem essa
+  // data (ex: importação antiga), marcando quantas foram aproximadas.
+  var despesasPagas = [], despesasPagasAprox = 0;
+  (D.despesas || []).forEach(function(d) {
+    var pago = (typeof _statusDesp === 'function') ? _statusDesp(d) === 'pago' : !!(d.dataPagamento || d.status === 'pago');
+    if (!pago) return;
+    if (d.dataPagamento) {
+      if (_fmDataNoMes(d.dataPagamento, anoMes)) despesasPagas.push(d);
+    } else if (_fmDataNoMes(d.dataVencimento || d.data, anoMes)) {
+      despesasPagas.push(d);
+      despesasPagasAprox++;
+    }
   });
   var despesaPaga = despesasPagas.reduce(function(s, d) { return s + (d.valor || 0); }, 0);
 
   // A pagar (informativo): lançamentos sem pagamento cuja data/vencimento cai no mês.
   var aPagar = (D.despesas || []).filter(function(d) {
-    if (d.dataPagamento) return false;
-    var ref = d.dataVencimento || d.data || '';
-    return ref.startsWith(anoMes);
+    var pago = (typeof _statusDesp === 'function') ? _statusDesp(d) === 'pago' : !!(d.dataPagamento || d.status === 'pago');
+    if (pago) return false;
+    return _fmDataNoMes(d.dataVencimento || d.data, anoMes);
   }).reduce(function(s, d) { return s + (d.valor || 0); }, 0);
 
   // Quebras do mês: não têm conceito de "pago", a data do registro já é a
   // data real da perda.
-  var quebrasDoMes = (D.quebras || []).filter(function(q) { return (q.data || '').startsWith(anoMes); });
+  var quebrasDoMes = (D.quebras || []).filter(function(q) { return _fmDataNoMes(q.data, anoMes); });
   var totalQuebras = quebrasDoMes.reduce(function(s, q) { return s + Number(q.qtd || 0) * Number(q.custo || 0); }, 0);
 
   var resultado = receitaRecebida - despesaPaga - totalQuebras;
@@ -73,7 +106,7 @@ function rFechamentoMensal() {
   });
 
   // Eventos do mês (contexto): contratos com data do evento no mês.
-  var eventosDoMes = (D.contratos || []).filter(function(c) { return (c.data || '').startsWith(anoMes); })
+  var eventosDoMes = (D.contratos || []).filter(function(c) { return _fmDataNoMes(c.data, anoMes); })
     .sort(function(a, b) { return (a.data || '').localeCompare(b.data || ''); });
 
   function cardResumo(titulo, valor, cor) {
@@ -112,6 +145,13 @@ function rFechamentoMensal() {
       '</div>';
     }).join('') + '</div>' : '<div style="padding:14px 16px;color:var(--text3);font-size:12px">Nenhum evento neste mês.</div>');
 
+  var avisoAprox = (parcelasRecebidasAprox || despesasPagasAprox)
+    ? '<div style="font-size:11px;color:var(--amber);margin-bottom:14px">⚠️ ' +
+        (parcelasRecebidasAprox ? parcelasRecebidasAprox + ' recebimento(s) sem data de pagamento registrada (usando vencimento/data do evento como aproximação). ' : '') +
+        (despesasPagasAprox ? despesasPagasAprox + ' despesa(s) sem data de pagamento registrada (usando vencimento/data como aproximação).' : '') +
+      '</div>'
+    : '';
+
   cont.innerHTML =
     '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">' +
       cardResumo('Receita Recebida', receitaRecebida, 'var(--green)') +
@@ -123,7 +163,8 @@ function rFechamentoMensal() {
       cardResumo('A Receber (pendente)', aReceber, 'var(--text3)') +
       cardResumo('A Pagar (pendente)', aPagar, 'var(--text3)') +
     '</div>' +
-    '<div style="font-size:11px;color:var(--text3);margin-bottom:14px">Receita Recebida e Despesa Paga usam a data real de pagamento (regime de caixa) — só entra aqui o que já entrou ou saiu de verdade nesse mês. "A Receber"/"A Pagar" são só informativos, não entram no Resultado.</div>' +
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">Receita Recebida e Despesa Paga usam a data real de pagamento (regime de caixa) — só entra aqui o que já entrou ou saiu de verdade nesse mês. "A Receber"/"A Pagar" são só informativos, não entram no Resultado.</div>' +
+    avisoAprox +
     blocoBreakdown('💸 Despesas por Categoria', despesaPorCategoria, '#F74F6B') +
     blocoBreakdown('📉 Quebras por Produto', quebraPorProduto, '#F7A84F') +
     htmlEventos;
