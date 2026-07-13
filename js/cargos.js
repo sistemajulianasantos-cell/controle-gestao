@@ -117,7 +117,43 @@ function migrarCargos() {
     mudou = true;
   });
 
+  if (_limparPrecoOrcamentoExemplo()) mudou = true;
+
   if (mudou) sv('cargos');
+}
+
+// Os primeiros orçamentos migrados (antes de existir este cadastro) trouxeram
+// de exemplo/fallback um preço-padrão que nunca foi editado de verdade por
+// ela (ex.: Bartender e Bar Back fixos em R$ 320 em toda região). Esse
+// exemplo veio de CALC_LOCAIS_PADRAO como era escrito originalmente — hoje
+// esse objeto nem tem mais esses campos, mas o valor já tinha sido gravado
+// em D.cargos antes disso. Aqui, zera o "Preço Orçamento" só quando o valor
+// bate EXATAMENTE com o exemplo conhecido (nunca toca em algo que ela já
+// tenha editado para um valor diferente, mesmo que só um pouco).
+var _PRECO_ORCAMENTO_EXEMPLO_CONHECIDO = {
+  area_central:  { bt:320, bb:320, hb:230, cd:230, cp:230 },
+  jardim_canada: { bt:320, bb:320, hb:250, cd:250, cp:250 },
+  reg_metro:     { bt:320, bb:320, hb:260, cd:260, cp:260 },
+  viagem_100:    { bt:320, bb:320, hb:350, cd:350, cp:350 },
+  viagem_250:    { bt:320, bb:320, hb:450, cd:450, cp:450 },
+  viagem_400:    { bt:320, bb:320, hb:500, cd:500, cp:500 },
+};
+
+function _limparPrecoOrcamentoExemplo() {
+  var mudou = false;
+  (D.cargos || []).forEach(function(c) {
+    Object.keys(_PRECO_ORCAMENTO_EXEMPLO_CONHECIDO).forEach(function(regiaoKey) {
+      var v = (c.porRegiao || {})[regiaoKey];
+      if (!v) return;
+      var exemplo = _PRECO_ORCAMENTO_EXEMPLO_CONHECIDO[regiaoKey][c.key];
+      if (exemplo != null && v.precoOrcamento === exemplo) {
+        v.precoOrcamento = 0;
+        v.precoAproximado = false;
+        mudou = true;
+      }
+    });
+  });
+  return mudou;
 }
 
 // ── Helpers de leitura ──────────────────────────────────────────────────────
