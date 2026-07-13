@@ -314,7 +314,19 @@ function sincronizarFechamentosFinanceiro() {
   // (nem existente, nem prestes a ser religado acima) → é órfã de verdade.
   const orfaosFinanceiro = D.financeiro.filter(x => x.isFechamento && !idsUsados.has(x.id));
 
-  if (!relinks.length && !aCriar.length && !orfaosFinanceiro.length) {
+  // Fechamentos já ligados (financeiroId aponta pra uma parcela existente),
+  // mas cujo status divergiu — ex: pagamento registrado no Financeiro depois
+  // que o link já existia, sem atualizar D.fechamentos junto (bug corrigido
+  // em _finSincronizarStatusFechamento, mas só passa a valer daqui pra frente
+  // — isso aqui conserta o que já tinha divergido antes da correção).
+  const statusDivergentes = [];
+  (D.fechamentos || []).forEach(f => {
+    if (!f.financeiroId) return;
+    const fin = D.financeiro.find(x => x.id === f.financeiroId);
+    if (fin && fin.status !== f.status) statusDivergentes.push({ fechamento: f, fin });
+  });
+
+  if (!relinks.length && !aCriar.length && !orfaosFinanceiro.length && !statusDivergentes.length) {
     alert2('✅ Nenhuma pendência de sincronização de fechamentos. Tudo certo!', 'success');
     return;
   }
@@ -329,10 +341,15 @@ function sincronizarFechamentosFinanceiro() {
     partes.push(`${orfaosFinanceiro.length} lançamento(s) de Fechamento no Financeiro sem nenhum fechamento correspondente (serão excluídos):\n` +
       orfaosFinanceiro.slice(0, 8).map(f => `• ${f.evento || f.contrato || '(sem nome)'} — ${fd(f.data) || 'sem data'} — ${f.valor || '—'}`).join('\n'));
   }
+  if (statusDivergentes.length) {
+    partes.push(`${statusDivergentes.length} fechamento(s) com status desatualizado (a aba Fechamentos mostrava um status diferente do Financeiro):\n` +
+      statusDivergentes.slice(0, 8).map(({ fechamento, fin }) => `• ${fechamento.eventoNome || fechamento.clienteNome || '(sem nome)'} — estava "${fechamento.status}", vai virar "${fin.status}"`).join('\n'));
+  }
 
   if (!confirm(`${partes.join('\n\n')}\n\nAplicar essas correções agora?`)) return;
 
   relinks.forEach(({ fechamento, fin }) => { fechamento.financeiroId = fin.id; });
+  statusDivergentes.forEach(({ fechamento, fin }) => { fechamento.status = fin.status; });
 
   aCriar.forEach(f => {
     const fin = {
@@ -359,7 +376,7 @@ function sincronizarFechamentosFinanceiro() {
 
   sv('financeiro'); sv('fechamentos');
   rFinanceiro(); rFechamentos(); rFestaFechamentos();
-  alert2(`✅ Sincronização concluída! ${aCriar.length} parcela(s) criada(s), ${relinks.length} recuperada(s), ${orfaosFinanceiro.length} órfã(s) removida(s).`, 'success');
+  alert2(`✅ Sincronização concluída! ${aCriar.length} parcela(s) criada(s), ${relinks.length} recuperada(s), ${orfaosFinanceiro.length} órfã(s) removida(s), ${statusDivergentes.length} status corrigido(s).`, 'success');
 }
 
 // ── Diagnóstico: contratos com parcela 20%/80% faltando OU com valor errado ─
@@ -1052,6 +1069,19 @@ function _aplicarAjusteContrato(f, diff) {
   return { ajustes, resto };
 }
 
+// Uma parcela isFechamento:true é espelho de um registro em D.fechamentos
+// (ligados por financeiroId — ver sincronizarFechamentosFinanceiro). Mudar o
+// status só na parcela do Financeiro deixava a aba Fechamentos ("Todos os
+// fechamentos") mostrando "Atrasado" mesmo depois de pago — chamar isso
+// sempre que f.status mudar (pago ↔ pendente) mantém os dois em sincronia.
+function _finSincronizarStatusFechamento(f) {
+  if (!f || !f.isFechamento) return;
+  const fch = (D.fechamentos || []).find(x => x.financeiroId === f.id);
+  if (!fch || fch.status === f.status) return;
+  fch.status = f.status;
+  sv('fechamentos');
+}
+
 async function confirmarPagamento() {
   const id = document.getElementById('pag-modal-id').value;
   const f = (D.financeiro || []).find(x => x.id === id);
@@ -1113,6 +1143,7 @@ async function confirmarPagamento() {
   f.comprovanteTipo    = comprovanteTipo;
   f.comprovanteNome    = comprovanteNome;
   f.aprovacaoPendente  = null;
+  _finSincronizarStatusFechamento(f);
 
   let resto = 0;
   if (diff > 0) {
@@ -1180,6 +1211,7 @@ function aprovarPagamentoMenor(id) {
   f.aprovadoPor        = (typeof perfilAtual !== 'undefined' && perfilAtual) || '';
   f.motivoAprovacao    = motivo.trim();
   f.aprovacaoPendente  = null;
+  _finSincronizarStatusFechamento(f);
 
   sv('financeiro'); _finRefresh();
   alert2('Pagamento aprovado e quitado!', 'success');
@@ -1241,6 +1273,7 @@ function marcarPendente(id) {
   f._quitadoPorAjuste = false;
   f.motivoAprovacao = '';
   f.aprovadoPor = '';
+  _finSincronizarStatusFechamento(f);
 
   sv('financeiro'); _finRefresh();
 }
