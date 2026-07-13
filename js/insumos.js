@@ -3,11 +3,8 @@
 // (que continuam existindo, sem alteração) e passa a ser a referência usada
 // pelas próximas telas a serem migradas (Fichas de Coquetel, Orçamento).
 
-var CATEGORIAS_INSUMO = [
-  'BEBIDAS ALCOÓLICAS','BEBIDAS SEM ÁLCOOL','COPOS E TAÇAS','HORTIFRUTI',
-  'ESPECIARIAS','MIX ARTESANAL','PRODUÇÃO','XAROPES','MATERIAL','GELO',
-  'DESCARTÁVEIS','KIT BARTENDER','OUTROS'
-];
+// Categoria agora vem do Cadastro de Categorias (js/categorias.js,
+// getCategorias()) — deixou de ser uma lista fixa aqui.
 
 // Margem mínima usada só para sugerir o preço-teto (alerta, não bloqueia).
 var MARGEM_MINIMA_INSUMO = 0.30;
@@ -33,7 +30,10 @@ function _proximoCodigoInsumo() {
 
 function initCadastro() {
   if (!D.insumos) D.insumos = [];
+  if (!D.categorias) D.categorias = [];
+  if (typeof migrarCategorias === 'function') migrarCategorias();
   migrarInsumosDeProdutos();
+  if (typeof _atualizarFiltrosDeCategoria === 'function') _atualizarFiltrosDeCategoria();
   setCadastroView('lista');
 }
 
@@ -249,7 +249,7 @@ function rFormInsumo(id) {
           '<div style="font-size:10px;color:var(--text3);margin-top:2px">Separados por vírgula — resolve os diferentes nomes usados na ficha, na Ref. Consumo e na NF.</div></div>' +
         '<div><label class="lbl">Categoria *</label>' +
           '<select class="inp" id="cad-categoria">' +
-            CATEGORIAS_INSUMO.map(function(c) {
+            getCategorias().map(function(c) {
               return '<option value="' + c + '"' + (i && i.categoria === c ? ' selected' : '') + '>' + c + '</option>';
             }).join('') +
           '</select></div>' +

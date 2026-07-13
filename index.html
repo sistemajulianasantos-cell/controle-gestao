@@ -102,6 +102,10 @@
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 15s5-4.5 5-8.5A5 5 0 0 0 3 6.5C3 10.5 8 15 8 15z"/><circle cx="8" cy="6.5" r="1.7"/></svg>
           Bairros/Endereços
         </div>
+        <div class="nav-item" data-page="categorias" data-modulo="estoque" onclick="go('categorias')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 2h6l7 7-6 6-7-7V2z"/><circle cx="5" cy="5" r="1"/></svg>
+          Categorias
+        </div>
       </div>
     </div>
 
@@ -874,19 +878,6 @@
         <input class="inp" id="cad-busca" type="text" placeholder="🔍 Buscar por nome ou apelido..." style="flex:1;min-width:200px" oninput="rCadastroInsumos()">
         <select class="inp" id="cad-cat-filtro" style="width:200px" onchange="rCadastroInsumos()">
           <option value="">Todas as categorias</option>
-          <option value="BEBIDAS ALCOÓLICAS">BEBIDAS ALCOÓLICAS</option>
-          <option value="BEBIDAS SEM ÁLCOOL">BEBIDAS SEM ÁLCOOL</option>
-          <option value="COPOS E TAÇAS">COPOS E TAÇAS</option>
-          <option value="HORTIFRUTI">HORTIFRUTI</option>
-          <option value="ESPECIARIAS">ESPECIARIAS</option>
-          <option value="MIX ARTESANAL">MIX ARTESANAL</option>
-          <option value="PRODUÇÃO">PRODUÇÃO</option>
-          <option value="XAROPES">XAROPES</option>
-          <option value="MATERIAL">MATERIAL</option>
-          <option value="GELO">GELO</option>
-          <option value="DESCARTÁVEIS">DESCARTÁVEIS</option>
-          <option value="KIT BARTENDER">KIT BARTENDER</option>
-          <option value="OUTROS">OUTROS</option>
         </select>
       </div>
       <!-- Views -->
@@ -925,6 +916,18 @@
           <input class="inp" id="end-busca" type="text" placeholder="🔍 Buscar..." style="max-width:220px;margin-left:auto" oninput="rEnderecos()">
         </div>
         <div id="end-lista-body" style="padding:8px 16px"></div>
+      </div>
+    </div>
+
+    <!-- ═══ CADASTRO DE CATEGORIAS ═══ -->
+    <div id="page-categorias" class="page">
+      <div style="margin-bottom:14px">
+        <div style="font-size:15px;font-weight:600">Categorias</div>
+        <div style="font-size:11px;color:var(--text3)">Lista única de categorias usada pelo Cadastro de Insumos — adicione, renomeie ou exclua aqui</div>
+      </div>
+      <div class="sec">
+        <div class="sec-head"><span class="sec-title">🏷️ Categorias cadastradas</span></div>
+        <div id="ctg-lista-body" style="padding:8px 16px"></div>
       </div>
     </div>
 
@@ -2088,6 +2091,7 @@
 <script src="js/despesas.js?v=20260616c"></script>
 <script src="js/producao2.js?v=20260610z"></script>
 <script src="js/produtos.js?v=20260610z"></script>
+<script src="js/categorias.js?v=20260713a"></script>
 <script src="js/insumos.js?v=20260712a"></script>
 <script src="js/cargos.js?v=20260712a"></script>
 <script src="js/regras.js?v=20260712a"></script>
@@ -2146,6 +2150,7 @@ window.svFirebase = async function(chave) {
     if(chave==='insumos')        campo.insumos        = D.insumos;
     if(chave==='cargos')         campo.cargos         = D.cargos;
     if(chave==='enderecos')      campo.enderecos      = D.enderecos;
+    if(chave==='categorias')     campo.categorias     = D.categorias;
     if(chave==='historico')    campo.historico    = D.historico;
     if(chave==='metas')        campo.metas        = D.metas;
     if(chave==='equipe'){
@@ -2340,6 +2345,7 @@ async function carregarDados() {
     D.insumos      = r.insumos      || [];
     D.cargos       = r.cargos       || [];
     D.enderecos    = r.enderecos    || [];
+    D.categorias   = r.categorias   || [];
     D.equipe           = r.equipe           || [];
     D.escalas          = r.escalas          || [];
     D.regrasEquipe     = r.regrasEquipe     || {};
