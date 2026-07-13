@@ -582,7 +582,13 @@ function _fchSincFinanceiro(f, status) {
 
 // ── Aba Fechamento — fonte primária: contratos concluídos ────────────────────
 function rFestaFechamentos() {
-  const fchAll  = D.fechamentos || [];
+  const mes = document.getElementById('fch-tab-mes')?.value || '';
+  const ano = document.getElementById('fch-tab-ano')?.value || '';
+  const fchAll = (D.fechamentos || []).filter(f => {
+    if (ano && !(f.dataEvento || '').startsWith(ano)) return false;
+    if (mes && (f.dataEvento || '').slice(5, 7) !== mes) return false;
+    return true;
+  });
   const _PROD   = ['produto', 'bebida_extra'];
   const _PECA   = ['peca', 'quebra'];
 
