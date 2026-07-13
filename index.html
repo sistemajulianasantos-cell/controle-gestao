@@ -106,6 +106,10 @@
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 2h6l7 7-6 6-7-7V2z"/><circle cx="5" cy="5" r="1"/></svg>
           Categorias
         </div>
+        <div class="nav-item" data-page="servicos" data-modulo="estoque" onclick="go('servicos')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 8a6 6 0 0 1 10.5-4M14 8a6 6 0 0 1-10.5 4"/><path d="M11 2v3h-3M5 14v-3h3"/></svg>
+          Serviços
+        </div>
       </div>
     </div>
 
@@ -929,6 +933,34 @@
         <div class="sec-head"><span class="sec-title">🏷️ Categorias cadastradas</span></div>
         <div id="ctg-lista-body" style="padding:8px 16px"></div>
       </div>
+    </div>
+
+    <!-- ═══ CADASTRO DE SERVIÇOS ═══ -->
+    <div id="page-servicos" class="page">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+        <div>
+          <div style="font-size:15px;font-weight:600">Cadastro de Serviços</div>
+          <div style="font-size:11px;color:var(--text3)">Custo e preço padrão por serviço opcional — hoje cada orçamento redigita isso do zero</div>
+        </div>
+        <button class="btn" onclick="setServicosView('form');rFormServico()" style="background:var(--green)">+ Novo Serviço</button>
+      </div>
+      <div class="sec" style="margin-bottom:14px">
+        <div class="sec-head"><span class="sec-title">🏷️ Categorias de Serviço</span></div>
+        <div id="svc-ctg-body" style="padding:12px 16px"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+        <input class="inp" id="svc-busca" type="text" placeholder="🔍 Buscar por nome..." style="flex:1;min-width:200px" oninput="rServicosLista()">
+        <select class="inp" id="svc-cat-filtro" style="width:200px" onchange="rServicosLista()">
+          <option value="">Todas as categorias</option>
+        </select>
+      </div>
+      <div id="svc-view-lista">
+        <div class="sec">
+          <div class="sec-head"><span class="sec-title">🧰 Serviços cadastrados</span></div>
+          <div id="svc-lista-body" style="padding:8px 16px"></div>
+        </div>
+      </div>
+      <div id="svc-view-form" style="display:none"></div>
     </div>
 
     <!-- ═══ CONTRATOS ═══ -->
@@ -2092,6 +2124,7 @@
 <script src="js/producao2.js?v=20260610z"></script>
 <script src="js/produtos.js?v=20260610z"></script>
 <script src="js/categorias.js?v=20260713a"></script>
+<script src="js/servicos.js?v=20260713a"></script>
 <script src="js/insumos.js?v=20260712a"></script>
 <script src="js/cargos.js?v=20260712a"></script>
 <script src="js/regras.js?v=20260712a"></script>
@@ -2151,6 +2184,8 @@ window.svFirebase = async function(chave) {
     if(chave==='cargos')         campo.cargos         = D.cargos;
     if(chave==='enderecos')      campo.enderecos      = D.enderecos;
     if(chave==='categorias')     campo.categorias     = D.categorias;
+    if(chave==='servicos')       campo.servicos       = D.servicos;
+    if(chave==='categoriasServico') campo.categoriasServico = D.categoriasServico;
     if(chave==='historico')    campo.historico    = D.historico;
     if(chave==='metas')        campo.metas        = D.metas;
     if(chave==='equipe'){
@@ -2346,6 +2381,8 @@ async function carregarDados() {
     D.cargos       = r.cargos       || [];
     D.enderecos    = r.enderecos    || [];
     D.categorias   = r.categorias   || [];
+    D.servicos          = r.servicos          || [];
+    D.categoriasServico = r.categoriasServico || [];
     D.equipe           = r.equipe           || [];
     D.escalas          = r.escalas          || [];
     D.regrasEquipe     = r.regrasEquipe     || {};
