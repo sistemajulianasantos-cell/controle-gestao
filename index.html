@@ -243,6 +243,10 @@
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 8h6M5 5h3M5 11h4"/></svg>
           Fechamentos
         </div>
+        <div class="nav-item" data-page="fechamento-mensal" data-modulo="financeiro" onclick="go('fechamento-mensal')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="2" width="14" height="12" rx="1"/><path d="M1 6h14M5 2v4M11 2v4"/><path d="M4 9h3M4 11.5h5"/></svg>
+          Fechamento Mensal
+        </div>
       </div>
     </div>
 
@@ -1669,6 +1673,44 @@
       </div>
     </div>
 
+    <!-- ═══ FECHAMENTO MENSAL ═══ -->
+    <div id="page-fechamento-mensal" class="page">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+        <div>
+          <div style="font-size:15px;font-weight:600">Fechamento Mensal</div>
+          <div style="font-size:11px;color:var(--text3)">Receita recebida, despesa paga e quebras do mês, tudo junto — regime de caixa</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:flex-end">
+          <div>
+            <label class="lbl">Mês</label>
+            <select id="fm-mes" class="inp" style="width:110px" onchange="rFechamentoMensal()">
+              <option value="01">Janeiro</option>
+              <option value="02">Fevereiro</option>
+              <option value="03">Março</option>
+              <option value="04">Abril</option>
+              <option value="05">Maio</option>
+              <option value="06">Junho</option>
+              <option value="07">Julho</option>
+              <option value="08">Agosto</option>
+              <option value="09">Setembro</option>
+              <option value="10">Outubro</option>
+              <option value="11">Novembro</option>
+              <option value="12">Dezembro</option>
+            </select>
+          </div>
+          <div>
+            <label class="lbl">Ano</label>
+            <select id="fm-ano" class="inp" style="width:90px" onchange="rFechamentoMensal()">
+              <option value="2025">2025</option>
+              <option value="2026">2026</option>
+              <option value="2027">2027</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div id="fm-body"></div>
+    </div>
+
     <!-- ═══ EQUIPE ═══ -->
     <div id="page-equipe" class="page">
       <div id="eq-content"></div>
@@ -2125,6 +2167,7 @@
 <script src="js/produtos.js?v=20260610z"></script>
 <script src="js/categorias.js?v=20260713a"></script>
 <script src="js/servicos.js?v=20260713a"></script>
+<script src="js/fechamentoMensal.js?v=20260713a"></script>
 <script src="js/insumos.js?v=20260712a"></script>
 <script src="js/cargos.js?v=20260712a"></script>
 <script src="js/regras.js?v=20260712a"></script>
