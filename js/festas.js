@@ -196,18 +196,27 @@ function rFestaQuebras(){
       rows.push({evento:fch.eventoNome||fch.clienteNome||'—',data:fch.dataEvento||'',prod:p.produto,qtd:q,custo,total:it.valor});
     });
   });
-  rows.sort((a,b)=>b.data.localeCompare(a.data));
-  const totalVal=rows.reduce((a,r)=>a+Number(r.total||0),0);
-  const totalQtdQ=rows.reduce((a,r)=>a+(r.qtd||0),0);
-  const totalPecas=new Set(rows.map(r=>r.prod)).size;
+  const busca=(document.getElementById('fqbr-busca')?.value||'').toLowerCase();
+  const mes=document.getElementById('fqbr-mes')?.value||'';
+  const ano=document.getElementById('fqbr-ano')?.value||'';
+  const rowsFiltradas=rows.filter(r=>{
+    if(ano&&!(r.data||'').startsWith(ano))return false;
+    if(mes&&(r.data||'').slice(5,7)!==mes)return false;
+    if(busca&&!((r.prod||'').toLowerCase().includes(busca)||(r.evento||'').toLowerCase().includes(busca)))return false;
+    return true;
+  });
+  rowsFiltradas.sort((a,b)=>b.data.localeCompare(a.data));
+  const totalVal=rowsFiltradas.reduce((a,r)=>a+Number(r.total||0),0);
+  const totalQtdQ=rowsFiltradas.reduce((a,r)=>a+(r.qtd||0),0);
+  const totalPecas=new Set(rowsFiltradas.map(r=>r.prod)).size;
   const cardsQbr=document.getElementById('fqbr-cards');
   if(cardsQbr)cardsQbr.innerHTML=`
-    <div class="card"><div class="card-label">Registros</div><div class="card-value">${rows.length}</div></div>
+    <div class="card"><div class="card-label">Registros</div><div class="card-value">${rowsFiltradas.length}</div></div>
     <div class="card red"><div class="card-label">🥃 Peças distintas</div><div class="card-value">${totalPecas}</div></div>
     <div class="card red"><div class="card-label">📦 Qtd total quebrada</div><div class="card-value">${fN(totalQtdQ)}</div></div>
     <div class="card red"><div class="card-label">💰 Valor total quebras</div><div class="card-value">R$ ${totalVal.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div></div>`;
-  document.getElementById('tab-festa-qbr').innerHTML=rows.length
-    ?rows.map(r=>`<tr><td style="font-size:11px">${r.evento}</td><td style="font-size:11px;color:var(--text3);white-space:nowrap">${fd(r.data)}</td><td class="bold">${r.prod}</td><td style="font-family:var(--mono);font-weight:600;color:var(--red)">${fN(r.qtd)}</td><td style="font-family:var(--mono);color:var(--text3)">${r.custo?'R$ '+Number(r.custo).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—'}</td><td style="font-family:var(--mono);font-weight:600;color:var(--red)">${r.total?'R$ '+Number(r.total).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—'}</td></tr>`).join('')+`<tr style="background:var(--bg4)"><td colspan="5" style="font-size:11px;font-weight:600;text-align:right;padding-right:16px">Total</td><td style="font-family:var(--mono);font-weight:700;color:var(--red)">R$ ${totalVal.toLocaleString('pt-BR',{minimumFractionDigits:2})}</td></tr>`
+  document.getElementById('tab-festa-qbr').innerHTML=rowsFiltradas.length
+    ?rowsFiltradas.map(r=>`<tr><td style="font-size:11px">${r.evento}</td><td style="font-size:11px;color:var(--text3);white-space:nowrap">${fd(r.data)}</td><td class="bold">${r.prod}</td><td style="font-family:var(--mono);font-weight:600;color:var(--red)">${fN(r.qtd)}</td><td style="font-family:var(--mono);color:var(--text3)">${r.custo?'R$ '+Number(r.custo).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—'}</td><td style="font-family:var(--mono);font-weight:600;color:var(--red)">${r.total?'R$ '+Number(r.total).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—'}</td></tr>`).join('')+`<tr style="background:var(--bg4)"><td colspan="5" style="font-size:11px;font-weight:600;text-align:right;padding-right:16px">Total</td><td style="font-family:var(--mono);font-weight:700;color:var(--red)">R$ ${totalVal.toLocaleString('pt-BR',{minimumFractionDigits:2})}</td></tr>`
     :'<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:16px">Nenhuma quebra registrada</td></tr>';
 }
 function rFestas(){
@@ -290,8 +299,15 @@ function toggleFesta(uid){
   detail.style.display=open?'table-row':'none';if(arrow)arrow.textContent=open?'▼':'▶';
 }
 function rFestaProdutos(){
-  const all=_allFestas();const busca=(document.getElementById('fp-busca')?.value||'').toLowerCase();const rows=[];
-  all.forEach(f=>{f.itens.forEach(i=>{if(!busca||i.prod.toLowerCase().includes(busca)||f.nome.toLowerCase().includes(busca)){
+  const all=_allFestas();
+  const busca=(document.getElementById('fp-busca')?.value||'').toLowerCase();
+  const mes=document.getElementById('fp-mes')?.value||'';
+  const ano=document.getElementById('fp-ano')?.value||'';
+  const rows=[];
+  all.forEach(f=>{
+    if(ano&&!(f.data||'').startsWith(ano))return;
+    if(mes&&(f.data||'').slice(5,7)!==mes)return;
+    f.itens.forEach(i=>{if(!busca||i.prod.toLowerCase().includes(busca)||f.nome.toLowerCase().includes(busca)){
     const qtd=i.consumido||i.qtd||0;
     const valorUnit=i.valorUnit||(qtd>0&&i.valor?i.valor/qtd:null);
     rows.push({evento:f.nome,data:f.data,prod:i.prod,qtd,valorUnit,valor:i.valor});

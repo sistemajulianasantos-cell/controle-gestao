@@ -587,9 +587,31 @@
       <div id="fview-produtos" style="display:none">
         <div class="cards" style="margin-bottom:14px" id="fp-cards"></div>
         <div class="sec">
-          <div class="sec-head">
+          <div class="sec-head" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
             <span class="sec-title">Produtos consumidos — todos os eventos</span>
-            <input type="text" id="fp-busca" placeholder="Buscar produto..." oninput="rFestaProdutos()" style="font-size:11px;padding:5px 9px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);border-radius:var(--radius);width:200px">
+            <select id="fp-mes" class="inp" style="width:130px" onchange="rFestaProdutos()">
+              <option value="">Todos os meses</option>
+              <option value="01">Janeiro</option>
+              <option value="02">Fevereiro</option>
+              <option value="03">Março</option>
+              <option value="04">Abril</option>
+              <option value="05">Maio</option>
+              <option value="06">Junho</option>
+              <option value="07">Julho</option>
+              <option value="08">Agosto</option>
+              <option value="09">Setembro</option>
+              <option value="10">Outubro</option>
+              <option value="11">Novembro</option>
+              <option value="12">Dezembro</option>
+            </select>
+            <select id="fp-ano" class="inp" style="width:90px" onchange="rFestaProdutos()">
+              <option value="">Todos</option>
+              <option value="2024">2024</option>
+              <option value="2025">2025</option>
+              <option value="2026" selected>2026</option>
+              <option value="2027">2027</option>
+            </select>
+            <input type="text" id="fp-busca" placeholder="Buscar produto ou evento/cliente..." oninput="rFestaProdutos()" style="font-size:11px;padding:5px 9px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);border-radius:var(--radius);width:220px">
           </div>
           <table>
             <thead><tr><th>Evento</th><th>Data</th><th>Produto</th><th>Qtd consumida</th><th>Val. unit.</th><th>Valor (R$)</th></tr></thead>
@@ -600,7 +622,32 @@
       <div id="fview-quebras" style="display:none">
         <div class="cards" style="margin-bottom:14px" id="fqbr-cards"></div>
         <div class="sec">
-          <div class="sec-head"><span class="sec-title">🥃 Quebras detalhadas por evento</span></div>
+          <div class="sec-head" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span class="sec-title">🥃 Quebras detalhadas por evento</span>
+            <select id="fqbr-mes" class="inp" style="width:130px" onchange="rFestaQuebras()">
+              <option value="">Todos os meses</option>
+              <option value="01">Janeiro</option>
+              <option value="02">Fevereiro</option>
+              <option value="03">Março</option>
+              <option value="04">Abril</option>
+              <option value="05">Maio</option>
+              <option value="06">Junho</option>
+              <option value="07">Julho</option>
+              <option value="08">Agosto</option>
+              <option value="09">Setembro</option>
+              <option value="10">Outubro</option>
+              <option value="11">Novembro</option>
+              <option value="12">Dezembro</option>
+            </select>
+            <select id="fqbr-ano" class="inp" style="width:90px" onchange="rFestaQuebras()">
+              <option value="">Todos</option>
+              <option value="2024">2024</option>
+              <option value="2025">2025</option>
+              <option value="2026" selected>2026</option>
+              <option value="2027">2027</option>
+            </select>
+            <input type="text" id="fqbr-busca" placeholder="Buscar peça ou evento/cliente..." oninput="rFestaQuebras()" style="font-size:11px;padding:5px 9px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);border-radius:var(--radius);width:220px">
+          </div>
           <table>
             <thead><tr><th>Evento</th><th>Data</th><th>Peça quebrada</th><th>Qtd</th><th>Custo unit.</th><th>Total</th></tr></thead>
             <tbody id="tab-festa-qbr"></tbody>
