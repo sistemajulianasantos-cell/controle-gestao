@@ -84,10 +84,28 @@ function rFechamentoMensal() {
     return _fmDataNoMes(d.dataVencimento || d.data, anoMes);
   }).reduce(function(s, d) { return s + (d.valor || 0); }, 0);
 
-  // Quebras do mês: não têm conceito de "pago", a data do registro já é a
-  // data real da perda.
+  // Quebras do mês (perda registrada em D.quebras): não têm conceito de
+  // "pago", a data do registro já é a data real da perda. Isso entra no
+  // Resultado como custo, porque representa produto perdido sem cobrar de
+  // ninguém por ele.
   var quebrasDoMes = (D.quebras || []).filter(function(q) { return _fmDataNoMes(q.data, anoMes); });
   var totalQuebras = quebrasDoMes.reduce(function(s, q) { return s + Number(q.qtd || 0) * Number(q.custo || 0); }, 0);
+
+  // Quebras cobradas no Fechamento (itens tipo peça/quebra lançados dentro de
+  // D.fechamentos[] no acerto pós-evento) — isso já é dinheiro que ela cobra
+  // de volta do cliente, então já está embutido em Receita Recebida quando
+  // aquele fechamento é pago. Fica só como informação — NÃO entra no
+  // Resultado, senão contaria a mesma coisa duas vezes.
+  var quebrasFechamento = [];
+  (D.fechamentos || []).forEach(function(fch) {
+    if (!_fmDataNoMes(fch.dataEvento, anoMes)) return;
+    (fch.itens || []).forEach(function(it) {
+      if (it.tipo === 'peca' || it.tipo === 'quebra') {
+        quebrasFechamento.push({ evento: fch.eventoNome || fch.clienteNome || 'Sem nome', valor: it.valor || 0 });
+      }
+    });
+  });
+  var totalQuebrasFechamento = quebrasFechamento.reduce(function(s, q) { return s + (q.valor || 0); }, 0);
 
   var resultado = receitaRecebida - despesaPaga - totalQuebras;
 
@@ -103,6 +121,12 @@ function rFechamentoMensal() {
   quebrasDoMes.forEach(function(q) {
     var nome = q.prod || 'Outros';
     quebraPorProduto[nome] = (quebraPorProduto[nome] || 0) + Number(q.qtd || 0) * Number(q.custo || 0);
+  });
+
+  // Breakdown de quebras cobradas no fechamento, por evento.
+  var quebraFechamentoPorEvento = {};
+  quebrasFechamento.forEach(function(q) {
+    quebraFechamentoPorEvento[q.evento] = (quebraFechamentoPorEvento[q.evento] || 0) + q.valor;
   });
 
   // Eventos do mês (contexto): contratos com data do evento no mês.
@@ -156,16 +180,18 @@ function rFechamentoMensal() {
     '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">' +
       cardResumo('Receita Recebida', receitaRecebida, 'var(--green)') +
       cardResumo('Despesa Paga', despesaPaga, 'var(--red)') +
-      cardResumo('Quebras', totalQuebras, 'var(--amber)') +
+      cardResumo('Quebras (perda registrada)', totalQuebras, 'var(--amber)') +
       cardResumo('Resultado do Mês', resultado, resultado >= 0 ? 'var(--green)' : 'var(--red)') +
     '</div>' +
     '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">' +
       cardResumo('A Receber (pendente)', aReceber, 'var(--text3)') +
       cardResumo('A Pagar (pendente)', aPagar, 'var(--text3)') +
+      cardResumo('Quebras Cobradas no Fechamento', totalQuebrasFechamento, 'var(--text3)') +
     '</div>' +
-    '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">Receita Recebida e Despesa Paga usam a data real de pagamento (regime de caixa) — só entra aqui o que já entrou ou saiu de verdade nesse mês. "A Receber"/"A Pagar" são só informativos, não entram no Resultado.</div>' +
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">Receita Recebida e Despesa Paga usam a data real de pagamento (regime de caixa) — só entra aqui o que já entrou ou saiu de verdade nesse mês. "A Receber"/"A Pagar"/"Quebras Cobradas no Fechamento" são só informativos, não entram no Resultado — a quebra cobrada do cliente já vem embutida na Receita Recebida quando o fechamento é pago, então não é subtraída de novo.</div>' +
     avisoAprox +
     blocoBreakdown('💸 Despesas por Categoria', despesaPorCategoria, '#F74F6B') +
-    blocoBreakdown('📉 Quebras por Produto', quebraPorProduto, '#F7A84F') +
+    blocoBreakdown('📉 Quebras por Produto (perda registrada)', quebraPorProduto, '#F7A84F') +
+    blocoBreakdown('🧾 Quebras Cobradas no Fechamento (por evento)', quebraFechamentoPorEvento, '#94A3B8') +
     htmlEventos;
 }
