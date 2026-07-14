@@ -1747,7 +1747,7 @@
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
         <div>
           <div style="font-size:15px;font-weight:600">Fechamento Mensal</div>
-          <div style="font-size:11px;color:var(--text3)">Receita recebida, despesa paga e quebras do mês, tudo junto — regime de caixa</div>
+          <div style="font-size:11px;color:var(--text3)">Receita, Fechamento, Despesas e Quebras do mês, tudo junto — regime de competência (data de vencimento)</div>
         </div>
         <div style="display:flex;gap:8px;align-items:flex-end">
           <div>
@@ -1776,6 +1776,10 @@
             </select>
           </div>
         </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+        <button class="sort-btn active" id="fm-tab-sint" onclick="fmSetView('sintetico')">📊 Sintético</button>
+        <button class="sort-btn"        id="fm-tab-anal" onclick="fmSetView('analitico')">📋 Analítico</button>
       </div>
       <div id="fm-body"></div>
     </div>
@@ -2236,7 +2240,7 @@
 <script src="js/produtos.js?v=20260610z"></script>
 <script src="js/categorias.js?v=20260713b"></script>
 <script src="js/servicos.js?v=20260713b"></script>
-<script src="js/fechamentoMensal.js?v=20260714a"></script>
+<script src="js/fechamentoMensal.js?v=20260714b"></script>
 <script src="js/insumos.js?v=20260713b"></script>
 <script src="js/cargos.js?v=20260713b"></script>
 <script src="js/regras.js?v=20260713b"></script>
