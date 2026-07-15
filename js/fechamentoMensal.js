@@ -1,9 +1,10 @@
 // ─── FECHAMENTO MENSAL ───────────────────────────────────────────────────────
-// Relatório consolidado por mês, em regime de COMPETÊNCIA (data de vencimento,
-// não data de pagamento) — reúne numa tela só o que hoje está espalhado em
-// Financeiro, Fechamentos, Despesas e Quebras. Feito pra ser impresso e
-// anexado na pasta física do evento/mês, então todo valor que existir tem que
-// aparecer em algum lugar (nada some silenciosamente por falta de data).
+// Relatório consolidado por mês, em regime de COMPETÊNCIA (data do evento/
+// lançamento, não data de pagamento) — reúne numa tela só o que hoje está
+// espalhado em Financeiro, Fechamentos, Despesas e Quebras. Feito pra ser
+// impresso e anexado na pasta física do evento/mês, então todo valor que
+// existir tem que aparecer em algum lugar (nada some silenciosamente por
+// falta de data).
 //
 // Estrutura (ver memória fechamento_mensal_module para o histórico completo):
 //  - Receita (Contrato 20%+80%)   = D.financeiro sem isFechamento
@@ -15,8 +16,11 @@
 //                                    que "quebras" dentro do Fechamento (que é
 //                                    cobrada do cliente, não é perda)
 //  - Lucro                        = Receita Total − Despesas − Quebras (perda registrada)
+//  - Aba Produtos                 = análise de consumo/quebra por produto (D.festas + D.quebras),
+//                                    com gráficos (Chart.js) — não é financeiro, é operacional
 
 let _fmViewMode = 'sintetico';
+let _fmChartInstances = [];
 
 function initFechamentoMensal() {
   var hoje = new Date();
@@ -29,10 +33,11 @@ function initFechamentoMensal() {
 
 function fmSetView(v) {
   _fmViewMode = v;
-  var bSint = document.getElementById('fm-tab-sint');
-  var bAnal = document.getElementById('fm-tab-anal');
-  if (bSint) bSint.classList.toggle('active', v === 'sintetico');
-  if (bAnal) bAnal.classList.toggle('active', v === 'analitico');
+  var btns = { sintetico: 'fm-tab-sint', analitico: 'fm-tab-anal', produtos: 'fm-tab-prod' };
+  Object.keys(btns).forEach(function(k) {
+    var el = document.getElementById(btns[k]);
+    if (el) el.classList.toggle('active', k === v);
+  });
   rFechamentoMensal();
 }
 
@@ -56,8 +61,8 @@ function _fmDataNoMes(dataStr, anoMes) {
   return (ano + '-' + mes) === anoMes;
 }
 
-// Data de competência de um fechamento: usa o vencimento cadastrado (aba
-// Fechamentos) e só cai pra data do evento se não tiver vencimento definido.
+// Data usada só pra decidir ATRASO (Inadimplência) de um fechamento — aqui sim
+// o vencimento do acerto manda, porque é isso que define se está em atraso.
 function _fmVencimentoFechamento(fch) {
   return fch.vencimento || fch.dataEvento || '';
 }
@@ -80,10 +85,63 @@ function _fmClassificarItem(tipo) {
   return 'extra';
 }
 
+// ── Helpers de renderização (compartilhados entre Sintético/Analítico/Produtos) ──
+function _fmCardResumo(titulo, valor, cor, sub) {
+  return '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;flex:1;min-width:180px">' +
+    '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">' + titulo + '</div>' +
+    '<div style="font-size:22px;font-weight:800;font-family:var(--mono);color:' + cor + '">' + fR(valor) + '</div>' +
+    (sub ? '<div style="font-size:11px;color:var(--text3);margin-top:4px">' + sub + '</div>' : '') +
+  '</div>';
+}
+
+function _fmBlocoBreakdown(titulo, obj, cor) {
+  var entradas = Object.entries(obj).filter(function(e) { return e[1] !== 0; }).sort(function(a, b) { return b[1] - a[1]; });
+  if (!entradas.length) return '<div class="sec" style="margin-bottom:14px"><div class="sec-head"><span class="sec-title">' + titulo + '</span></div><div style="padding:14px 16px;color:var(--text3);font-size:12px">Nada registrado neste mês.</div></div>';
+  var total = entradas.reduce(function(s, e) { return s + e[1]; }, 0);
+  return '<div class="sec" style="margin-bottom:14px">' +
+    '<div class="sec-head"><span class="sec-title">' + titulo + '</span></div>' +
+    '<div style="padding:10px 16px">' +
+    entradas.map(function(e) {
+      var pct = total > 0 ? Math.round(e[1] / total * 100) : 0;
+      return '<div style="margin-bottom:8px">' +
+        '<div style="display:flex;justify-content:space-between;margin-bottom:3px;font-size:12px">' +
+          '<span style="color:var(--text)">' + e[0] + '</span>' +
+          '<span style="font-family:var(--mono);color:var(--text3)">' + fR(e[1]) + ' · ' + pct + '%</span>' +
+        '</div>' +
+        '<div style="height:4px;background:var(--bg3);border-radius:2px"><div style="width:' + pct + '%;height:4px;background:' + cor + ';border-radius:2px"></div></div>' +
+      '</div>';
+    }).join('') +
+    '</div></div>';
+}
+
+function _fmBlocoClientes(titulo, mapa) {
+  var linhas = Object.values(mapa).sort(function(a, b) { return b.valor - a.valor; });
+  if (!linhas.length) return '<div class="sec" style="margin-bottom:14px"><div class="sec-head"><span class="sec-title">' + titulo + '</span></div><div style="padding:14px 16px;color:var(--text3);font-size:12px">Nada registrado neste mês.</div></div>';
+  return '<div class="sec" style="margin-bottom:14px">' +
+    '<div class="sec-head"><span class="sec-title">' + titulo + '</span></div>' +
+    '<div style="padding:8px 16px">' +
+    linhas.map(function(l) {
+      var statusTag = l.pendente <= 0.01
+        ? '<span class="tag tag-green">Recebido</span>'
+        : l.recebido > 0.01
+          ? '<span class="tag tag-yellow">Parcial — falta ' + fR(l.pendente) + '</span>'
+          : '<span class="tag tag-yellow">Pendente</span>';
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">' +
+        '<span style="color:var(--text)">' + l.nome + '</span>' +
+        '<span style="display:flex;gap:8px;align-items:center"><span style="font-family:var(--mono);font-weight:700">' + fR(l.valor) + '</span>' + statusTag + '</span>' +
+      '</div>';
+    }).join('') +
+    '</div></div>';
+}
+
 function rFechamentoMensal() {
   var cont = document.getElementById('fm-body');
   if (!cont) return;
+  _fmDestroyCharts();
   var anoMes = _fmAnoMes();
+
+  if (_fmViewMode === 'produtos') { _fmRenderProdutos(cont, anoMes); return; }
+
   var hoje = new Date().toISOString().slice(0, 10);
 
   // ── Receita (Contrato 20%+80%) — competência: vencimento efetivo no mês ──
@@ -138,10 +196,11 @@ function rFechamentoMensal() {
   var recebidoTotal = recebidoContrato + fechamentoRecebido;
   var pendenteTotal = pendenteContrato + fechamentoPendente;
 
-  // ── Inadimplência: só o que venceu DENTRO do mês selecionado e já passou da data ──
+  // ── Inadimplência: só o que venceu DENTRO do mês selecionado, já passou da
+  // data e ainda tem valor real em aberto (fechamento de R$0 não é inadimplência) ──
   var inadimplencia = [];
   contratoRecs.forEach(function(f) {
-    if (f.status === 'pago') return;
+    if (f.status === 'pago' || !(f.valorNum > 0.01)) return;
     var venc = _finVencimentoEfetivo(f);
     if (venc && venc < hoje) {
       var desc = f.descricao || '';
@@ -150,7 +209,7 @@ function rFechamentoMensal() {
     }
   });
   fechamentosDoMes.forEach(function(fch) {
-    if (_fmFechamentoPago(fch)) return;
+    if (_fmFechamentoPago(fch) || !((fch.totalExtras || 0) > 0.01)) return;
     var venc = _fmVencimentoFechamento(fch);
     if (venc && venc < hoje) {
       inadimplencia.push({ nome: fch.eventoNome || fch.clienteNome || 'Sem nome', tipo: 'Fechamento', valor: fch.totalExtras || 0, vencimento: venc });
@@ -191,54 +250,6 @@ function rFechamentoMensal() {
   var eventosDoMes = (D.contratos || []).filter(function(c) { return _fmDataNoMes(c.data, anoMes); })
     .sort(function(a, b) { return (a.data || '').localeCompare(b.data || ''); });
 
-  function cardResumo(titulo, valor, cor, sub) {
-    return '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;flex:1;min-width:180px">' +
-      '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">' + titulo + '</div>' +
-      '<div style="font-size:22px;font-weight:800;font-family:var(--mono);color:' + cor + '">' + fR(valor) + '</div>' +
-      (sub ? '<div style="font-size:11px;color:var(--text3);margin-top:4px">' + sub + '</div>' : '') +
-    '</div>';
-  }
-
-  function blocoBreakdown(titulo, obj, cor) {
-    var entradas = Object.entries(obj).filter(function(e) { return e[1] !== 0; }).sort(function(a, b) { return b[1] - a[1]; });
-    if (!entradas.length) return '<div class="sec" style="margin-bottom:14px"><div class="sec-head"><span class="sec-title">' + titulo + '</span></div><div style="padding:14px 16px;color:var(--text3);font-size:12px">Nada registrado neste mês.</div></div>';
-    var total = entradas.reduce(function(s, e) { return s + e[1]; }, 0);
-    return '<div class="sec" style="margin-bottom:14px">' +
-      '<div class="sec-head"><span class="sec-title">' + titulo + '</span></div>' +
-      '<div style="padding:10px 16px">' +
-      entradas.map(function(e) {
-        var pct = total > 0 ? Math.round(e[1] / total * 100) : 0;
-        return '<div style="margin-bottom:8px">' +
-          '<div style="display:flex;justify-content:space-between;margin-bottom:3px;font-size:12px">' +
-            '<span style="color:var(--text)">' + e[0] + '</span>' +
-            '<span style="font-family:var(--mono);color:var(--text3)">' + fR(e[1]) + ' · ' + pct + '%</span>' +
-          '</div>' +
-          '<div style="height:4px;background:var(--bg3);border-radius:2px"><div style="width:' + pct + '%;height:4px;background:' + cor + ';border-radius:2px"></div></div>' +
-        '</div>';
-      }).join('') +
-      '</div></div>';
-  }
-
-  function blocoClientes(titulo, mapa) {
-    var linhas = Object.values(mapa).sort(function(a, b) { return b.valor - a.valor; });
-    if (!linhas.length) return '<div class="sec" style="margin-bottom:14px"><div class="sec-head"><span class="sec-title">' + titulo + '</span></div><div style="padding:14px 16px;color:var(--text3);font-size:12px">Nada registrado neste mês.</div></div>';
-    return '<div class="sec" style="margin-bottom:14px">' +
-      '<div class="sec-head"><span class="sec-title">' + titulo + '</span></div>' +
-      '<div style="padding:8px 16px">' +
-      linhas.map(function(l) {
-        var statusTag = l.pendente <= 0.01
-          ? '<span class="tag tag-green">Recebido</span>'
-          : l.recebido > 0.01
-            ? '<span class="tag tag-yellow">Parcial — falta ' + fR(l.pendente) + '</span>'
-            : '<span class="tag tag-yellow">Pendente</span>';
-        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">' +
-          '<span style="color:var(--text)">' + l.nome + '</span>' +
-          '<span style="display:flex;gap:8px;align-items:center"><span style="font-family:var(--mono);font-weight:700">' + fR(l.valor) + '</span>' + statusTag + '</span>' +
-        '</div>';
-      }).join('') +
-      '</div></div>';
-  }
-
   var htmlInadimplencia = '<div class="sec" style="margin-bottom:14px">' +
     '<div class="sec-head"><span class="sec-title">⚠️ Inadimplência do mês (' + inadimplencia.length + ') — ' + fR(totalInadimplencia) + '</span></div>' +
     (inadimplencia.length ? '<div style="padding:8px 16px">' + inadimplencia.map(function(i) {
@@ -264,26 +275,243 @@ function rFechamentoMensal() {
 
   var htmlTopo =
     '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">' +
-      cardResumo('Receita (Contrato 20%+80%)', receitaContrato, 'var(--green)') +
-      cardResumo('Fechamento (acerto pós-evento)', fechamentoTotal, 'var(--green)', 'produto ' + fR(fechamentoPorTipo.produto) + ' · quebras ' + fR(fechamentoPorTipo.quebras) + ' · extra ' + fR(fechamentoPorTipo.extra)) +
-      cardResumo('Receita Total', receitaTotal, 'var(--green)', 'recebido ' + fR(recebidoTotal) + ' · pendente ' + fR(pendenteTotal)) +
+      _fmCardResumo('Receita (Contrato 20%+80%)', receitaContrato, 'var(--green)') +
+      _fmCardResumo('Fechamento (acerto pós-evento)', fechamentoTotal, 'var(--green)', 'produto ' + fR(fechamentoPorTipo.produto) + ' · quebras ' + fR(fechamentoPorTipo.quebras) + ' · extra ' + fR(fechamentoPorTipo.extra)) +
+      _fmCardResumo('Receita Total', receitaTotal, 'var(--green)', 'recebido ' + fR(recebidoTotal) + ' · pendente ' + fR(pendenteTotal)) +
     '</div>' +
     '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">' +
-      cardResumo('Despesas', despesaTotal, 'var(--red)') +
-      cardResumo('Quebras (perda registrada)', totalQuebras, 'var(--amber)') +
-      cardResumo('Lucro do Mês', lucro, lucro >= 0 ? 'var(--green)' : 'var(--red)', 'Receita Total − Despesas − Quebras (perda registrada)') +
+      _fmCardResumo('Despesas', despesaTotal, 'var(--red)') +
+      _fmCardResumo('Quebras (perda registrada)', totalQuebras, 'var(--amber)') +
+      _fmCardResumo('Lucro do Mês', lucro, lucro >= 0 ? 'var(--green)' : 'var(--red)', 'Receita Total − Despesas − Quebras (perda registrada)') +
     '</div>';
 
   var html = htmlTopo + avisoSemData + htmlInadimplencia;
 
   if (_fmViewMode === 'analitico') {
-    html += blocoClientes('👤 Receita (Contrato) por Cliente', clientesContrato) +
-      blocoClientes('🧾 Fechamento por Cliente', clientesFechamento) +
-      blocoBreakdown('💸 Despesas por Categoria', despesaPorCategoria, '#F74F6B') +
-      blocoBreakdown('📉 Quebras por Produto (perda registrada)', quebraPorProduto, '#F7A84F');
+    html += _fmBlocoClientes('👤 Receita (Contrato) por Cliente', clientesContrato) +
+      _fmBlocoClientes('🧾 Fechamento por Cliente', clientesFechamento) +
+      _fmBlocoBreakdown('💸 Despesas por Categoria', despesaPorCategoria, '#F74F6B') +
+      _fmBlocoBreakdown('📉 Quebras por Produto (perda registrada)', quebraPorProduto, '#F7A84F');
   }
 
   html += htmlEventos;
 
   cont.innerHTML = html;
+}
+
+// ─── ABA PRODUTOS ─────────────────────────────────────────────────────────────
+// Não é financeiro — é operacional: o que mais saiu (consumo real registrado
+// em D.festas, eventos encerrados), o que mais quebrou (D.quebras, perda real)
+// e a relação entre os dois por produto. Usa Chart.js pros gráficos.
+
+function _fmDestroyCharts() {
+  _fmChartInstances.forEach(function(c) { try { c.destroy(); } catch (e) {} });
+  _fmChartInstances = [];
+}
+
+// Lê a cor de verdade por trás de uma variável CSS (--green, --red etc.) pro
+// tema atual (claro/escuro) — Chart.js não entende "var(--x)" em canvas.
+function _fmCssVar(nome, fallback) {
+  var v = getComputedStyle(document.documentElement).getPropertyValue(nome);
+  return (v && v.trim()) || fallback;
+}
+
+var _FM_MESES_ABREV = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+function _fmLabelMes(anoMes) {
+  var partes = anoMes.split('-');
+  return _FM_MESES_ABREV[parseInt(partes[1], 10) - 1] + '/' + partes[0].slice(2);
+}
+
+// Gera os últimos N ano-mês terminando no mês selecionado (incluso).
+function _fmUltimosMeses(anoMes, n) {
+  var partes = anoMes.split('-');
+  var ano = parseInt(partes[0], 10), mes = parseInt(partes[1], 10);
+  var lista = [];
+  for (var i = n - 1; i >= 0; i--) {
+    var d = new Date(ano, mes - 1 - i, 1);
+    lista.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
+  }
+  return lista;
+}
+
+function _fmTotalQuebrasNoMes(anoMes) {
+  return (D.quebras || []).filter(function(q) { return _fmDataNoMes(q.data, anoMes); })
+    .reduce(function(s, q) { return s + Number(q.qtd || 0) * Number(q.custo || 0); }, 0);
+}
+
+function _fmRenderProdutos(cont, anoMes) {
+  // Consumo real por produto: eventos encerrados (D.festas) com data no mês.
+  var festasDoMes = (D.festas || []).filter(function(f) { return f.status === 'encerrada' && _fmDataNoMes(f.data, anoMes); });
+  var consumoPorProduto = {};
+  festasDoMes.forEach(function(f) {
+    (f.itens || []).forEach(function(it) {
+      var nome = it.prod || 'Outros';
+      var qtd = Number(it.consumido != null ? it.consumido : (it.qtd || 0));
+      var valor = Number(it.valor || 0);
+      if (!consumoPorProduto[nome]) consumoPorProduto[nome] = { qtd: 0, valor: 0 };
+      consumoPorProduto[nome].qtd += qtd;
+      consumoPorProduto[nome].valor += valor;
+    });
+  });
+
+  // Quebra (perda registrada) por produto no mês.
+  var quebrasDoMes = (D.quebras || []).filter(function(q) { return _fmDataNoMes(q.data, anoMes); });
+  var quebraPorProduto = {};
+  quebrasDoMes.forEach(function(q) {
+    var nome = q.prod || 'Outros';
+    var qtd = Number(q.qtd || 0);
+    var valor = qtd * Number(q.custo || 0);
+    if (!quebraPorProduto[nome]) quebraPorProduto[nome] = { qtd: 0, valor: 0 };
+    quebraPorProduto[nome].qtd += qtd;
+    quebraPorProduto[nome].valor += valor;
+  });
+
+  var totalConsumoValor = Object.values(consumoPorProduto).reduce(function(s, p) { return s + p.valor; }, 0);
+  var totalQuebraValor = Object.values(quebraPorProduto).reduce(function(s, p) { return s + p.valor; }, 0);
+  var pctQuebraGeral = (totalConsumoValor + totalQuebraValor) > 0 ? (totalQuebraValor / (totalConsumoValor + totalQuebraValor) * 100) : 0;
+
+  // Tabela combinada, uma linha por produto que teve consumo e/ou quebra.
+  var nomesProdutos = Array.from(new Set(Object.keys(consumoPorProduto).concat(Object.keys(quebraPorProduto))));
+  var resumoProdutos = nomesProdutos.map(function(nome) {
+    var c = consumoPorProduto[nome] || { qtd: 0, valor: 0 };
+    var q = quebraPorProduto[nome] || { qtd: 0, valor: 0 };
+    var totalQtd = c.qtd + q.qtd;
+    return { nome: nome, consumoQtd: c.qtd, consumoValor: c.valor, quebraQtd: q.qtd, quebraValor: q.valor, pctQuebra: totalQtd > 0 ? (q.qtd / totalQtd * 100) : 0 };
+  });
+
+  var topConsumo = resumoProdutos.slice().sort(function(a, b) { return b.consumoQtd - a.consumoQtd; }).filter(function(p) { return p.consumoQtd > 0; }).slice(0, 8);
+  var topQuebra = resumoProdutos.slice().sort(function(a, b) { return b.quebraValor - a.quebraValor; }).filter(function(p) { return p.quebraValor > 0; }).slice(0, 8);
+  var piorTaxaQuebra = resumoProdutos.slice().filter(function(p) { return p.consumoQtd + p.quebraQtd >= 1; }).sort(function(a, b) { return b.pctQuebra - a.pctQuebra; }).slice(0, 8);
+
+  var mesesTrend = _fmUltimosMeses(anoMes, 6);
+  var trendQuebra = mesesTrend.map(_fmTotalQuebrasNoMes);
+
+  var semEventos = !festasDoMes.length && !quebrasDoMes.length;
+
+  var htmlKpis = '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">' +
+    _fmCardResumo('Consumo Registrado (valor)', totalConsumoValor, 'var(--green)', festasDoMes.length + ' evento(s) encerrado(s) no mês') +
+    _fmCardResumo('Quebra (perda registrada)', totalQuebraValor, 'var(--amber)') +
+    _fmCardResumo('% de Quebra sobre o Movimentado', pctQuebraGeral, pctQuebraGeral > 5 ? 'var(--red)' : 'var(--green)', pctQuebraGeral.toFixed(1).replace('.', ',') + '%') +
+  '</div>';
+
+  var htmlAviso = semEventos
+    ? '<div style="font-size:11px;color:var(--text3);margin-bottom:14px">Nenhum evento encerrado ou quebra registrada neste mês — confira o mês/ano selecionado.</div>'
+    : '';
+
+  var htmlGraficos = '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px">' +
+    '<div class="sec" style="flex:1;min-width:320px"><div class="sec-head"><span class="sec-title">🥇 Top produtos mais consumidos (qtd)</span></div><div style="padding:14px"><canvas id="fm-chart-consumo" height="220"></canvas></div></div>' +
+    '<div class="sec" style="flex:1;min-width:320px"><div class="sec-head"><span class="sec-title">💥 Quebra por produto (R$)</span></div><div style="padding:14px"><canvas id="fm-chart-quebra" height="220"></canvas></div></div>' +
+  '</div>' +
+  '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px">' +
+    '<div class="sec" style="flex:1;min-width:280px"><div class="sec-head"><span class="sec-title">🍩 Distribuição da quebra por produto</span></div><div style="padding:14px"><canvas id="fm-chart-donut" height="220"></canvas></div></div>' +
+    '<div class="sec" style="flex:2;min-width:320px"><div class="sec-head"><span class="sec-title">📈 Quebras nos últimos 6 meses (R$)</span></div><div style="padding:14px"><canvas id="fm-chart-trend" height="220"></canvas></div></div>' +
+  '</div>';
+
+  function linhaTabela(p) {
+    return '<tr>' +
+      '<td style="padding:6px 10px;font-size:12px">' + p.nome + '</td>' +
+      '<td style="padding:6px 10px;font-size:12px;text-align:right;font-family:var(--mono)">' + p.consumoQtd.toLocaleString('pt-BR') + '</td>' +
+      '<td style="padding:6px 10px;font-size:12px;text-align:right;font-family:var(--mono)">' + p.quebraQtd.toLocaleString('pt-BR') + '</td>' +
+      '<td style="padding:6px 10px;font-size:12px;text-align:right;font-family:var(--mono);color:' + (p.pctQuebra > 5 ? 'var(--red)' : 'var(--text3)') + '">' + p.pctQuebra.toFixed(1).replace('.', ',') + '%</td>' +
+      '<td style="padding:6px 10px;font-size:12px;text-align:right;font-family:var(--mono)">' + fR(p.quebraValor) + '</td>' +
+    '</tr>';
+  }
+
+  var htmlTabela = '<div class="sec" style="margin-bottom:14px">' +
+    '<div class="sec-head"><span class="sec-title">📋 Detalhe por Produto — pior taxa de quebra primeiro</span></div>' +
+    (piorTaxaQuebra.length
+      ? '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr style="border-bottom:1px solid var(--border)">' +
+        '<th style="padding:6px 10px;font-size:10px;text-align:left;color:var(--text3);text-transform:uppercase">Produto</th>' +
+        '<th style="padding:6px 10px;font-size:10px;text-align:right;color:var(--text3);text-transform:uppercase">Consumido</th>' +
+        '<th style="padding:6px 10px;font-size:10px;text-align:right;color:var(--text3);text-transform:uppercase">Quebrado</th>' +
+        '<th style="padding:6px 10px;font-size:10px;text-align:right;color:var(--text3);text-transform:uppercase">% Quebra</th>' +
+        '<th style="padding:6px 10px;font-size:10px;text-align:right;color:var(--text3);text-transform:uppercase">Valor Quebra</th>' +
+        '</tr></thead><tbody>' + piorTaxaQuebra.map(linhaTabela).join('') + '</tbody></table></div>'
+      : '<div style="padding:14px 16px;color:var(--text3);font-size:12px">Nada registrado neste mês.</div>') +
+  '</div>';
+
+  cont.innerHTML = htmlKpis + htmlAviso + htmlGraficos + htmlTabela;
+
+  if (typeof Chart === 'undefined') {
+    cont.innerHTML += '<div style="font-size:11px;color:var(--amber)">⚠️ Biblioteca de gráficos não carregou (verifique a conexão) — os números acima continuam corretos, só os gráficos ficam sem desenhar.</div>';
+    return;
+  }
+
+  var corVerde = _fmCssVar('--green', '#3DDC84');
+  var corAmber = _fmCssVar('--amber', '#F7C35A');
+  var corVermelho = _fmCssVar('--red', '#F7625A');
+  var corAzul = _fmCssVar('--blue', '#4F8EF7');
+  var corTexto = _fmCssVar('--text3', '#8B91A8');
+  var corGrid = _fmCssVar('--border', '#2A2F42');
+  var paletaDonut = [corVerde, corAzul, corAmber, corVermelho, '#A78BFA', '#F472B6', '#22D3EE', '#94A3B8'];
+
+  Chart.defaults.color = corTexto;
+  Chart.defaults.borderColor = corGrid;
+  Chart.defaults.font.size = 11;
+
+  var ctxConsumo = document.getElementById('fm-chart-consumo');
+  if (ctxConsumo) {
+    _fmChartInstances.push(new Chart(ctxConsumo, {
+      type: 'bar',
+      data: {
+        labels: topConsumo.map(function(p) { return p.nome; }),
+        datasets: [{ label: 'Consumido (qtd)', data: topConsumo.map(function(p) { return p.consumoQtd; }), backgroundColor: corVerde, borderRadius: 4 }]
+      },
+      options: {
+        indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: { x: { beginAtZero: true, grid: { color: corGrid } }, y: { grid: { display: false } } }
+      }
+    }));
+  }
+
+  var ctxQuebra = document.getElementById('fm-chart-quebra');
+  if (ctxQuebra) {
+    _fmChartInstances.push(new Chart(ctxQuebra, {
+      type: 'bar',
+      data: {
+        labels: topQuebra.map(function(p) { return p.nome; }),
+        datasets: [{ label: 'Quebra (R$)', data: topQuebra.map(function(p) { return p.quebraValor; }), backgroundColor: corAmber, borderRadius: 4 }]
+      },
+      options: {
+        indexAxis: 'y',
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(ctx) { return fR(ctx.parsed.x); } } } },
+        scales: { x: { beginAtZero: true, grid: { color: corGrid } }, y: { grid: { display: false } } }
+      }
+    }));
+  }
+
+  var ctxDonut = document.getElementById('fm-chart-donut');
+  if (ctxDonut) {
+    var topDonut = topQuebra.slice(0, 5);
+    var restoDonut = quebrasDoMes.length ? Math.max(0, totalQuebraValor - topDonut.reduce(function(s, p) { return s + p.quebraValor; }, 0)) : 0;
+    var labelsDonut = topDonut.map(function(p) { return p.nome; });
+    var dataDonut = topDonut.map(function(p) { return p.quebraValor; });
+    if (restoDonut > 0.01) { labelsDonut.push('Outros'); dataDonut.push(restoDonut); }
+    _fmChartInstances.push(new Chart(ctxDonut, {
+      type: 'doughnut',
+      data: { labels: labelsDonut, datasets: [{ data: dataDonut, backgroundColor: paletaDonut }] },
+      options: {
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 10, padding: 8 } },
+          tooltip: { callbacks: { label: function(ctx) { return ctx.label + ': ' + fR(ctx.parsed); } } }
+        }
+      }
+    }));
+  }
+
+  var ctxTrend = document.getElementById('fm-chart-trend');
+  if (ctxTrend) {
+    _fmChartInstances.push(new Chart(ctxTrend, {
+      type: 'line',
+      data: {
+        labels: mesesTrend.map(_fmLabelMes),
+        datasets: [{ label: 'Quebras (R$)', data: trendQuebra, borderColor: corVermelho, backgroundColor: corVermelho, tension: 0.3, fill: false, pointRadius: 4 }]
+      },
+      options: {
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(ctx) { return fR(ctx.parsed.y); } } } },
+        scales: { y: { beginAtZero: true, grid: { color: corGrid } }, x: { grid: { display: false } } }
+      }
+    }));
+  }
 }

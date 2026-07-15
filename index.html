@@ -1780,6 +1780,7 @@
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
         <button class="sort-btn active" id="fm-tab-sint" onclick="fmSetView('sintetico')">📊 Sintético</button>
         <button class="sort-btn"        id="fm-tab-anal" onclick="fmSetView('analitico')">📋 Analítico</button>
+        <button class="sort-btn"        id="fm-tab-prod" onclick="fmSetView('produtos')">📦 Produtos</button>
       </div>
       <div id="fm-body"></div>
     </div>
@@ -2212,6 +2213,8 @@
 <!-- PizZip e Docxtemplater para gerar .docx -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PizZip/3.1.4/pizzip.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.39.0/docxtemplater.js"></script>
+<!-- Chart.js para os gráficos da aba Produtos (Fechamento Mensal) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 
 <!-- ── Dados e configurações globais ── -->
 <script src="js/seguranca.js?v=20260610z"></script>
@@ -2240,7 +2243,7 @@
 <script src="js/produtos.js?v=20260610z"></script>
 <script src="js/categorias.js?v=20260713b"></script>
 <script src="js/servicos.js?v=20260713b"></script>
-<script src="js/fechamentoMensal.js?v=20260714c"></script>
+<script src="js/fechamentoMensal.js?v=20260715a"></script>
 <script src="js/insumos.js?v=20260713b"></script>
 <script src="js/cargos.js?v=20260713b"></script>
 <script src="js/regras.js?v=20260713b"></script>
