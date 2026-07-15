@@ -104,9 +104,13 @@ function rFechamentoMensal() {
     else clientesContrato[nome].pendente += (f.valorNum || 0);
   });
 
-  // ── Fechamento (acerto pós-evento) — competência: vencimento do fechamento (ou data do evento) no mês ──
-  var fechamentosDoMes = (D.fechamentos || []).filter(function(fch) { return _fmDataNoMes(_fmVencimentoFechamento(fch), anoMes); });
-  var semDataFechamento = (D.fechamentos || []).filter(function(fch) { return !_fmVencimentoFechamento(fch); }).length;
+  // ── Fechamento (acerto pós-evento) — competência: mês do EVENTO, não do vencimento do acerto.
+  // O acerto costuma vencer alguns dias depois do evento (às vezes no mês seguinte, em
+  // eventos no fim do mês) — usar o vencimento aqui faria o fechamento "sumir" do mês em
+  // que o evento realmente aconteceu. O vencimento continua sendo usado só pra decidir
+  // se está em atraso (Inadimplência), não pra decidir de qual mês é o fechamento.
+  var fechamentosDoMes = (D.fechamentos || []).filter(function(fch) { return _fmDataNoMes(fch.dataEvento || fch.vencimento, anoMes); });
+  var semDataFechamento = (D.fechamentos || []).filter(function(fch) { return !fch.dataEvento && !fch.vencimento; }).length;
 
   var fechamentoTotal = 0, fechamentoRecebido = 0;
   var fechamentoPorTipo = { produto: 0, quebras: 0, extra: 0 };
@@ -155,9 +159,14 @@ function rFechamentoMensal() {
   inadimplencia.sort(function(a, b) { return a.vencimento.localeCompare(b.vencimento); });
   var totalInadimplencia = inadimplencia.reduce(function(s, i) { return s + i.valor; }, 0);
 
-  // ── Despesas — competência: vencimento (ou data) no mês, por categoria ──
-  var despesasDoMes = (D.despesas || []).filter(function(d) { return _fmDataNoMes(d.dataVencimento || d.data, anoMes); });
-  var semDataDespesa = (D.despesas || []).filter(function(d) { return !d.dataVencimento && !d.data; }).length;
+  // ── Despesas — competência: data do lançamento no mês, por categoria.
+  // Em despesas.js, "data" é o campo canônico usado em todas as outras telas
+  // (lista, KPI, agrupamento) — "dataVencimento" é só uma anotação opcional pra
+  // marcar atraso, pode ficar num mês diferente do "data" (ex: prazo de
+  // pagamento maior). Usar "data" primeiro evita que a despesa aparente ter
+  // sumido do mês em que ela realmente foi lançada.
+  var despesasDoMes = (D.despesas || []).filter(function(d) { return _fmDataNoMes(d.data || d.dataVencimento, anoMes); });
+  var semDataDespesa = (D.despesas || []).filter(function(d) { return !d.data && !d.dataVencimento; }).length;
   var despesaTotal = despesasDoMes.reduce(function(s, d) { return s + (d.valor || 0); }, 0);
   var despesaPorCategoria = {};
   despesasDoMes.forEach(function(d) {
