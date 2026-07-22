@@ -7,15 +7,21 @@
 // falta de data).
 //
 // Estrutura (ver memória fechamento_mensal_module para o histórico completo):
-//  - Receita (Contrato 20%+80%)   = D.financeiro sem isFechamento
-//  - Fechamento                   = D.fechamentos (acerto pós-evento: produto/quebras/extra)
-//  - Receita Total                = Receita + Fechamento, com Recebido/Pendente
+//  - Receitas                     = Receita de Contratos (D.financeiro sem isFechamento)
+//                                    + Receita de Fechamentos (D.fechamentos, com
+//                                    sub-itens Quebras cobradas do cliente/Insumos/
+//                                    Serviços adicionais) → Total Receitas
 //  - Inadimplência                = parcelas/fechamentos vencidos DENTRO do mês, ainda não pagos
-//  - Despesas                     = D.despesas, por categoria (D.categoriasDespesas)
-//  - Quebras (perda registrada)   = D.quebras — custo real, NÃO é a mesma coisa
-//                                    que "quebras" dentro do Fechamento (que é
-//                                    cobrada do cliente, não é perda)
-//  - Lucro                        = Receita Total − Despesas − Quebras (perda registrada)
+//  - Despesas                     = D.despesas, por categoria (D.categoriasDespesas) → Total Despesas
+//  - Quebras (perda registrada)   = D.quebras — prejuízo real, NÃO cobrado de
+//                                    ninguém, portanto NÃO entra em Receitas nem
+//                                    Despesas (fica só informativa); é diferente
+//                                    das "Quebras" dentro do Fechamento (essas
+//                                    são cobradas do cliente, contam como Receita)
+//  - Resultado do Mês             = Total Receitas − Total Despesas − Quebras (perda registrada)
+//  - Analítico                    = Sintético + quebra por Cliente (Contrato e
+//                                    Fechamento), com conferência: soma de todos
+//                                    os clientes tem que bater com Total Receitas
 //  - Aba Produtos                 = análise de consumo/quebra por produto (D.festas + D.quebras),
 //                                    com gráficos (Chart.js) — não é financeiro, é operacional
 
@@ -114,6 +120,66 @@ function _fmBlocoBreakdown(titulo, obj, cor) {
     '</div></div>';
 }
 
+// Uma linha de valor dentro de uma seção Receitas/Despesas — `indent` marca os
+// sub-itens (ex: Quebras/Insumos/Serviços dentro de Receita de Fechamentos).
+function _fmLinhaResumo(label, valor, sub, indent) {
+  return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0' + (indent ? ' 0 16px' : '') + ';border-bottom:1px solid var(--border);font-size:' + (indent ? '11px' : '12px') + '">' +
+    '<span style="color:' + (indent ? 'var(--text3)' : 'var(--text)') + '">' + label + '</span>' +
+    '<span style="display:flex;gap:8px;align-items:center">' +
+      (sub ? '<span style="color:var(--text3);font-size:11px">' + sub + '</span>' : '') +
+      '<span style="font-family:var(--mono);font-weight:700">' + fR(valor) + '</span>' +
+    '</span></div>';
+}
+
+function _fmLinhaTotal(label, valor, cor) {
+  return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;font-size:13px;font-weight:800">' +
+    '<span>' + label + '</span><span style="font-family:var(--mono);color:' + cor + '">' + fR(valor) + '</span>' +
+  '</div>';
+}
+
+// Seção "Receitas" hierárquica: Receita de Contratos + Receita de Fechamentos
+// (com sub-itens Quebras cobradas/Insumos/Serviços adicionais) + Total Receitas.
+function _fmSecReceitas(receitaContrato, recebidoContrato, pendenteContrato, fechamentoTotal, fechamentoRecebido, fechamentoPendente, fechamentoPorTipo, receitaTotal) {
+  return '<div class="sec" style="margin-bottom:14px">' +
+    '<div class="sec-head"><span class="sec-title">💰 Receitas</span></div>' +
+    '<div style="padding:2px 16px">' +
+      _fmLinhaResumo('Receita de Contratos', receitaContrato, 'recebido ' + fR(recebidoContrato) + ' · pendente ' + fR(pendenteContrato)) +
+      _fmLinhaResumo('Receita de Fechamentos', fechamentoTotal, 'recebido ' + fR(fechamentoRecebido) + ' · pendente ' + fR(fechamentoPendente)) +
+      _fmLinhaResumo('Quebras (cobradas do cliente)', fechamentoPorTipo.quebras, '', true) +
+      _fmLinhaResumo('Insumos', fechamentoPorTipo.produto, '', true) +
+      _fmLinhaResumo('Serviços adicionais', fechamentoPorTipo.extra, '', true) +
+      _fmLinhaTotal('Total Receitas', receitaTotal, 'var(--green)') +
+    '</div></div>';
+}
+
+// Seção "Despesas" por categoria + Total Despesas.
+function _fmSecDespesas(despesaPorCategoria, despesaTotal) {
+  var entradas = Object.entries(despesaPorCategoria).filter(function(e) { return e[1] !== 0; }).sort(function(a, b) { return b[1] - a[1]; });
+  return '<div class="sec" style="margin-bottom:14px">' +
+    '<div class="sec-head"><span class="sec-title">💸 Despesas</span></div>' +
+    '<div style="padding:2px 16px">' +
+      (entradas.length ? entradas.map(function(e) { return _fmLinhaResumo(e[0], e[1]); }).join('') : '<div style="padding:10px 0;color:var(--text3);font-size:12px">Nada registrado neste mês.</div>') +
+      _fmLinhaTotal('Total Despesas', despesaTotal, 'var(--red)') +
+    '</div></div>';
+}
+
+// Analítico: soma de todos os clientes tem que bater com o Total Receitas do
+// Sintético — serve de conferência/auditoria (ela pediu isso explicitamente).
+function _fmSecTotalGeralClientes(clientesContrato, clientesFechamento, receitaTotal) {
+  var soma = Object.values(clientesContrato).reduce(function(s, c) { return s + c.valor; }, 0) +
+    Object.values(clientesFechamento).reduce(function(s, c) { return s + c.valor; }, 0);
+  var bate = Math.abs(soma - receitaTotal) < 0.01;
+  return '<div class="sec" style="margin-bottom:14px">' +
+    '<div class="sec-head"><span class="sec-title">✅ Total Geral (todos os clientes)</span></div>' +
+    '<div style="padding:10px 16px;display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:800">' +
+      '<span>Soma de todos os clientes</span>' +
+      '<span style="display:flex;gap:8px;align-items:center">' +
+        '<span style="font-family:var(--mono)">' + fR(soma) + '</span>' +
+        (bate ? '<span class="tag tag-green">Bate com o Sintético</span>' : '<span class="tag tag-red">Diverge do Sintético (' + fR(receitaTotal) + ')</span>') +
+      '</span>' +
+    '</div></div>';
+}
+
 function _fmBlocoClientes(titulo, mapa) {
   var linhas = Object.values(mapa).sort(function(a, b) { return b.valor - a.valor; });
   if (!linhas.length) return '<div class="sec" style="margin-bottom:14px"><div class="sec-head"><span class="sec-title">' + titulo + '</span></div><div style="padding:14px 16px;color:var(--text3);font-size:12px">Nada registrado neste mês.</div></div>';
@@ -193,8 +259,6 @@ function rFechamentoMensal() {
 
   // ── Receita Total ──
   var receitaTotal = receitaContrato + fechamentoTotal;
-  var recebidoTotal = recebidoContrato + fechamentoRecebido;
-  var pendenteTotal = pendenteContrato + fechamentoPendente;
 
   // ── Inadimplência: só o que venceu DENTRO do mês selecionado, já passou da
   // data e ainda tem valor real em aberto (fechamento de R$0 não é inadimplência) ──
@@ -275,22 +339,18 @@ function rFechamentoMensal() {
 
   var htmlTopo =
     '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">' +
-      _fmCardResumo('Receita (Contrato 20%+80%)', receitaContrato, 'var(--green)') +
-      _fmCardResumo('Fechamento (acerto pós-evento)', fechamentoTotal, 'var(--green)', 'produto ' + fR(fechamentoPorTipo.produto) + ' · quebras ' + fR(fechamentoPorTipo.quebras) + ' · extra ' + fR(fechamentoPorTipo.extra)) +
-      _fmCardResumo('Receita Total', receitaTotal, 'var(--green)', 'recebido ' + fR(recebidoTotal) + ' · pendente ' + fR(pendenteTotal)) +
+      _fmCardResumo('Resultado do Mês', lucro, lucro >= 0 ? 'var(--green)' : 'var(--red)', 'Total Receitas − Total Despesas − Quebras (perda registrada)') +
+      _fmCardResumo('Quebras (perda registrada)', totalQuebras, 'var(--amber)', 'prejuízo real, não cobrado do cliente — já descontado do Resultado acima') +
     '</div>' +
-    '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">' +
-      _fmCardResumo('Despesas', despesaTotal, 'var(--red)') +
-      _fmCardResumo('Quebras (perda registrada)', totalQuebras, 'var(--amber)') +
-      _fmCardResumo('Lucro do Mês', lucro, lucro >= 0 ? 'var(--green)' : 'var(--red)', 'Receita Total − Despesas − Quebras (perda registrada)') +
-    '</div>';
+    _fmSecReceitas(receitaContrato, recebidoContrato, pendenteContrato, fechamentoTotal, fechamentoRecebido, fechamentoPendente, fechamentoPorTipo, receitaTotal) +
+    _fmSecDespesas(despesaPorCategoria, despesaTotal);
 
   var html = htmlTopo + avisoSemData + htmlInadimplencia;
 
   if (_fmViewMode === 'analitico') {
     html += _fmBlocoClientes('👤 Receita (Contrato) por Cliente', clientesContrato) +
       _fmBlocoClientes('🧾 Fechamento por Cliente', clientesFechamento) +
-      _fmBlocoBreakdown('💸 Despesas por Categoria', despesaPorCategoria, '#F74F6B') +
+      _fmSecTotalGeralClientes(clientesContrato, clientesFechamento, receitaTotal) +
       _fmBlocoBreakdown('📉 Quebras por Produto (perda registrada)', quebraPorProduto, '#F7A84F');
   }
 

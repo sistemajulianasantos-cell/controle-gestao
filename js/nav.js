@@ -22,7 +22,7 @@ var pageInfo={
   agenda:['Agenda Operacional','Visão geral dos eventos por período'],
   financeiro:['Financeiro','Parcelas e status de pagamentos'],
   fechamentos:['Fechamentos','Acerto pós-evento — cobranças além do contrato'],
-  'fechamento-mensal':['Fechamento Mensal','Receita, despesa e quebras do mês, em regime de caixa'],
+  'fechamento-mensal':['Fechamento Mensal','Receitas, despesas e resultado do mês, em regime de competência'],
   despesas:['Análise Financeira','Receita, despesas e KPIs financeiros'],
   equipe:['Equipe','Cadastro e escala de colaboradores'],
   orcamento:['Orcamento vs Real','Comparativo custo orcado e real'],
