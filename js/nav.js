@@ -77,6 +77,8 @@ function go(page){
   const navItem=document.querySelector(`.nav-item[data-page="${page}"]`);
   const modulo=navItem&&navItem.getAttribute('data-modulo');
   if(modulo && typeof ACESSO!=='undefined' && perfilAtual && !(ACESSO[perfilAtual]||[]).includes(modulo)) return;
+  const alertEl=document.getElementById('alertbox');
+  if(alertEl){ if(_alertHideTimer){clearTimeout(_alertHideTimer);_alertHideTimer=null;} alertEl.style.display='none'; }
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.querySelectorAll('.nav-group').forEach(g=>g.classList.remove('open','active-group'));

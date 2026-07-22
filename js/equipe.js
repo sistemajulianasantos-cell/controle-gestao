@@ -727,7 +727,7 @@ function imprimirFolhaEvento() {
   const regiao = document.getElementById('eq-fp-regiao')?.value || '';
   const regiaoLabel = REGIOES_PAGAMENTO.find(r=>r.key===regiao)?.label || regiao || '';
   const temHE = _folhaLinhas.some(l=>l.horasExtra>0);
-  const fmtR = v => `R$ ${(v||0).toFixed(2).replace('.',',')}`;
+  const fmtR = v => `R$ ${(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
   const fmtD = d => d ? d.split('-').reverse().join('/') : '—';
   const totalGeral = _folhaLinhas.reduce((s,l)=>s+l.total,0);
 
@@ -1969,7 +1969,7 @@ function rEquipePagamentos() {
 
   const totalPendente = todos.filter(p=>p.status==='pendente').reduce((a,p)=>a+p.total,0);
   const totalPago     = todos.filter(p=>p.status==='pago').reduce((a,p)=>a+p.total,0);
-  const fmtR = v => `R$ ${(v||0).toFixed(2).replace('.',',')}`;
+  const fmtR = v => `R$ ${(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
 
   const eventosSorted = Object.entries(porEvento)
     .sort((a,b) => (b[1].data||'').localeCompare(a[1].data||''));
@@ -2104,9 +2104,13 @@ function imprimirPagamentosEquipe() {
     porEvento[p.contratoId].itens.push(p);
   });
 
-  const fmtR = v => `R$ ${(v||0).toFixed(2).replace('.',',')}`;
+  const fmtR = v => `R$ ${(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
   const fmtD = d => d ? d.split('-').reverse().join('/') : '—';
-  const totalGeral  = lista.reduce((a,p)=>a+p.total,0);
+  const totalGeral       = lista.reduce((a,p)=>a+p.total,0);
+  const totalBonus       = lista.reduce((a,p)=>a+(p.valorBonus||0),0);
+  const totalHE          = lista.reduce((a,p)=>a+(p.valorHE||0),0);
+  const colaboradoresUnicos = new Set(lista.map(p=>p.colaboradorId||p.nomeColab)).size;
+  const valorMedio        = lista.length ? totalGeral/colaboradoresUnicos : 0;
   const filtroLabel = _pgFiltro === 'pendente' ? 'Pendentes' : _pgFiltro === 'pago' ? 'Pagos' : 'Todos';
 
   let corpo = '';
@@ -2161,9 +2165,11 @@ function imprimirPagamentosEquipe() {
     body{font-family:Arial,sans-serif;font-size:11px;margin:20px;color:#111}
     h2{font-size:15px;margin:0 0 2px;font-weight:700}
     .sub{font-size:10px;color:#666;margin-bottom:12px}
-    .totais{display:inline-flex;gap:32px;margin:10px 0 18px;border:1px solid #ddd;border-radius:4px;padding:10px 16px;background:#f9f9f9}
+    .totais{display:inline-flex;flex-wrap:wrap;gap:28px;margin:10px 0 18px;border:1px solid #ddd;border-radius:4px;padding:10px 18px;background:#f9f9f9}
+    .tot-item{min-width:74px}
     .tot-item .lbl{font-size:10px;color:#666;margin-bottom:2px}
     .tot-item .val{font-weight:700;font-size:14px}
+    .tot-item .val.extra{color:#b45309}
     .ev-block{margin-bottom:16px;page-break-inside:avoid}
     .ev-head{display:flex;justify-content:space-between;align-items:center;background:#222;color:#fff;padding:7px 10px;border-radius:3px 3px 0 0;font-size:12px}
     .ev-meta{display:block;font-size:9px;color:#bbb;margin-top:2px;font-weight:400}
@@ -2183,7 +2189,9 @@ function imprimirPagamentosEquipe() {
   <div class="totais">
     <div class="tot-item"><div class="lbl">Total a pagar</div><div class="val">${fmtR(totalGeral)}</div></div>
     <div class="tot-item"><div class="lbl">Eventos</div><div class="val">${Object.keys(porEvento).length}</div></div>
-    <div class="tot-item"><div class="lbl">Colaboradores</div><div class="val">${lista.length}</div></div>
+    <div class="tot-item"><div class="lbl">Colaboradores</div><div class="val">${colaboradoresUnicos}</div></div>
+    <div class="tot-item"><div class="lbl">Valor médio</div><div class="val">${fmtR(valorMedio)}</div></div>
+    <div class="tot-item"><div class="lbl">H. Extra + Bônus</div><div class="val extra">${fmtR(totalHE+totalBonus)}</div></div>
   </div>
   ${corpo}
   <div class="rodape">Controle e Gestão — Juliana Santos · ${new Date().toLocaleDateString('pt-BR')}</div>
