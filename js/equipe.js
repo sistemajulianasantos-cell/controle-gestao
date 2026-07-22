@@ -2163,9 +2163,9 @@ function imprimirPagamentosEquipe() {
   <title>Pagamentos da Equipe</title>
   <style>
     body{font-family:Arial,sans-serif;font-size:11px;margin:20px;color:#111}
-    h2{font-size:15px;margin:0 0 2px;font-weight:700}
-    .sub{font-size:10px;color:#666;margin-bottom:12px}
-    .totais{display:inline-flex;flex-wrap:wrap;gap:28px;margin:10px 0 18px;border:1px solid #ddd;border-radius:4px;padding:10px 18px;background:#f9f9f9}
+    h2{font-size:15px;margin:0 0 2px;font-weight:700;text-align:center}
+    .sub{font-size:10px;color:#666;margin-bottom:12px;text-align:center}
+    .totais{display:flex;flex-wrap:wrap;justify-content:center;gap:28px;margin:10px auto 18px;width:fit-content;border:1px solid #ddd;border-radius:4px;padding:10px 18px;background:#f9f9f9}
     .tot-item{min-width:74px}
     .tot-item .lbl{font-size:10px;color:#666;margin-bottom:2px}
     .tot-item .val{font-weight:700;font-size:14px}

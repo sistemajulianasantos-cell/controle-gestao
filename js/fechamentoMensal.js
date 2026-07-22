@@ -27,6 +27,7 @@
 
 let _fmViewMode = 'sintetico';
 let _fmChartInstances = [];
+let _fmDetailSeq = 0;
 
 function initFechamentoMensal() {
   var hoje = new Date();
@@ -137,14 +138,71 @@ function _fmLinhaTotal(label, valor, cor) {
   '</div>';
 }
 
+function _fmToggleRow(id) {
+  var det = document.getElementById(id);
+  var icon = document.getElementById(id + '-ic');
+  if (!det) return;
+  var open = det.style.display !== 'none';
+  det.style.display = open ? 'none' : 'block';
+  if (icon) icon.textContent = open ? '▸' : '▾';
+}
+
+// Lista compacta de itens dentro de uma linha expandida (contratos de uma
+// categoria de receita, lançamentos de uma categoria de despesa etc.).
+function _fmDetailLista(itens) {
+  if (!itens.length) return '<div style="padding:6px 0 10px 20px;color:var(--text3);font-size:11px">Nenhum item.</div>';
+  return '<div style="padding:2px 0 8px 20px">' +
+    itens.map(function(it) {
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px dashed var(--border);font-size:11px">' +
+        '<span style="color:var(--text2)">' + it.label + (it.sub ? ' <span style="color:var(--text3)">— ' + it.sub + '</span>' : '') + '</span>' +
+        '<span style="display:flex;gap:6px;align-items:center">' + (it.tag || '') + '<span style="font-family:var(--mono)">' + fR(it.valor) + '</span></span>' +
+      '</div>';
+    }).join('') +
+  '</div>';
+}
+
+// Igual _fmLinhaResumo, mas clicável — expande uma lista de itens abaixo
+// (ex: "Receita de Contratos" → cada contrato/parcela que compõe o total).
+function _fmLinhaExpansivel(label, valor, sub, itens) {
+  var id = 'fm-det-' + (_fmDetailSeq++);
+  return '<div onclick="_fmToggleRow(\'' + id + '\')" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px">' +
+    '<span style="color:var(--text);display:flex;align-items:center;gap:6px">' +
+      '<span id="' + id + '-ic" style="font-size:9px;color:var(--text3);display:inline-block;width:8px">▸</span>' + label +
+    '</span>' +
+    '<span style="display:flex;gap:8px;align-items:center">' +
+      (sub ? '<span style="color:var(--text3);font-size:11px">' + sub + '</span>' : '') +
+      '<span style="font-family:var(--mono);font-weight:700">' + fR(valor) + '</span>' +
+    '</span></div>' +
+    '<div id="' + id + '" style="display:none">' + _fmDetailLista(itens) + '</div>';
+}
+
+function _fmTagStatus(pago) {
+  return pago ? '<span class="tag tag-green">Recebido</span>' : '<span class="tag tag-yellow">Pendente</span>';
+}
+
+function _fmParcelaLabel(f) {
+  var d = f.descricao || '';
+  if (d.indexOf('20%') >= 0) return 'Parcela 20%';
+  if (d.indexOf('80%') >= 0) return 'Parcela 80%';
+  return d || 'Parcela';
+}
+
 // Seção "Receitas" hierárquica: Receita de Contratos + Receita de Fechamentos
 // (com sub-itens Quebras cobradas/Insumos/Serviços adicionais) + Total Receitas.
-function _fmSecReceitas(receitaContrato, recebidoContrato, pendenteContrato, fechamentoTotal, fechamentoRecebido, fechamentoPendente, fechamentoPorTipo, receitaTotal) {
+function _fmSecReceitas(receitaContrato, recebidoContrato, pendenteContrato, contratoRecs, fechamentoTotal, fechamentoRecebido, fechamentoPendente, fechamentosDoMes, fechamentoPorTipo, receitaTotal) {
+  var itensContrato = contratoRecs.map(function(f) {
+    return { label: f.evento || f.contrato || 'Sem nome', sub: _fmParcelaLabel(f), valor: f.valorNum || 0, tag: _fmTagStatus(f.status === 'pago') };
+  }).sort(function(a, b) { return b.valor - a.valor; });
+
+  var itensFechamento = fechamentosDoMes.map(function(fch) {
+    return { label: fch.eventoNome || fch.clienteNome || 'Sem nome', sub: fd(fch.dataEvento || fch.vencimento), valor: fch.totalExtras || 0, tag: _fmTagStatus(_fmFechamentoPago(fch)) };
+  }).sort(function(a, b) { return b.valor - a.valor; });
+
   return '<div class="sec" style="margin-bottom:14px">' +
     '<div class="sec-head"><span class="sec-title">💰 Receitas</span></div>' +
     '<div style="padding:2px 16px">' +
-      _fmLinhaResumo('Receita de Contratos', receitaContrato, 'recebido ' + fR(recebidoContrato) + ' · pendente ' + fR(pendenteContrato)) +
-      _fmLinhaResumo('Receita de Fechamentos', fechamentoTotal, 'recebido ' + fR(fechamentoRecebido) + ' · pendente ' + fR(fechamentoPendente)) +
+      _fmLinhaExpansivel('Receita de Contratos', receitaContrato, 'recebido ' + fR(recebidoContrato) + ' · pendente ' + fR(pendenteContrato), itensContrato) +
+      _fmLinhaExpansivel('Receita de Fechamentos', fechamentoTotal, 'recebido ' + fR(fechamentoRecebido) + ' · pendente ' + fR(fechamentoPendente), itensFechamento) +
       _fmLinhaResumo('Quebras (cobradas do cliente)', fechamentoPorTipo.quebras, '', true) +
       _fmLinhaResumo('Insumos', fechamentoPorTipo.produto, '', true) +
       _fmLinhaResumo('Serviços adicionais', fechamentoPorTipo.extra, '', true) +
@@ -152,13 +210,19 @@ function _fmSecReceitas(receitaContrato, recebidoContrato, pendenteContrato, fec
     '</div></div>';
 }
 
-// Seção "Despesas" por categoria + Total Despesas.
-function _fmSecDespesas(despesaPorCategoria, despesaTotal) {
+// Seção "Despesas" por categoria + Total Despesas. Cada categoria expande
+// pra mostrar os lançamentos individuais que compõem o valor.
+function _fmSecDespesas(despesaPorCategoria, despesaItensPorCategoria, despesaTotal) {
   var entradas = Object.entries(despesaPorCategoria).filter(function(e) { return e[1] !== 0; }).sort(function(a, b) { return b[1] - a[1]; });
   return '<div class="sec" style="margin-bottom:14px">' +
     '<div class="sec-head"><span class="sec-title">💸 Despesas</span></div>' +
     '<div style="padding:2px 16px">' +
-      (entradas.length ? entradas.map(function(e) { return _fmLinhaResumo(e[0], e[1]); }).join('') : '<div style="padding:10px 0;color:var(--text3);font-size:12px">Nada registrado neste mês.</div>') +
+      (entradas.length ? entradas.map(function(e) {
+        var itens = (despesaItensPorCategoria[e[0]] || []).map(function(d) {
+          return { label: d.descricao || d.fornecedor || 'Despesa', sub: fd(d.data || d.dataVencimento), valor: d.valor || 0 };
+        }).sort(function(a, b) { return b.valor - a.valor; });
+        return _fmLinhaExpansivel(e[0], e[1], '', itens);
+      }).join('') : '<div style="padding:10px 0;color:var(--text3);font-size:12px">Nada registrado neste mês.</div>') +
       _fmLinhaTotal('Total Despesas', despesaTotal, 'var(--red)') +
     '</div></div>';
 }
@@ -204,6 +268,7 @@ function rFechamentoMensal() {
   var cont = document.getElementById('fm-body');
   if (!cont) return;
   _fmDestroyCharts();
+  _fmDetailSeq = 0;
   var anoMes = _fmAnoMes();
 
   if (_fmViewMode === 'produtos') { _fmRenderProdutos(cont, anoMes); return; }
@@ -292,9 +357,12 @@ function rFechamentoMensal() {
   var semDataDespesa = (D.despesas || []).filter(function(d) { return !d.data && !d.dataVencimento; }).length;
   var despesaTotal = despesasDoMes.reduce(function(s, d) { return s + (d.valor || 0); }, 0);
   var despesaPorCategoria = {};
+  var despesaItensPorCategoria = {};
   despesasDoMes.forEach(function(d) {
     var cat = d.categoria || 'Outros';
     despesaPorCategoria[cat] = (despesaPorCategoria[cat] || 0) + (d.valor || 0);
+    if (!despesaItensPorCategoria[cat]) despesaItensPorCategoria[cat] = [];
+    despesaItensPorCategoria[cat].push(d);
   });
 
   // ── Quebras (perda registrada, D.quebras) — custo real, não cobrado de ninguém ──
@@ -342,8 +410,8 @@ function rFechamentoMensal() {
       _fmCardResumo('Resultado do Mês', lucro, lucro >= 0 ? 'var(--green)' : 'var(--red)', 'Total Receitas − Total Despesas − Quebras (perda registrada)') +
       _fmCardResumo('Quebras (perda registrada)', totalQuebras, 'var(--amber)', 'prejuízo real, não cobrado do cliente — já descontado do Resultado acima') +
     '</div>' +
-    _fmSecReceitas(receitaContrato, recebidoContrato, pendenteContrato, fechamentoTotal, fechamentoRecebido, fechamentoPendente, fechamentoPorTipo, receitaTotal) +
-    _fmSecDespesas(despesaPorCategoria, despesaTotal);
+    _fmSecReceitas(receitaContrato, recebidoContrato, pendenteContrato, contratoRecs, fechamentoTotal, fechamentoRecebido, fechamentoPendente, fechamentosDoMes, fechamentoPorTipo, receitaTotal) +
+    _fmSecDespesas(despesaPorCategoria, despesaItensPorCategoria, despesaTotal);
 
   var html = htmlTopo + avisoSemData + htmlInadimplencia;
 
