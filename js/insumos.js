@@ -34,6 +34,7 @@ function initCadastro() {
   if (typeof migrarCategorias === 'function') migrarCategorias();
   migrarInsumosDeProdutos();
   if (typeof _atualizarFiltrosDeCategoria === 'function') _atualizarFiltrosDeCategoria();
+  if (typeof _tentarAutoConectarEstoqueSeparacao === 'function') _tentarAutoConectarEstoqueSeparacao();
   setCadastroView('lista');
 }
 
@@ -197,6 +198,8 @@ function rCadastroInsumos() {
         var teto = calcPrecoTetoSugerido(i);
         var efetivo = precoEfetivoInsumo(i);
         var abaixoTeto = efetivo > 0 && teto > 0 && efetivo < teto;
+        var estoqueSep = (typeof _estoqueSeparacaoParaInsumo === 'function') ? _estoqueSeparacaoParaInsumo(i) : null;
+        var estoqueSepConectado = typeof window.separacaoLogado === 'function' && window.separacaoLogado();
         return '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;display:flex;align-items:center;gap:10px">' +
           '<span style="font-family:var(--mono);font-size:10px;color:var(--text3);white-space:nowrap">' + (i.codigo || '—') + '</span>' +
           '<div style="flex:1">' +
@@ -207,6 +210,9 @@ function rCadastroInsumos() {
             '<div style="color:var(--text3)">Reposição: ' + (i.custoReposicao ? fR(i.custoReposicao) : '—') + '</div>' +
             (i.precoManual != null && i.precoManual !== '' ? '<div style="color:var(--blue)">Manual: ' + fR(i.precoManual) + '</div>' : '') +
           '</div>' +
+          (estoqueSep
+            ? '<span style="font-family:var(--mono);font-size:11px;color:var(--blue);white-space:nowrap" title="Estoque no Sistema Separação">📦 ' + estoqueSep.qtd + ' ' + (estoqueSep.unidade || '') + '</span>'
+            : (estoqueSepConectado ? '<span style="font-size:10px;color:var(--text3)" title="Nenhum item do Sistema Separação bateu com este nome/apelido">📦 —</span>' : '')) +
           (abaixoTeto ? '<span title="Abaixo do preço-teto sugerido (' + fR(teto) + ')" style="font-size:14px">⚠️</span>' : '') +
           '<div style="display:flex;gap:6px">' +
             '<button class="btn-sm" style="background:var(--blue)" onclick="editarInsumo(\'' + i.id + '\')">✏️</button>' +

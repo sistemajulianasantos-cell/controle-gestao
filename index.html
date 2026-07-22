@@ -957,6 +957,7 @@
           <option value="">Todas as categorias</option>
         </select>
       </div>
+      <div id="cad-estoque-sep-status" style="margin-bottom:12px"></div>
       <!-- Views -->
       <div id="cad-view-lista">
         <div class="sec">
@@ -2100,6 +2101,32 @@
   </div>
 </div>
 
+<!-- ═══ MODAL LOGIN ESTOQUE (SISTEMA SEPARAÇÃO) ═══ -->
+<div class="modal-overlay" id="msep-login">
+  <div class="modal" style="max-width:420px;width:95%">
+    <div class="modal-head">
+      <span class="modal-title">🔗 Conectar estoque do Sistema Separação</span>
+      <button class="modal-close" onclick="closeM('msep-login')">×</button>
+    </div>
+    <div style="padding:14px 18px;display:flex;flex-direction:column;gap:12px">
+      <div style="font-size:11px;color:var(--text3)">Entre com o mesmo usuário e senha que você já usa no Sistema Separação e Fechamento. Isso só lê o estoque de lá — nada é alterado no outro sistema.</div>
+      <div>
+        <label class="lbl">Usuário</label>
+        <input class="inp" id="msep-usuario" type="text" style="width:100%;box-sizing:border-box" placeholder="mesmo nome de usuário de lá" onkeydown="if(event.key==='Enter')document.getElementById('msep-senha').focus()">
+      </div>
+      <div>
+        <label class="lbl">Senha</label>
+        <input class="inp" id="msep-senha" type="password" style="width:100%;box-sizing:border-box" onkeydown="if(event.key==='Enter')confirmarLoginSeparacao()">
+      </div>
+      <div id="msep-erro" style="font-size:11px;color:var(--red);display:none"></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn" onclick="closeM('msep-login')">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarLoginSeparacao()">Entrar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ MODAL NOVO ORÇAMENTO ═══ -->
 <div id="m-novo-orc" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5000;align-items:center;justify-content:center">
   <div style="background:#161A26;border:1px solid #2A2F42;border-radius:12px;padding:28px 32px;width:100%;max-width:540px;max-height:90vh;overflow-y:auto">
@@ -2244,7 +2271,8 @@
 <script src="js/categorias.js?v=20260713b"></script>
 <script src="js/servicos.js?v=20260713b"></script>
 <script src="js/fechamentoMensal.js?v=20260722b"></script>
-<script src="js/insumos.js?v=20260713b"></script>
+<script src="js/insumos.js?v=20260722a"></script>
+<script src="js/estoqueSeparacao.js?v=20260722a"></script>
 <script src="js/cargos.js?v=20260713b"></script>
 <script src="js/regras.js?v=20260713b"></script>
 <script src="js/separacao.js?v=20260610z"></script>
@@ -2580,6 +2608,110 @@ signInAnonymously(auth)
 // ─── TEMPLATE B64 do contrato (embutido no momento do upload) ───────────────
 // O template será carregado dinamicamente — não embutido aqui para manter o arquivo leve
 // Se precisar usar o template local, defina: window.TEMPLATE_B64_GLOBAL = "...";
+</script>
+
+<script type="module">
+// ─── ESTOQUE — leitura ao vivo do Sistema Separação e Fechamento ────────────
+// Projeto Firebase separado (sistema-separacao-e-fechamento), config pública
+// (não é segredo — o que protege os dados são as regras do Firestore de lá,
+// que exigem login REAL, não anônimo). Este arquivo NUNCA escreve no projeto
+// secundário, só lê (.get()) — mesma garantia da leitura cross-project já
+// existente na aba Equipe do Sistema Separação (ver memória do projeto).
+//
+// Por que pedir login em vez de guardar usuário/senha fixos aqui: este
+// index.html é público (GitHub Pages) — qualquer senha embutida no código
+// ficaria visível pra qualquer pessoa que abrir a página, e as regras de lá
+// liberam leitura E escrita pra qualquer conta real autenticada. Por isso o
+// login é pedido na hora, na tela, com a conta de verdade de quem estiver
+// usando — a sessão fica salva no navegador depois (padrão do Firebase Auth),
+// não precisa logar de novo toda vez.
+import { initializeApp as _initAppSep }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore as _getFirestoreSep, collection as _collectionSep, getDocs as _getDocsSep }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getAuth as _getAuthSep, signInWithEmailAndPassword as _signInSep, onAuthStateChanged as _onAuthStateChangedSep }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { initializeAppCheck as _initAppCheckSep, ReCaptchaV3Provider as _ReCaptchaV3ProviderSep }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js";
+
+const firebaseConfigSeparacao = {
+  apiKey:            "AIzaSyAWwVU89Is5sZFbjeXSfY08y7f8pP8V4OQ",
+  authDomain:        "sistema-separacao-e-fechamento.firebaseapp.com",
+  projectId:         "sistema-separacao-e-fechamento",
+  messagingSenderId: "808931164240",
+  appId:             "1:808931164240:web:e81fdc523b486384119155",
+};
+// Mesma site key pública usada no próprio Sistema Separação (js/config.js de lá).
+const APPCHECK_SITE_KEY_SEPARACAO = "6Ley_k8tAAAAAPBAhj2PBBdw6Qf3McQ_HMq_5AEl";
+
+let dbSeparacao = null, authSeparacao = null;
+try {
+  const appSeparacao = _initAppSep(firebaseConfigSeparacao, "separacao");
+  dbSeparacao = _getFirestoreSep(appSeparacao);
+  authSeparacao = _getAuthSep(appSeparacao);
+  try {
+    _initAppCheckSep(appSeparacao, {
+      provider: new _ReCaptchaV3ProviderSep(APPCHECK_SITE_KEY_SEPARACAO),
+      isTokenAutoRefreshEnabled: true,
+    });
+  } catch (eAppCheck) {
+    // Se o App Check não inicializar (ex: domínio não liberado na reCAPTCHA
+    // daquele projeto), segue sem ele — só falha de verdade se o projeto de
+    // destino estiver com enforcement obrigatório, e mesmo assim o erro
+    // aparece de forma tratada no login (confirmarLoginSeparacao), nunca quebra o resto do app.
+    console.error("App Check (separação) não inicializou:", eAppCheck);
+  }
+} catch (e) {
+  console.error("Erro ao inicializar app secundário (separação):", e);
+}
+
+// Mesma normalização de nome de usuário → e-mail sintético usada no Sistema
+// Separação (js/firestore.js de lá, normalizarNomeUsuario/_emailDoUsuario) —
+// tem que ser idêntica pros dois lados calcularem o mesmo e-mail.
+function _normalizarNomeUsuarioSep(nome) {
+  return (nome || "")
+    .normalize("NFD").replace(/\p{Mn}/gu, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, ".")
+    .replace(/^\.+|\.+$/g, "");
+}
+function _senhaFirebaseSep(senha) {
+  if (!senha || senha.length >= 6) return senha;
+  let s = senha;
+  while (s.length < 6) s += senha;
+  return s.slice(0, 6);
+}
+
+let _resolveSepAuthReady;
+window.separacaoAuthReady = new Promise((res) => { _resolveSepAuthReady = res; });
+if (authSeparacao) {
+  _onAuthStateChangedSep(authSeparacao, (user) => _resolveSepAuthReady(!!user));
+} else {
+  _resolveSepAuthReady(false);
+}
+
+window.separacaoLogado = function () {
+  return !!(authSeparacao && authSeparacao.currentUser);
+};
+
+window.separacaoLogin = async function (nomeUsuario, senha) {
+  if (!authSeparacao) throw new Error("Conexão com o Sistema Separação não inicializou.");
+  const email = _normalizarNomeUsuarioSep(nomeUsuario) + "@sistema-separacao.local";
+  await _signInSep(authSeparacao, email, _senhaFirebaseSep(senha));
+};
+
+// Só leitura — nunca chamar setDoc/updateDoc/deleteDoc neste db.
+window.buscarEstoqueSeparacao = async function () {
+  if (!dbSeparacao || !authSeparacao || !authSeparacao.currentUser) return null;
+  try {
+    const snap = await _getDocsSep(_collectionSep(dbSeparacao, "estoque"));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    console.error("Erro ao ler estoque do Sistema Separação:", e);
+    return null;
+  }
+};
 </script>
 
 <script>
