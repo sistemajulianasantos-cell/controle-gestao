@@ -416,6 +416,41 @@ function _finContratosComParcelaFaltando() {
   return problemas;
 }
 
+// Mesma comparação de _finContratosComParcelaFaltando, mas SEM o filtro de
+// status — inclui parcela já paga na lista. Só detecta e devolve os dados;
+// quem decide o que corrigir é quem chama isso (tela Contratos, "💰 Conferir
+// valores"), com o usuário revisando e desmarcando o que não quiser mexer.
+function _finTodasDivergenciasValor() {
+  const grupos = _finAgruparEventos(D.financeiro || []);
+  const porContratoId = {};
+  Object.values(grupos).forEach(g => { if (g.contratoId) porContratoId[g.contratoId] = g; });
+  const norm = s => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+
+  const resultado = [];
+  (D.contratos || []).forEach(c => {
+    if (!c.data || c.status === 'cancelado') return;
+    const valorContrato = parseFloat((c.opcao || '0').toString().replace(/[^\d,]/g, '').replace(',', '.')) || 0;
+    if (!valorContrato) return;
+
+    const g = (c.id && porContratoId[c.id])
+      || Object.values(grupos).find(x => norm(x.nome) === norm(c.nomeEvento || c.nome) && x.data === c.data);
+
+    const esperadoP20 = Math.round(valorContrato * 0.2 * 100) / 100;
+    const esperadoP80 = Math.round(valorContrato * 0.8 * 100) / 100;
+    const faltaP20 = !g || !g.p20;
+    const faltaP80 = !g || !g.p80;
+    const p20Diverge = !faltaP20 && Math.abs((g.p20.valorNum || 0) - esperadoP20) > 0.01;
+    const p80Diverge = !faltaP80 && Math.abs((g.p80.valorNum || 0) - esperadoP80) > 0.01;
+
+    if (faltaP20 || faltaP80 || p20Diverge || p80Diverge) {
+      resultado.push({ contrato: c, valorContrato, esperadoP20, esperadoP80, faltaP20, faltaP80, p20Diverge, p80Diverge, g });
+    }
+  });
+
+  resultado.sort((a, b) => (b.contrato.data || '').localeCompare(a.contrato.data || ''));
+  return resultado;
+}
+
 function verificarParcelasContratos() {
   const problemas = _finContratosComParcelaFaltando();
 

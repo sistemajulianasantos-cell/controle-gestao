@@ -190,11 +190,14 @@ function _fmParcelaLabel(f) {
 // Seção "Receitas" hierárquica: Receita de Contratos + Receita de Fechamentos
 // (com sub-itens Quebras cobradas/Insumos/Serviços adicionais) + Total Receitas.
 function _fmSecReceitas(receitaContrato, recebidoContrato, pendenteContrato, contratoRecs, fechamentoTotal, fechamentoRecebido, fechamentoPendente, fechamentosDoMes, fechamentoPorTipo, receitaTotal) {
-  var itensContrato = contratoRecs.map(function(f) {
+  // Parcela de valor zero (ex: sinal cobriu 100% do contrato, "Restante" fica
+  // em R$0) não soma nada ao total — só polui a lista expandida com uma linha
+  // "Recebido / —" sem informação nenhuma. Mesmo critério já usado em Despesas.
+  var itensContrato = contratoRecs.filter(function(f) { return (f.valorNum || 0) > 0.01; }).map(function(f) {
     return { label: f.evento || f.contrato || 'Sem nome', sub: _fmParcelaLabel(f), valor: f.valorNum || 0, tag: _fmTagStatus(f.status === 'pago') };
   }).sort(function(a, b) { return b.valor - a.valor; });
 
-  var itensFechamento = fechamentosDoMes.map(function(fch) {
+  var itensFechamento = fechamentosDoMes.filter(function(fch) { return (fch.totalExtras || 0) > 0.01; }).map(function(fch) {
     return { label: fch.eventoNome || fch.clienteNome || 'Sem nome', sub: fd(fch.dataEvento || fch.vencimento), valor: fch.totalExtras || 0, tag: _fmTagStatus(_fmFechamentoPago(fch)) };
   }).sort(function(a, b) { return b.valor - a.valor; });
 

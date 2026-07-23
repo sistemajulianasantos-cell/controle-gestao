@@ -948,7 +948,10 @@
           <div style="font-size:15px;font-weight:600">Cadastro de Insumos</div>
           <div style="font-size:11px;color:var(--text3)">Custo, preço e apelidos — fonte única usada pelo Orçamento e pelas Fichas de Coquetel</div>
         </div>
-        <button class="btn" onclick="setCadastroView('form');rFormInsumo()" style="background:var(--green)">+ Novo Insumo</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn-sm" style="background:var(--bg3);border:1px solid var(--border2)" onclick="abrirModalPadronizarInsumos()">🏷️ Padronizar nomes</button>
+          <button class="btn" onclick="setCadastroView('form');rFormInsumo()" style="background:var(--green)">+ Novo Insumo</button>
+        </div>
       </div>
       <!-- Filtros -->
       <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
@@ -1045,7 +1048,8 @@
         <button class="sort-btn active" id="cv-lista"    onclick="setContratoView('lista')">📋 Todos os contratos</button>
         <button class="sort-btn"        id="cv-manual"   onclick="setContratoView('manual')">✏️ Novo contrato manual</button>
         <button class="sort-btn"        id="cv-importar" onclick="setContratoView('importar')">📥 Importar via PDF</button>
-        <button class="btn-sm" onclick="repararVinculosContratos()" style="margin-left:auto;background:#2A2F42;color:#F7C84F;border:1px solid #F7C84F" title="Corrige vínculos quebrados entre contratos, agenda, financeiro e produção">🔧 Reparar vínculos</button>
+        <button class="btn-sm" onclick="abrirModalConferirValores()" style="margin-left:auto;background:#2A2F42;color:#4ADE80;border:1px solid #4ADE80" title="Compara o valor de cada contrato com as parcelas 20%/80% já lançadas no Financeiro (inclusive já pagas)">💰 Conferir valores</button>
+        <button class="btn-sm" onclick="repararVinculosContratos()" style="background:#2A2F42;color:#F7C84F;border:1px solid #F7C84F" title="Corrige vínculos quebrados entre contratos, agenda, financeiro e produção">🔧 Reparar vínculos</button>
       </div>
 
       <!-- ─── VIEW: Novo contrato via PDF ─────────────────────────────── -->
@@ -2101,6 +2105,42 @@
   </div>
 </div>
 
+<!-- ═══ MODAL CONFERIR VALORES (CONTRATOS) ═══ -->
+<div class="modal-overlay" id="mconferir-valores">
+  <div class="modal" style="max-width:760px;width:95%">
+    <div class="modal-head">
+      <span class="modal-title">💰 Conferir valores dos contratos</span>
+      <button class="modal-close" onclick="closeM('mconferir-valores')">×</button>
+    </div>
+    <div style="padding:14px 18px">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Compara o valor de cada contrato (tela Contratos) com as parcelas 20%/80% já lançadas no Financeiro — inclusive as já marcadas como recebidas. Desmarque o que não quiser corrigir agora; o valor anterior de cada parcela alterada fica guardado no próprio registro, nada se perde.</div>
+      <div id="conferir-valores-lista" style="max-height:55vh;overflow-y:auto"></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn" onclick="closeM('mconferir-valores')">Cancelar</button>
+      <button class="btn btn-primary" id="btn-aplicar-conferir-valores" onclick="confirmarCorrecaoValoresContratos()">Aplicar selecionados</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL PADRONIZAR NOMES (CADASTRO DE INSUMOS) ═══ -->
+<div class="modal-overlay" id="mpadroniza-insumos">
+  <div class="modal" style="max-width:640px;width:95%">
+    <div class="modal-head">
+      <span class="modal-title">🏷️ Padronizar nomes do Cadastro de Insumos</span>
+      <button class="modal-close" onclick="closeM('mpadroniza-insumos')">×</button>
+    </div>
+    <div style="padding:14px 18px">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Compara o nome atual de cada insumo com a lista padrão. O nome antigo vira apelido (continua encontrável na busca) — nada em compras, contagens, quebras ou festas passadas é alterado.</div>
+      <div id="padroniza-insumos-lista" style="max-height:50vh;overflow-y:auto"></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn" onclick="closeM('mpadroniza-insumos')">Cancelar</button>
+      <button class="btn btn-primary" id="btn-aplicar-padroniza-insumos" onclick="confirmarPadronizarInsumos()">Aplicar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ MODAL LOGIN ESTOQUE (SISTEMA SEPARAÇÃO) ═══ -->
 <div class="modal-overlay" id="msep-login">
   <div class="modal" style="max-width:420px;width:95%">
@@ -2260,18 +2300,18 @@
 <script src="js/fornecedores.js?v=20260611d"></script>
 <script src="js/nav.js?v=20260722b"></script>
 <script src="js/auth.js?v=20260610z"></script>
-<script src="js/contratos.js?v=20260709b"></script>
+<script src="js/contratos.js?v=20260722b"></script>
 <script src="js/agenda.js?v=20260610z"></script>
 <script src="js/producao.js?v=20260610z"></script>
-<script src="js/financeiro.js?v=20260713b"></script>
+<script src="js/financeiro.js?v=20260722a"></script>
 <script src="js/fechamento.js?v=20260713b"></script>
 <script src="js/despesas.js?v=20260616c"></script>
 <script src="js/producao2.js?v=20260610z"></script>
 <script src="js/produtos.js?v=20260610z"></script>
 <script src="js/categorias.js?v=20260713b"></script>
 <script src="js/servicos.js?v=20260713b"></script>
-<script src="js/fechamentoMensal.js?v=20260722b"></script>
-<script src="js/insumos.js?v=20260722a"></script>
+<script src="js/fechamentoMensal.js?v=20260722c"></script>
+<script src="js/insumos.js?v=20260722b"></script>
 <script src="js/estoqueSeparacao.js?v=20260722a"></script>
 <script src="js/cargos.js?v=20260713b"></script>
 <script src="js/regras.js?v=20260713b"></script>

@@ -1211,6 +1211,16 @@ function salvarEdicaoContrato() {
     return res;
   })();
 
+  const opcaoEditada = document.getElementById('ec-opcao').value.trim();
+  // valorNum é o número de verdade usado em KPIs/relatórios (Fechamento Mensal
+  // inclusive) — "opcao" é só o texto exibido. Sem isso, editar o valor do
+  // contrato deixava a tela de Contratos mostrando um número e o Financeiro/
+  // Fechamento Mensal (que lêem as parcelas 20%/80% já lançadas) mostrando
+  // outro, porque as parcelas nunca eram recalculadas. Isso NÃO corrige
+  // parcelas já lançadas (ver "🔍 Verificar parcelas" no Financeiro para as
+  // pendentes; parcelas já pagas exigem correção manual, de propósito).
+  const valorNumEditado = parseFloat(opcaoEditada.replace(/[^\d,]/g, '').replace(',', '.')) || 0;
+
   D.contratos[idx] = {
     ...D.contratos[idx],
     nome,
@@ -1221,7 +1231,8 @@ function salvarEdicaoContrato() {
     convidados:   document.getElementById('ec-convidados').value.trim(),
     hrInicio:     document.getElementById('ec-ini').value,
     hrFim:        document.getElementById('ec-fim').value,
-    opcao:        document.getElementById('ec-opcao').value.trim(),
+    opcao:        opcaoEditada,
+    valorNum:     valorNumEditado || D.contratos[idx].valorNum,
     status:       document.getElementById('ec-status').value,
     local:        document.getElementById('ec-local').value.trim(),
     equipeTexto,
@@ -1445,6 +1456,106 @@ function repararVinculosContratos() {
 
   sv('agenda'); sv('financeiro'); sv('producoes');
   alert('✅ Sincronização concluída!\n' + corrigidos + ' registros atualizados em ' + (D.contratos||[]).length + ' contratos.\n\nA agenda já reflete a equipe atual de cada contrato.');
+}
+
+// ─── CONFERIR VALORES (contrato x parcelas 20%/80% já lançadas) ─────────────
+// Diferente de "🔧 Reparar vínculos" (que só arruma qual contrato cada
+// registro aponta) e do "🔍 Verificar parcelas" do Financeiro (que só mexe em
+// parcela ainda pendente): esta tela mostra TUDO que diverge, inclusive
+// parcela já paga, e deixa a usuária decidir uma por uma o que corrigir —
+// nunca aplica sozinho em cima de dinheiro já marcado como recebido.
+var _conferirValoresPendente = []; // itens marcados pra aplicar, montado no preview
+
+function abrirModalConferirValores() {
+  var divergencias = (typeof _finTodasDivergenciasValor === 'function') ? _finTodasDivergenciasValor() : [];
+  var listaEl = document.getElementById('conferir-valores-lista');
+  var btnAplicar = document.getElementById('btn-aplicar-conferir-valores');
+
+  if (!divergencias.length) {
+    listaEl.innerHTML = '<p style="font-size:12px;color:var(--text3);padding:12px 0">Nenhuma divergência encontrada — todos os contratos com valor definido têm parcelas 20%/80% batendo no Financeiro.</p>';
+    if (btnAplicar) btnAplicar.style.display = 'none';
+    openM('mconferir-valores');
+    return;
+  }
+
+  var linha = function(d, parcela, tipo) {
+    // parcela pode ser null (falta lançar) ou o registro do Financeiro (diverge)
+    var chk = 'cv-' + d.contrato.id + '-' + tipo;
+    var esperado = tipo === 'p20' ? d.esperadoP20 : d.esperadoP80;
+    var falta = tipo === 'p20' ? d.faltaP20 : d.faltaP80;
+    var pago = parcela && parcela.status === 'pago';
+    var descricaoTag = falta
+      ? ('falta lançar (' + (tipo === 'p20' ? '20%' : '80%') + ')')
+      : ((tipo === 'p20' ? '20%' : '80%') + ' — "' + (parcela.descricao || '') + '"' + (pago ? ' · já recebida' : ' · pendente'));
+    return '<label style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;cursor:pointer">' +
+      '<input type="checkbox" id="' + chk + '" checked style="margin-top:2px">' +
+      '<span style="flex:1">' +
+        '<span style="color:' + (pago ? 'var(--amber)' : 'var(--text3)') + '">' + (pago ? '⚠️ ' : '') + descricaoTag + '</span><br>' +
+        (falta
+          ? '<span style="font-family:var(--mono)">criar ' + fR(esperado) + '</span>'
+          : '<span style="font-family:var(--mono);color:var(--text3);text-decoration:line-through">' + fR(parcela.valorNum || 0) + '</span> <span style="font-family:var(--mono)">→ ' + fR(esperado) + '</span>') +
+      '</span></label>';
+  };
+
+  listaEl.innerHTML = '<div style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:6px">' + divergencias.length + ' contrato(s) com divergência:</div>' +
+    divergencias.map(function(d) {
+      var c = d.contrato;
+      return '<div style="padding:8px 0;border-bottom:1px solid var(--border2)">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">' +
+          '<span style="font-weight:600;font-size:12px">' + (c.nomeEvento || c.nome) + '</span>' +
+          '<span style="font-size:11px;color:var(--text3)">' + fd(c.data) + ' · contrato: ' + fR(d.valorContrato) + '</span>' +
+        '</div>' +
+        (d.faltaP20 || d.p20Diverge ? linha(d, d.g && d.g.p20, 'p20') : '') +
+        (d.faltaP80 || d.p80Diverge ? linha(d, d.g && d.g.p80, 'p80') : '') +
+      '</div>';
+    }).join('');
+
+  if (btnAplicar) btnAplicar.style.display = '';
+  openM('mconferir-valores');
+}
+
+function confirmarCorrecaoValoresContratos() {
+  var divergencias = (typeof _finTodasDivergenciasValor === 'function') ? _finTodasDivergenciasValor() : [];
+  if (!divergencias.length) { closeM('mconferir-valores'); return; }
+
+  if (!D.financeiro) D.financeiro = [];
+  var fmt = function(v) { return 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2 }); };
+  var criadas = 0, corrigidas = 0;
+
+  divergencias.forEach(function(d) {
+    var c = d.contrato;
+    ['p20', 'p80'].forEach(function(tipo) {
+      var chk = document.getElementById('cv-' + c.id + '-' + tipo);
+      if (!chk || !chk.checked) return;
+      var falta = tipo === 'p20' ? d.faltaP20 : d.faltaP80;
+      var diverge = tipo === 'p20' ? d.p20Diverge : d.p80Diverge;
+      var esperado = tipo === 'p20' ? d.esperadoP20 : d.esperadoP80;
+      if (falta) {
+        var venc = '';
+        if (tipo === 'p80' && c.data) { var dt = new Date(c.data + 'T12:00:00'); dt.setDate(dt.getDate() - 7); venc = dt.toISOString().slice(0, 10); }
+        D.financeiro.push({
+          id: _gerarId('FIN'), contratoId: c.id || '', contrato: c.nome || '', evento: c.nomeEvento || c.nome || '—',
+          data: c.data || '', tipo: c.tipo || '—', convidados: c.convidados || '—', status: 'pendente',
+          descricao: tipo === 'p20' ? '20% — Assinatura do contrato' : '80% — 7 dias antes do evento',
+          valorNum: esperado, valor: fmt(esperado), vencimento: venc,
+        });
+        criadas++;
+      } else if (diverge) {
+        var p = tipo === 'p20' ? d.g.p20 : d.g.p80;
+        // Guarda o valor anterior no próprio registro — nada some, só fica marcado.
+        if (!p.historicoCorrecaoValor) p.historicoCorrecaoValor = [];
+        p.historicoCorrecaoValor.push({ de: p.valorNum || 0, para: esperado, em: new Date().toISOString() });
+        p.valorNum = esperado;
+        p.valor = fmt(esperado);
+        corrigidas++;
+      }
+    });
+  });
+
+  sv('financeiro');
+  closeM('mconferir-valores');
+  if (typeof rContratos === 'function') rContratos();
+  alert2(criadas + ' parcela(s) criada(s), ' + corrigidas + ' corrigida(s).');
 }
 
 function novoContrato() {
