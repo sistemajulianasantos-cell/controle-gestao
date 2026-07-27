@@ -295,10 +295,12 @@ function _solAbrirOrcamento(id) {
   setTimeout(function() { if (typeof abrirOrcDetalhe === 'function') abrirOrcDetalhe(s.orcamentoId); }, 50);
 }
 
-// ── VIEW: IMPORTAR (colar da planilha) ────────────────────────────────────────
-// Ela seleciona tudo na planilha de controle (Ctrl+A → Ctrl+C) e cola aqui.
-// As 3 últimas colunas da planilha (Hora, Bebidas, Observação) não têm
-// cabeçalho próprio — são identificadas pela posição, não pelo nome.
+// ── VIEW: IMPORTAR (arquivo do Excel) ─────────────────────────────────────────
+// Ela seleciona o arquivo .xlsx/.xls/.csv exportado da planilha de controle —
+// lê a planilha inteira (via SheetJS), sem risco de esquecer a linha de
+// cabeçalho como acontecia ao copiar/colar manualmente. As 3 últimas colunas
+// da planilha (Hora, Bebidas, Observação) não têm cabeçalho próprio — são
+// identificadas pela posição, não pelo nome.
 
 function _solBuildImportar() {
   var total = getSolicitacoesOrcamento().length;
@@ -311,19 +313,30 @@ function _solBuildImportar() {
       '</div>' +
     '</div>' +
 
-    '<div style="margin-bottom:12px;font-size:12px;color:var(--text3);line-height:1.7">' +
-      '<strong style="color:var(--text2)">Como importar:</strong> na sua planilha, selecione tudo (Ctrl+A) → copie (Ctrl+C) → cole abaixo.<br>' +
-      'Coluna obrigatória: <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">Cliente</code>. As demais (Telefone Fixo, Celular, Tipo de Evento, Data do Evento, Local do Evento, Centro de Custo do Local, PAX, Serviços Orçados, Status) são reconhecidas pelo nome da coluna.<br>' +
+    '<div style="margin-bottom:14px;font-size:12px;color:var(--text3);line-height:1.7">' +
+      'Coluna obrigatória: <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">Cliente</code>. As demais (Telefone Fixo, Celular, Tipo de Evento, Data do Evento, Local do Evento, Centro de Custo do Local, PAX, Serviços Orçados, Status) são reconhecidas pelo nome da coluna, em qualquer posição.<br>' +
       'As 3 últimas colunas da planilha (sem nome, com Hora / Bebidas / Observação) são lidas pela posição — mantenha essa ordem.<br>' +
-      'Linhas cujo <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">Nº</code> já existir no sistema são ignoradas (evita duplicar ao colar de novo).' +
+      'Linhas cujo <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">Nº</code> já existir no sistema são ignoradas (pode importar o mesmo arquivo de novo sem duplicar).' +
     '</div>' +
-    '<textarea id="sol-tsv-input" placeholder="Cole aqui o conteúdo da planilha (Tab-separado)..." ' +
-      'style="width:100%;height:220px;padding:12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;font-family:var(--mono);resize:vertical;box-sizing:border-box"></textarea>' +
-    '<div style="display:flex;gap:10px;margin-top:12px;align-items:center;flex-wrap:wrap">' +
-      '<button class="btn" style="background:#4F8EF7;border-color:#4F8EF7;color:#fff;padding:9px 20px" onclick="_solProcessarImport()">Processar e salvar</button>' +
-      '<button class="btn" onclick="document.getElementById(\'sol-tsv-input\').value=\'\'">Limpar campo</button>' +
-      '<span id="sol-import-status" style="font-size:12px;color:var(--text3)"></span>' +
+
+    '<div style="background:var(--bg3);border:1px dashed var(--border2);border-radius:10px;padding:24px;text-align:center;margin-bottom:16px">' +
+      '<div style="font-size:13px;color:var(--text2);margin-bottom:12px">📂 Selecione o arquivo do Excel (.xlsx, .xls ou .csv)</div>' +
+      '<input type="file" id="sol-arquivo-input" accept=".xlsx,.xls,.csv" style="width:auto;display:inline-block" onchange="_solLerArquivoImport(this)">' +
     '</div>' +
+    '<div id="sol-import-status" style="font-size:12px;color:var(--text3);margin-bottom:16px"></div>' +
+
+    '<details style="font-size:12px;color:var(--text3)">' +
+      '<summary style="cursor:pointer;color:var(--text2)">Prefere colar os dados em vez de enviar o arquivo?</summary>' +
+      '<div style="margin-top:10px">' +
+        '<div style="margin-bottom:8px;line-height:1.6">Selecione tudo na planilha, incluindo a linha do cabeçalho (Ctrl+A) → copie (Ctrl+C) → cole abaixo.</div>' +
+        '<textarea id="sol-tsv-input" placeholder="Cole aqui o conteúdo da planilha (Tab-separado), com a linha de cabeçalho incluída..." ' +
+          'style="width:100%;height:180px;padding:12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;font-family:var(--mono);resize:vertical;box-sizing:border-box"></textarea>' +
+        '<div style="display:flex;gap:10px;margin-top:10px;align-items:center;flex-wrap:wrap">' +
+          '<button class="btn" style="background:#4F8EF7;border-color:#4F8EF7;color:#fff;padding:9px 20px" onclick="_solProcessarImportColado()">Processar e salvar</button>' +
+          '<button class="btn" onclick="document.getElementById(\'sol-tsv-input\').value=\'\'">Limpar campo</button>' +
+        '</div>' +
+      '</div>' +
+    '</details>' +
   '</div>';
 }
 
@@ -332,36 +345,82 @@ function _solImpStatus(msg, err) {
   if (el) { el.textContent = msg; el.style.color = err ? 'var(--red)' : 'var(--green)'; }
 }
 
-function _solProcessarImport() {
+// Entrada 1: arquivo .xlsx/.xls/.csv selecionado do computador
+function _solLerArquivoImport(inputEl) {
+  var file = inputEl.files && inputEl.files[0];
+  if (!file) return;
+  if (typeof XLSX === 'undefined') {
+    _solImpStatus('A biblioteca de leitura de Excel não carregou — verifique sua internet e recarregue a página.', true);
+    return;
+  }
+  _solImpStatus('Lendo "' + file.name + '"...', false);
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+      var sheet = wb.Sheets[wb.SheetNames[0]];
+      // raw:true + cellDates:true → células de data viram objetos Date reais em vez de
+      // texto formatado (o formato de texto do SheetJS pra data é ambíguo/errado às vezes,
+      // ex.: "08/08/2026" virando "8/7/26").
+      var linhas = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: '' });
+      var novos = _solConstruirSolicitacoes(linhas);
+      _solSalvarImportados(novos);
+    } catch (err) {
+      _solImpStatus('Erro ao ler o arquivo: ' + err.message, true);
+    } finally {
+      inputEl.value = '';
+    }
+  };
+  reader.onerror = function() { _solImpStatus('Erro ao ler o arquivo.', true); inputEl.value = ''; };
+  reader.readAsArrayBuffer(file);
+}
+
+// Entrada 2: texto colado (Tab-separado), com cabeçalho incluído
+function _solProcessarImportColado() {
   var raw = (document.getElementById('sol-tsv-input')?.value || '').trim();
   if (!raw) { _solImpStatus('Cole os dados antes de processar.', true); return; }
   _solImpStatus('Processando...', false);
   setTimeout(function() {
     try {
-      var novos = _solParseTSV(raw);
-      if (!D.solicitacoesOrcamento) D.solicitacoesOrcamento = [];
-      var numerosExistentes = new Set(D.solicitacoesOrcamento.map(function(s) { return s.numero; }).filter(Boolean));
-      var importados = 0, ignorados = 0;
-      novos.forEach(function(n) {
-        if (n.numero && numerosExistentes.has(n.numero)) { ignorados++; return; }
-        D.solicitacoesOrcamento.push(n);
-        if (n.numero) numerosExistentes.add(n.numero);
-        importados++;
-      });
-      if (importados > 0) sv('solicitacoesOrcamento');
-      _solImpStatus(importados + ' importada(s)' + (ignorados ? ', ' + ignorados + ' ignorada(s) por já existir' : '') + '.', false);
-      if (importados > 0) setTimeout(function() { _solSetView('lista'); }, 700);
+      var linhas = raw.split(/\r?\n/).filter(function(l) { return l.trim(); }).map(function(l) { return l.split('\t'); });
+      var novos = _solConstruirSolicitacoes(linhas);
+      _solSalvarImportados(novos);
     } catch (e) {
       _solImpStatus('Erro: ' + e.message, true);
     }
   }, 50);
 }
 
-function _solParseTSV(text) {
-  var lines = text.split(/\r?\n/).filter(function(l) { return l.trim(); });
-  if (lines.length < 2) throw new Error('Cole o cabeçalho e ao menos uma linha de dados.');
-  var header = lines[0].split('\t').map(function(h) { return h.trim(); });
-  var HU = header.map(function(h) { return h.toUpperCase(); });
+function _solSalvarImportados(novos) {
+  if (!D.solicitacoesOrcamento) D.solicitacoesOrcamento = [];
+  var numerosExistentes = new Set(D.solicitacoesOrcamento.map(function(s) { return s.numero; }).filter(Boolean));
+  var importados = 0, ignorados = 0;
+  novos.forEach(function(n) {
+    if (n.numero && numerosExistentes.has(n.numero)) { ignorados++; return; }
+    D.solicitacoesOrcamento.push(n);
+    if (n.numero) numerosExistentes.add(n.numero);
+    importados++;
+  });
+  if (importados > 0) sv('solicitacoesOrcamento');
+  _solImpStatus(importados + ' importada(s)' + (ignorados ? ', ' + ignorados + ' ignorada(s) por já existir' : '') + '.', false);
+  if (importados > 0) setTimeout(function() { _solSetView('lista'); }, 700);
+}
+
+// Recebe linhas já como array de arrays (cada linha da planilha, cabeçalho
+// incluído em algum lugar entre as 5 primeiras — cobre o caso de haver
+// título/linhas em branco acima do cabeçalho de verdade) e devolve os
+// registros prontos para salvar.
+function _solConstruirSolicitacoes(linhas) {
+  linhas = (linhas || []).filter(function(l) { return l && l.some(function(c) { return String(c == null ? '' : c).trim(); }); });
+  if (!linhas.length) throw new Error('Planilha vazia.');
+
+  var headerIdx = -1, header = null, HU = null;
+  for (var r = 0; r < Math.min(linhas.length, 5); r++) {
+    var cand = linhas[r].map(function(c) { return String(c == null ? '' : c).trim(); });
+    var candUp = cand.map(function(c) { return c.toUpperCase(); });
+    if (candUp.some(function(c) { return c.includes('CLIENTE'); })) { headerIdx = r; header = cand; HU = candUp; break; }
+  }
+  if (headerIdx < 0) throw new Error('Coluna "CLIENTE" não encontrada nas primeiras linhas da planilha.');
 
   function acha(subs) {
     for (var i = 0; i < HU.length; i++) {
@@ -381,7 +440,6 @@ function _solParseTSV(text) {
   var iPax    = acha(['PAX']);
   var iServ   = acha(['SERVIÇOS ORÇADOS', 'SERVICOS ORCADOS']);
   var iStatus = acha(['STATUS']);
-  if (iCli < 0) throw new Error('Coluna "CLIENTE" não encontrada.');
 
   var usadas = [iNum, iCli, iTelFix, iCel, iTipo, iData, iLocal, iCC, iPax, iServ, iStatus].filter(function(i) { return i >= 0; });
   var extras = [];
@@ -396,35 +454,42 @@ function _solParseTSV(text) {
     var r = regioes.find(function(x) { return x.label.toLowerCase().includes(t) || t.includes(x.label.toLowerCase()); });
     return r ? r.key : '';
   }
-  function dataISO(txt) {
-    var t = (txt || '').trim();
-    var m = t.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-    if (m) return m[3] + '-' + m[2] + '-' + m[1];
-    if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+  function dataISO(val) {
+    // Célula de data real do Excel (lida com cellDates:true) — usa os getters
+    // locais, que cancelam o offset introduzido na serialização (mesmo timezone
+    // na leitura e na escrita, então o dia sempre bate).
+    if (val instanceof Date && !isNaN(val)) {
+      return val.getFullYear() + '-' + String(val.getMonth() + 1).padStart(2, '0') + '-' + String(val.getDate()).padStart(2, '0');
+    }
+    var t = String(val == null ? '' : val).trim();
+    var m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m) return m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+    if (/^\d{4}-\d{2}-\d{2}/.test(t)) return t.slice(0, 10);
     return '';
   }
+  function cel(cols, i) { return i >= 0 ? String(cols[i] == null ? '' : cols[i]).trim() : ''; }
 
   var novos = [];
-  for (var li = 1; li < lines.length; li++) {
-    var cols = lines[li].split('\t');
-    var cliente = (cols[iCli] || '').trim();
+  for (var li = headerIdx + 1; li < linhas.length; li++) {
+    var cols = linhas[li];
+    var cliente = cel(cols, iCli);
     if (!cliente) continue;
     novos.push({
       id: _gerarId('SOL'),
-      numero: iNum >= 0 ? (cols[iNum] || '').trim() : '',
+      numero: cel(cols, iNum),
       cliente: cliente,
-      telefoneFixo: iTelFix >= 0 ? (cols[iTelFix] || '').trim() : '',
-      celular: iCel >= 0 ? (cols[iCel] || '').trim() : '',
-      tipoEvento: iTipo >= 0 ? (cols[iTipo] || '').trim() : '',
+      telefoneFixo: cel(cols, iTelFix),
+      celular: cel(cols, iCel),
+      tipoEvento: cel(cols, iTipo),
       dataEvento: iData >= 0 ? dataISO(cols[iData]) : '',
-      localEvento: iLocal >= 0 ? (cols[iLocal] || '').trim() : '',
+      localEvento: cel(cols, iLocal),
       centroCusto: iCC >= 0 ? centroCustoKey(cols[iCC]) : '',
-      pax: iPax >= 0 ? (parseInt((cols[iPax] || '').replace(/\D/g, '')) || 0) : 0,
-      servicosOrcados: iServ >= 0 ? (cols[iServ] || '').trim() : '',
-      status: iStatus >= 0 ? (cols[iStatus] || '').trim().toUpperCase() || 'PENDENTE' : 'PENDENTE',
-      hora: iHora !== undefined ? (cols[iHora] || '').trim() : '',
-      bebidas: iBebidas !== undefined ? (cols[iBebidas] || '').trim() : '',
-      observacao: iObs !== undefined ? (cols[iObs] || '').trim() : '',
+      pax: iPax >= 0 ? (parseInt(cel(cols, iPax).replace(/\D/g, '')) || 0) : 0,
+      servicosOrcados: cel(cols, iServ),
+      status: (cel(cols, iStatus) || 'PENDENTE').toUpperCase(),
+      hora: iHora !== undefined ? cel(cols, iHora) : '',
+      bebidas: iBebidas !== undefined ? cel(cols, iBebidas) : '',
+      observacao: iObs !== undefined ? cel(cols, iObs) : '',
       orcamentoId: '',
       criadoEm: new Date().toISOString(),
     });
