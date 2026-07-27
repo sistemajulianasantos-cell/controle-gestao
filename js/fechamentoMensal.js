@@ -182,21 +182,18 @@ function _fmTagStatus(pago) {
   return pago ? '<span class="tag tag-green">Recebido</span>' : '<span class="tag tag-yellow">Pendente</span>';
 }
 
-function _fmParcelaLabel(f) {
-  var d = f.descricao || '';
-  if (d.indexOf('20%') >= 0) return 'Parcela 20%';
-  if (d.indexOf('80%') >= 0) return 'Parcela 80%';
-  return d || 'Parcela';
-}
-
 // Seção "Receitas" hierárquica: Receita de Contratos + Receita de Fechamentos
 // (com sub-itens Quebras cobradas/Insumos/Serviços adicionais) + Total Receitas.
-function _fmSecReceitas(receitaContrato, recebidoContrato, pendenteContrato, contratoRecs, fechamentoTotal, fechamentoRecebido, fechamentoPendente, fechamentosDoMes, fechamentoPorTipo, receitaTotal) {
-  // Parcela de valor zero (ex: sinal cobriu 100% do contrato, "Restante" fica
-  // em R$0) não soma nada ao total — só polui a lista expandida com uma linha
-  // "Recebido / —" sem informação nenhuma. Mesmo critério já usado em Despesas.
-  var itensContrato = contratoRecs.filter(function(f) { return (f.valorNum || 0) > 0.01; }).map(function(f) {
-    return { label: f.evento || f.contrato || 'Sem nome', sub: _fmParcelaLabel(f), valor: f.valorNum || 0, tag: _fmTagStatus(f.status === 'pago') };
+function _fmSecReceitas(receitaContrato, recebidoContrato, pendenteContrato, clientesContrato, fechamentoTotal, fechamentoRecebido, fechamentoPendente, fechamentosDoMes, fechamentoPorTipo, receitaTotal) {
+  // Um item por cliente com o valor TOTAL do contrato (20%+80% somados) — ela
+  // pediu explicitamente pra não quebrar em Sinal/Restante aqui, só nome e total.
+  var itensContrato = Object.values(clientesContrato).filter(function(c) { return c.valor > 0.01; }).map(function(c) {
+    var tag = c.pendente <= 0.01
+      ? '<span class="tag tag-green">Recebido</span>'
+      : c.recebido > 0.01
+        ? '<span class="tag tag-yellow">Parcial — falta ' + fR(c.pendente) + '</span>'
+        : '<span class="tag tag-yellow">Pendente</span>';
+    return { label: c.nome, valor: c.valor, tag: tag };
   }).sort(function(a, b) { return b.valor - a.valor; });
 
   var itensFechamento = fechamentosDoMes.filter(function(fch) { return (fch.totalExtras || 0) > 0.01; }).map(function(fch) {
@@ -422,7 +419,7 @@ function rFechamentoMensal() {
       _fmCardResumo('Resultado do Mês', lucro, lucro >= 0 ? 'var(--green)' : 'var(--red)', 'Total Receitas − Total Despesas − Quebras (perda registrada)') +
       _fmCardResumo('Quebras (perda registrada)', totalQuebras, 'var(--amber)', 'prejuízo real, não cobrado do cliente — já descontado do Resultado acima') +
     '</div>' +
-    _fmSecReceitas(receitaContrato, recebidoContrato, pendenteContrato, contratoRecs, fechamentoTotal, fechamentoRecebido, fechamentoPendente, fechamentosDoMes, fechamentoPorTipo, receitaTotal) +
+    _fmSecReceitas(receitaContrato, recebidoContrato, pendenteContrato, clientesContrato, fechamentoTotal, fechamentoRecebido, fechamentoPendente, fechamentosDoMes, fechamentoPorTipo, receitaTotal) +
     _fmSecDespesas(despesaPorCategoria, despesaItensPorCategoria, despesaTotal);
 
   var html = htmlTopo + avisoSemData + htmlInadimplencia;
