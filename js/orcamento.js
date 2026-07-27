@@ -377,7 +377,7 @@ function orcAddAutoFill() {
   if (match) {
     if (typeof MAR !== 'undefined' && MAR[match])
       document.getElementById('orc-add-cat').value = MAR[match].cat || '';
-    const precoRef = D.precos?.[match]?.custo;
+    const precoRef = _orcPrecoInsumo(match);
     if (precoRef) {
       document.getElementById('orc-add-preco-ref').textContent = '← Preço cadastrado: ' + fR(precoRef);
     }
@@ -937,6 +937,17 @@ function orcSelecionarFicha(fichaId) {
   rOrcCardapio(orc);
 }
 
+// Preço que deve preencher automaticamente um insumo vindo do Cardápio/ficha:
+// busca no Cadastro de Insumos (preço manual se existir, senão custo de
+// reposição — mesma regra de precoEfetivoInsumo, js/insumos.js). Cai pro
+// D.precos antigo (Estoque → Preços) só se o item ainda não estiver
+// cadastrado em Insumos.
+function _orcPrecoInsumo(nome) {
+  const insumo = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(nome) : null;
+  if (insumo) return (typeof precoEfetivoInsumo === 'function') ? precoEfetivoInsumo(insumo) : Number(insumo.precoManual || insumo.custoReposicao || 0);
+  return (D.precos && D.precos[nome]) ? (D.precos[nome].custo || 0) : 0;
+}
+
 function orcAplicarCardapio(orcId) {
   const orc = (D.orcamentos||[]).find(o => o.id === orcId);
   if (!orc) return;
@@ -954,13 +965,16 @@ function orcAplicarCardapio(orcId) {
     const existing = orc.insumos.find(i => i.nome === nome);
     if (existing) {
       existing.qtdGarrafas = qtd;
+      // Backfill: só preenche se ainda estiver zerado (nunca sobrescreve um
+      // custo que ela já tenha ajustado manualmente na tabela do orçamento).
+      if (!existing.custoGarrafa) existing.custoGarrafa = _orcPrecoInsumo(nome);
       existing.total = Math.round(qtd * (existing.custoGarrafa||0) * 100) / 100;
       if (!existing.cat) existing.cat = item.cat;
       if (!existing.coqueteis) existing.coqueteis = [];
       if (fichaNome && !existing.coqueteis.includes(fichaNome)) existing.coqueteis.push(fichaNome);
       atualizados++;
     } else {
-      const precoRef = (D.precos && D.precos[nome]) ? (D.precos[nome].custo||0) : 0;
+      const precoRef = _orcPrecoInsumo(nome);
       orc.insumos.push({
         id: 'ins-' + Date.now() + '-' + Math.random().toString(36).slice(2,4),
         nome, qtdGarrafas: qtd, custoGarrafa: precoRef,
