@@ -119,6 +119,10 @@
         <span class="nav-group-chevron">›</span>
       </div>
       <div class="nav-group-items">
+        <div class="nav-item" data-page="solicitacao" data-modulo="orcamento" onclick="go('solicitacao')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2h10v12H3z"/><path d="M6 5h4M6 7.5h4"/><path d="M5.5 10.5l1.5 1.5 3-3.5" stroke-width="1.7"/></svg>
+          Solicitação de Orçamento
+        </div>
         <div class="nav-item" data-page="agenda" data-modulo="agenda" onclick="go('agenda')">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="2" width="14" height="13" rx="1"/><path d="M1 6h14M5 1v2M11 1v2"/></svg>
           Agenda
@@ -1904,6 +1908,11 @@
 
     </div>
 
+    <!-- ═══ SOLICITAÇÃO DE ORÇAMENTO ═══ -->
+    <div id="page-solicitacao" class="page">
+      <div id="solicitacao-content"></div>
+    </div>
+
     <!-- ═══ ORÇAMENTO ═══ -->
     <div id="page-orcamento" class="page">
       <div id="orc-content"></div>
@@ -2298,7 +2307,7 @@
 <script src="js/festas.js?v=20260713b"></script>
 <script src="js/relatorio.js?v=20260610z"></script>
 <script src="js/fornecedores.js?v=20260611d"></script>
-<script src="js/nav.js?v=20260722b"></script>
+<script src="js/nav.js?v=20260726a"></script>
 <script src="js/auth.js?v=20260610z"></script>
 <script src="js/contratos.js?v=20260722b"></script>
 <script src="js/agenda.js?v=20260610z"></script>
@@ -2317,6 +2326,7 @@
 <script src="js/regras.js?v=20260713b"></script>
 <script src="js/separacao.js?v=20260610z"></script>
 <script src="js/equipe.js?v=20260722c"></script>
+<script src="js/solicitacaoOrcamento.js?v=20260726a"></script>
 <script src="js/orcamento.js?v=20260713b"></script>
 <script src="js/orcCalc.js?v=20260713b"></script>
 <script src="js/_refConsumoData.js?v=20260610z"></script>
@@ -2576,6 +2586,7 @@ async function carregarDados() {
     D.regrasCopos      = r.regrasCopos      || {};
     D.pagamentosEquipe = r.pagamentosEquipe || [];
     D.orcamentos            = r.orcamentos            || [];
+    D.solicitacoesOrcamento = r.solicitacoesOrcamento || [];
     D.senhas                = r.senhas                || {};
     D.rcEventos             = r.rcEventos             || [];
     D.rcEventosImportados   = r.rcEventosImportados   || [];

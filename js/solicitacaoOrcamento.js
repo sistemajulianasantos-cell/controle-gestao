@@ -1,0 +1,434 @@
+// ─── SOLICITAÇÃO DE ORÇAMENTO ────────────────────────────────────────────────
+// Funil de entrada comercial: todo pedido de orçamento que chega (WhatsApp,
+// indicação, site etc.) é cadastrado aqui antes de virar um Orçamento formal
+// (D.orcamentos). Cada solicitação pode gerar/linkar um Orçamento — o vínculo
+// fica guardado em `orcamentoId`, nunca duplicado.
+
+var _solView = 'lista';
+var _solEditId = null;
+
+var SOL_STATUS_PADRAO = ['PENDENTE', 'ENVIADO', 'APROVADO', 'RECUSADO'];
+
+function initSolicitacaoOrcamento() {
+  if (!D.solicitacoesOrcamento) D.solicitacoesOrcamento = [];
+  _solView = 'lista';
+  _solEditId = null;
+  rSolicitacao();
+}
+
+function _solSetView(v) {
+  _solView = v;
+  if (v === 'lista') _solEditId = null;
+  rSolicitacao();
+}
+
+function rSolicitacao() {
+  var el = document.getElementById('solicitacao-content');
+  if (!el) return;
+  if (_solView === 'form') el.innerHTML = _solBuildForm(_solEditId);
+  else if (_solView === 'importar') el.innerHTML = _solBuildImportar();
+  else el.innerHTML = _solBuildLista();
+}
+
+// ── Helpers de dados ─────────────────────────────────────────────────────────
+
+function getSolicitacoesOrcamento() {
+  return D.solicitacoesOrcamento || [];
+}
+
+function _solBuscar(id) {
+  return (D.solicitacoesOrcamento || []).find(function(s) { return s.id === id; }) || null;
+}
+
+// Nº segue o padrão real usado por ela: MMAA-XXX, sequencial dentro do mês
+// em que a solicitação foi CADASTRADA (não o mês do evento).
+function _solProximoNumero() {
+  var hoje = new Date();
+  var prefixo = String(hoje.getMonth() + 1).padStart(2, '0') + String(hoje.getFullYear()).slice(-2);
+  var max = 0;
+  (D.solicitacoesOrcamento || []).forEach(function(s) {
+    var m = (s.numero || '').match(new RegExp('^' + prefixo + '-(\\d+)$'));
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  });
+  return prefixo + '-' + String(max + 1).padStart(3, '0');
+}
+
+function _solMapTipoEvento(t) {
+  var n = (t || '').toLowerCase();
+  if (n.includes('casamento')) return 'casamento';
+  if (n.includes('15 anos') || n.includes('15anos')) return '15anos';
+  if (n.includes('formatura')) return 'formatura';
+  return 'outros';
+}
+
+function _solCorStatus(status) {
+  var s = (status || '').toUpperCase();
+  if (s === 'PENDENTE') return { bg: '#F5A62333', cor: '#F5A623' };
+  if (s === 'ENVIADO') return { bg: '#4F8EF733', cor: '#4F8EF7' };
+  if (s === 'APROVADO') return { bg: '#4FC78E33', cor: '#4FC78E' };
+  if (s === 'RECUSADO') return { bg: '#F74F6B33', cor: '#F74F6B' };
+  return { bg: 'var(--bg3)', cor: 'var(--text3)' };
+}
+
+// ── VIEW: LISTA ───────────────────────────────────────────────────────────────
+
+function _solBuildLista() {
+  var lista = getSolicitacoesOrcamento().slice().sort(function(a, b) {
+    return (b.numero || '').localeCompare(a.numero || '');
+  });
+
+  var busca = (document.getElementById('sol-busca')?.value || '').toLowerCase();
+  var statusFiltro = document.getElementById('sol-status-filtro')?.value || '';
+  if (busca) lista = lista.filter(function(s) { return (s.cliente || '').toLowerCase().includes(busca); });
+  if (statusFiltro) lista = lista.filter(function(s) { return (s.status || '').toUpperCase() === statusFiltro; });
+
+  var linhas = !lista.length
+    ? '<tr><td colspan="11" style="text-align:center;color:var(--text3);padding:24px">Nenhuma solicitação encontrada</td></tr>'
+    : lista.map(function(s) {
+        var cor = _solCorStatus(s.status);
+        var contato = [s.telefoneFixo, s.celular].filter(Boolean).join(' · ') || '—';
+        var extras = [s.hora, s.bebidas, s.observacao].filter(Boolean).join(' · ');
+        return '<tr style="border-bottom:1px solid var(--border)">' +
+          '<td style="padding:8px 12px;font-family:var(--mono);font-size:11px">' + (s.numero || '—') + '</td>' +
+          '<td style="padding:8px 12px"><strong>' + (s.cliente || '—') + '</strong></td>' +
+          '<td style="padding:8px 12px;font-size:11px;color:var(--text3)">' + contato + '</td>' +
+          '<td style="padding:8px 12px">' + (s.tipoEvento || '—') + '</td>' +
+          '<td style="padding:8px 12px">' + fd(s.dataEvento) + '</td>' +
+          '<td style="padding:8px 12px;font-size:11px;color:var(--text3)">' + (s.localEvento || '—') +
+            (s.centroCusto ? '<br>' + _solLabelRegiao(s.centroCusto) : '') + '</td>' +
+          '<td style="padding:8px 12px;text-align:center">' + (s.pax || '—') + '</td>' +
+          '<td style="padding:8px 12px;font-size:11px;max-width:160px" title="' + (s.servicosOrcados || '') + '">' + (s.servicosOrcados || '—') + '</td>' +
+          '<td style="padding:8px 12px">' +
+            '<span style="background:' + cor.bg + ';color:' + cor.cor + ';font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;white-space:nowrap">' + (s.status || 'PENDENTE') + '</span>' +
+          '</td>' +
+          '<td style="padding:8px 12px;font-size:11px;color:var(--text3);max-width:180px" title="' + extras + '">' + (extras || '—') + '</td>' +
+          '<td style="padding:8px 12px;white-space:nowrap">' +
+            '<button class="btn-sm" style="background:var(--blue)" onclick="_solEditar(\'' + s.id + '\')" title="Editar">✏️</button> ' +
+            (s.orcamentoId
+              ? '<button class="btn-sm" style="background:var(--green)" onclick="_solAbrirOrcamento(\'' + s.id + '\')" title="Abrir orçamento gerado">📋 Orçamento</button> '
+              : '<button class="btn-sm" style="background:var(--green)" onclick="_solGerarOrcamento(\'' + s.id + '\')" title="Gerar orçamento a partir desta solicitação">📋 Gerar Orçamento</button> ') +
+            '<button class="btn-sm btn-red" onclick="_solExcluir(\'' + s.id + '\')" title="Excluir">✕</button>' +
+          '</td>' +
+        '</tr>';
+      }).join('');
+
+  return '<div style="padding:20px 24px">' +
+    '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;gap:12px;flex-wrap:wrap">' +
+      '<div>' +
+        '<div style="font-size:18px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.5px">Solicitação de Orçamento</div>' +
+        '<div style="font-size:12px;color:var(--text3);margin-top:2px">' + getSolicitacoesOrcamento().length + ' solicitação(ões) cadastrada(s)</div>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+        '<button class="btn" style="background:var(--green)" onclick="_solEditar(null)">+ Nova Solicitação</button>' +
+        '<button class="btn" onclick="_solSetView(\'importar\')">📥 Importar</button>' +
+      '</div>' +
+    '</div>' +
+
+    '<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">' +
+      '<input class="inp" id="sol-busca" type="text" placeholder="🔍 Buscar por cliente..." style="flex:1;min-width:200px" oninput="rSolicitacao()">' +
+      '<select class="inp" id="sol-status-filtro" style="width:180px" onchange="rSolicitacao()">' +
+        '<option value="">Todos os status</option>' +
+        SOL_STATUS_PADRAO.map(function(s) { return '<option value="' + s + '">' + s + '</option>'; }).join('') +
+      '</select>' +
+    '</div>' +
+
+    '<div style="overflow-x:auto">' +
+    '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
+      '<thead><tr style="border-bottom:2px solid var(--border2);color:var(--text3);text-transform:uppercase;font-size:10px">' +
+        '<th style="padding:8px 12px;text-align:left">Nº</th>' +
+        '<th style="padding:8px 12px;text-align:left">Cliente</th>' +
+        '<th style="padding:8px 12px;text-align:left">Contato</th>' +
+        '<th style="padding:8px 12px;text-align:left">Tipo de Evento</th>' +
+        '<th style="padding:8px 12px;text-align:left">Data</th>' +
+        '<th style="padding:8px 12px;text-align:left">Local</th>' +
+        '<th style="padding:8px 12px;text-align:center">PAX</th>' +
+        '<th style="padding:8px 12px;text-align:left">Serviços Orçados</th>' +
+        '<th style="padding:8px 12px;text-align:left">Status</th>' +
+        '<th style="padding:8px 12px;text-align:left">Hora / Bebidas / Obs.</th>' +
+        '<th style="padding:8px 12px;text-align:left">Ações</th>' +
+      '</tr></thead>' +
+      '<tbody>' + linhas + '</tbody>' +
+    '</table>' +
+    '</div>' +
+  '</div>';
+}
+
+function _solLabelRegiao(key) {
+  var r = (typeof REGIOES_LOCAL !== 'undefined' ? REGIOES_LOCAL : []).find(function(x) { return x.key === key; });
+  return r ? r.label : key;
+}
+
+// ── VIEW: FORM (novo / editar) ────────────────────────────────────────────────
+
+function _solBuildForm(id) {
+  _solEditId = id || null;
+  var s = id ? _solBuscar(id) : null;
+  var regioes = (typeof REGIOES_LOCAL !== 'undefined' ? REGIOES_LOCAL : []);
+
+  return '<div style="padding:20px 24px;max-width:900px">' +
+    '<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">' +
+      '<button class="btn" onclick="_solSetView(\'lista\')">← Voltar</button>' +
+      '<div style="font-size:18px;font-weight:600;color:var(--text)">' + (s ? '✏️ Editar Solicitação' : '+ Nova Solicitação de Orçamento') + '</div>' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">' +
+      '<div><label class="lbl">Nº</label><input class="inp" id="sol-numero" type="text" value="' + (s ? s.numero : _solProximoNumero()) + '"></div>' +
+      '<div style="grid-column:span 2"><label class="lbl">Cliente *</label><input class="inp" id="sol-cliente" type="text" placeholder="Nome do cliente" value="' + (s ? s.cliente || '' : '') + '"></div>' +
+      '<div><label class="lbl">Telefone Fixo</label><input class="inp" id="sol-tel-fixo" type="text" placeholder="(31) 3333-3333" value="' + (s ? s.telefoneFixo || '' : '') + '"></div>' +
+      '<div><label class="lbl">Celular</label><input class="inp" id="sol-celular" type="text" placeholder="(31) 9 9999-9999" value="' + (s ? s.celular || '' : '') + '"></div>' +
+      '<div><label class="lbl">Tipo de Evento</label><input class="inp" id="sol-tipo" type="text" placeholder="Ex: Casamento" value="' + (s ? s.tipoEvento || '' : '') + '"></div>' +
+      '<div><label class="lbl">Data do Evento</label><input class="inp" id="sol-data" type="date" value="' + (s ? s.dataEvento || '' : '') + '"></div>' +
+      '<div><label class="lbl">PAX</label><input class="inp" id="sol-pax" type="number" min="0" placeholder="Nº de convidados" value="' + (s ? s.pax || '' : '') + '"></div>' +
+      '<div style="grid-column:span 2"><label class="lbl">Local do Evento</label><input class="inp" id="sol-local" type="text" placeholder="Nome do espaço / endereço" value="' + (s ? s.localEvento || '' : '') + '"></div>' +
+      '<div><label class="lbl">Centro de Custo do Local</label><select class="inp" id="sol-centro-custo">' +
+        '<option value="">— Selecione —</option>' +
+        regioes.map(function(r) { return '<option value="' + r.key + '"' + (s && s.centroCusto === r.key ? ' selected' : '') + '>' + r.label + '</option>'; }).join('') +
+      '</select></div>' +
+      '<div><label class="lbl">Status</label><select class="inp" id="sol-status">' +
+        SOL_STATUS_PADRAO.map(function(st) { return '<option value="' + st + '"' + (s && (s.status || 'PENDENTE') === st ? ' selected' : '') + '>' + st + '</option>'; }).join('') +
+      '</select></div>' +
+      '<div style="grid-column:1/-1"><label class="lbl">Serviços Orçados</label><input class="inp" id="sol-servicos" type="text" placeholder="Ex: Whiskeria opcional" value="' + (s ? s.servicosOrcados || '' : '') + '"></div>' +
+      '<div><label class="lbl">Hora</label><input class="inp" id="sol-hora" type="time" value="' + (s ? s.hora || '' : '') + '"></div>' +
+      '<div style="grid-column:span 2"><label class="lbl">Bebidas</label><input class="inp" id="sol-bebidas" type="text" placeholder="Ex: Vinho e Whisky" value="' + (s ? s.bebidas || '' : '') + '"></div>' +
+      '<div style="grid-column:1/-1"><label class="lbl">Observação</label><textarea class="inp" id="sol-obs" rows="2" style="resize:vertical">' + (s ? s.observacao || '' : '') + '</textarea></div>' +
+    '</div>' +
+    '<div style="margin-top:16px;display:flex;gap:8px">' +
+      '<button class="btn" style="background:var(--green)" onclick="_solSalvar()">💾 Salvar</button>' +
+      '<button class="btn" style="background:var(--bg3);color:var(--text)" onclick="_solSetView(\'lista\')">Cancelar</button>' +
+    '</div>' +
+  '</div>';
+}
+
+function _solSalvar() {
+  var cliente = (document.getElementById('sol-cliente')?.value || '').trim();
+  if (!cliente) { alert('Informe o nome do cliente.'); return; }
+
+  if (!D.solicitacoesOrcamento) D.solicitacoesOrcamento = [];
+  var existente = _solEditId ? _solBuscar(_solEditId) : null;
+
+  var registro = {
+    id: existente ? existente.id : _gerarId('SOL'),
+    numero: (document.getElementById('sol-numero')?.value || '').trim() || _solProximoNumero(),
+    cliente: cliente,
+    telefoneFixo: (document.getElementById('sol-tel-fixo')?.value || '').trim(),
+    celular: (document.getElementById('sol-celular')?.value || '').trim(),
+    tipoEvento: (document.getElementById('sol-tipo')?.value || '').trim(),
+    dataEvento: document.getElementById('sol-data')?.value || '',
+    localEvento: (document.getElementById('sol-local')?.value || '').trim(),
+    centroCusto: document.getElementById('sol-centro-custo')?.value || '',
+    pax: parseInt(document.getElementById('sol-pax')?.value) || 0,
+    servicosOrcados: (document.getElementById('sol-servicos')?.value || '').trim(),
+    status: document.getElementById('sol-status')?.value || 'PENDENTE',
+    hora: document.getElementById('sol-hora')?.value || '',
+    bebidas: (document.getElementById('sol-bebidas')?.value || '').trim(),
+    observacao: (document.getElementById('sol-obs')?.value || '').trim(),
+    orcamentoId: existente ? existente.orcamentoId || '' : '',
+    criadoEm: existente ? existente.criadoEm : new Date().toISOString(),
+  };
+
+  if (existente) {
+    var idx = D.solicitacoesOrcamento.findIndex(function(x) { return x.id === existente.id; });
+    if (idx >= 0) D.solicitacoesOrcamento[idx] = registro; else D.solicitacoesOrcamento.push(registro);
+  } else {
+    D.solicitacoesOrcamento.push(registro);
+  }
+
+  sv('solicitacoesOrcamento');
+  alert2('Solicitação salva!');
+  _solSetView('lista');
+}
+
+function _solEditar(id) {
+  _solEditId = id || null;
+  _solSetView('form');
+}
+
+function _solExcluir(id) {
+  if (!confirm('Excluir esta solicitação de orçamento?')) return;
+  D.solicitacoesOrcamento = (D.solicitacoesOrcamento || []).filter(function(s) { return s.id !== id; });
+  sv('solicitacoesOrcamento');
+  rSolicitacao();
+}
+
+// ── Gerar / abrir Orçamento vinculado ─────────────────────────────────────────
+
+function _solGerarOrcamento(id) {
+  var s = _solBuscar(id);
+  if (!s) return;
+  if (!s.pax) { alert('Informe o PAX antes de gerar o orçamento.'); return; }
+  if (!confirm('Gerar um Orçamento a partir desta solicitação?')) return;
+
+  if (!D.orcamentos) D.orcamentos = [];
+  var orcId = 'ORC' + Date.now();
+  D.orcamentos.push({
+    id: orcId,
+    nomeCliente: s.cliente,
+    dataEvento: s.dataEvento || '',
+    convidados: parseInt(s.pax) || 0,
+    criadoEm: new Date().toISOString(),
+    itens: [],
+    calcItens: [],
+    insumos: [],
+    servicos: [],
+    calcParams: {
+      local: s.centroCusto || 'area_central',
+      tipoEvento: _solMapTipoEvento(s.tipoEvento),
+      cfVas: 'padrao',
+      cfCond: 'padrao',
+      cfCI: 'normal',
+      cfPerda: 'padrao',
+      margemSeguranca: 10,
+      margemLucro: 30,
+    }
+  });
+
+  s.orcamentoId = orcId;
+  sv('orcamentos');
+  sv('solicitacoesOrcamento');
+  go('orcamento');
+  setTimeout(function() { if (typeof abrirOrcDetalhe === 'function') abrirOrcDetalhe(orcId); }, 50);
+}
+
+function _solAbrirOrcamento(id) {
+  var s = _solBuscar(id);
+  if (!s || !s.orcamentoId) return;
+  go('orcamento');
+  setTimeout(function() { if (typeof abrirOrcDetalhe === 'function') abrirOrcDetalhe(s.orcamentoId); }, 50);
+}
+
+// ── VIEW: IMPORTAR (colar da planilha) ────────────────────────────────────────
+// Ela seleciona tudo na planilha de controle (Ctrl+A → Ctrl+C) e cola aqui.
+// As 3 últimas colunas da planilha (Hora, Bebidas, Observação) não têm
+// cabeçalho próprio — são identificadas pela posição, não pelo nome.
+
+function _solBuildImportar() {
+  var total = getSolicitacoesOrcamento().length;
+  return '<div style="padding:20px 24px;max-width:860px">' +
+    '<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">' +
+      '<button class="btn" onclick="_solSetView(\'lista\')">← Voltar</button>' +
+      '<div>' +
+        '<div style="font-size:18px;font-weight:600;color:var(--text)">Importar Solicitações da Planilha</div>' +
+        '<div style="font-size:12px;color:var(--text3)">Cada linha da planilha vira uma solicitação — ' + total + ' já cadastrada(s)</div>' +
+      '</div>' +
+    '</div>' +
+
+    '<div style="margin-bottom:12px;font-size:12px;color:var(--text3);line-height:1.7">' +
+      '<strong style="color:var(--text2)">Como importar:</strong> na sua planilha, selecione tudo (Ctrl+A) → copie (Ctrl+C) → cole abaixo.<br>' +
+      'Coluna obrigatória: <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">Cliente</code>. As demais (Telefone Fixo, Celular, Tipo de Evento, Data do Evento, Local do Evento, Centro de Custo do Local, PAX, Serviços Orçados, Status) são reconhecidas pelo nome da coluna.<br>' +
+      'As 3 últimas colunas da planilha (sem nome, com Hora / Bebidas / Observação) são lidas pela posição — mantenha essa ordem.<br>' +
+      'Linhas cujo <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">Nº</code> já existir no sistema são ignoradas (evita duplicar ao colar de novo).' +
+    '</div>' +
+    '<textarea id="sol-tsv-input" placeholder="Cole aqui o conteúdo da planilha (Tab-separado)..." ' +
+      'style="width:100%;height:220px;padding:12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;font-family:var(--mono);resize:vertical;box-sizing:border-box"></textarea>' +
+    '<div style="display:flex;gap:10px;margin-top:12px;align-items:center;flex-wrap:wrap">' +
+      '<button class="btn" style="background:#4F8EF7;border-color:#4F8EF7;color:#fff;padding:9px 20px" onclick="_solProcessarImport()">Processar e salvar</button>' +
+      '<button class="btn" onclick="document.getElementById(\'sol-tsv-input\').value=\'\'">Limpar campo</button>' +
+      '<span id="sol-import-status" style="font-size:12px;color:var(--text3)"></span>' +
+    '</div>' +
+  '</div>';
+}
+
+function _solImpStatus(msg, err) {
+  var el = document.getElementById('sol-import-status');
+  if (el) { el.textContent = msg; el.style.color = err ? 'var(--red)' : 'var(--green)'; }
+}
+
+function _solProcessarImport() {
+  var raw = (document.getElementById('sol-tsv-input')?.value || '').trim();
+  if (!raw) { _solImpStatus('Cole os dados antes de processar.', true); return; }
+  _solImpStatus('Processando...', false);
+  setTimeout(function() {
+    try {
+      var novos = _solParseTSV(raw);
+      if (!D.solicitacoesOrcamento) D.solicitacoesOrcamento = [];
+      var numerosExistentes = new Set(D.solicitacoesOrcamento.map(function(s) { return s.numero; }).filter(Boolean));
+      var importados = 0, ignorados = 0;
+      novos.forEach(function(n) {
+        if (n.numero && numerosExistentes.has(n.numero)) { ignorados++; return; }
+        D.solicitacoesOrcamento.push(n);
+        if (n.numero) numerosExistentes.add(n.numero);
+        importados++;
+      });
+      if (importados > 0) sv('solicitacoesOrcamento');
+      _solImpStatus(importados + ' importada(s)' + (ignorados ? ', ' + ignorados + ' ignorada(s) por já existir' : '') + '.', false);
+      if (importados > 0) setTimeout(function() { _solSetView('lista'); }, 700);
+    } catch (e) {
+      _solImpStatus('Erro: ' + e.message, true);
+    }
+  }, 50);
+}
+
+function _solParseTSV(text) {
+  var lines = text.split(/\r?\n/).filter(function(l) { return l.trim(); });
+  if (lines.length < 2) throw new Error('Cole o cabeçalho e ao menos uma linha de dados.');
+  var header = lines[0].split('\t').map(function(h) { return h.trim(); });
+  var HU = header.map(function(h) { return h.toUpperCase(); });
+
+  function acha(subs) {
+    for (var i = 0; i < HU.length; i++) {
+      if (subs.some(function(s) { return HU[i].includes(s); })) return i;
+    }
+    return -1;
+  }
+
+  var iNum    = acha(['Nº', 'N°', 'NUMERO', 'NÚMERO']);
+  var iCli    = acha(['CLIENTE']);
+  var iTelFix = acha(['TELEFONE FIXO', 'FIXO']);
+  var iCel    = acha(['CELULAR']);
+  var iTipo   = acha(['TIPO DE EVENTO', 'TIPO EVENTO']);
+  var iData   = acha(['DATA DO EVENTO', 'DATA EVENTO', 'DATA']);
+  var iLocal  = acha(['LOCAL DO EVENTO', 'LOCAL EVENTO']);
+  var iCC     = acha(['CENTRO DE CUSTO']);
+  var iPax    = acha(['PAX']);
+  var iServ   = acha(['SERVIÇOS ORÇADOS', 'SERVICOS ORCADOS']);
+  var iStatus = acha(['STATUS']);
+  if (iCli < 0) throw new Error('Coluna "CLIENTE" não encontrada.');
+
+  var usadas = [iNum, iCli, iTelFix, iCel, iTipo, iData, iLocal, iCC, iPax, iServ, iStatus].filter(function(i) { return i >= 0; });
+  var extras = [];
+  for (var i = 0; i < header.length; i++) if (usadas.indexOf(i) === -1) extras.push(i);
+  // As 3 colunas extras (sem cabeçalho próprio) vêm nesta ordem: Hora, Bebidas, Observação
+  var iHora = extras[0], iBebidas = extras[1], iObs = extras[2];
+
+  var regioes = (typeof REGIOES_LOCAL !== 'undefined' ? REGIOES_LOCAL : []);
+  function centroCustoKey(txt) {
+    var t = (txt || '').trim().toLowerCase();
+    if (!t) return '';
+    var r = regioes.find(function(x) { return x.label.toLowerCase().includes(t) || t.includes(x.label.toLowerCase()); });
+    return r ? r.key : '';
+  }
+  function dataISO(txt) {
+    var t = (txt || '').trim();
+    var m = t.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (m) return m[3] + '-' + m[2] + '-' + m[1];
+    if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+    return '';
+  }
+
+  var novos = [];
+  for (var li = 1; li < lines.length; li++) {
+    var cols = lines[li].split('\t');
+    var cliente = (cols[iCli] || '').trim();
+    if (!cliente) continue;
+    novos.push({
+      id: _gerarId('SOL'),
+      numero: iNum >= 0 ? (cols[iNum] || '').trim() : '',
+      cliente: cliente,
+      telefoneFixo: iTelFix >= 0 ? (cols[iTelFix] || '').trim() : '',
+      celular: iCel >= 0 ? (cols[iCel] || '').trim() : '',
+      tipoEvento: iTipo >= 0 ? (cols[iTipo] || '').trim() : '',
+      dataEvento: iData >= 0 ? dataISO(cols[iData]) : '',
+      localEvento: iLocal >= 0 ? (cols[iLocal] || '').trim() : '',
+      centroCusto: iCC >= 0 ? centroCustoKey(cols[iCC]) : '',
+      pax: iPax >= 0 ? (parseInt((cols[iPax] || '').replace(/\D/g, '')) || 0) : 0,
+      servicosOrcados: iServ >= 0 ? (cols[iServ] || '').trim() : '',
+      status: iStatus >= 0 ? (cols[iStatus] || '').trim().toUpperCase() || 'PENDENTE' : 'PENDENTE',
+      hora: iHora !== undefined ? (cols[iHora] || '').trim() : '',
+      bebidas: iBebidas !== undefined ? (cols[iBebidas] || '').trim() : '',
+      observacao: iObs !== undefined ? (cols[iObs] || '').trim() : '',
+      orcamentoId: '',
+      criadoEm: new Date().toISOString(),
+    });
+  }
+  if (!novos.length) throw new Error('Nenhuma linha válida encontrada (verifique a coluna Cliente).');
+  return novos;
+}
