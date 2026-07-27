@@ -960,7 +960,14 @@ function orcAplicarCardapio(orcId) {
   if (!orc.insumos) orc.insumos = [];
   let adicionados = 0, atualizados = 0;
   _orcCardapioItems.forEach(item => {
-    const nome = item.rcNome || item.nome;
+    // Nome sempre o específico da ficha ("VODKA ABSOLUT 1000ML"), nunca o
+    // "balde" genérico do Ref.Consumo (item.rcNome, ex: "Vodka") — esse balde
+    // serve só pra buscar a média histórica de consumo (_rcMapFichaItemToRC),
+    // não é identidade do produto. Usá-lo aqui gravava um nome genérico que
+    // não casa com o Cadastro de Insumos e, quando duas fichas ou dois itens
+    // caem no mesmo balde (ex: duas marcas de gin viram "Gim"), fundia os dois
+    // numa linha só, sumindo com um deles.
+    const nome = item.nome;
     const qtd  = item.qtd;
     const existing = orc.insumos.find(i => i.nome === nome);
     if (existing) {

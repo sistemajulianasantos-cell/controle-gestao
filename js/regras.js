@@ -201,6 +201,11 @@ function getRegrasItens() {
   return (D.regrasItens && D.regrasItens.length) ? D.regrasItens : JSON.parse(JSON.stringify(REGRAS_ITENS_PADRAO));
 }
 
+// Unidades de compra vendidas em embalagem fechada — arredondar pra cima até
+// o próximo múltiplo do tamanho da embalagem. UN/KG/LT/ML ficam de fora por
+// serem fracionáveis (compra-se exatamente a quantidade calculada).
+var UNIDADES_EMBALAGEM_FECHADA = ['CX', 'FARDO', 'PCT'];
+
 function calcQtdItem(regra, conv, bartenders, equipeTotal) {
   var v = parseFloat(regra.valor) || 1;
   var min = parseFloat(regra.min) || 0;
@@ -209,7 +214,17 @@ function calcQtdItem(regra, conv, bartenders, equipeTotal) {
   else if (regra.tipo === 'convidado') qtd = Math.max(min, Math.ceil(conv / v));
   else if (regra.tipo === 'equipe') qtd = Math.max(min, equipeTotal * v);
   else if (regra.tipo === 'fixo') qtd = Math.max(min, v);
-  return Math.ceil(qtd);
+  qtd = Math.ceil(qtd);
+
+  // Casa com o Cadastro de Insumos pelo nome (mesmo casamento já usado no
+  // Orçamento/Ref.Consumo) — se a unidade de compra for embalagem fechada,
+  // fecha a quantidade no múltiplo do tamanho da embalagem.
+  var insumo = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(regra.item) : null;
+  if (insumo && UNIDADES_EMBALAGEM_FECHADA.indexOf(insumo.unidadeCompra) !== -1) {
+    var emb = parseFloat(insumo.tamanhoEmbalagem) || 1;
+    if (emb > 1) qtd = Math.ceil(qtd / emb) * emb;
+  }
+  return qtd;
 }
 
 // ── Módulo Regras e Cálculos ────────────────────────────
