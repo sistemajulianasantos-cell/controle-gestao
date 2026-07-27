@@ -7,7 +7,9 @@
 // falta de data).
 //
 // Estrutura (ver memória fechamento_mensal_module para o histórico completo):
-//  - Receitas                     = Receita de Contratos (D.financeiro sem isFechamento)
+//  - Receitas                     = Receita de Contratos (D.financeiro sem isFechamento,
+//                                    mês do EVENTO — f.data, não vencimento da parcela;
+//                                    ver comentário em rFechamentoMensal)
 //                                    + Receita de Fechamentos (D.fechamentos, com
 //                                    sub-itens Quebras cobradas do cliente/Insumos/
 //                                    Serviços adicionais) → Total Receitas
@@ -278,10 +280,17 @@ function rFechamentoMensal() {
 
   var hoje = new Date().toISOString().slice(0, 10);
 
-  // ── Receita (Contrato 20%+80%) — competência: vencimento efetivo no mês ──
+  // ── Receita (Contrato 20%+80%) — competência: mês do EVENTO (f.data), não do
+  // vencimento da parcela. A parcela de 20% vence na assinatura (podendo ser
+  // meses antes do evento) e a de 80% perto do evento — usar vencimento aqui
+  // faria as duas parcelas do MESMO contrato caírem em meses diferentes, e o
+  // total do mês nunca bateria com o valor do contrato na tela Contratos. Ela
+  // não segue regime de caixa: o pagamento ser 20/80 é irrelevante pra decidir
+  // o mês, só a data do evento importa (mesmo critério já usado em Fechamento
+  // e Despesas). O vencimento continua valendo só pra decidir atraso (Inadimplência).
   var contratoRecs = (D.financeiro || []).filter(function(f) { return !f.isFechamento; })
-    .filter(function(f) { return _fmDataNoMes(_finVencimentoEfetivo(f), anoMes); });
-  var semDataContrato = (D.financeiro || []).filter(function(f) { return !f.isFechamento && !_finVencimentoEfetivo(f) && !f.vencimento && !f.data; }).length;
+    .filter(function(f) { return _fmDataNoMes(f.data || f.vencimento, anoMes); });
+  var semDataContrato = (D.financeiro || []).filter(function(f) { return !f.isFechamento && !f.data && !f.vencimento; }).length;
 
   var receitaContrato = contratoRecs.reduce(function(s, f) { return s + (f.valorNum || 0); }, 0);
   var recebidoContrato = contratoRecs.filter(function(f) { return f.status === 'pago'; }).reduce(function(s, f) { return s + (f.valorNum || 0); }, 0);
