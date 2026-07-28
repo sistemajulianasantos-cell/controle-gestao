@@ -914,7 +914,18 @@ function orcSelecionarFicha(fichaId) {
     + (p.copeiro != null ? Number(p.copeiro) : 0);
   const regrasProp  = (typeof getRegrasItens === 'function') ? getRegrasItens() : [];
 
-  (ficha.itens||[]).forEach(item => {
+  // Dedupe defensivo: fichas salvas antes da correção de 2026-07-28 podem ter
+  // o mesmo item (cat+nome) gravado duas vezes, o que dobrava a quantidade
+  // sugerida no Cardápio do Orçamento.
+  const itensVistos = new Set();
+  const itensUnicos = (ficha.itens||[]).filter(item => {
+    const key = item.cat + '|' + item.nome;
+    if (itensVistos.has(key)) return false;
+    itensVistos.add(key);
+    return true;
+  });
+
+  itensUnicos.forEach(item => {
     const rc      = (typeof _rcMapFichaItemToRC === 'function') ? _rcMapFichaItemToRC(item.nome) : null;
     const d       = rc ? gd[rc] : null;
     // Sem histórico específico para este tipo de evento (d.avg), cai para a média geral

@@ -548,13 +548,14 @@ function rFormFicha(fichaExistente) {
 
   cont.innerHTML = html;
   window._customItens = [];
-
-  if (fichaExistente) {
-    var todosItens = new Set(Object.entries(ITENS_FOLHA).flatMap(function(e){return e[1].map(function(i){return e[0]+'|'+i;});}));
-    (fichaExistente.itens||[]).filter(function(i){return !todosItens.has(i.cat+'|'+i.nome);}).forEach(function(i){
-      adicionarTagCustom(i.cat, i.nome);
-    });
-  }
+  // Os itens "fora das categorias padrão" (itensExtras, acima) já aparecem
+  // como checkbox marcado nesta mesma tela — não pré-popular de novo aqui
+  // como tag customizada, senão o mesmo item é salvo duas vezes em
+  // salvarFicha() (uma vez pelo checkbox, outra pela tag). Bug real que
+  // causava item duplicado no Cardápio do Orçamento (2026-07-28) — antes
+  // comparava contra o ITENS_FOLHA estático (desatualizado em relação aos
+  // nomes reais do Cadastro de Insumos), em vez do todosItensNovos já
+  // calculado acima a partir de getItensFicha().
 }
 
 if (!window._customItens) window._customItens = [];
@@ -589,10 +590,17 @@ function salvarFicha(idExistente) {
   if (!nome) { alert('Preencha o nome do coquetel.'); return; }
   var variantes = (document.getElementById('fc-variantes')?.value||'').trim();
   var itens = [];
+  var itensVistos = new Set();
+  function addItem(cat, nomeItem) {
+    var key = cat + '|' + nomeItem;
+    if (itensVistos.has(key)) return; // evita item duplicado na mesma ficha
+    itensVistos.add(key);
+    itens.push({cat:cat, nome:nomeItem});
+  }
   document.querySelectorAll('#fc-itens-container input[type="checkbox"]:checked').forEach(function(cb){
-    itens.push({cat:cb.dataset.cat, nome:cb.dataset.nome});
+    addItem(cb.dataset.cat, cb.dataset.nome);
   });
-  (window._customItens||[]).forEach(function(i){itens.push({cat:i.cat, nome:i.nome});});
+  (window._customItens||[]).forEach(function(i){ addItem(i.cat, i.nome); });
   if (!D.fichas) D.fichas = [];
   if (idExistente) {
     var idx = D.fichas.findIndex(function(f){return f.id===idExistente;});
@@ -857,7 +865,16 @@ function cruzarCardapioComFichas(cardapioTexto) {
       var nomes = [ficha.nome].concat((ficha.variantes||'').split(',').map(function(v){return v.trim();})).filter(Boolean);
       var encontrou = nomes.some(function(n){ return linhaNorm.includes(n.toUpperCase()); });
       if (encontrou && ficha.itens) {
-        ficha.itens.forEach(function(item) {
+        // Dedupe defensivo: ficha com item repetido (cat+nome) não deve
+        // contar em dobro na estimativa de separação.
+        var vistos = new Set();
+        var itensUnicos = ficha.itens.filter(function(item) {
+          var key = item.cat + '|' + item.nome;
+          if (vistos.has(key)) return false;
+          vistos.add(key);
+          return true;
+        });
+        itensUnicos.forEach(function(item) {
           if (!resultado[item.cat]) resultado[item.cat] = {};
           if (!resultado[item.cat][item.nome]) resultado[item.cat][item.nome] = { count: 0, coqueteis: [] };
           resultado[item.cat][item.nome].count++;
