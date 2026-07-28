@@ -314,6 +314,15 @@ function rOrcCalc() {
   const valorTotal = custoEst  * (1 + margLuc / 100);
   const porPessoa  = pax > 0 ? valorTotal / pax : 0;
 
+  // Pacote Essencial = mesmo cálculo (custo → +margem segurança → +margem
+  // lucro), só que sem o custo das Bebidas Alcoólicas do Cardápio/Insumos —
+  // Pacote Completo é o valorTotal de sempre, com tudo incluso.
+  const custoBebidasAlc = insumos.filter(i => i.cat === 'BEBIDAS ALCOÓLICAS').reduce((s, i) => s + (i.total || 0), 0);
+  const custoPresenteEssencial = custoPresente - custoBebidasAlc;
+  const custoEstEssencial  = custoPresenteEssencial * (1 + margSeg / 100);
+  const valorTotalEssencial = custoEstEssencial * (1 + margLuc / 100);
+  const porPessoaEssencial  = pax > 0 ? valorTotalEssencial / pax : 0;
+
   const localKey = _migrarLocalOrcamento(p);
 
   const secoes = [
@@ -484,15 +493,25 @@ function rOrcCalc() {
           <div style="font-size:14px;font-family:var(--mono);color:var(--green);font-weight:600">+ ${fR(valorTotal - custoEst)}</div>
         </div>
 
-        <div style="border-top:2px solid var(--border2);padding-top:12px;margin-bottom:${pax > 0 ? '12' : '0'}px">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:2px">Valor Total do Orçamento</div>
-          <div style="font-size:24px;font-weight:800;font-family:var(--mono);color:var(--green)">${fR(valorTotal)}</div>
+        <div style="border-top:2px solid var(--border2);padding-top:12px;margin-bottom:10px">
+          <div style="font-size:10px;color:var(--green);margin-bottom:2px">🥂 Pacote Completo <span style="opacity:.7">(com bebidas)</span></div>
+          <div style="font-size:22px;font-weight:800;font-family:var(--mono);color:var(--green)">${fR(valorTotal)}</div>
         </div>
+
+        <div style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:${pax > 0 || custoBebidasAlc > 0 ? '12' : '0'}px">
+          <div style="font-size:10px;color:#4F8EF7;margin-bottom:2px">🍹 Pacote Essencial <span style="opacity:.7">(sem bebidas alcoólicas)</span></div>
+          <div style="font-size:22px;font-weight:800;font-family:var(--mono);color:#4F8EF7">${fR(valorTotalEssencial)}</div>
+        </div>
+
+        ${custoBebidasAlc > 0 ? `
+          <div style="font-size:10px;color:var(--text3);text-align:right;margin-bottom:${pax > 0 ? '12' : '0'}px">
+            Diferença entre pacotes (bebidas alcoólicas): ${fR(valorTotal - valorTotalEssencial)}
+          </div>` : ''}
 
         ${pax > 0 ? `
           <div style="background:rgba(79,142,247,.1);border:1px solid rgba(79,142,247,.3);border-radius:6px;padding:10px;text-align:center">
-            <div style="font-size:10px;color:#4F8EF7;margin-bottom:2px">${pax} convidados · Por pessoa</div>
-            <div style="font-size:18px;font-weight:700;font-family:var(--mono);color:#4F8EF7">${fR(porPessoa)}</div>
+            <div style="font-size:10px;color:#4F8EF7;margin-bottom:4px">${pax} convidados · Por pessoa</div>
+            <div style="font-size:13px;font-family:var(--mono)">Completo: <strong style="color:var(--green)">${fR(porPessoa)}</strong> &nbsp;·&nbsp; Essencial: <strong style="color:#4F8EF7">${fR(porPessoaEssencial)}</strong></div>
           </div>` : ''}
       </div>
 
