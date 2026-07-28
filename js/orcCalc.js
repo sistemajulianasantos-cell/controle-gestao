@@ -494,13 +494,13 @@ function rOrcCalc() {
         </div>
 
         <div style="border-top:2px solid var(--border2);padding-top:12px;margin-bottom:10px">
-          <div style="font-size:10px;color:var(--green);margin-bottom:2px">🥂 Pacote Completo <span style="opacity:.7">(com bebidas)</span></div>
-          <div style="font-size:22px;font-weight:800;font-family:var(--mono);color:var(--green)">${fR(valorTotal)}</div>
+          <div style="font-size:10px;color:#4F8EF7;margin-bottom:2px">🍹 Pacote Essencial <span style="opacity:.7">(sem bebidas alcoólicas)</span></div>
+          <div style="font-size:22px;font-weight:800;font-family:var(--mono);color:#4F8EF7">${fR(valorTotalEssencial)}</div>
         </div>
 
         <div style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:${pax > 0 || custoBebidasAlc > 0 ? '12' : '0'}px">
-          <div style="font-size:10px;color:#4F8EF7;margin-bottom:2px">🍹 Pacote Essencial <span style="opacity:.7">(sem bebidas alcoólicas)</span></div>
-          <div style="font-size:22px;font-weight:800;font-family:var(--mono);color:#4F8EF7">${fR(valorTotalEssencial)}</div>
+          <div style="font-size:10px;color:var(--green);margin-bottom:2px">🥂 Pacote Completo <span style="opacity:.7">(com bebidas)</span></div>
+          <div style="font-size:22px;font-weight:800;font-family:var(--mono);color:var(--green)">${fR(valorTotal)}</div>
         </div>
 
         ${custoBebidasAlc > 0 ? `
@@ -511,7 +511,7 @@ function rOrcCalc() {
         ${pax > 0 ? `
           <div style="background:rgba(79,142,247,.1);border:1px solid rgba(79,142,247,.3);border-radius:6px;padding:10px;text-align:center">
             <div style="font-size:10px;color:#4F8EF7;margin-bottom:4px">${pax} convidados · Por pessoa</div>
-            <div style="font-size:13px;font-family:var(--mono)">Completo: <strong style="color:var(--green)">${fR(porPessoa)}</strong> &nbsp;·&nbsp; Essencial: <strong style="color:#4F8EF7">${fR(porPessoaEssencial)}</strong></div>
+            <div style="font-size:13px;font-family:var(--mono)">Essencial: <strong style="color:#4F8EF7">${fR(porPessoaEssencial)}</strong> &nbsp;·&nbsp; Completo: <strong style="color:var(--green)">${fR(porPessoa)}</strong></div>
           </div>` : ''}
       </div>
 

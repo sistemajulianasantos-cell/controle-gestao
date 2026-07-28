@@ -20,7 +20,7 @@ function sv(k) {
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 function fN(n){return Number(n||0).toLocaleString('pt-BR')}
-function fR(n){return n?'R$ '+Number(n).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—'}
+function fR(n){return n?'R$ '+Number(n).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—'}
 function td(){return new Date().toISOString().slice(0,10)}
 function fd(d){return d?d.split('-').reverse().join('/'):'—'}
 
