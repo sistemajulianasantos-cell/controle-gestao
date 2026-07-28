@@ -633,13 +633,16 @@ function _rcMapFichaItemToRC(nome) {
     [/LONGO LISO|LONG LISO/,        'Long liso'],
     [/LONGO REVEL|LONG DRINK/,      'Long Drink'],
     [/LONGO ELYSIA/,                'Long Xtra'],
-    [/XTRA BAIXO|BAIXO ELYSIA|BAIXO TIMELL/, 'Xtra Baixo'],
+    [/LONGO XTRA|LONG XTRA/,        'Long Xtra'],
+    // "Whisky Xtar" era só um nome antigo pro Copo Baixo Xtra (confirmado com
+    // a Juliana em 2026-07-28) — não é um copo separado, por isso cai aqui.
+    [/BAIXO XTRA|XTRA BAIXO|BAIXO ELYSIA|BAIXO TIMELL|WHISKY XTAR|WHISKEY XTAR/, 'Xtra Baixo'],
     [/BAIXO LISO/,                  'Baixo Liso'],
-    [/WHISKY XTAR|WHISKEY XTAR/,    'Taça Xtar'],
     [/TAÇA.*VINHO|VINHO.*TAÇA/,    'Taça de Vinho'],
     [/\bCANECA\b/,                  'Caneca'],
     [/\bCOUPE\b/,                   'Coupe'],
-    [/TAÇA XTAR/,                   'Taça Xtar'],
+    // "Taça Xtar" era só grafia antiga de "Taça Xtra" (confirmado 2026-07-28).
+    [/TAÇA XTAR|TAÇA XTRA/,         'Taça Xtar'],
     [/TAÇA FLUTE|FLUTE/,            'Taça Flute'],
     [/\bCALISE\b/,                  'Calise'],
     [/RECEPTIVO/,                   'Receptivo'],

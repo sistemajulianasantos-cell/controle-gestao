@@ -12,10 +12,12 @@ var ITENS_FICHA_COQUETEL = {
     "FIREBALL","MANZA"
   ],
   "COPOS E TAÇAS": [
-    "TAÇA XTAR","CANECA DE COBRE","COPO BAIXO TIMELLES","COPO LONGO REVEL",
-    "COPO LONGO ELYSIA","COPO BAIXO ELYSIA","COPO WHISKY XTAR","TAÇA COUPE TIMELESS",
+    "CANECA DE COBRE","COPO BAIXO TIMELLES","COPO LONGO REVEL",
+    "COPO LONGO ELYSIA","COPO BAIXO ELYSIA","TAÇA COUPE TIMELESS",
     "TUBO DE ENSAIO","TAÇA CALISE AMERICA","COPO LONGO LISO NOVO","COPO WHISKY ELYSIA",
-    "COPO WHISKY LISO","COPO WHISKEY TIMELESS"
+    "COPO WHISKY LISO","COPO WHISKEY TIMELESS","COPO LONGO XTRA","COPO BAIXO XTRA",
+    "COPO LONGO LISO VELHO","COPO BLOOD MARY","TAÇA BRUNELLO","TAÇA COUPE AMÉRICA",
+    "TAÇA MARTINI AMERICA","TAÇA XTRA"
   ],
   "HORTIFRUTI": [
     "LIMÃO TAITI","LIMÃO SICILIANO","MORANGO","GRAPEFRUIT","LARANJA BAHIA",
@@ -76,10 +78,12 @@ var ITENS_FOLHA = {
   "GELO": ["GELO CUBO 4KG","GELO TRANSLÚCIDO"],
   "BEBIDAS SEM ÁLCOOL": ["ÁGUA TÔNICA","ÁGUA COM GÁS"],
   "COPOS E TAÇAS": [
-    "TAÇA XTAR","CANECA DE COBRE","COPO BAIXO TIMELLES","COPO LONGO REVEL",
-    "COPO LONGO ELYSIA","COPO BAIXO ELYSIA","COPO WHISKY XTAR","TAÇA COUPE TIMELESS",
+    "CANECA DE COBRE","COPO BAIXO TIMELLES","COPO LONGO REVEL",
+    "COPO LONGO ELYSIA","COPO BAIXO ELYSIA","TAÇA COUPE TIMELESS",
     "TUBO DE ENSAIO","TAÇA CALISE AMERICA","COPO LONGO LISO NOVO","COPO WHISKY ELYSIA",
-    "COPO WHISKY LISO","COPO WHISKEY TIMELESS"
+    "COPO WHISKY LISO","COPO WHISKEY TIMELESS","COPO LONGO XTRA","COPO BAIXO XTRA",
+    "COPO LONGO LISO VELHO","COPO BLOOD MARY","TAÇA BRUNELLO","TAÇA COUPE AMÉRICA",
+    "TAÇA MARTINI AMERICA","TAÇA XTRA"
   ],
   "MATERIAL": [
     "TAPETE","PRATINHO PRETO","GARRAFA SOUR","GARRAFA SIMPLES","MIXING GLASS",
@@ -234,27 +238,45 @@ function rBiblioteca() {
   var cont = document.getElementById('regras-view-biblioteca');
   if (!cont) return;
 
-  // Usar itens salvos ou padrão (verificar se tem chaves, não só se existe)
-  var biblioteca = (D.bibliotecaItens && Object.keys(D.bibliotecaItens).length) ? D.bibliotecaItens : JSON.parse(JSON.stringify(ITENS_FOLHA));
+  var biblioteca = getBiblioteca();
+  // Categorias que vêm do Cadastro de Insumos só podem ser editadas lá —
+  // evita o mesmo item existir com nomes diferentes nos dois lugares.
+  var catsManual = Object.keys(biblioteca).filter(function(c){ return !_categoriaVemDoCadastroInsumos(c); });
+  var problemas = _auditarItensNaoCadastrados();
 
   var html = '<div style="padding:14px 16px">' +
-    '<div style="font-size:12px;color:var(--text3);margin-bottom:14px">Gerencie a lista de itens disponíveis para seleção nas fichas de coquetéis e nas regras de proporção.</div>' +
+    (problemas.length ?
+      '<div style="background:rgba(240,90,90,.08);border:1px solid rgba(240,90,90,.35);border-radius:var(--radius);padding:12px 14px;margin-bottom:14px">' +
+        '<div style="font-size:11px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">⚠️ ' + problemas.length + ' item(ns) usado(s) em Fichas/Regras sem Insumo correspondente no Cadastro</div>' +
+        '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">Esses nomes estão salvos numa ficha ou numa regra de proporção, mas não batem (nem por nome, nem por apelido) com nenhum insumo cadastrado — provavelmente nome antigo/digitado diferente. Confira no <a href="#" onclick="go(\'cadastro\');return false" style="color:var(--blue)">Cadastro de Insumos</a> se é o mesmo item com outro nome (aí é só cadastrar o apelido) ou se falta cadastrar o insumo.</div>' +
+        '<div style="display:grid;gap:5px">' +
+        problemas.map(function(p) {
+          return '<div style="font-size:11px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:5px 9px">' +
+            '<strong>' + p.nome + '</strong> <span style="color:var(--text3)">(' + p.cat + ')</span> — usado em: ' + p.usos.join(', ') +
+          '</div>';
+        }).join('') +
+        '</div>' +
+      '</div>'
+    : '') +
+    '<div style="font-size:12px;color:var(--text3);margin-bottom:14px">Itens disponíveis para seleção nas fichas de coquetéis e nas regras de proporção. Categorias que existem no <a href="#" onclick="go(\'cadastro\');return false" style="color:var(--blue)">Cadastro de Insumos</a> mostram os itens de lá — pra adicionar, remover ou renomear, edite no Cadastro de Insumos.</div>' +
 
-    // Adicionar novo item
+    // Adicionar novo item (só em categorias que não vêm do Cadastro de Insumos)
     '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:16px">' +
-      '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Adicionar novo item</div>' +
-      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">' +
-        '<div style="flex:1;min-width:160px"><label class="lbl">Categoria</label>' +
-          '<select id="bib-cat" class="inp" style="width:100%">' +
-            Object.keys(biblioteca).map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('') +
-          '</select>' +
-        '</div>' +
-        '<div style="flex:2;min-width:200px"><label class="lbl">Nome do item</label>' +
-          '<input class="inp" id="bib-nome" type="text" placeholder="Ex: LIMÃO CRAVO" style="width:100%">' +
-        '</div>' +
-        '<button class="btn" onclick="adicionarItemBiblioteca()" style="background:var(--green);white-space:nowrap">+ Adicionar</button>' +
-      '</div>' +
-      '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 6px">Nova categoria</div>' +
+      '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Adicionar novo item (categorias manuais, ex: Equipe)</div>' +
+      (catsManual.length ?
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">' +
+          '<div style="flex:1;min-width:160px"><label class="lbl">Categoria</label>' +
+            '<select id="bib-cat" class="inp" style="width:100%">' +
+              catsManual.map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('') +
+            '</select>' +
+          '</div>' +
+          '<div style="flex:2;min-width:200px"><label class="lbl">Nome do item</label>' +
+            '<input class="inp" id="bib-nome" type="text" placeholder="Ex: LIMÃO CRAVO" style="width:100%">' +
+          '</div>' +
+          '<button class="btn" onclick="adicionarItemBiblioteca()" style="background:var(--green);white-space:nowrap">+ Adicionar</button>' +
+        '</div>'
+      : '<div style="font-size:11px;color:var(--text3)">Nenhuma categoria manual no momento.</div>') +
+      '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 6px">Nova categoria (manual, fora do Cadastro de Insumos)</div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
         '<input class="inp" id="bib-nova-cat" type="text" placeholder="Ex: FLORES COMESTÍVEIS" style="flex:1;min-width:200px">' +
         '<button class="btn" onclick="adicionarCategoriaBiblioteca()" style="background:var(--blue);white-space:nowrap">+ Criar categoria</button>' +
@@ -266,18 +288,21 @@ function rBiblioteca() {
 
   Object.entries(biblioteca).forEach(function(entry) {
     var cat = entry[0]; var itens = entry[1];
+    var doCadastro = _categoriaVemDoCadastroInsumos(cat);
     html += '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">' +
       '<div style="padding:8px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">' +
         '<span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;flex:1">' + cat + ' <span style="color:var(--text3);font-weight:400">(' + itens.length + ' itens)</span></span>' +
-        '<button class="btn-sm btn-red" onclick="excluirCat(this)" data-cat="' + cat + '" title="Excluir categoria inteira">🗑️ Cat.</button>' +
+        (doCadastro
+          ? '<span style="font-size:9px;color:var(--text3);font-style:italic">🔒 Cadastro de Insumos</span>'
+          : '<button class="btn-sm btn-red" onclick="excluirCat(this)" data-cat="' + cat + '" title="Excluir categoria inteira">🗑️ Cat.</button>') +
       '</div>' +
       '<div style="padding:8px;display:flex;flex-wrap:wrap;gap:6px">' +
-        itens.map(function(item) {
+        (itens.length ? itens.map(function(item) {
           return '<span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg4);border:1px solid var(--border2);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--text2)">' +
             item +
-            '<button onclick="excluirBibItem(this)" data-cat="' + cat + '" data-item="' + item + '" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:12px;padding:0;margin-left:2px;line-height:1" title="Remover">×</button>' +
+            (doCadastro ? '' : '<button onclick="excluirBibItem(this)" data-cat="' + cat + '" data-item="' + item + '" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:12px;padding:0;margin-left:2px;line-height:1" title="Remover">×</button>') +
           '</span>';
-        }).join('') +
+        }).join('') : '<span style="font-size:11px;color:var(--text3)">' + (doCadastro ? 'Nenhum insumo cadastrado nesta categoria ainda.' : 'Nenhum item.') + '</span>') +
       '</div>' +
     '</div>';
   });
@@ -290,6 +315,7 @@ function adicionarItemBiblioteca() {
   var cat = document.getElementById('bib-cat')?.value;
   var nome = (document.getElementById('bib-nome')?.value||'').trim().toUpperCase();
   if (!cat || !nome) { alert('Preencha categoria e nome.'); return; }
+  if (_categoriaVemDoCadastroInsumos(cat)) { alert('Essa categoria vem do Cadastro de Insumos. Adicione o item por lá.'); return; }
 
   if (!D.bibliotecaItens) D.bibliotecaItens = JSON.parse(JSON.stringify(ITENS_FOLHA));
   if (!D.bibliotecaItens[cat]) D.bibliotecaItens[cat] = [];
@@ -304,6 +330,7 @@ function adicionarItemBiblioteca() {
 function adicionarCategoriaBiblioteca() {
   var nome = (document.getElementById('bib-nova-cat')?.value||'').trim().toUpperCase();
   if (!nome) { alert('Digite o nome da categoria.'); return; }
+  if (_categoriaVemDoCadastroInsumos(nome)) { alert('Essa categoria já existe no Cadastro de Insumos — os itens dela vêm de lá automaticamente.'); return; }
   if (!D.bibliotecaItens) D.bibliotecaItens = JSON.parse(JSON.stringify(ITENS_FOLHA));
   if (D.bibliotecaItens[nome]) { alert('Categoria já existe.'); return; }
   D.bibliotecaItens[nome] = [];
@@ -313,6 +340,7 @@ function adicionarCategoriaBiblioteca() {
 }
 
 function excluirItemBiblioteca(cat, item) {
+  if (_categoriaVemDoCadastroInsumos(cat)) { alert('Essa categoria vem do Cadastro de Insumos. Remova o item por lá.'); return; }
   if (!confirm('Remover "' + item + '" de ' + cat + '?')) return;
   if (!D.bibliotecaItens) D.bibliotecaItens = JSON.parse(JSON.stringify(ITENS_FOLHA));
   D.bibliotecaItens[cat] = (D.bibliotecaItens[cat]||[]).filter(function(i){return i!==item;});
@@ -321,6 +349,7 @@ function excluirItemBiblioteca(cat, item) {
 }
 
 function excluirCategoria(cat) {
+  if (_categoriaVemDoCadastroInsumos(cat)) { alert('Essa categoria vem do Cadastro de Insumos. Gerencie categorias por lá (Cadastro → Categorias).'); return; }
   if (!confirm('Excluir a categoria inteira "' + cat + '" e todos seus itens?')) return;
   if (!D.bibliotecaItens) D.bibliotecaItens = JSON.parse(JSON.stringify(ITENS_FOLHA));
   delete D.bibliotecaItens[cat];
@@ -338,10 +367,60 @@ function excluirBibItem(btn) {
   var item = btn.dataset.item;
   excluirItemBiblioteca(cat, item);
 }
+// Fonte única: pra categorias que existem no Cadastro de Insumos, a lista de
+// itens vem de lá (D.insumos agrupado por categoria) — nunca mais duplicada
+// aqui. Só categorias que não são de insumo (ex: EQUIPE, que vem de Cargos)
+// continuam usando a lista manual/antiga (D.bibliotecaItens ou ITENS_FOLHA).
+// Isso evita o problema de um item ser cadastrado com um nome no Cadastro de
+// Insumos e aparecer com outro nome (ou não aparecer) aqui.
+function _categoriaVemDoCadastroInsumos(cat) {
+  return (typeof getCategorias === 'function') && getCategorias().indexOf(cat) !== -1;
+}
+
+// Diagnóstico: varre Fichas de Coquetel + Regras de Proporção procurando
+// nomes de item que não batem com nenhum Insumo cadastrado (nem por nome
+// exato, nem por alias) numa categoria que deveria vir do Cadastro de
+// Insumos. É a forma de confirmar com certeza — a partir dos dados reais
+// salvos no Firebase, não de suposição — se sobrou algum item "órfão" tipo
+// o caso do Copo Whisky Xtar/Taça Xtar (2026-07-28).
+function _auditarItensNaoCadastrados() {
+  var problemas = {};
+  function registrar(cat, nome, onde) {
+    if (!nome || !cat) return;
+    if (!_categoriaVemDoCadastroInsumos(cat)) return;
+    if (typeof buscarInsumoPorNome === 'function' && buscarInsumoPorNome(nome)) return;
+    var key = cat + '|' + nome;
+    if (!problemas[key]) problemas[key] = { cat: cat, nome: nome, usos: [] };
+    if (problemas[key].usos.indexOf(onde) === -1) problemas[key].usos.push(onde);
+  }
+  (D.fichas || []).forEach(function(f) {
+    (f.itens || []).forEach(function(i) { registrar(i.cat, i.nome, 'Ficha: ' + f.nome); });
+  });
+  getRegrasItens().forEach(function(r) { registrar(r.cat, r.item, 'Regras de Proporção'); });
+  return Object.keys(problemas).map(function(k){ return problemas[k]; }).sort(function(a,b){
+    return (a.cat+a.nome).localeCompare(b.cat+b.nome);
+  });
+}
+
 function getBiblioteca() {
-  return D.bibliotecaItens && Object.keys(D.bibliotecaItens).length
-    ? D.bibliotecaItens
-    : JSON.parse(JSON.stringify(ITENS_FOLHA));
+  var porCat = {};
+  (D.insumos || []).forEach(function(i) {
+    var cat = i.categoria || 'OUTROS';
+    if (!porCat[cat]) porCat[cat] = [];
+    if (porCat[cat].indexOf(i.nome) === -1) porCat[cat].push(i.nome);
+  });
+  Object.keys(porCat).forEach(function(cat) { porCat[cat].sort(); });
+
+  var resultado = {};
+  if (typeof getCategorias === 'function') {
+    getCategorias().forEach(function(cat) { resultado[cat] = porCat[cat] || []; });
+  }
+
+  var manual = (D.bibliotecaItens && Object.keys(D.bibliotecaItens).length) ? D.bibliotecaItens : ITENS_FOLHA;
+  Object.keys(manual).forEach(function(cat) {
+    if (!resultado.hasOwnProperty(cat)) resultado[cat] = manual[cat].slice();
+  });
+  return resultado;
 }
 
 
