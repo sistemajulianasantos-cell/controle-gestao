@@ -1096,12 +1096,18 @@ function importarCSVAnalise(file) {
 function rContratos() {
   const dataIni = document.getElementById('ct-data-ini')?.value || '';
   const dataFim = document.getElementById('ct-data-fim')?.value || '';
+  const busca = (document.getElementById('ct-busca')?.value || '').trim().toLowerCase();
   const todos = D.contratos || [];
   gerarAnosFromData('ct-ano', todos.map(function(c){ return c.data; }));
   const lista = todos.filter(c => {
-    if (!c.data) return true;
-    if (dataIni && c.data < dataIni) return false;
-    if (dataFim && c.data > dataFim) return false;
+    if (c.data) {
+      if (dataIni && c.data < dataIni) return false;
+      if (dataFim && c.data > dataFim) return false;
+    }
+    if (busca) {
+      const alvo = `${c.nome||''} ${c.nomeEvento||''}`.toLowerCase();
+      if (!alvo.includes(busca)) return false;
+    }
     return true;
   });
   const tbody = document.getElementById('contratos-body');

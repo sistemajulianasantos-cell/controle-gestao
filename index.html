@@ -1215,12 +1215,13 @@
           <div class="sec-head">
             <span class="sec-title">📋 Contratos cadastrados</span>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <input id="ct-busca" class="inp" type="text" style="width:220px" oninput="rContratos()" placeholder="🔍 Buscar cliente ou casamento...">
               <select id="ct-ano" class="inp" style="width:80px" onchange="aplicarMesFechado('ct-ano','ct-mes','ct-data-ini','ct-data-fim',rContratos)"></select>
               <select id="ct-mes" class="inp" style="width:110px" onchange="aplicarMesFechado('ct-ano','ct-mes','ct-data-ini','ct-data-fim',rContratos)"><option value="">Mês...</option><option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option><option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option><option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option></select>
               <input id="ct-data-ini" class="inp" type="date" style="width:140px" onchange="document.getElementById('ct-ano').value='';document.getElementById('ct-mes').value='';rContratos()" placeholder="De">
               <span style="color:#8B91A8;font-size:12px">até</span>
               <input id="ct-data-fim" class="inp" type="date" style="width:140px" onchange="document.getElementById('ct-ano').value='';document.getElementById('ct-mes').value='';rContratos()" placeholder="Até">
-              <button class="btn-sm" onclick="document.getElementById('ct-data-ini').value='';document.getElementById('ct-data-fim').value='';document.getElementById('ct-ano').value='';document.getElementById('ct-mes').value='';rContratos()">✕ Limpar</button>
+              <button class="btn-sm" onclick="document.getElementById('ct-busca').value='';document.getElementById('ct-data-ini').value='';document.getElementById('ct-data-fim').value='';document.getElementById('ct-ano').value='';document.getElementById('ct-mes').value='';rContratos()">✕ Limpar</button>
             </div>
           </div>
           <div style="overflow-x:auto">
@@ -2311,7 +2312,7 @@
 <script src="js/fornecedores.js?v=20260611d"></script>
 <script src="js/nav.js?v=20260726a"></script>
 <script src="js/auth.js?v=20260610z"></script>
-<script src="js/contratos.js?v=20260722b"></script>
+<script src="js/contratos.js?v=20260729"></script>
 <script src="js/agenda.js?v=20260610z"></script>
 <script src="js/producao.js?v=20260610z"></script>
 <script src="js/financeiro.js?v=20260722a"></script>
