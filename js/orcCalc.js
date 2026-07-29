@@ -157,12 +157,23 @@ function recalcularAutos() {
   const cfVas   = p.cfVas     || 'padrao';
   const tipoEvt = p.tipoEvento|| 'outros';
 
+  // Toda festa sempre tem alguém exercendo o papel de Head Bartender/
+  // Coordenador — mesmo quando a sugestão automática não chega a listar HB/
+  // Coordenador como cargo próprio (eventos até 500/1000 pax), um dos
+  // Bartenders assume esse papel e cobra o bônus. Mesma fórmula já usada em
+  // Equipe → Regras de Pagamento pro cargo 'hb' (D.regrasEquipe.bonusConvidados.hb):
+  // valor fixo por evento, com mínimo garantido de 1 unidade mesmo com menos
+  // de 100 convidados, escalando a cada 100 convidados acima disso.
+  const bonusHeadUnit  = (D.regrasEquipe && D.regrasEquipe.bonusConvidados && D.regrasEquipe.bonusConvidados.hb) || 0;
+  const bonusHeadValor = pax > 0 ? bonusHeadUnit * Math.max(1, pax / 100) : 0;
+
   const autos = [
     _mk('auto-bt',   'equipe',    'Bartender',           qt.bt,    _precoCargo('bt', localKey)),
     _mk('auto-bb',   'equipe',    'Bar Back',            qt.bb,    _precoCargo('bb', localKey)),
     _mk('auto-hb',   'equipe',    'Head Bartender',      qt.hb,    _precoCargo('hb', localKey)),
     _mk('auto-cd',   'equipe',    'Coordenador',         qt.cd,    _precoCargo('cd', localKey)),
     _mk('auto-cp',   'equipe',    'Copeiro',             qt.cp,    _precoCargo('cp', localKey)),
+    _mk('auto-bonus-head', 'equipe', 'Bônus Head Bartender/Coordenador', bonusHeadValor > 0 ? 1 : 0, bonusHeadValor),
     _mk('auto-ca',   'logistica', 'Carregamento',        1,        loc.ca),
     _mk('auto-rf',   'logistica', 'Refrigério equipe',   eqTotal,  loc.rf),
     _mk('auto-la',   'logistica', 'Limpeza equipe',      eqTotal,  loc.la),
@@ -549,16 +560,48 @@ function rOrcCalc() {
       </div>` : ''}
     </div>`;
 
-  // ── Resumo de Insumos (gerenciados na aba Cardapio) ──────────────────────────
-  const insumosHtml = custoInsumos > 0 ? `
-    <div style="background:var(--bg2);border:1px solid var(--border);border-left:3px solid #F97316;border-radius:var(--radius);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;padding:10px 14px;cursor:pointer"
-      onclick="setOrcTab('cardapio')">
-      <div>
-        <span style="font-size:12px;font-weight:700;color:#F97316">Insumos / Bebidas</span>
-        <span style="font-size:10px;color:var(--text3);margin-left:8px">${insumos.length} item(ns) &middot; clique para gerenciar</span>
-      </div>
-      <span style="font-size:13px;font-weight:700;font-family:var(--mono);color:#F97316">${fR(custoInsumos)}</span>
-    </div>` : `
+  // ── Resumo de Insumos por categoria (gerenciados na aba Cardapio) ────────────
+  // Uma "seção" por categoria (Copos e Taças, Hortifruti, Bebidas Alcoólicas
+  // etc.), igual o padrão visual de Equipe/Logística/Custos — só que somente
+  // leitura aqui (edição continua na aba Cardápio, cada bloco clicável leva
+  // pra lá). Só aparece seção pra categoria que realmente tem item aplicado
+  // neste orçamento.
+  const CAT_COR_INSUMO = {
+    'BEBIDAS ALCOÓLICAS': '#F97316',
+    'BEBIDAS SEM ÁLCOOL':  '#FB923C',
+    'COPOS E TAÇAS':       '#06B6D4',
+    'HORTIFRUTI':          '#22C55E',
+    'ESPECIARIAS':         '#D946EF',
+    'MIX ARTESANAL':       '#F43F5E',
+    'PRODUÇÃO':            '#84CC16',
+    'XAROPES':             '#A855F7',
+    'GELO':                '#38BDF8',
+    'DESCARTÁVEIS':        '#64748B',
+    'MATERIAL':            '#78716C',
+    'MATERIAL (ESPECÍFICO)': '#78716C',
+    'KIT BARTENDER':       '#EAB308',
+  };
+  const insumosPorCat = {};
+  insumos.forEach(i => {
+    const cat = i.cat || 'OUTROS';
+    (insumosPorCat[cat] = insumosPorCat[cat] || []).push(i);
+  });
+  const catsInsumos = (typeof _orcOrdenarCats === 'function') ? _orcOrdenarCats(Object.keys(insumosPorCat)) : Object.keys(insumosPorCat);
+
+  const insumosHtml = catsInsumos.length ? catsInsumos.map(cat => {
+    const itensCat  = insumosPorCat[cat];
+    const totalCat  = itensCat.reduce((s, i) => s + (i.total || 0), 0);
+    const cor       = CAT_COR_INSUMO[cat] || '#F97316';
+    return `
+      <div style="background:var(--bg2);border:1px solid var(--border);border-left:3px solid ${cor};border-radius:var(--radius);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;padding:10px 14px;cursor:pointer"
+        onclick="setOrcTab('cardapio')">
+        <div>
+          <span style="font-size:12px;font-weight:700;color:${cor}">${cat}</span>
+          <span style="font-size:10px;color:var(--text3);margin-left:8px">${itensCat.length} item(ns) &middot; clique para gerenciar</span>
+        </div>
+        <span style="font-size:13px;font-weight:700;font-family:var(--mono);color:${cor}">${fR(totalCat)}</span>
+      </div>`;
+  }).join('') : `
     <div style="background:var(--bg2);border:1px dashed var(--border);border-radius:var(--radius);margin-bottom:10px;padding:12px 14px;cursor:pointer;opacity:.7"
       onclick="setOrcTab('cardapio')">
       <span style="font-size:12px;color:var(--text3)">Nenhum insumo &mdash; <u>ir para aba Cardapio</u></span>
