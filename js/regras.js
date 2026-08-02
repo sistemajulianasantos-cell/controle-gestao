@@ -25,7 +25,7 @@ var ITENS_FICHA_COQUETEL = {
     "FLOR COMESTÍVEL","MARACUJÁ","PERA","MAÇÃ VERDE","CASCA DE LIMÃO"
   ],
   "ESPECIARIAS": [
-    "ANGOSTURA 200ML (RESERVA)","ANGOSTURA 50ML","SAL DE PÁPRICAS",
+    "BITTER ANGOSTURA - 200ML (RESERVA)","ANGOSTURA 50ML","SAL DE PÁPRICAS",
     "BITTER DE LARANJA","EMULSIFICANTE","INFUSÃO","DESIDRATADOS"
   ],
   "MIX ARTESANAL": [
@@ -33,7 +33,7 @@ var ITENS_FICHA_COQUETEL = {
     "ESPUMA DE LIMÃO","MIX FRUTAS VERMELHAS"
   ],
   "PRODUÇÃO": [
-    "SUCO DE LIMÃO","XAROPE DE AÇÚCAR","CAFÉ","MIX AÇÚCAR DE BAUNILHA E MARACUJÁ",
+    "SUCO DE LIMÃO","XAROPE DE AÇUCAR","CAFÉ","MIX AÇÚCAR DE BAUNILHA E MARACUJÁ",
     "MIX FRUTAS VERMELHAS"
   ],
   "XAROPES": [
@@ -100,7 +100,7 @@ var ITENS_FOLHA = {
     "PALITO DE ACRÍLICO","PANO DE PRATO"
   ],
   "ESPECIARIAS": [
-    "ANGOSTURA 200ML (RESERVA)","ANGOSTURA 50ML","ADOÇANTE","SAL DE PÁPRICAS",
+    "BITTER ANGOSTURA - 200ML (RESERVA)","ANGOSTURA 50ML","ADOÇANTE","SAL DE PÁPRICAS",
     "BITTER DE LARANJA","EMULSIFICANTE","INFUSÃO","DESIDRATADOS"
   ],
   "HORTIFRUTI": [
@@ -119,7 +119,7 @@ var ITENS_FOLHA = {
     "ESPUMA DE LIMÃO","MIX FRUTAS VERMELHAS"
   ],
   "PRODUÇÃO": [
-    "SUCO DE LIMÃO","XAROPE DE AÇÚCAR","CAFÉ","MIX AÇÚCAR DE BAUNILHA E MARACUJÁ",
+    "SUCO DE LIMÃO","XAROPE DE AÇUCAR","CAFÉ","MIX AÇÚCAR DE BAUNILHA E MARACUJÁ",
     "MIX FRUTAS VERMELHAS"
   ],
   "XAROPES": [
@@ -192,12 +192,12 @@ var REGRAS_ITENS_PADRAO = [
   {item:"COPO DESCARTÁVEL",    cat:"DESCARTÁVEIS", tipo:"fixo",      valor:1, min:1},
   {item:"PALITO DE ACRÍLICO",  cat:"DESCARTÁVEIS", tipo:"convidado", valor:10,min:0, soSeCardapio:true},
   // ESPECIARIAS — só se cardápio
-  {item:"ANGOSTURA 200ML (RESERVA)",cat:"ESPECIARIAS",tipo:"fixo",valor:1,min:0,soSeCardapio:true},
+  {item:"BITTER ANGOSTURA - 200ML (RESERVA)",cat:"ESPECIARIAS",tipo:"fixo",valor:1,min:0,soSeCardapio:true},
   {item:"ANGOSTURA 50ML",      cat:"ESPECIARIAS", tipo:"bartender",valor:1,min:0, soSeCardapio:true},
   {item:"ADOÇANTE",            cat:"ESPECIARIAS", tipo:"fixo",      valor:1, min:1},
   // PRODUÇÃO
   {item:"SUCO DE LIMÃO",       cat:"PRODUÇÃO", tipo:"convidado", valor:20, min:2, obs:"Litros"},
-  {item:"XAROPE DE AÇÚCAR",    cat:"PRODUÇÃO", tipo:"convidado", valor:20, min:2, obs:"Litros"},
+  {item:"XAROPE DE AÇUCAR",    cat:"PRODUÇÃO", tipo:"convidado", valor:20, min:2, obs:"Litros"},
   {item:"MIX FRUTAS VERMELHAS",cat:"PRODUÇÃO", tipo:"convidado", valor:20, min:2, soSeCardapio:true},
 ];
 
@@ -678,14 +678,49 @@ function rProporcoes() {
     html += '</div></div>';
   });
 
-  // Botão para adicionar item personalizado
+  // Adicionar item novo à lista de regras — escolhido da Biblioteca de Itens
+  // (mesma fonte que a Ficha de Coquetel usa), nunca digitado do zero. Antes
+  // era um prompt() de texto livre: bastava uma letra/acento diferente do
+  // nome real do item pra regra "casar" com nada e sumir silenciosamente do
+  // orçamento (aconteceu 3x na prática — Limão Siciliano, Gim Beefeater,
+  // Angostura/Xarope de Açúcar). Escolher da lista elimina esse erro de raiz.
+  var bibliotecaAdd = getBiblioteca();
+  html += '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-top:8px">' +
+    '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">+ Adicionar item à lista de regras</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">' +
+      '<div style="flex:1;min-width:160px"><label class="lbl">Categoria</label>' +
+        '<select id="rp-nova-cat" class="inp" onchange="_rpAtualizarItensDisponiveis()" style="width:100%">' +
+          Object.keys(bibliotecaAdd).sort().map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('') +
+        '</select></div>' +
+      '<div style="flex:2;min-width:200px"><label class="lbl">Item</label>' +
+        '<select id="rp-novo-item" class="inp" style="width:100%"></select></div>' +
+      '<button class="btn" onclick="adicionarItemRegra()" style="background:var(--blue);white-space:nowrap">+ Adicionar</button>' +
+    '</div>' +
+    '<div style="font-size:10px;color:var(--text3);margin-top:6px">Só aparecem itens já cadastrados na Biblioteca de Itens e que ainda não têm regra. Item novo? <a href="#" onclick="setRegrasView(\'biblioteca\');return false" style="color:var(--blue)">Cadastre lá primeiro</a>.</div>' +
+  '</div>';
+
   html += '<div style="margin-top:8px;display:flex;gap:8px">' +
-    '<button class="btn" onclick="adicionarItemRegra()" style="background:var(--blue)">+ Novo Item</button>' +
     '<button class="btn" onclick="salvarRegrasItens()" style="background:var(--green)">💾 Salvar Regras</button>' +
     '<button class="btn" onclick="resetarRegras()" style="background:var(--red-dim);color:var(--red)">↺ Restaurar Padrão</button>' +
   '</div>';
 
   cont.innerHTML = html;
+  _rpAtualizarItensDisponiveis();
+}
+
+// Preenche o select de item de acordo com a categoria escolhida, excluindo
+// itens que já têm regra cadastrada (evita duplicar a mesma regra 2x).
+function _rpAtualizarItensDisponiveis() {
+  var cat = document.getElementById('rp-nova-cat')?.value;
+  var sel = document.getElementById('rp-novo-item');
+  if (!cat || !sel) return;
+  var biblioteca = getBiblioteca();
+  var jaTemRegra = {};
+  getRegrasItens().forEach(function(r) { jaTemRegra[r.cat + '|' + r.item] = true; });
+  var disponiveis = (biblioteca[cat] || []).filter(function(item) { return !jaTemRegra[cat + '|' + item]; });
+  sel.innerHTML = disponiveis.length
+    ? disponiveis.map(function(item){ return '<option value="'+item+'">'+item+'</option>'; }).join('')
+    : '<option value="">(todos os itens desta categoria já têm regra)</option>';
 }
 
 function atualizarRegra(idx, campo, valor) {
@@ -707,11 +742,15 @@ function resetarRegras() {
 }
 
 function adicionarItemRegra() {
-  var nome = prompt('Nome do item:');
-  if (!nome) return;
-  var cat = prompt('Categoria (ex: MATERIAL, ESPECIARIAS, PRODUÇÃO):') || 'MATERIAL';
+  var cat  = document.getElementById('rp-nova-cat')?.value;
+  var item = document.getElementById('rp-novo-item')?.value;
+  if (!cat || !item) { alert('Escolha uma categoria e um item.'); return; }
   if (!D.regrasItens || !D.regrasItens.length) D.regrasItens = JSON.parse(JSON.stringify(REGRAS_ITENS_PADRAO));
-  D.regrasItens.push({item:nome.toUpperCase(), cat:cat.toUpperCase(), tipo:'fixo', valor:1, min:1, soSeCardapio:false});
+  if (D.regrasItens.some(function(r){ return r.cat === cat && r.item === item; })) {
+    alert('Esse item já tem uma regra cadastrada.');
+    return;
+  }
+  D.regrasItens.push({item:item, cat:cat, tipo:'fixo', valor:1, min:1, soSeCardapio:false});
   rProporcoes();
 }
 
