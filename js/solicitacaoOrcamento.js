@@ -6,6 +6,7 @@
 
 var _solView = 'lista';
 var _solEditId = null;
+var _solSelecionados = {}; // id -> true, seleção múltipla na lista (só na view atual)
 
 var SOL_STATUS_PADRAO = ['PENDENTE', 'ENVIADO', 'APROVADO', 'RECUSADO'];
 
@@ -13,6 +14,7 @@ function initSolicitacaoOrcamento() {
   if (!D.solicitacoesOrcamento) D.solicitacoesOrcamento = [];
   _solView = 'lista';
   _solEditId = null;
+  _solSelecionados = {};
   rSolicitacao();
 }
 
@@ -72,23 +74,35 @@ function _solCorStatus(status) {
 
 // ── VIEW: LISTA ───────────────────────────────────────────────────────────────
 
-function _solBuildLista() {
+// Ordem = por cadastro/importação (mais recente primeiro) — não pelo Nº como
+// texto, porque o Nº importado da planilha nem sempre segue o mesmo padrão
+// zero-preenchido do gerado pelo sistema (ex.: "2" ficando depois de "10").
+function _solListaFiltrada() {
   var lista = getSolicitacoesOrcamento().slice().sort(function(a, b) {
-    return (b.numero || '').localeCompare(a.numero || '');
+    return (b.criadoEm || '').localeCompare(a.criadoEm || '');
   });
 
   var busca = (document.getElementById('sol-busca')?.value || '').toLowerCase();
   var statusFiltro = document.getElementById('sol-status-filtro')?.value || '';
   if (busca) lista = lista.filter(function(s) { return (s.cliente || '').toLowerCase().includes(busca); });
   if (statusFiltro) lista = lista.filter(function(s) { return (s.status || '').toUpperCase() === statusFiltro; });
+  return lista;
+}
+
+function _solBuildLista() {
+  var lista = _solListaFiltrada();
+  var qtdSel = Object.keys(_solSelecionados).length;
+  var todosSelecionados = lista.length > 0 && lista.every(function(s) { return _solSelecionados[s.id]; });
 
   var linhas = !lista.length
-    ? '<tr><td colspan="11" style="text-align:center;color:var(--text3);padding:24px">Nenhuma solicitação encontrada</td></tr>'
+    ? '<tr><td colspan="12" style="text-align:center;color:var(--text3);padding:24px">Nenhuma solicitação encontrada</td></tr>'
     : lista.map(function(s) {
         var cor = _solCorStatus(s.status);
         var contato = [s.telefoneFixo, s.celular].filter(Boolean).join(' · ') || '—';
         var extras = [s.hora, s.bebidas, s.observacao].filter(Boolean).join(' · ');
         return '<tr style="border-bottom:1px solid var(--border)">' +
+          '<td style="padding:8px 12px;text-align:center">' +
+            '<input type="checkbox" ' + (_solSelecionados[s.id] ? 'checked' : '') + ' onchange="_solToggleSelecao(\'' + s.id + '\',this.checked)"></td>' +
           '<td style="padding:8px 12px;font-family:var(--mono);font-size:11px">' + (s.numero || '—') + '</td>' +
           '<td style="padding:8px 12px"><strong>' + (s.cliente || '—') + '</strong></td>' +
           '<td style="padding:8px 12px;font-size:11px;color:var(--text3)">' + contato + '</td>' +
@@ -124,6 +138,13 @@ function _solBuildLista() {
       '</div>' +
     '</div>' +
 
+    (qtdSel > 0 ?
+      '<div style="display:flex;align-items:center;gap:10px;background:#F74F6B1A;border:1px solid var(--red);border-radius:8px;padding:8px 14px;margin-bottom:12px;flex-wrap:wrap">' +
+        '<span style="font-size:12px;color:var(--text)">' + qtdSel + ' selecionada(s)</span>' +
+        '<button class="btn-sm btn-red" onclick="_solExcluirSelecionados()">🗑️ Excluir selecionadas</button>' +
+        '<button class="btn-sm" style="background:var(--bg3)" onclick="_solLimparSelecao()">Cancelar seleção</button>' +
+      '</div>' : '') +
+
     '<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">' +
       '<input class="inp" id="sol-busca" type="text" placeholder="🔍 Buscar por cliente..." style="flex:1;min-width:200px" oninput="rSolicitacao()">' +
       '<select class="inp" id="sol-status-filtro" style="width:180px" onchange="rSolicitacao()">' +
@@ -135,6 +156,7 @@ function _solBuildLista() {
     '<div style="overflow-x:auto">' +
     '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
       '<thead><tr style="border-bottom:2px solid var(--border2);color:var(--text3);text-transform:uppercase;font-size:10px">' +
+        '<th style="padding:8px 12px;text-align:center"><input type="checkbox" ' + (todosSelecionados ? 'checked' : '') + ' onchange="_solToggleSelecaoTodos(this.checked)" title="Selecionar todos"></th>' +
         '<th style="padding:8px 12px;text-align:left">Nº</th>' +
         '<th style="padding:8px 12px;text-align:left">Cliente</th>' +
         '<th style="padding:8px 12px;text-align:left">Contato</th>' +
@@ -245,6 +267,37 @@ function _solEditar(id) {
 function _solExcluir(id) {
   if (!confirm('Excluir esta solicitação de orçamento?')) return;
   D.solicitacoesOrcamento = (D.solicitacoesOrcamento || []).filter(function(s) { return s.id !== id; });
+  delete _solSelecionados[id];
+  sv('solicitacoesOrcamento');
+  rSolicitacao();
+}
+
+// ── Seleção múltipla / exclusão em lote (ex.: desfazer uma importação) ───────
+
+function _solToggleSelecao(id, checked) {
+  if (checked) _solSelecionados[id] = true; else delete _solSelecionados[id];
+  rSolicitacao();
+}
+
+function _solToggleSelecaoTodos(checked) {
+  _solListaFiltrada().forEach(function(s) {
+    if (checked) _solSelecionados[s.id] = true; else delete _solSelecionados[s.id];
+  });
+  rSolicitacao();
+}
+
+function _solLimparSelecao() {
+  _solSelecionados = {};
+  rSolicitacao();
+}
+
+function _solExcluirSelecionados() {
+  var ids = Object.keys(_solSelecionados);
+  if (!ids.length) return;
+  if (!confirm('Excluir ' + ids.length + ' solicitação(ões) selecionada(s)? Essa ação não pode ser desfeita.')) return;
+  var idsSet = new Set(ids);
+  D.solicitacoesOrcamento = (D.solicitacoesOrcamento || []).filter(function(s) { return !idsSet.has(s.id); });
+  _solSelecionados = {};
   sv('solicitacoesOrcamento');
   rSolicitacao();
 }
