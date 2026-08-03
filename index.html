@@ -2290,6 +2290,14 @@
 <!-- PizZip e Docxtemplater para gerar .docx -->
 <script src="https://cdn.jsdelivr.net/npm/pizzip@3.1.4/dist/pizzip.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.39.0/docxtemplater.js"></script>
+<script>
+  // O build atual do cdnjs expõe window.docxtemplater (minúsculo) em vez de
+  // window.Docxtemplater (maiúsculo, usado em js/contratos.js e
+  // js/orcProposta.js) — sem este shim, "new Docxtemplater(...)" nunca
+  // funciona e a geração de Contrato/Proposta em .docx fica sempre travada
+  // no aviso de "bibliotecas ainda não carregaram".
+  window.Docxtemplater = window.Docxtemplater || window.docxtemplater;
+</script>
 <!-- Chart.js para os gráficos da aba Produtos (Fechamento Mensal) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <!-- SheetJS para ler arquivos Excel (.xlsx/.xls/.csv) na importação de Solicitação de Orçamento -->
