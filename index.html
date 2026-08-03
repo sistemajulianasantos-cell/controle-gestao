@@ -2332,7 +2332,7 @@
 <script src="js/solicitacaoOrcamento.js?v=20260803f"></script>
 <script src="js/orcamento.js?v=20260803a"></script>
 <script src="js/orcCalc.js?v=20260803a"></script>
-<script src="js/orcProposta.js?v=20260803b"></script>
+<script src="js/orcProposta.js?v=20260803c"></script>
 <script src="js/_refConsumoData.js?v=20260610z"></script>
 <script src="js/refConsumo.js?v=20260610z"></script>
 <script src="js/seguranca-admin.js?v=20260610z"></script>
@@ -2415,7 +2415,6 @@ window.svFirebase = async function(chave) {
     if(chave==='pagamentosEquipe')  campo.pagamentosEquipe  = D.pagamentosEquipe;
     if(chave==='orcamentos')         campo.orcamentos          = D.orcamentos;
     if(chave==='solicitacoesOrcamento') campo.solicitacoesOrcamento = D.solicitacoesOrcamento;
-    if(chave==='propostaTemplateDocx') campo.propostaTemplateDocx = D.propostaTemplateDocx;
     if(chave==='senhas')             campo.senhas              = D.senhas;
     if(chave==='rcEventos')          campo.rcEventos           = D.rcEventos;
     if(chave==='rcEventosImportados')campo.rcEventosImportados = D.rcEventosImportados;
@@ -2466,6 +2465,26 @@ window.svFirebase = async function(chave) {
         batch.set(doc(db, "dados", "financeiro_" + ano), { valor: lista });
       }
       await batch.commit();
+    }
+
+    if (chave === 'propostaTemplateDocx') {
+      // O .docx do modelo (com fotos) facilmente passa de 1MB, o limite por
+      // documento do Firestore — fatia o base64 em vários documentos
+      // (propostaTemplateDocx_chunk0, _chunk1, ...) igual ao financeiro por
+      // ano acima, só que por pedaço de texto em vez de por ano.
+      const tpl = D.propostaTemplateDocx;
+      if (tpl && tpl.base64) {
+        const TAM_CHUNK = 900000; // chars de base64 por documento, com folga sob o limite de 1MiB
+        const total = Math.ceil(tpl.base64.length / TAM_CHUNK);
+        const batchTpl = writeBatch(db);
+        for (let i = 0; i < total; i++) {
+          batchTpl.set(doc(db, "dados", "propostaTemplateDocx_chunk" + i),
+            { valor: tpl.base64.slice(i * TAM_CHUNK, (i + 1) * TAM_CHUNK) });
+        }
+        batchTpl.set(doc(db, "dados", "propostaTemplateDocx_meta"),
+          { valor: { nome: tpl.nome, tamanho: tpl.tamanho, importadoEm: tpl.importadoEm, totalChunks: total } });
+        await batchTpl.commit();
+      }
     }
 
     if (Object.keys(campo).length === 0) return;
@@ -2593,7 +2612,15 @@ async function carregarDados() {
     D.pagamentosEquipe = r.pagamentosEquipe || [];
     D.orcamentos            = r.orcamentos            || [];
     D.solicitacoesOrcamento = r.solicitacoesOrcamento || [];
-    D.propostaTemplateDocx  = r.propostaTemplateDocx  || null;
+    // Modelo da Proposta pode vir fatiado em vários documentos (ver svFirebase) — remonta aqui.
+    const propMeta = r.propostaTemplateDocx_meta;
+    if (propMeta && propMeta.totalChunks) {
+      let base64 = '';
+      for (let i = 0; i < propMeta.totalChunks; i++) base64 += (r['propostaTemplateDocx_chunk' + i] || '');
+      D.propostaTemplateDocx = { base64, nome: propMeta.nome, tamanho: propMeta.tamanho, importadoEm: propMeta.importadoEm };
+    } else {
+      D.propostaTemplateDocx = null;
+    }
     D.senhas                = r.senhas                || {};
     D.rcEventos             = r.rcEventos             || [];
     D.rcEventosImportados   = r.rcEventosImportados   || [];

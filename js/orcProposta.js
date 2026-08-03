@@ -120,15 +120,17 @@ function rOrcProposta(orc) {
 // ao modelo de Contrato já usado em js/contratos.js, só que importável direto
 // pela tela em vez de embutido no código.
 
-var PROPOSTA_TEMPLATE_MAX_BYTES = 700 * 1024; // ~700KB de arquivo → cabe folgado no limite de 1MB por documento do Firestore, mesmo em base64 (+33%)
+// O modelo é salvo fatiado em vários documentos no Firestore (ver svFirebase
+// em index.html), então não esbarra mais no limite de 1MB por documento —
+// esse teto aqui é só pra pegar o caso de selecionar o arquivo errado.
+var PROPOSTA_TEMPLATE_MAX_BYTES = 15 * 1024 * 1024;
 
 function propostaImportarModelo(inputEl) {
   var file = inputEl.files && inputEl.files[0];
   if (!file) return;
 
   if (file.size > PROPOSTA_TEMPLATE_MAX_BYTES) {
-    alert2('Esse arquivo tem ' + (file.size / 1024 / 1024).toFixed(1) + 'MB — muito grande pra salvar (limite ~700KB). ' +
-      'No Word, use Arquivo → Compactar Imagens (ou selecione as fotos → Formato → Comprimir Imagens) e exporte de novo.', 'error');
+    alert2('Esse arquivo tem ' + (file.size / 1024 / 1024).toFixed(1) + 'MB — parece grande demais pra ser o modelo da proposta. Confira se selecionou o arquivo certo.', 'error');
     inputEl.value = '';
     return;
   }
