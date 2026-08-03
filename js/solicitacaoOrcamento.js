@@ -330,7 +330,7 @@ function _solGerarOrcamento(id) {
     dataEvento: s.dataEvento || '',
     convidados: parseInt(s.pax) || 0,
     telefone: s.celular || s.telefoneFixo || '',
-    numeroProposta: '',
+    numeroProposta: s.numero || '',
     criadoEm: new Date().toISOString(),
     itens: [],
     calcItens: [],
@@ -429,8 +429,8 @@ function _solLerArquivoImport(inputEl) {
       // texto formatado (o formato de texto do SheetJS pra data é ambíguo/errado às vezes,
       // ex.: "08/08/2026" virando "8/7/26").
       var linhas = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: '' });
-      var novos = _solConstruirSolicitacoes(linhas);
-      _solSalvarImportados(novos);
+      var resultado = _solConstruirSolicitacoes(linhas);
+      _solSalvarImportados(resultado.novos, resultado.semCliente);
     } catch (err) {
       _solImpStatus('Erro ao ler o arquivo: ' + err.message, true);
     } finally {
@@ -449,15 +449,15 @@ function _solProcessarImportColado() {
   setTimeout(function() {
     try {
       var linhas = raw.split(/\r?\n/).filter(function(l) { return l.trim(); }).map(function(l) { return l.split('\t'); });
-      var novos = _solConstruirSolicitacoes(linhas);
-      _solSalvarImportados(novos);
+      var resultado = _solConstruirSolicitacoes(linhas);
+      _solSalvarImportados(resultado.novos, resultado.semCliente);
     } catch (e) {
       _solImpStatus('Erro: ' + e.message, true);
     }
   }, 50);
 }
 
-function _solSalvarImportados(novos) {
+function _solSalvarImportados(novos, semCliente) {
   if (!D.solicitacoesOrcamento) D.solicitacoesOrcamento = [];
   var numerosExistentes = new Set(D.solicitacoesOrcamento.map(function(s) { return s.numero; }).filter(Boolean));
   var importados = 0, ignorados = 0;
@@ -468,21 +468,35 @@ function _solSalvarImportados(novos) {
     importados++;
   });
   if (importados > 0) sv('solicitacoesOrcamento');
-  _solImpStatus(importados + ' importada(s)' + (ignorados ? ', ' + ignorados + ' ignorada(s) por já existir' : '') + '.', false);
-  if (importados > 0) setTimeout(function() { _solSetView('lista'); }, 700);
+
+  var msg = importados + ' importada(s)';
+  if (ignorados) msg += ', ' + ignorados + ' ignorada(s) por já existir';
+  var temSemCliente = semCliente && semCliente.length > 0;
+  if (temSemCliente) {
+    msg += ', ' + semCliente.length + ' linha(s) SEM a coluna "Cliente" preenchida (não importadas) — linha(s) da planilha: ' +
+      semCliente.slice(0, 20).join(', ') + (semCliente.length > 20 ? '…' : '');
+  }
+  _solImpStatus(msg + '.', temSemCliente);
+  if (importados > 0) setTimeout(function() { _solSetView('lista'); }, temSemCliente ? 4000 : 700);
 }
 
 // Recebe linhas já como array de arrays (cada linha da planilha, cabeçalho
 // incluído em algum lugar entre as 5 primeiras — cobre o caso de haver
-// título/linhas em branco acima do cabeçalho de verdade) e devolve os
-// registros prontos para salvar.
+// título/linhas em branco acima do cabeçalho de verdade) e devolve
+// { novos, semCliente } — os registros prontos para salvar e os números das
+// linhas da planilha (1-based, contando a linha do cabeçalho como linha 1)
+// que foram ignoradas por não terem a coluna Cliente preenchida.
 function _solConstruirSolicitacoes(linhas) {
-  linhas = (linhas || []).filter(function(l) { return l && l.some(function(c) { return String(c == null ? '' : c).trim(); }); });
-  if (!linhas.length) throw new Error('Planilha vazia.');
+  // Mantém o número da linha ORIGINAL da planilha (1-based) atrelado a cada
+  // linha, mesmo depois de descartar as linhas totalmente em branco — senão a
+  // contagem de linha reportada pra ela não bate com o que ela vê no Excel.
+  var comIndice = (linhas || []).map(function(l, i) { return { linha: l, numPlanilha: i + 1 }; })
+    .filter(function(x) { return x.linha && x.linha.some(function(c) { return String(c == null ? '' : c).trim(); }); });
+  if (!comIndice.length) throw new Error('Planilha vazia.');
 
   var headerIdx = -1, header = null, HU = null;
-  for (var r = 0; r < Math.min(linhas.length, 5); r++) {
-    var cand = linhas[r].map(function(c) { return String(c == null ? '' : c).trim(); });
+  for (var r = 0; r < Math.min(comIndice.length, 5); r++) {
+    var cand = comIndice[r].linha.map(function(c) { return String(c == null ? '' : c).trim(); });
     var candUp = cand.map(function(c) { return c.toUpperCase(); });
     if (candUp.some(function(c) { return c.includes('CLIENTE'); })) { headerIdx = r; header = cand; HU = candUp; break; }
   }
@@ -537,10 +551,11 @@ function _solConstruirSolicitacoes(linhas) {
   function cel(cols, i) { return i >= 0 ? String(cols[i] == null ? '' : cols[i]).trim() : ''; }
 
   var novos = [];
-  for (var li = headerIdx + 1; li < linhas.length; li++) {
-    var cols = linhas[li];
+  var semCliente = [];
+  for (var li = headerIdx + 1; li < comIndice.length; li++) {
+    var cols = comIndice[li].linha;
     var cliente = cel(cols, iCli);
-    if (!cliente) continue;
+    if (!cliente) { semCliente.push(comIndice[li].numPlanilha); continue; }
     novos.push({
       id: _gerarId('SOL'),
       numero: cel(cols, iNum),
@@ -567,5 +582,5 @@ function _solConstruirSolicitacoes(linhas) {
     });
   }
   if (!novos.length) throw new Error('Nenhuma linha válida encontrada (verifique a coluna Cliente).');
-  return novos;
+  return { novos: novos, semCliente: semCliente };
 }

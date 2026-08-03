@@ -72,7 +72,18 @@ function rOrcProposta(orc) {
       '</div></div>';
   }).join('');
 
+  var tpl = D.propostaTemplateDocx;
   el.innerHTML =
+    '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;max-width:700px;margin-bottom:14px">' +
+      '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">📁 Modelo da proposta (.docx)</div>' +
+      (tpl
+        ? '<div style="font-size:12px;color:var(--green);margin-bottom:10px">✓ Modelo importado: <strong>' + _propostaEsc(tpl.nome || 'modelo.docx') + '</strong>' +
+            (tpl.importadoEm ? ' · ' + new Date(tpl.importadoEm).toLocaleDateString('pt-BR') : '') + '</div>'
+        : '<div style="font-size:12px;color:var(--text3);margin-bottom:10px">Nenhum modelo importado ainda — sem ele, o PDF sai numa versão simplificada (aproximada por CSS).</div>') +
+      '<input type="file" accept=".docx" onchange="propostaImportarModelo(this)" style="font-size:12px">' +
+      '<div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.5">Envie o .docx do Word já com as marcações ({NOME_CLIENTE}, {TELEFONE}, {DATA_EVENTO} etc.) nos lugares certos. Esse modelo vale pra todos os orçamentos — importar de novo substitui o anterior.</div>' +
+    '</div>' +
+
     '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;max-width:700px;margin-bottom:14px">' +
       '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:16px">📄 Dados para a proposta</div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">' +
@@ -100,7 +111,48 @@ function rOrcProposta(orc) {
       '<button class="btn-sm" style="background:var(--bg3);margin-top:6px" onclick="propostaUsarComoPadrao(\'' + orc.id + '\')">🔧 Usar esta configuração como padrão para novos orçamentos</button>' +
     '</div>' +
 
-    '<button class="btn btn-primary" onclick="gerarPropostaOrc(\'' + orc.id + '\')">📄 Gerar PDF da Proposta</button>';
+    '<button class="btn btn-primary" onclick="gerarPropostaOrc(\'' + orc.id + '\')">' +
+      (tpl ? '📄 Gerar Proposta (.docx)' : '📄 Gerar PDF da Proposta (versão simplificada)') + '</button>';
+}
+
+// ─── IMPORTAR MODELO (.docx) ──────────────────────────────────────────────────
+// Vale pra todos os orçamentos (documento único, não por orçamento) — igual
+// ao modelo de Contrato já usado em js/contratos.js, só que importável direto
+// pela tela em vez de embutido no código.
+
+var PROPOSTA_TEMPLATE_MAX_BYTES = 700 * 1024; // ~700KB de arquivo → cabe folgado no limite de 1MB por documento do Firestore, mesmo em base64 (+33%)
+
+function propostaImportarModelo(inputEl) {
+  var file = inputEl.files && inputEl.files[0];
+  if (!file) return;
+
+  if (file.size > PROPOSTA_TEMPLATE_MAX_BYTES) {
+    alert2('Esse arquivo tem ' + (file.size / 1024 / 1024).toFixed(1) + 'MB — muito grande pra salvar (limite ~700KB). ' +
+      'No Word, use Arquivo → Compactar Imagens (ou selecione as fotos → Formato → Comprimir Imagens) e exporte de novo.', 'error');
+    inputEl.value = '';
+    return;
+  }
+
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var bytes = new Uint8Array(e.target.result);
+    var binario = '';
+    for (var i = 0; i < bytes.length; i++) binario += String.fromCharCode(bytes[i]);
+    var base64 = btoa(binario);
+
+    D.propostaTemplateDocx = {
+      base64: base64,
+      nome: file.name,
+      tamanho: file.size,
+      importadoEm: new Date().toISOString(),
+    };
+    sv('propostaTemplateDocx');
+    alert2('Modelo importado! Já vale para gerar propostas.');
+    if (orcAtualId) { var orc = (D.orcamentos || []).find(function(o) { return o.id === orcAtualId; }); if (orc) rOrcProposta(orc); }
+  };
+  reader.onerror = function() { alert2('Erro ao ler o arquivo.', 'error'); };
+  reader.readAsArrayBuffer(file);
+  inputEl.value = '';
 }
 
 function propostaSetCampo(orcId, campo, valor) {
@@ -140,21 +192,12 @@ function propostaUsarComoPadrao(orcId) {
   alert2('Configuração salva como padrão para novos orçamentos!');
 }
 
-// ─── GERAÇÃO DO PDF (janela de impressão) ────────────────────────────────────
+// ─── DADOS DERIVADOS (compartilhados pelos dois geradores) ───────────────────
 
-function gerarPropostaOrc(orcId) {
-  var orc = (D.orcamentos || []).find(function(o) { return o.id === orcId; });
-  if (!orc) return;
-  var w = window.open('', '_blank');
-  if (!w) { alert2('O navegador bloqueou a janela. Permita pop-ups para gerar a proposta.', 'error'); return; }
-  w.document.write(_propostaMontarHtml(orc));
-  w.document.close();
-}
-
-function _propostaMontarHtml(orc) {
-  var p       = orc.calcParams || {};
-  var resumo  = (typeof _orcCalcResumo === 'function') ? _orcCalcResumo(orc) : { autoS: { bt: 0, bb: 0, hb: 0, cd: 0 }, insumos: [], valorTotal: 0, valorTotalEssencial: 0 };
-  var autoS   = resumo.autoS || {};
+function _propostaDadosComputados(orc) {
+  var p      = orc.calcParams || {};
+  var resumo = (typeof _orcCalcResumo === 'function') ? _orcCalcResumo(orc) : { autoS: { bt: 0, bb: 0, hb: 0, cd: 0 }, insumos: [], valorTotal: 0, valorTotalEssencial: 0 };
+  var autoS  = resumo.autoS || {};
 
   var qBartender = p.bartender != null ? p.bartender : (autoS.bt || 0);
   var qBarback   = p.barback   != null ? p.barback   : (autoS.bb || 0);
@@ -165,6 +208,82 @@ function _propostaMontarHtml(orc) {
   var destilados = Array.from(new Set((resumo.insumos || [])
     .filter(function(i) { return i.cat === 'BEBIDAS ALCOÓLICAS'; })
     .map(function(i) { return i.nome; })));
+
+  return { p: p, resumo: resumo, qBartender: qBartender, qBarback: qBarback, qHead: qHead, qCoord: qCoord, qCopeiro: qCopeiro, destilados: destilados };
+}
+
+function _propostaEquipeTexto(d) {
+  var estrutura = [];
+  if (d.qHead)    estrutura.push(d.qHead + ' Head Bartender' + (d.qHead > 1 ? 's' : ''));
+  estrutura.push(d.qBartender + ' Bartender' + (d.qBartender !== 1 ? 's' : ''));
+  if (d.qBarback) estrutura.push(d.qBarback + ' Bar Back' + (d.qBarback > 1 ? 's' : ''));
+  if (d.qCoord)   estrutura.push(d.qCoord + ' Coordenador' + (d.qCoord > 1 ? 'es' : ''));
+  if (d.qCopeiro) estrutura.push(d.qCopeiro + ' Copeiro' + (d.qCopeiro > 1 ? 's' : ''));
+  return estrutura.join(', ');
+}
+
+// ─── GERAÇÃO — DOCX (a partir do modelo importado, quando existe) ────────────
+
+function _propostaGerarDocx(orc) {
+  if (!window.PizZip || !window.Docxtemplater) {
+    alert2('Bibliotecas de geração de Word ainda não carregaram — aguarde e tente novamente.', 'error');
+    return;
+  }
+  try {
+    var tpl = D.propostaTemplateDocx;
+    var templateBytes = Uint8Array.from(atob(tpl.base64), function(c) { return c.charCodeAt(0); });
+    var zip  = new PizZip(templateBytes);
+    var docx = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
+
+    var d = _propostaDadosComputados(orc);
+    var p = d.p;
+
+    docx.setData({
+      NUMERO_PROPOSTA: _propostaValor(orc, 'capa_numero')     ? (orc.numeroProposta || '') : '',
+      NOME_CLIENTE:    orc.nomeCliente || '',
+      TELEFONE:        _propostaValor(orc, 'capa_telefone')   ? (orc.telefone || '') : '',
+      TIPO_EVENTO:     _propostaValor(orc, 'capa_tipoEvento') ? _propostaTipoLabel(p) : '',
+      DATA_EVENTO:     (typeof fd === 'function') ? fd(orc.dataEvento) : (orc.dataEvento || ''),
+      LOCAL_EVENTO:    _propostaValor(orc, 'capa_local')      ? _propostaLocalLabel(p) : '',
+      CONVIDADOS:      _propostaValor(orc, 'capa_convidados') ? String(orc.convidados || '') : '',
+      CARDAPIO:        orc.cardapioTexto || '',
+      EQUIPE:          _propostaEquipeTexto(d),
+      VALOR_ESSENCIAL: _propostaValor(orc, 'inv_essencial')   ? fR(d.resumo.valorTotalEssencial) : '',
+      VALOR_COMPLETO:  _propostaValor(orc, 'inv_completo')    ? fR(d.resumo.valorTotal) : '',
+      DESTILADOS:      _propostaValor(orc, 'inv_destilados')  ? d.destilados.join(', ') : '',
+    });
+    docx.render();
+
+    var blob = new Blob([docx.getZip().generate({ type: 'arraybuffer' })],
+      { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'Proposta_' + (orc.nomeCliente || 'cliente').split(' ')[0] + '.docx';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (e) {
+    alert2('Erro ao gerar a proposta: ' + e.message + ' — confira se as marcações {TAG} no modelo estão digitadas certinho.', 'error');
+  }
+}
+
+// ─── GERAÇÃO — janela de impressão (alternativa enquanto não há modelo .docx) ─
+
+function gerarPropostaOrc(orcId) {
+  var orc = (D.orcamentos || []).find(function(o) { return o.id === orcId; });
+  if (!orc) return;
+  if (D.propostaTemplateDocx && D.propostaTemplateDocx.base64) { _propostaGerarDocx(orc); return; }
+
+  var w = window.open('', '_blank');
+  if (!w) { alert2('O navegador bloqueou a janela. Permita pop-ups para gerar a proposta.', 'error'); return; }
+  w.document.write(_propostaMontarHtml(orc));
+  w.document.close();
+}
+
+function _propostaMontarHtml(orc) {
+  var d = _propostaDadosComputados(orc);
+  var p = d.p;
+  var qBartender = d.qBartender, qBarback = d.qBarback, qHead = d.qHead, qCoord = d.qCoord, qCopeiro = d.qCopeiro;
+  var destilados = d.destilados;
 
   var paginas = [];
 
@@ -261,12 +380,12 @@ function _propostaMontarHtml(orc) {
     if (mostraEssencial) invBlocos.push(
       '<h3 class="prop-h3 prop-under">Essencial</h3>' +
       '<p class="prop-p">Você fornece as bebidas e nós entregamos todo o serviço técnico e a estrutura Romero, garantindo execução impecável.</p>' +
-      '<div class="prop-valor">' + fR(resumo.valorTotalEssencial) + '</div>');
+      '<div class="prop-valor">' + fR(d.resumo.valorTotalEssencial) + '</div>');
     if (mostraCompleto) invBlocos.push(
       '<h3 class="prop-h3 prop-under">Completo</h3>' +
       '<p class="prop-p">Seleção de bebidas importadas incluída, com serviço ilimitado e preparo sob medida.' +
       (_propostaValor(orc, 'inv_destilados') && destilados.length ? ' Rótulos como ' + _propostaEsc(destilados.join(', ')) + '.' : '') + '</p>' +
-      '<div class="prop-valor">' + fR(resumo.valorTotal) + '</div>');
+      '<div class="prop-valor">' + fR(d.resumo.valorTotal) + '</div>');
     if (_propostaValor(orc, 'inv_pagamento')) invBlocos.push(
       '<h3 class="prop-h3 prop-under">Forma de pagamento</h3>' +
       '<p class="prop-p">20% na contratação e 80% até 7 dias antes do evento. Eventuais quebras de materiais são cobradas após o evento, com transparência e alinhamento prévio.</p>');
