@@ -264,6 +264,8 @@ function _solGerarOrcamento(id) {
     nomeCliente: s.cliente,
     dataEvento: s.dataEvento || '',
     convidados: parseInt(s.pax) || 0,
+    telefone: s.celular || s.telefoneFixo || '',
+    numeroProposta: '',
     criadoEm: new Date().toISOString(),
     itens: [],
     calcItens: [],

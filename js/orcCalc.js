@@ -301,16 +301,11 @@ function calcRemoveInsumo(itemId) {
   _rTabContent();
 }
 
-// ─── RENDER ───────────────────────────────────────────────────────────────────
+// ─── RESUMO (reutilizável pela Calculadora e pela Proposta) ──────────────────
 
-function rOrcCalc() {
-  const orc = _calcGetOrc();
-  const el  = document.getElementById('orc-det-content');
-  if (!el || !orc) return;
-
+function _orcCalcResumo(orc) {
   const p    = orc.calcParams || {};
   const pax  = orc.convidados || 0;
-  const precos = getOrcPrecos();
   const autoS = _calcAutoStaff(pax);
   const itens  = orc.calcItens || [];
   const insumos = orc.insumos || [];
@@ -333,6 +328,28 @@ function rOrcCalc() {
   const custoEstEssencial  = custoPresenteEssencial * (1 + margSeg / 100);
   const valorTotalEssencial = custoEstEssencial * (1 + margLuc / 100);
   const porPessoaEssencial  = pax > 0 ? valorTotalEssencial / pax : 0;
+
+  return {
+    pax, autoS, itens, insumos, custoInsumos, custoPresente, margSeg, margLuc,
+    custoEst, valorTotal, porPessoa, custoBebidasAlc, custoPresenteEssencial,
+    custoEstEssencial, valorTotalEssencial, porPessoaEssencial,
+  };
+}
+
+// ─── RENDER ───────────────────────────────────────────────────────────────────
+
+function rOrcCalc() {
+  const orc = _calcGetOrc();
+  const el  = document.getElementById('orc-det-content');
+  if (!el || !orc) return;
+
+  const p    = orc.calcParams || {};
+  const precos = getOrcPrecos();
+  const {
+    pax, autoS, itens, insumos, custoInsumos, custoPresente, margSeg, margLuc,
+    custoEst, valorTotal, porPessoa, custoBebidasAlc,
+    valorTotalEssencial, porPessoaEssencial,
+  } = _orcCalcResumo(orc);
 
   const localKey = _migrarLocalOrcamento(p);
 
