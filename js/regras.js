@@ -480,7 +480,7 @@ function rFichas() {
 function rFormFicha(fichaExistente) {
   var cont = document.getElementById('regras-view-nova-ficha');
   if (!cont) return;
-  var f = fichaExistente || { nome:'', variantes:'', itens:[] };
+  var f = fichaExistente || { nome:'', variantes:'', itens:[], descricao:'', copo:'' };
   var itensIds = new Set((f.itens||[]).map(function(i){return i.cat+'|'+i.nome;}));
 
   // Itens da ficha existente que não estão na nova lista filtrada
@@ -499,6 +499,10 @@ function rFormFicha(fichaExistente) {
       '<div><label class="lbl">Variantes / Aliases</label>' +
         '<input class="inp" id="fc-variantes" type="text" placeholder="Ex: FITZ, FITZGERAL" value="' + (f.variantes||'') + '">' +
         '<div style="font-size:10px;color:var(--text3);margin-top:2px">Nomes alternativos separados por vírgula</div></div>' +
+      '<div><label class="lbl">Copo</label>' +
+        '<input class="inp" id="fc-copo" type="text" placeholder="Ex: Copo baixo, Taça, Copo mule..." value="' + (f.copo||'') + '"></div>' +
+      '<div style="grid-column:1/-1"><label class="lbl">Descrição (pra proposta / cardápio ao cliente)</label>' +
+        '<textarea class="inp" id="fc-descricao" rows="2" style="width:100%;resize:vertical" placeholder="Ex: Vodka ou gin, ginger ale artesanal e espuma de gengibre">' + (f.descricao||'') + '</textarea></div>' +
     '</div>' +
     '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Marque os itens que este coquetel precisa</div>' +
     '<div id="fc-itens-container">';
@@ -589,6 +593,8 @@ function salvarFicha(idExistente) {
   var nome = (document.getElementById('fc-nome')?.value||'').trim().toUpperCase();
   if (!nome) { alert('Preencha o nome do coquetel.'); return; }
   var variantes = (document.getElementById('fc-variantes')?.value||'').trim();
+  var copo = (document.getElementById('fc-copo')?.value||'').trim();
+  var descricao = (document.getElementById('fc-descricao')?.value||'').trim();
   var itens = [];
   var itensVistos = new Set();
   function addItem(cat, nomeItem) {
@@ -604,9 +610,9 @@ function salvarFicha(idExistente) {
   if (!D.fichas) D.fichas = [];
   if (idExistente) {
     var idx = D.fichas.findIndex(function(f){return f.id===idExistente;});
-    if (idx>=0) D.fichas[idx] = {id:idExistente, nome:nome, variantes:variantes, itens:itens};
+    if (idx>=0) D.fichas[idx] = {id:idExistente, nome:nome, variantes:variantes, copo:copo, descricao:descricao, itens:itens};
   } else {
-    D.fichas.push({id:_gerarId('FIC'), nome:nome, variantes:variantes, itens:itens, criadoEm:new Date().toISOString()});
+    D.fichas.push({id:_gerarId('FIC'), nome:nome, variantes:variantes, copo:copo, descricao:descricao, itens:itens, criadoEm:new Date().toISOString()});
   }
   window._customItens = [];
   sv('fichas');

@@ -177,7 +177,14 @@ function propostaSugerirCardapio(orcId) {
   if (!orc) return;
   var nomes = Array.from(new Set((orc.insumos || []).flatMap(function(i) { return i.coqueteis || []; })));
   if (!nomes.length) { alert2('Nenhum coquetel aplicado ainda na aba Cardápio.', 'error'); return; }
-  orc.cardapioTexto = nomes.map(function(n) { return n + '\n[ingredientes] · [copo]'; }).join('\n\n');
+  // Puxa descrição/copo da Ficha do coquetel (Regras → Fichas de Coquetéis)
+  // quando ela já cadastrou lá — senão deixa o placeholder pra preencher na mão.
+  orc.cardapioTexto = nomes.map(function(n) {
+    var ficha = (D.fichas || []).find(function(f) { return f.nome === n; });
+    var desc = (ficha && ficha.descricao) ? ficha.descricao : '[ingredientes]';
+    var copo = (ficha && ficha.copo) ? ficha.copo : '[copo]';
+    return n + '\n' + desc + ' · ' + copo;
+  }).join('\n\n');
   sv('orcamentos');
   rOrcProposta(orc);
 }
