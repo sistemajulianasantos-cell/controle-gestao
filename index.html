@@ -1211,10 +1211,22 @@
 
       <!-- ─── VIEW: Lista de contratos ─────────────────────────────────── -->
       <div id="cview-lista" style="display:none">
-        <div class="card" style="max-width:260px;margin-bottom:14px">
-          <div class="card-label">Total fechado</div>
-          <div class="card-value" id="ct-total-valor">R$ 0,00</div>
-          <div class="card-sub" id="ct-total-sub"></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:14px">
+          <div class="card green">
+            <div class="card-label">Total fechado</div>
+            <div class="card-value" id="ct-total-valor">R$ 0,00</div>
+            <div class="card-sub" id="ct-total-sub"></div>
+          </div>
+          <div class="card blue">
+            <div class="card-label">Total de contratos</div>
+            <div class="card-value" id="ct-total-contratos">0</div>
+            <div class="card-sub" id="ct-total-contratos-sub"></div>
+          </div>
+          <div class="card purple">
+            <div class="card-label">Total de clientes</div>
+            <div class="card-value" id="ct-total-clientes">0</div>
+            <div class="card-sub">clientes distintos no filtro</div>
+          </div>
         </div>
         <div class="sec">
           <div class="sec-head">
@@ -2325,7 +2337,7 @@
 <script src="js/fornecedores.js?v=20260611d"></script>
 <script src="js/nav.js?v=20260726a"></script>
 <script src="js/auth.js?v=20260610z"></script>
-<script src="js/contratos.js?v=20260804a"></script>
+<script src="js/contratos.js?v=20260804b"></script>
 <script src="js/agenda.js?v=20260610z"></script>
 <script src="js/producao.js?v=20260610z"></script>
 <script src="js/financeiro.js?v=20260804a"></script>

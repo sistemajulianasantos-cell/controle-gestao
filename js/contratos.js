@@ -1110,16 +1110,21 @@ function rContratos() {
     }
     return true;
   });
-  // Card de total — soma o valor dos contratos que passaram no filtro (busca/data),
+  // Cards de resumo — refletem os contratos que passaram no filtro (busca/data),
   // igual ao que já aparece na tabela. Cancelado fica de fora: não é venda fechada.
   const valorEl = document.getElementById('ct-total-valor');
-  const subEl   = document.getElementById('ct-total-sub');
   if (valorEl) {
     const fechados = lista.filter(c => c.status !== 'cancelado');
     const total = fechados.reduce((s, c) => s + (parseFloat((c.opcao||'0').toString().replace(/[^\d,]/g,'').replace(',','.')) || 0), 0);
     valorEl.textContent = 'R$ ' + total.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
     const cancelados = lista.length - fechados.length;
-    subEl.textContent = `${fechados.length} contrato${fechados.length !== 1 ? 's' : ''}` + (cancelados ? ` · ${cancelados} cancelado${cancelados !== 1 ? 's' : ''} fora da conta` : '');
+    document.getElementById('ct-total-sub').textContent = cancelados ? (cancelados + ' cancelado' + (cancelados !== 1 ? 's' : '') + ' fora da conta') : 'nenhum cancelado no filtro';
+
+    document.getElementById('ct-total-contratos').textContent = fechados.length.toLocaleString('pt-BR');
+    document.getElementById('ct-total-contratos-sub').textContent = cancelados ? ('+ ' + cancelados + ' cancelado' + (cancelados !== 1 ? 's' : '')) : 'todos ativos/concluídos';
+
+    const clientesUnicos = new Set(fechados.map(c => (c.nome || '').toLowerCase().trim()).filter(Boolean));
+    document.getElementById('ct-total-clientes').textContent = clientesUnicos.size.toLocaleString('pt-BR');
   }
 
   const tbody = document.getElementById('contratos-body');
