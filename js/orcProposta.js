@@ -73,35 +73,24 @@ function rOrcProposta(orc) {
   }).join('');
 
   var tpl = D.propostaTemplateDocx;
+  var numeroEfetivo = _propostaNumeroEfetivo(orc);
+  var cardapioAtual = _propostaCardapioTexto(orc);
   el.innerHTML =
-    '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;max-width:700px;margin-bottom:14px">' +
-      '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">📁 Modelo da proposta (.docx)</div>' +
-      (tpl
-        ? '<div style="font-size:12px;color:var(--green);margin-bottom:10px">✓ Modelo importado: <strong>' + _propostaEsc(tpl.nome || 'modelo.docx') + '</strong>' +
-            (tpl.importadoEm ? ' · ' + new Date(tpl.importadoEm).toLocaleDateString('pt-BR') : '') + '</div>'
-        : '<div style="font-size:12px;color:var(--text3);margin-bottom:10px">Nenhum modelo importado ainda — sem ele, o PDF sai numa versão simplificada (aproximada por CSS).</div>') +
-      '<input type="file" accept=".docx" onchange="propostaImportarModelo(this)" style="font-size:12px">' +
-      '<div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.5">Envie o .docx do Word já com as marcações ({NOME_CLIENTE}, {TELEFONE}, {DATA_EVENTO} etc.) nos lugares certos. Esse modelo vale pra todos os orçamentos — importar de novo substitui o anterior.</div>' +
-    '</div>' +
-
     '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;max-width:700px;margin-bottom:14px">' +
       '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:16px">📄 Dados para a proposta</div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">' +
         '<div><label class="lbl">Número da proposta</label>' +
-          '<input class="inp" type="text" value="' + _propostaEsc(orc.numeroProposta || '') + '" placeholder="Ex: 0142" ' +
-          'onchange="propostaSetCampo(\'' + orc.id + '\',\'numeroProposta\',this.value)"></div>' +
+          '<input class="inp" type="text" value="' + _propostaEsc(numeroEfetivo) + '" placeholder="Ex: 0142" ' +
+          'onchange="propostaSetCampo(\'' + orc.id + '\',\'numeroProposta\',this.value)">' +
+          '<div style="font-size:10px;color:var(--text3);margin-top:2px">Carrega sozinho do Nº da Solicitação de Orçamento vinculada, quando existir.</div></div>' +
         '<div><label class="lbl">Telefone do cliente</label>' +
           '<input class="inp" type="text" value="' + _propostaEsc(orc.telefone || '') + '" placeholder="(31) 99999-9999" ' +
           'onchange="propostaSetCampo(\'' + orc.id + '\',\'telefone\',this.value)"></div>' +
       '</div>' +
       '<div>' +
-        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;flex-wrap:wrap;gap:8px">' +
-          '<label class="lbl" style="margin-bottom:0">Texto do cardápio para a proposta (nome, ingredientes, copo)</label>' +
-          '<button class="btn-sm" style="background:var(--bg3)" onclick="propostaSugerirCardapio(\'' + orc.id + '\')">↺ Sugerir a partir dos coquetéis aplicados</button>' +
-        '</div>' +
-        '<textarea class="inp" rows="8" style="width:100%;font-family:var(--mono);font-size:12px;resize:vertical" ' +
-          'placeholder="Ex:&#10;Moscow Mule&#10;Vodka ou gin, ginger ale artesanal e espuma de gengibre · copo mule" ' +
-          'onchange="propostaSetCampo(\'' + orc.id + '\',\'cardapioTexto\',this.value)">' + _propostaEsc(orc.cardapioTexto || '') + '</textarea>' +
+        '<label class="lbl">Cardápio na proposta</label>' +
+        '<textarea class="inp" rows="8" readonly style="width:100%;font-family:var(--mono);font-size:12px;resize:vertical;opacity:.85;cursor:default">' + _propostaEsc(cardapioAtual) + '</textarea>' +
+        '<div style="font-size:10px;color:var(--text3);margin-top:2px">Segue automaticamente os coquetéis aplicados na aba Cardápio (e a descrição/copo cadastrados na Ficha de cada um).</div>' +
       '</div>' +
     '</div>' +
 
@@ -150,7 +139,7 @@ function propostaImportarModelo(inputEl) {
     };
     sv('propostaTemplateDocx');
     alert2('Modelo importado! Já vale para gerar propostas.');
-    if (orcAtualId) { var orc = (D.orcamentos || []).find(function(o) { return o.id === orcAtualId; }); if (orc) rOrcProposta(orc); }
+    if (typeof rOrcLista === 'function') rOrcLista();
   };
   reader.onerror = function() { alert2('Erro ao ler o arquivo.', 'error'); };
   reader.readAsArrayBuffer(file);
@@ -172,21 +161,34 @@ function propostaToggleCampo(orcId, campoId, checked) {
   sv('orcamentos');
 }
 
-function propostaSugerirCardapio(orcId) {
-  var orc = (D.orcamentos || []).find(function(o) { return o.id === orcId; });
-  if (!orc) return;
+// Cardápio da proposta segue direto os coquetéis aplicados na aba Cardápio do
+// orçamento (orc.insumos[].coqueteis), puxando descrição/copo da Ficha de
+// cada coquetel (Regras → Fichas de Coquetéis) — sempre calculado na hora,
+// nunca um texto salvo que possa ficar desatualizado.
+function _propostaCardapioTexto(orc) {
   var nomes = Array.from(new Set((orc.insumos || []).flatMap(function(i) { return i.coqueteis || []; })));
-  if (!nomes.length) { alert2('Nenhum coquetel aplicado ainda na aba Cardápio.', 'error'); return; }
-  // Puxa descrição/copo da Ficha do coquetel (Regras → Fichas de Coquetéis)
-  // quando ela já cadastrou lá — senão deixa o placeholder pra preencher na mão.
-  orc.cardapioTexto = nomes.map(function(n) {
+  if (!nomes.length) return '';
+  return nomes.map(function(n) {
     var ficha = (D.fichas || []).find(function(f) { return f.nome === n; });
-    var desc = (ficha && ficha.descricao) ? ficha.descricao : '[ingredientes]';
-    var copo = (ficha && ficha.copo) ? ficha.copo : '[copo]';
-    return n + '\n' + desc + ' · ' + copo;
+    var desc = (ficha && ficha.descricao) ? ficha.descricao : '';
+    var copo = (ficha && ficha.copo) ? ficha.copo : '';
+    var linha2 = [desc, copo].filter(Boolean).join(' · ');
+    return n + (linha2 ? '\n' + linha2 : '\n(sem descrição/copo cadastrados na Ficha)');
   }).join('\n\n');
-  sv('orcamentos');
-  rOrcProposta(orc);
+}
+
+// Número da proposta: se não foi digitado manualmente, busca da Solicitação
+// de Orçamento vinculada (mesmo Nº que já aparece lá) e já deixa salvo no
+// orçamento pra não precisar buscar de novo.
+function _propostaNumeroEfetivo(orc) {
+  if (orc.numeroProposta) return orc.numeroProposta;
+  var sol = (D.solicitacoesOrcamento || []).find(function(s) { return s.orcamentoId === orc.id; });
+  if (sol && sol.numero) {
+    orc.numeroProposta = sol.numero;
+    sv('orcamentos');
+    return sol.numero;
+  }
+  return '';
 }
 
 function propostaUsarComoPadrao(orcId) {
@@ -248,14 +250,14 @@ function _propostaGerarDocx(orc) {
     var p = d.p;
 
     docx.setData({
-      NUMERO_PROPOSTA: _propostaValor(orc, 'capa_numero')     ? (orc.numeroProposta || '') : '',
+      NUMERO_PROPOSTA: _propostaValor(orc, 'capa_numero')     ? _propostaNumeroEfetivo(orc) : '',
       NOME_CLIENTE:    orc.nomeCliente || '',
       TELEFONE:        _propostaValor(orc, 'capa_telefone')   ? (orc.telefone || '') : '',
       TIPO_EVENTO:     _propostaValor(orc, 'capa_tipoEvento') ? _propostaTipoLabel(p) : '',
       DATA_EVENTO:     (typeof fd === 'function') ? fd(orc.dataEvento) : (orc.dataEvento || ''),
       LOCAL_EVENTO:    _propostaValor(orc, 'capa_local')      ? _propostaLocalLabel(p) : '',
       CONVIDADOS:      _propostaValor(orc, 'capa_convidados') ? String(orc.convidados || '') : '',
-      CARDAPIO:        orc.cardapioTexto || '',
+      CARDAPIO:        _propostaCardapioTexto(orc),
       EQUIPE:          _propostaEquipeTexto(d),
       VALOR_ESSENCIAL: _propostaValor(orc, 'inv_essencial')   ? fR(d.resumo.valorTotalEssencial) : '',
       VALOR_COMPLETO:  _propostaValor(orc, 'inv_completo')    ? fR(d.resumo.valorTotal) : '',
@@ -298,7 +300,7 @@ function _propostaMontarHtml(orc) {
 
   // ── Página 1: Capa ──────────────────────────────────────────────────────
   var capaLinhas = [];
-  if (_propostaValor(orc, 'capa_numero'))   capaLinhas.push(['Proposta', orc.numeroProposta || '—']);
+  if (_propostaValor(orc, 'capa_numero'))   capaLinhas.push(['Proposta', _propostaNumeroEfetivo(orc) || '—']);
   capaLinhas.push(['Nome', orc.nomeCliente || '—']);
   if (_propostaValor(orc, 'capa_telefone')) capaLinhas.push(['Telefone', orc.telefone || '—']);
   paginas.push(
@@ -339,9 +341,10 @@ function _propostaMontarHtml(orc) {
 
   // ── Página 3: Cardápio ──────────────────────────────────────────────────
   if (_propostaValor(orc, 'pag_cardapio')) {
-    var cardapioHtml = orc.cardapioTexto
-      ? '<div class="prop-cardapio">' + _propostaEsc(orc.cardapioTexto).replace(/\n/g, '<br>') + '</div>'
-      : '<div class="prop-p" style="opacity:.6">(nenhum coquetel definido — preencha o texto do cardápio na aba Proposta)</div>';
+    var cardapioAtualHtml = _propostaCardapioTexto(orc);
+    var cardapioHtml = cardapioAtualHtml
+      ? '<div class="prop-cardapio">' + _propostaEsc(cardapioAtualHtml).replace(/\n/g, '<br>') + '</div>'
+      : '<div class="prop-p" style="opacity:.6">(nenhum coquetel aplicado ainda na aba Cardápio)</div>';
     paginas.push(
       '<div class="prop-page">' +
         '<div class="prop-corner tl">r.</div><div class="prop-corner tr">r.</div>' +

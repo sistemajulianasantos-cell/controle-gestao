@@ -21,11 +21,23 @@ function rOrcLista() {
     (b.dataEvento||b.criadoEm||'').localeCompare(a.dataEvento||a.criadoEm||'')
   );
 
+  const tpl = D.propostaTemplateDocx;
   el.innerHTML = `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
       <span style="font-size:16px;font-weight:600;color:var(--text)">Orçamentos de Eventos</span>
       <button class="btn btn-primary btn-sm" onclick="document.getElementById('m-novo-orc').style.display='flex'"
         style="margin-left:auto">+ Novo orçamento</button>
+    </div>
+
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <span style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">📁 Modelo da proposta (.docx)</span>
+      ${tpl
+        ? `<span style="font-size:12px;color:var(--green)">✓ ${tpl.nome || 'modelo.docx'}${tpl.importadoEm ? ' · ' + new Date(tpl.importadoEm).toLocaleDateString('pt-BR') : ''}</span>`
+        : `<span style="font-size:12px;color:var(--text3)">Nenhum modelo importado — a Proposta sai numa versão simplificada até você importar um.</span>`}
+      <label class="btn-sm" style="background:var(--bg3);cursor:pointer;margin-left:auto">
+        📤 ${tpl ? 'Substituir modelo' : 'Importar modelo'}
+        <input type="file" accept=".docx" onchange="propostaImportarModelo(this)" style="display:none">
+      </label>
     </div>
 
     ${!lista.length ? `
