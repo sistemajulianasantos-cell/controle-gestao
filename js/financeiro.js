@@ -234,7 +234,6 @@ function _finAtualizarKpis() {
   }
 
   // Detalhamento por categoria: Contrato (20%/80%) x Fechamento x Geral
-  const contratoRecs   = fin.filter(f => !f.isFechamento);
   const fechamentoRecs = fin.filter(f => f.isFechamento);
   const linhaCategoria = (nome, recs) => {
     const pg = recs.filter(f => f.status === 'pago').reduce((s, f) => s + (f.valorNum || 0), 0);
@@ -244,11 +243,49 @@ function _finAtualizarKpis() {
     const atValor = at.reduce((s, f) => s + (f.valorNum || 0), 0);
     return { nome, total: pg + pdValor, recebido: pg, pendente: pdValor - atValor, atrasado: atValor };
   };
-  const linhas = [
-    linhaCategoria('Contrato (20% + 80%)', contratoRecs),
-    linhaCategoria('Fechamento', fechamentoRecs),
-    linhaCategoria('Geral', fin),
-  ];
+
+  // "Contrato" agora usa o MESMO total das telas Contratos/Análise (soma de
+  // c.opcao dos contratos não cancelados) em vez de somar as parcelas 20%/80%
+  // lançadas — um contrato de R$10mil não pode aparecer diferente aqui só
+  // porque uma parcela foi digitada errado ou ficou com valor divergente.
+  // Recebido/Pendente/Atrasado continuam vindo das parcelas reais (é dinheiro
+  // de fato movimentado), mas como fatia DESSE total fixo — nunca geram um
+  // total à parte que possa divergir do valor do contrato.
+  const linhaContrato = (() => {
+    // Mesmo índice contratoId → grupo usado em _finTodasDivergenciasValor,
+    // com fallback por nome+data quando o vínculo direto falhar.
+    const gruposContrato = _finAgruparEventos(fin.filter(f => !f.isFechamento));
+    const porContratoId = {};
+    Object.values(gruposContrato).forEach(g => { if (g.contratoId) porContratoId[g.contratoId] = g; });
+    const norm = s => (s || '').toLowerCase().trim();
+
+    let total = 0, recebido = 0, pendente = 0, atrasado = 0;
+    (D.contratos || []).forEach(c => {
+      if (c.status === 'cancelado') return;
+      const valorContrato = parseFloat((c.opcao || '0').toString().replace(/[^\d,]/g, '').replace(',', '.')) || 0;
+      if (!valorContrato) return;
+      total += valorContrato;
+
+      const g = (c.id && porContratoId[c.id])
+        || Object.values(gruposContrato).find(x => norm(x.nome) === norm(c.nomeEvento || c.nome) && x.data === c.data);
+      const parcelas = g ? [g.p20, g.p80].filter(Boolean) : [];
+      const pago = parcelas.filter(p => p.status === 'pago').reduce((s, p) => s + (p.valorNum || 0), 0);
+      recebido += pago;
+      const restante = Math.max(0, Math.round((valorContrato - pago) * 100) / 100);
+      const temAtraso = parcelas.some(p => p.status === 'pendente' && !p.aprovacaoPendente && (() => { const v = _finVencimentoEfetivo(p); return v && v < hoje; })());
+      if (temAtraso) atrasado += restante; else pendente += restante;
+    });
+    return { nome: 'Contrato (20% + 80%)', total, recebido, pendente, atrasado };
+  })();
+  const linhaFechamento = linhaCategoria('Fechamento', fechamentoRecs);
+  const linhaGeral = {
+    nome: 'Geral',
+    total:     linhaContrato.total     + linhaFechamento.total,
+    recebido:  linhaContrato.recebido  + linhaFechamento.recebido,
+    pendente:  linhaContrato.pendente  + linhaFechamento.pendente,
+    atrasado:  linhaContrato.atrasado  + linhaFechamento.atrasado,
+  };
+  const linhas = [linhaContrato, linhaFechamento, linhaGeral];
   const cardsEl = document.getElementById('fin-breakdown-cards');
   if (cardsEl) {
     cardsEl.innerHTML = linhas.map(l => `
