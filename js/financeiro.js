@@ -181,9 +181,13 @@ function _finVencimentoEfetivo(f) {
 }
 
 // ── KPIs globais (cards "Detalhamento por categoria": Contrato/Fechamento/Geral) ──
-function _finAtualizarKpis() {
+// filtroIni/filtroFim (opcionais, formato AAAA-MM-DD) recortam só os cards de
+// Recebido/Pendente/Atrasado pelo mesmo período do filtro da lista abaixo — o
+// alerta de pendências continua sempre global (ver comentário mais abaixo).
+function _finAtualizarKpis(filtroIni, filtroFim) {
   const fin  = D.financeiro || [];
   const hoje = new Date().toISOString().slice(0, 10);
+  const dentroDoFiltro = data => (!filtroIni || (data && data >= filtroIni)) && (!filtroFim || (data && data <= filtroFim));
 
   // Alerta persistente de pendências: parcelas aguardando aprovação (valor
   // abaixo do previsto) + contratos com parcelas 20%/80% divergindo do valor
@@ -234,7 +238,8 @@ function _finAtualizarKpis() {
   }
 
   // Detalhamento por categoria: Contrato (20%/80%) x Fechamento x Geral
-  const fechamentoRecs = fin.filter(f => f.isFechamento);
+  // Recorta pela data do evento (mesmo campo usado no filtro da lista abaixo).
+  const fechamentoRecs = fin.filter(f => f.isFechamento && dentroDoFiltro(f.data));
   const linhaCategoria = (nome, recs) => {
     const pg = recs.filter(f => f.status === 'pago').reduce((s, f) => s + (f.valorNum || 0), 0);
     const pd = recs.filter(f => f.status === 'pendente');
@@ -269,6 +274,7 @@ function _finAtualizarKpis() {
     let total = 0, recebido = 0, pendente = 0, atrasado = 0;
     (D.contratos || []).forEach(c => {
       if (c.status === 'cancelado') return;
+      if (!dentroDoFiltro(c.data)) return;
       const valorContrato = parseFloat((c.opcao || '0').toString().replace(/[^\d,]/g, '').replace(',', '.')) || 0;
       if (!valorContrato) return;
       total += valorContrato;
@@ -779,7 +785,6 @@ function _finAgruparEventos(fin) {
 
 // ── Vista Sintética ───────────────────────────────────────────────────────────
 function rFinanceiroSintetico() {
-  _finAtualizarKpis();
   const fin  = D.financeiro || [];
   const hoje = new Date().toISOString().slice(0, 10);
 
@@ -787,6 +792,7 @@ function rFinanceiroSintetico() {
 
   const filtroI = document.getElementById('fins-data-ini')?.value || '';
   const filtroF = document.getElementById('fins-data-fim')?.value || '';
+  _finAtualizarKpis(filtroI, filtroF);
 
   const grupos = _finAgruparEventos(fin
     .filter(f => !filtroI || (f.data && f.data >= filtroI))
@@ -1361,8 +1367,9 @@ function marcarPendente(id) {
   sv('financeiro'); _finRefresh();
 }
 function _finRefresh() {
-  _finAtualizarKpis();
   const sint = document.getElementById('fin-view-sint');
+  // rFinanceiroSintetico() e rFinanceiro() já chamam _finAtualizarKpis() com
+  // o filtro de data correto da view ativa — não repetir aqui sem filtro.
   if (sint && sint.style.display !== 'none') rFinanceiroSintetico();
   else rFinanceiro();
 }
