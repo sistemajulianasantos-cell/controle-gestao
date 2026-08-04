@@ -55,9 +55,10 @@ function migrarInsumosDeProdutos() {
 
   if (!D.produtos || !D.produtos.length) { if (mudou) sv('insumos'); return; }
   var jaMigrados = new Set(D.insumos.map(function(i){ return i.origemProdutoId; }).filter(Boolean));
+  var excluidos = new Set(D.insumosProdutosExcluidos || []);
   var criados = 0;
   D.produtos.forEach(function(p) {
-    if (jaMigrados.has(p.id)) return;
+    if (jaMigrados.has(p.id) || excluidos.has(p.id)) return;
     var pr = (D.precos && D.precos[p.nome]) || {};
     D.insumos.push({
       id: 'INS' + Date.now() + Math.random().toString(36).slice(2, 6),
@@ -362,8 +363,18 @@ function editarInsumo(id) {
 
 function excluirInsumo(id) {
   if (!confirm('Excluir este insumo do cadastro? (O produto original em "Produtos" não é apagado.)')) return;
+  var insumo = buscarInsumoPorId(id);
   D.insumos = (D.insumos || []).filter(function(i) { return i.id !== id; });
   sv('insumos');
+  // Insumo migrado de Produtos: sem isso, migrarInsumosDeProdutos() o recria
+  // sozinho na próxima vez que a tela abrir (o produto original continua lá).
+  if (insumo && insumo.origemProdutoId) {
+    if (!D.insumosProdutosExcluidos) D.insumosProdutosExcluidos = [];
+    if (D.insumosProdutosExcluidos.indexOf(insumo.origemProdutoId) === -1) {
+      D.insumosProdutosExcluidos.push(insumo.origemProdutoId);
+    }
+    sv('insumosProdutosExcluidos');
+  }
   rCadastroInsumos();
 }
 

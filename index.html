@@ -2348,7 +2348,7 @@
 <script src="js/categorias.js?v=20260713b"></script>
 <script src="js/servicos.js?v=20260713b"></script>
 <script src="js/fechamentoMensal.js?v=20260726b"></script>
-<script src="js/insumos.js?v=20260722b"></script>
+<script src="js/insumos.js?v=20260804"></script>
 <script src="js/estoqueSeparacao.js?v=20260722a"></script>
 <script src="js/cargos.js?v=20260713b"></script>
 <script src="js/regras.js?v=20260803b"></script>
@@ -2447,6 +2447,7 @@ window.svFirebase = async function(chave) {
     if(chave==='categoriasDespesas') campo.categoriasDespesas  = D.categoriasDespesas;
     if(chave==='fechamentos')        campo.fechamentos         = D.fechamentos;
     if(chave==='deletedFestaIds')    campo.deletedFestaIds     = D.deletedFestaIds;
+    if(chave==='insumosProdutosExcluidos') campo.insumosProdutosExcluidos = D.insumosProdutosExcluidos;
 
     if (chave === 'financeiro') {
       // Fatiado por ano (financeiro_AAAA) em vez de um documento único com
@@ -2686,6 +2687,7 @@ async function carregarDados() {
     D.categoriasDespesas    = r.categoriasDespesas    || [];
     D.fechamentos           = r.fechamentos           || [];
     D.deletedFestaIds       = r.deletedFestaIds       || [];
+    D.insumosProdutosExcluidos = r.insumosProdutosExcluidos || [];
 
     // Senhas: migra texto puro → SHA-256 e inicializa se vazio
     const _isHashed = k => /^[0-9a-f]{64}$/.test(k);
