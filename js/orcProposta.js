@@ -234,70 +234,28 @@ function _propostaEquipeTexto(d) {
 }
 
 // ─── GERAÇÃO — DOCX (a partir do modelo importado, quando existe) ────────────
+// Cardápio entra como texto (nome + descrição + copo, ver
+// _propostaCardapioTexto) na marcação {CARDAPIO}. A ideia de inserir a foto
+// de cada coquetel direto no .docx foi tentada e revertida — o módulo de
+// imagem do Docxtemplater (docxtemplater-image-module-free) tem um bug de
+// incompatibilidade com o DOM do navegador ("Cannot set property
+// namespaceURI of #<Element> which has only a getter"), sem alternativa
+// gratuita conhecida que funcione fora do Node. A foto continua disponível
+// dentro do sistema, só não entra no arquivo gerado.
 
-// 1x1 PNG transparente — entra no lugar de {%FOTO} quando o coquetel ainda
-// não tem foto cadastrada na Ficha, pra não travar a geração.
-var PROPOSTA_SEM_FOTO_B64 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
-
-// Monta a lista de coquetéis aplicados (nome + descrição + copo + foto) pra
-// alimentar uma marcação de repetição no Word ({#COQUETEIS}...{/COQUETEIS}).
-// Busca a foto de cada um (documento próprio, ver window.buscarFichaFoto).
-async function _propostaCoqueteisData(orc) {
-  var nomes = Array.from(new Set((orc.insumos || []).flatMap(function(i) { return i.coqueteis || []; })));
-  return Promise.all(nomes.map(async function(n) {
-    var ficha = (D.fichas || []).find(function(f) { return f.nome === n; });
-    var foto = null;
-    if (ficha && typeof window.buscarFichaFoto === 'function') {
-      try { foto = await window.buscarFichaFoto(ficha.id); } catch (e) { foto = null; }
-    }
-    return {
-      NOME: n,
-      DESCRICAO: (ficha && ficha.descricao) || '',
-      COPO: (ficha && ficha.copo) || '',
-      FOTO: foto || PROPOSTA_SEM_FOTO_B64,
-    };
-  }));
-}
-
-function _propostaImageModule() {
-  if (!window.ImageModule) return null;
-  try {
-    return new window.ImageModule({
-      centered: false,
-      getImage: function(tagValue) {
-        var base64 = (tagValue || '').split(',')[1] || tagValue || '';
-        var binario = atob(base64);
-        var arr = new Uint8Array(binario.length);
-        for (var i = 0; i < binario.length; i++) arr[i] = binario.charCodeAt(i);
-        return arr.buffer;
-      },
-      getSize: function() { return [90, 90]; },
-    });
-  } catch (e) {
-    console.error('Módulo de imagem do Docxtemplater não pôde ser iniciado:', e);
-    return null;
-  }
-}
-
-async function _propostaGerarDocx(orc) {
+function _propostaGerarDocx(orc) {
   if (!window.PizZip || !window.Docxtemplater) {
     alert2('Bibliotecas de geração de Word ainda não carregaram — aguarde e tente novamente.', 'error');
-    return;
+    return Promise.resolve();
   }
   try {
     var tpl = D.propostaTemplateDocx;
     var templateBytes = Uint8Array.from(atob(tpl.base64), function(c) { return c.charCodeAt(0); });
-    var zip = new PizZip(templateBytes);
-
-    var docxOpts = { paragraphLoop: true, linebreaks: true };
-    var imageModule = _propostaImageModule();
-    if (imageModule) docxOpts.modules = [imageModule];
-
-    var docx = new Docxtemplater(zip, docxOpts);
+    var zip  = new PizZip(templateBytes);
+    var docx = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
 
     var d = _propostaDadosComputados(orc);
     var p = d.p;
-    var coqueteis = _propostaValor(orc, 'pag_cardapio') ? await _propostaCoqueteisData(orc) : [];
 
     docx.setData({
       NUMERO_PROPOSTA: _propostaValor(orc, 'capa_numero')     ? _propostaNumeroEfetivo(orc) : '',
@@ -308,7 +266,6 @@ async function _propostaGerarDocx(orc) {
       LOCAL_EVENTO:    _propostaValor(orc, 'capa_local')      ? _propostaLocalLabel(p) : '',
       CONVIDADOS:      _propostaValor(orc, 'capa_convidados') ? String(orc.convidados || '') : '',
       CARDAPIO:        _propostaCardapioTexto(orc),
-      COQUETEIS:       coqueteis,
       EQUIPE:          _propostaEquipeTexto(d),
       VALOR_ESSENCIAL: _propostaValor(orc, 'inv_essencial')   ? fR(d.resumo.valorTotalEssencial) : '',
       VALOR_COMPLETO:  _propostaValor(orc, 'inv_completo')    ? fR(d.resumo.valorTotal) : '',
@@ -326,6 +283,7 @@ async function _propostaGerarDocx(orc) {
   } catch (e) {
     alert2('Erro ao gerar a proposta: ' + e.message + ' — confira se as marcações {TAG} no modelo estão digitadas certinho.', 'error');
   }
+  return Promise.resolve();
 }
 
 // ─── GERAÇÃO — janela de impressão (alternativa enquanto não há modelo .docx) ─
