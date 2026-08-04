@@ -1053,8 +1053,13 @@ function _aplicarAjusteContrato(f, diff) {
   const mesmoContrato = o =>
     (f.contratoId && o.contratoId && o.contratoId === f.contratoId) ||
     (norm(o.contrato || o.evento) === norm(f.contrato || f.evento) && (o.data || '') === (f.data || ''));
+  // isFechamento fica de fora: o valor dela vem de D.fechamentos.totalExtras
+  // (acerto pós-evento, com sua própria conferência de itens), não é uma
+  // parcela de contrato — deixar a cascata mexer nela reduzia o valor
+  // pendente do Fechamento sem passar pelo alerta de divergência (que só
+  // dispara quando o Fechamento já está pago, não quando é reduzido ainda pendente).
   const pendentes = (D.financeiro || [])
-    .filter(o => o.id !== f.id && o.status === 'pendente' && !o.aprovacaoPendente && mesmoContrato(o))
+    .filter(o => o.id !== f.id && o.status === 'pendente' && !o.aprovacaoPendente && !o.isFechamento && mesmoContrato(o))
     .sort((a, b) => (a.vencimento || '').localeCompare(b.vencimento || '') || a.id.localeCompare(b.id));
 
   const ajustes = [];
