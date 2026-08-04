@@ -100,7 +100,7 @@ function rOrcProposta(orc) {
       '<button class="btn-sm" style="background:var(--bg3);margin-top:6px" onclick="propostaUsarComoPadrao(\'' + orc.id + '\')">🔧 Usar esta configuração como padrão para novos orçamentos</button>' +
     '</div>' +
 
-    '<button class="btn btn-primary" onclick="gerarPropostaOrc(\'' + orc.id + '\')">' +
+    '<button class="btn btn-primary" id="btn-gerar-proposta" onclick="gerarPropostaOrc(\'' + orc.id + '\')">' +
       (tpl ? '📄 Gerar Proposta (.docx)' : '📄 Gerar PDF da Proposta (versão simplificada)') + '</button>';
 }
 
@@ -235,7 +235,51 @@ function _propostaEquipeTexto(d) {
 
 // ─── GERAÇÃO — DOCX (a partir do modelo importado, quando existe) ────────────
 
-function _propostaGerarDocx(orc) {
+// 1x1 PNG transparente — entra no lugar de {%FOTO} quando o coquetel ainda
+// não tem foto cadastrada na Ficha, pra não travar a geração.
+var PROPOSTA_SEM_FOTO_B64 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+
+// Monta a lista de coquetéis aplicados (nome + descrição + copo + foto) pra
+// alimentar uma marcação de repetição no Word ({#COQUETEIS}...{/COQUETEIS}).
+// Busca a foto de cada um (documento próprio, ver window.buscarFichaFoto).
+async function _propostaCoqueteisData(orc) {
+  var nomes = Array.from(new Set((orc.insumos || []).flatMap(function(i) { return i.coqueteis || []; })));
+  return Promise.all(nomes.map(async function(n) {
+    var ficha = (D.fichas || []).find(function(f) { return f.nome === n; });
+    var foto = null;
+    if (ficha && typeof window.buscarFichaFoto === 'function') {
+      try { foto = await window.buscarFichaFoto(ficha.id); } catch (e) { foto = null; }
+    }
+    return {
+      NOME: n,
+      DESCRICAO: (ficha && ficha.descricao) || '',
+      COPO: (ficha && ficha.copo) || '',
+      FOTO: foto || PROPOSTA_SEM_FOTO_B64,
+    };
+  }));
+}
+
+function _propostaImageModule() {
+  if (!window.ImageModule) return null;
+  try {
+    return new window.ImageModule({
+      centered: false,
+      getImage: function(tagValue) {
+        var base64 = (tagValue || '').split(',')[1] || tagValue || '';
+        var binario = atob(base64);
+        var arr = new Uint8Array(binario.length);
+        for (var i = 0; i < binario.length; i++) arr[i] = binario.charCodeAt(i);
+        return arr.buffer;
+      },
+      getSize: function() { return [90, 90]; },
+    });
+  } catch (e) {
+    console.error('Módulo de imagem do Docxtemplater não pôde ser iniciado:', e);
+    return null;
+  }
+}
+
+async function _propostaGerarDocx(orc) {
   if (!window.PizZip || !window.Docxtemplater) {
     alert2('Bibliotecas de geração de Word ainda não carregaram — aguarde e tente novamente.', 'error');
     return;
@@ -243,11 +287,17 @@ function _propostaGerarDocx(orc) {
   try {
     var tpl = D.propostaTemplateDocx;
     var templateBytes = Uint8Array.from(atob(tpl.base64), function(c) { return c.charCodeAt(0); });
-    var zip  = new PizZip(templateBytes);
-    var docx = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
+    var zip = new PizZip(templateBytes);
+
+    var docxOpts = { paragraphLoop: true, linebreaks: true };
+    var imageModule = _propostaImageModule();
+    if (imageModule) docxOpts.modules = [imageModule];
+
+    var docx = new Docxtemplater(zip, docxOpts);
 
     var d = _propostaDadosComputados(orc);
     var p = d.p;
+    var coqueteis = _propostaValor(orc, 'pag_cardapio') ? await _propostaCoqueteisData(orc) : [];
 
     docx.setData({
       NUMERO_PROPOSTA: _propostaValor(orc, 'capa_numero')     ? _propostaNumeroEfetivo(orc) : '',
@@ -258,6 +308,7 @@ function _propostaGerarDocx(orc) {
       LOCAL_EVENTO:    _propostaValor(orc, 'capa_local')      ? _propostaLocalLabel(p) : '',
       CONVIDADOS:      _propostaValor(orc, 'capa_convidados') ? String(orc.convidados || '') : '',
       CARDAPIO:        _propostaCardapioTexto(orc),
+      COQUETEIS:       coqueteis,
       EQUIPE:          _propostaEquipeTexto(d),
       VALOR_ESSENCIAL: _propostaValor(orc, 'inv_essencial')   ? fR(d.resumo.valorTotalEssencial) : '',
       VALOR_COMPLETO:  _propostaValor(orc, 'inv_completo')    ? fR(d.resumo.valorTotal) : '',
@@ -282,7 +333,13 @@ function _propostaGerarDocx(orc) {
 function gerarPropostaOrc(orcId) {
   var orc = (D.orcamentos || []).find(function(o) { return o.id === orcId; });
   if (!orc) return;
-  if (D.propostaTemplateDocx && D.propostaTemplateDocx.base64) { _propostaGerarDocx(orc); return; }
+
+  if (D.propostaTemplateDocx && D.propostaTemplateDocx.base64) {
+    var btn = document.getElementById('btn-gerar-proposta');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Gerando…'; }
+    _propostaGerarDocx(orc).then(function() { rOrcProposta(orc); });
+    return;
+  }
 
   var w = window.open('', '_blank');
   if (!w) { alert2('O navegador bloqueou a janela. Permita pop-ups para gerar a proposta.', 'error'); return; }

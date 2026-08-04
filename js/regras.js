@@ -501,6 +501,13 @@ function rFormFicha(fichaExistente) {
         '<div style="font-size:10px;color:var(--text3);margin-top:2px">Nomes alternativos separados por vírgula</div></div>' +
       '<div><label class="lbl">Copo</label>' +
         '<input class="inp" id="fc-copo" type="text" placeholder="Ex: Copo baixo, Taça, Copo mule..." value="' + (f.copo||'') + '"></div>' +
+      '<div><label class="lbl">Foto do copo (pra Proposta em Word)</label>' +
+        '<div style="display:flex;align-items:center;gap:10px">' +
+          '<img id="fc-foto-preview" src="" style="display:none;width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--border2)">' +
+          '<label class="btn-sm" style="background:var(--bg3);cursor:pointer">📷 Escolher foto' +
+            '<input type="file" accept="image/*" onchange="fichaSelecionarFoto(this)" style="display:none"></label>' +
+          '<button type="button" class="btn-sm" style="background:var(--bg3)" onclick="fichaRemoverFoto()">✕ Remover</button>' +
+        '</div></div>' +
       '<div style="grid-column:1/-1"><label class="lbl">Descrição (pra proposta / cardápio ao cliente)</label>' +
         '<textarea class="inp" id="fc-descricao" rows="2" style="width:100%;resize:vertical" placeholder="Ex: Vodka ou gin, ginger ale artesanal e espuma de gengibre">' + (f.descricao||'') + '</textarea></div>' +
     '</div>' +
@@ -560,9 +567,47 @@ function rFormFicha(fichaExistente) {
   // comparava contra o ITENS_FOLHA estático (desatualizado em relação aos
   // nomes reais do Cadastro de Insumos), em vez do todosItensNovos já
   // calculado acima a partir de getItensFicha().
+
+  // Foto fica em documento próprio (js/../fichaFotos), não em D.fichas — busca
+  // assíncrona à parte. null = "sem alteração" (mantém a que já existe ao
+  // salvar); '' = removida na tela; string base64 = nova foto selecionada.
+  window._fichaFotoAtual = null;
+  if (fichaExistente && typeof window.buscarFichaFoto === 'function') {
+    window.buscarFichaFoto(fichaExistente.id).then(function(b64){
+      var prev = document.getElementById('fc-foto-preview');
+      if (b64 && prev) { prev.src = b64; prev.style.display = 'inline-block'; }
+    });
+  }
 }
 
 if (!window._customItens) window._customItens = [];
+
+function fichaSelecionarFoto(inputEl) {
+  var file = inputEl.files && inputEl.files[0];
+  if (!file) return;
+  var leitor = new FileReader();
+  leitor.onload = function(e) {
+    var img = new Image();
+    img.onload = function() {
+      var sc = Math.min(300/img.width, 300/img.height, 1);
+      var cv = document.createElement('canvas');
+      cv.width = Math.round(img.width*sc); cv.height = Math.round(img.height*sc);
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      window._fichaFotoAtual = cv.toDataURL('image/jpeg', 0.8);
+      var prev = document.getElementById('fc-foto-preview');
+      if (prev) { prev.src = window._fichaFotoAtual; prev.style.display = 'inline-block'; }
+    };
+    img.src = e.target.result;
+  };
+  leitor.readAsDataURL(file);
+  inputEl.value = '';
+}
+
+function fichaRemoverFoto() {
+  window._fichaFotoAtual = '';
+  var prev = document.getElementById('fc-foto-preview');
+  if (prev) { prev.src = ''; prev.style.display = 'none'; }
+}
 
 function adicionarItemCustom() {
   var cat = document.getElementById('fc-custom-cat')?.value;
@@ -608,14 +653,25 @@ function salvarFicha(idExistente) {
   });
   (window._customItens||[]).forEach(function(i){ addItem(i.cat, i.nome); });
   if (!D.fichas) D.fichas = [];
+  var idFicha = idExistente || _gerarId('FIC');
   if (idExistente) {
     var idx = D.fichas.findIndex(function(f){return f.id===idExistente;});
     if (idx>=0) D.fichas[idx] = {id:idExistente, nome:nome, variantes:variantes, copo:copo, descricao:descricao, itens:itens};
   } else {
-    D.fichas.push({id:_gerarId('FIC'), nome:nome, variantes:variantes, copo:copo, descricao:descricao, itens:itens, criadoEm:new Date().toISOString()});
+    D.fichas.push({id:idFicha, nome:nome, variantes:variantes, copo:copo, descricao:descricao, itens:itens, criadoEm:new Date().toISOString()});
   }
   window._customItens = [];
   sv('fichas');
+
+  // Foto fica em documento próprio (ver window.salvarFichaFoto/index.html) —
+  // só grava/apaga se ela de fato mexeu na foto nesta tela.
+  if (window._fichaFotoAtual && typeof window.salvarFichaFoto === 'function') {
+    window.salvarFichaFoto(idFicha, window._fichaFotoAtual);
+  } else if (window._fichaFotoAtual === '' && typeof window.excluirFichaFoto === 'function') {
+    window.excluirFichaFoto(idFicha);
+  }
+  window._fichaFotoAtual = null;
+
   alert('Ficha salva!');
   setRegrasView('fichas');
 }

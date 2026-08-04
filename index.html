@@ -2298,6 +2298,18 @@
   // no aviso de "bibliotecas ainda não carregaram".
   window.Docxtemplater = window.Docxtemplater || window.docxtemplater;
 </script>
+<!-- Módulo de imagem do Docxtemplater (foto do copo por coquetel na Proposta) -->
+<script>
+  // Esse pacote foi empacotado esperando rodar dentro de um bundler
+  // (require("docxtemplater") como dependência externa) — como aqui é script
+  // solto no navegador, criamos um require() mínimo só pra essa resolução
+  // funcionar. Precisa vir depois do shim do Docxtemplater acima.
+  window.require = window.require || function(nome) {
+    if (nome === 'docxtemplater') return window.Docxtemplater;
+    throw new Error('Módulo "' + nome + '" não disponível neste ambiente.');
+  };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/docxtemplater-image-module-free@1.1.1/build/imagemodule.js"></script>
 <!-- Chart.js para os gráficos da aba Produtos (Fechamento Mensal) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <!-- SheetJS para ler arquivos Excel (.xlsx/.xls/.csv) na importação de Solicitação de Orçamento -->
@@ -2334,13 +2346,13 @@
 <script src="js/insumos.js?v=20260722b"></script>
 <script src="js/estoqueSeparacao.js?v=20260722a"></script>
 <script src="js/cargos.js?v=20260713b"></script>
-<script src="js/regras.js?v=20260803a"></script>
+<script src="js/regras.js?v=20260803b"></script>
 <script src="js/separacao.js?v=20260610z"></script>
 <script src="js/equipe.js?v=20260722c"></script>
 <script src="js/solicitacaoOrcamento.js?v=20260803f"></script>
 <script src="js/orcamento.js?v=20260803b"></script>
 <script src="js/orcCalc.js?v=20260803a"></script>
-<script src="js/orcProposta.js?v=20260803e"></script>
+<script src="js/orcProposta.js?v=20260803f"></script>
 <script src="js/_refConsumoData.js?v=20260610z"></script>
 <script src="js/refConsumo.js?v=20260610z"></script>
 <script src="js/seguranca-admin.js?v=20260610z"></script>
@@ -2537,6 +2549,36 @@ window.buscarComprovante = async function(parcelaId) {
 window.excluirComprovante = async function(parcelaId) {
   try { await deleteDoc(doc(db, "comprovantes", parcelaId)); }
   catch(e) { console.error('Erro ao excluir comprovante:', e); }
+};
+
+// ─── FOTO DO COPO (Ficha de Coquetel) ──────────────────────────────────────
+// Mesmo padrão dos comprovantes: 1 documento próprio por foto (nunca embutida
+// no array D.fichas), pra não estourar o limite de 1MB desse documento
+// conforme mais coquetéis forem cadastrados.
+window.salvarFichaFoto = async function(fichaId, base64) {
+  try {
+    await setDoc(doc(db, "fichaFotos", fichaId), { base64 });
+    return true;
+  } catch(e) {
+    console.error('Erro ao salvar foto da ficha:', e);
+    if (typeof window.alert2 === 'function') window.alert2('❌ Erro ao salvar foto do coquetel: ' + e.message, 'error');
+    return false;
+  }
+};
+
+window.buscarFichaFoto = async function(fichaId) {
+  try {
+    const snap = await getDoc(doc(db, "fichaFotos", fichaId));
+    return snap.exists() ? snap.data().base64 : null;
+  } catch(e) {
+    console.error('Erro ao buscar foto da ficha:', e);
+    return null;
+  }
+};
+
+window.excluirFichaFoto = async function(fichaId) {
+  try { await deleteDoc(doc(db, "fichaFotos", fichaId)); }
+  catch(e) { console.error('Erro ao excluir foto da ficha:', e); }
 };
 
 // ─── BACKUP/RESTAURAÇÃO DO FINANCEIRO ──────────────────────────────────────
