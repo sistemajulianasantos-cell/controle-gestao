@@ -252,12 +252,19 @@ function _finAtualizarKpis() {
   // de fato movimentado), mas como fatia DESSE total fixo — nunca geram um
   // total à parte que possa divergir do valor do contrato.
   const linhaContrato = (() => {
-    // Mesmo índice contratoId → grupo usado em _finTodasDivergenciasValor,
-    // com fallback por nome+data quando o vínculo direto falhar.
-    const gruposContrato = _finAgruparEventos(fin.filter(f => !f.isFechamento));
-    const porContratoId = {};
-    Object.values(gruposContrato).forEach(g => { if (g.contratoId) porContratoId[g.contratoId] = g; });
+    // Índice por TODOS os lançamentos de contrato de cada evento (não só
+    // p20/p80) — _finAgruparEventos guarda só os 2 primeiros em cada grupo,
+    // então um 3º lançamento (parcela extra, ajuste manual) ficaria de fora
+    // da soma se reaproveitássemos aquele agrupamento aqui.
     const norm = s => (s || '').toLowerCase().trim();
+    const contratoRecs = fin.filter(f => !f.isFechamento);
+    const porContratoId = {};
+    const porNomeData   = {};
+    contratoRecs.forEach(f => {
+      if (f.contratoId) (porContratoId[f.contratoId] = porContratoId[f.contratoId] || []).push(f);
+      const chave = norm(f.contrato || f.evento) + '|' + (f.data || '');
+      (porNomeData[chave] = porNomeData[chave] || []).push(f);
+    });
 
     let total = 0, recebido = 0, pendente = 0, atrasado = 0;
     (D.contratos || []).forEach(c => {
@@ -266,13 +273,12 @@ function _finAtualizarKpis() {
       if (!valorContrato) return;
       total += valorContrato;
 
-      const g = (c.id && porContratoId[c.id])
-        || Object.values(gruposContrato).find(x => norm(x.nome) === norm(c.nomeEvento || c.nome) && x.data === c.data);
-      const parcelas = g ? [g.p20, g.p80].filter(Boolean) : [];
-      const pago = parcelas.filter(p => p.status === 'pago').reduce((s, p) => s + (p.valorNum || 0), 0);
+      const chave = norm(c.nomeEvento || c.nome) + '|' + (c.data || '');
+      const registros = (c.id && porContratoId[c.id]) || porNomeData[chave] || [];
+      const pago = registros.filter(f => f.status === 'pago').reduce((s, f) => s + (f.valorNum || 0), 0);
       recebido += pago;
       const restante = Math.max(0, Math.round((valorContrato - pago) * 100) / 100);
-      const temAtraso = parcelas.some(p => p.status === 'pendente' && !p.aprovacaoPendente && (() => { const v = _finVencimentoEfetivo(p); return v && v < hoje; })());
+      const temAtraso = registros.some(f => f.status === 'pendente' && !f.aprovacaoPendente && (() => { const v = _finVencimentoEfetivo(f); return v && v < hoje; })());
       if (temAtraso) atrasado += restante; else pendente += restante;
     });
     return { nome: 'Contrato (20% + 80%)', total, recebido, pendente, atrasado };
