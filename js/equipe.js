@@ -540,9 +540,11 @@ function _calcPagamento(cargoKey, nivel, regiao, horasContr, horasNH, convidados
   const paxUnits      = cargoKey === 'hb'
     ? Math.max(1, (convidados||0) / 100)
     : Math.floor((convidados||0) / 100);
-  const valorCerimonia = temCerimonia ? (rg.bonusCerimonia||0) : 0;
-  const valorBonus = ((rg.bonusConvidados||{})[cargoKey]||0) * paxUnits + valorCerimonia;
-  return { valorBase, horasExtra, horasExtraAnt, horasExtraNH, valorHE, valorHE_ant, valorHE_nh, valorBonus, valorCerimonia, total: valorBase+valorHE+valorBonus };
+  // ?? (não ||) pra distinguir "nunca configurado" (usa o padrão R$45) de
+  // "ela zerou de propósito" em Equipe → Regras (rg.bonusCerimonia = 0).
+  const valorCerimonia = temCerimonia ? (rg.bonusCerimonia ?? 45) : 0;
+  const valorBonus = ((rg.bonusConvidados||{})[cargoKey]||0) * paxUnits;
+  return { valorBase, horasExtra, horasExtraAnt, horasExtraNH, valorHE, valorHE_ant, valorHE_nh, valorBonus, valorCerimonia, total: valorBase+valorHE+valorBonus+valorCerimonia };
 }
 
 function toggleHoraExtraEvento() {
@@ -650,7 +652,7 @@ function calcularFolhaPagamento() {
 
   let totalGeral = linhas.reduce((s,l)=>s+l.total,0);
   const fmt = v => v !== undefined && v !== null ? `R$ ${Number(v).toFixed(2).replace('.',',')}` : '—';
-  const cspan = temHE ? 9 : 8;
+  const cspan = temHE ? 10 : 9;
 
   const pagExist = (D.pagamentosEquipe||[]).filter(p => p.contratoId === ev?.id);
   const jaAutorizado = pagExist.length > 0;
@@ -667,6 +669,7 @@ function calcularFolhaPagamento() {
             <th style="padding:7px 10px;text-align:right">Valor base</th>
             ${temHE?`<th style="padding:7px 10px;text-align:right">H. extra${horasNH>0?` (+${horasNH}h NH)`:''}</th>`:''}
             <th style="padding:7px 10px;text-align:right">Bônus</th>
+            <th style="padding:7px 10px;text-align:right">Cerimônia</th>
             <th style="padding:7px 10px;text-align:right;color:var(--green)">Valor Extra</th>
             <th style="padding:7px 10px;text-align:right;color:var(--red)">Desconto</th>
             <th style="padding:7px 10px;text-align:right;color:var(--green)">Total</th>
@@ -682,6 +685,7 @@ function calcularFolhaPagamento() {
             <td style="padding:7px 10px;text-align:right">${fmt(l.valorBase)}</td>
             ${temHE?`<td style="padding:7px 10px;text-align:right;color:var(--amber)">${fmt(l.valorHE)}</td>`:''}
             <td style="padding:7px 10px;text-align:right;color:var(--text3)">${l.valorBonus>0?fmt(l.valorBonus):'—'}</td>
+            <td style="padding:7px 10px;text-align:right;color:var(--text3)">${l.valorCerimonia>0?fmt(l.valorCerimonia):'—'}</td>
             <td style="padding:4px 10px;text-align:right">
               <input type="number" value="${l.extra||''}" step="0.01" min="0" placeholder="0,00"
                 style="width:75px;text-align:right;padding:3px 5px;background:var(--bg3);border:1px solid ${l.extra?'var(--green)':'var(--border2)'};border-radius:var(--radius);color:var(--green);font-size:12px"
@@ -758,6 +762,7 @@ function imprimirFolhaEvento() {
       <td style="text-align:right">${fmtR(l.valorBase)}</td>
       <td style="text-align:right">${l.valorHE>0?'<span style="color:#b45309">'+fmtR(l.valorHE)+(l.horasExtra?' <span style="font-size:9px;color:#999">(+'+l.horasExtra+'h)</span>':'')+'</span>':'—'}</td>
       <td style="text-align:right">${l.valorBonus>0?fmtR(l.valorBonus):'—'}</td>
+      <td style="text-align:right">${l.valorCerimonia>0?fmtR(l.valorCerimonia):'—'}</td>
       <td style="text-align:right;color:#166534">${l.extra>0?fmtR(l.extra):'—'}</td>
       <td style="text-align:right;color:#b91c1c">${l.desconto>0?fmtR(l.desconto):'—'}</td>
       <td style="text-align:right;font-weight:700;color:#1a6b1a">${fmtR(l.total)}</td>
@@ -808,6 +813,7 @@ function imprimirFolhaEvento() {
       <th style="text-align:right">Valor base</th>
       <th style="text-align:right">H. extra</th>
       <th style="text-align:right">Bônus</th>
+      <th style="text-align:right">Cerimônia</th>
       <th style="text-align:right;color:#166534">Extra</th>
       <th style="text-align:right;color:#b91c1c">Desconto</th>
       <th style="text-align:right;color:#1a6b1a">Total</th>
@@ -815,7 +821,7 @@ function imprimirFolhaEvento() {
     </tr></thead>
     <tbody>${linhasHtml}</tbody>
     <tfoot><tr>
-      <td colspan="8" style="text-align:right;text-transform:uppercase;font-size:10px;color:#555">Total geral</td>
+      <td colspan="9" style="text-align:right;text-transform:uppercase;font-size:10px;color:#555">Total geral</td>
       <td style="text-align:right;color:#1a6b1a;font-size:13px">${fmtR(totalGeral)}</td>
       <td></td>
     </tr></tfoot>
@@ -1914,6 +1920,7 @@ function autorizarPagamentosEvento() {
       horasContratadas: horasContr,
       horasExtras:      horasNH,
       cerimonia:        temCerimonia,
+      valorCerimonia:   l.valorCerimonia || 0,
       dataAutorizacao:  hoje,
       status:           'pendente',
       dataPagamento:    null,
@@ -2198,16 +2205,17 @@ function imprimirPagamentosEquipe() {
         </div>
         <table>
           <thead><tr>
-            <th style="width:18%">Colaborador</th>
-            <th style="width:11%">Cargo</th>
-            <th style="width:7%">Nível</th>
-            <th style="text-align:right;width:9%">Valor base</th>
-            <th style="text-align:right;width:9%">H. extra</th>
-            <th style="text-align:right;width:7%">Bônus</th>
-            <th style="text-align:right;width:8%;color:#166534">Extra</th>
-            <th style="text-align:right;width:8%;color:#b91c1c">Desconto</th>
-            <th style="text-align:right;color:#1a6b1a;width:9%">Total</th>
-            <th style="width:14%">Chave PIX</th>
+            <th style="width:16%">Colaborador</th>
+            <th style="width:10%">Cargo</th>
+            <th style="width:6%">Nível</th>
+            <th style="text-align:right;width:8%">Valor base</th>
+            <th style="text-align:right;width:8%">H. extra</th>
+            <th style="text-align:right;width:6%">Bônus</th>
+            <th style="text-align:right;width:7%">Cerimônia</th>
+            <th style="text-align:right;width:7%;color:#166534">Extra</th>
+            <th style="text-align:right;width:7%;color:#b91c1c">Desconto</th>
+            <th style="text-align:right;color:#1a6b1a;width:8%">Total</th>
+            <th style="width:17%">Chave PIX</th>
           </tr></thead>
           <tbody>
             ${ev.itens.map(p=>{
@@ -2220,6 +2228,7 @@ function imprimirPagamentosEquipe() {
               <td style="text-align:right;white-space:nowrap">${fmtR(p.valorBase||0)}</td>
               <td style="text-align:right;white-space:nowrap">${(p.valorHE&&p.valorHE>0)?'<span style="color:#b45309">'+fmtR(p.valorHE)+(p.horasExtras?' <span style="font-size:9px;color:#999">(+'+p.horasExtras+'h)</span>':'')+'</span>':'—'}</td>
               <td style="text-align:right;white-space:nowrap">${(p.valorBonus&&p.valorBonus>0)?fmtR(p.valorBonus):'—'}</td>
+              <td style="text-align:right;white-space:nowrap">${(p.valorCerimonia&&p.valorCerimonia>0)?fmtR(p.valorCerimonia):'—'}</td>
               <td style="text-align:right;white-space:nowrap;color:#166534">${(p.extra&&p.extra>0)?fmtR(p.extra):'—'}</td>
               <td style="text-align:right;white-space:nowrap;color:#b91c1c">${(p.desconto&&p.desconto>0)?fmtR(p.desconto):'—'}</td>
               <td style="text-align:right;font-weight:700;color:#1a6b1a;white-space:nowrap">${fmtR(p.total)}</td>
