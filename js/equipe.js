@@ -519,7 +519,7 @@ function _calcHorasEvento(ini, fim) {
   } catch { return null; }
 }
 
-function _calcPagamento(cargoKey, nivel, regiao, horasContr, horasNH, convidados) {
+function _calcPagamento(cargoKey, nivel, regiao, horasContr, horasNH, convidados, temCerimonia) {
   const rg = D.regrasEquipe || {};
   const nk = (nivel||'').toLowerCase().includes('novato') ? 'novato' : 'antigo';
   // Valor base vem do Cadastro de Cargos (js/cargos.js) — não mais de
@@ -540,8 +540,9 @@ function _calcPagamento(cargoKey, nivel, regiao, horasContr, horasNH, convidados
   const paxUnits      = cargoKey === 'hb'
     ? Math.max(1, (convidados||0) / 100)
     : Math.floor((convidados||0) / 100);
-  const valorBonus = ((rg.bonusConvidados||{})[cargoKey]||0) * paxUnits;
-  return { valorBase, horasExtra, horasExtraAnt, horasExtraNH, valorHE, valorHE_ant, valorHE_nh, valorBonus, total: valorBase+valorHE+valorBonus };
+  const valorCerimonia = temCerimonia ? (rg.bonusCerimonia||0) : 0;
+  const valorBonus = ((rg.bonusConvidados||{})[cargoKey]||0) * paxUnits + valorCerimonia;
+  return { valorBase, horasExtra, horasExtraAnt, horasExtraNH, valorHE, valorHE_ant, valorHE_nh, valorBonus, valorCerimonia, total: valorBase+valorHE+valorBonus };
 }
 
 function toggleHoraExtraEvento() {
@@ -557,20 +558,21 @@ function calcularFolhaPagamento() {
   const temHEck    = document.getElementById('eq-fp-tem-he')?.checked || false;
   const horasContr = parseFloat(document.getElementById('eq-fp-horas-base')?.value) || horasBase;
   const horasNH    = temHEck ? (parseFloat(document.getElementById('eq-fp-horas-extra')?.value)||0) : 0;
+  const temCerimonia = document.getElementById('eq-fp-cerimonia')?.checked || false;
   const el      = document.getElementById('eq-folha-resultado');
   if (!el) return;
 
   // Persiste o estado da folha para restaurar ao voltar à tela
   if (escalaEventoAtual?.id) {
     const prev = _folhaState[escalaEventoAtual.id] || {};
-    _folhaState[escalaEventoAtual.id] = { ...prev, regiao, temHE: temHEck, horasExtra: horasNH };
+    _folhaState[escalaEventoAtual.id] = { ...prev, regiao, temHE: temHEck, horasExtra: horasNH, cerimonia: temCerimonia };
     // Salva no contrato (Firebase) com debounce para persistir entre sessões
     clearTimeout(_folhaSaveTimer);
     _folhaSaveTimer = setTimeout(() => {
       const ct = (D.contratos||[]).find(c => c.id === escalaEventoAtual?.id);
       if (!ct) return;
       const sf = _folhaState[escalaEventoAtual.id] || {};
-      ct.folhaConfig = { regiao: sf.regiao||'', temHE: sf.temHE||false, horasExtra: sf.horasExtra||0, ajustes: sf.ajustes||{} };
+      ct.folhaConfig = { regiao: sf.regiao||'', temHE: sf.temHE||false, horasExtra: sf.horasExtra||0, cerimonia: sf.cerimonia||false, ajustes: sf.ajustes||{} };
       sv('contratos');
     }, 800);
   }
@@ -596,7 +598,7 @@ function calcularFolhaPagamento() {
     const cargo    = e.cargo || col.cargo || '';
     const cargoKey = _CARGO_PAG_KEY[cargo];
     if (!cargoKey) return;
-    const pag = _calcPagamento(cargoKey, col.nivel, regiao, horasContr, horasNH, convidados);
+    const pag = _calcPagamento(cargoKey, col.nivel, regiao, horasContr, horasNH, convidados, temCerimonia);
     const ajuste = overrides.ajustes[col.id] || { extra: 0, desconto: 0, motivo: '' };
     const totalFinal = pag.total + (ajuste.extra||0) - (ajuste.desconto||0);
     linhas.push({
@@ -626,7 +628,7 @@ function calcularFolhaPagamento() {
       if (faltando > 0) {
         const cargoKey = _CARGO_PAG_KEY[item.cargo];
         if (cargoKey) {
-          const pag = _calcPagamento(cargoKey, 'Antigo', regiao, horasContr, horasNH, convidados);
+          const pag = _calcPagamento(cargoKey, 'Antigo', regiao, horasContr, horasNH, convidados, temCerimonia);
           for (let i=0; i<faltando; i++) vagasAusentes.push({ cargo: item.cargo, cargoKey, valorCalc: pag.total });
         }
       }
@@ -899,6 +901,7 @@ function rEscalaEvento() {
         regiao:        pRef.regiao       || '',
         temHE:         (pRef.horasExtras || 0) > 0,
         horasExtra:    pRef.horasExtras  || 0,
+        cerimonia:     pRef.cerimonia    || false,
         ajustes:       {},
       };
     } else if (contrato?.folhaConfig?.regiao) {
@@ -908,6 +911,7 @@ function rEscalaEvento() {
         regiao:        fc.regiao        || '',
         temHE:         fc.temHE         || false,
         horasExtra:    fc.horasExtra    || 0,
+        cerimonia:     fc.cerimonia     || false,
         ajustes:       fc.ajustes       || {},
       };
     }
@@ -1159,6 +1163,15 @@ function rEscalaEvento() {
             <input type="number" id="eq-fp-horas-extra" class="inp" style="width:90px" min="0.5" max="12" step="0.5"
               value="${_sf.horasExtra||1}" onchange="calcularFolhaPagamento()">
           </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label class="lbl">Cerimônia?</label>
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;padding:6px 0;font-size:13px;color:var(--text)">
+            <input type="checkbox" id="eq-fp-cerimonia" onchange="calcularFolhaPagamento()"
+              style="width:15px;height:15px;cursor:pointer;accent-color:var(--amber)"
+              ${_sf.cerimonia?'checked':''}>
+            Cerimônia no local (+${fR(D.regrasEquipe?.bonusCerimonia ?? 45)}/colaborador)
+          </label>
         </div>
       </div>
       <div id="eq-folha-resultado" style="padding:0">
@@ -1775,6 +1788,15 @@ function rEquipeRegras() {
         <div style="font-size:11px;color:var(--text3);max-width:360px">
           Horas adicionais acima desse valor serão calculadas como hora extra.
         </div>
+        <div>
+          <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Bônus por colaborador — Cerimônia no local (R$)</label>
+          <input type="number" min="0" step="1" id="rp-bonus-cerimonia"
+            value="${rg.bonusCerimonia ?? 45}"
+            style="width:80px;text-align:center;padding:6px 8px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-size:14px;font-weight:600">
+        </div>
+        <div style="font-size:11px;color:var(--text3);max-width:280px">
+          Somado ao pagamento de cada colaborador escalado quando a caixa "Cerimônia no local" for marcada na Escala do evento.
+        </div>
       </div>
     </div>
 
@@ -1814,6 +1836,7 @@ function salvarRegrasEquipe() {
   if (!D.regrasEquipe) D.regrasEquipe = {};
 
   D.regrasEquipe.horasBase = parseInt(document.getElementById('rp-horas-base')?.value) || 6;
+  D.regrasEquipe.bonusCerimonia = parseFloat(document.getElementById('rp-bonus-cerimonia')?.value) || 0;
   // Valor base por cargo/região/nível não é mais editado aqui — vem do
   // Cadastro de Cargos (js/cargos.js), somente leitura nesta tela.
 
@@ -1861,6 +1884,7 @@ function autorizarPagamentosEvento() {
   const temHEck    = document.getElementById('eq-fp-tem-he')?.checked || false;
   const horasContr = parseFloat(document.getElementById('eq-fp-horas-base')?.value) || _horasBase;
   const horasNH    = temHEck ? (parseFloat(document.getElementById('eq-fp-horas-extra')?.value)||0) : 0;
+  const temCerimonia = document.getElementById('eq-fp-cerimonia')?.checked || false;
   const hoje       = new Date().toISOString().slice(0,10);
 
   if (!D.pagamentosEquipe) D.pagamentosEquipe = [];
@@ -1889,6 +1913,7 @@ function autorizarPagamentosEvento() {
       regiao,
       horasContratadas: horasContr,
       horasExtras:      horasNH,
+      cerimonia:        temCerimonia,
       dataAutorizacao:  hoje,
       status:           'pendente',
       dataPagamento:    null,
