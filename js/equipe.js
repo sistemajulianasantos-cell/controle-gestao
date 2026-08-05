@@ -570,7 +570,7 @@ function calcularFolhaPagamento() {
       const ct = (D.contratos||[]).find(c => c.id === escalaEventoAtual?.id);
       if (!ct) return;
       const sf = _folhaState[escalaEventoAtual.id] || {};
-      ct.folhaConfig = { regiao: sf.regiao||'', temHE: sf.temHE||false, horasExtra: sf.horasExtra||0, totalOverride: sf.totalOverride||{}, motivos: sf.motivos||{} };
+      ct.folhaConfig = { regiao: sf.regiao||'', temHE: sf.temHE||false, horasExtra: sf.horasExtra||0, ajustes: sf.ajustes||{} };
       sv('contratos');
     }, 800);
   }
@@ -587,8 +587,7 @@ function calcularFolhaPagamento() {
   const temHE     = temHEck || horasContr > horasBase;
 
   const overrides = _folhaState[ev.id] || {};
-  if (!overrides.totalOverride) overrides.totalOverride = {};
-  if (!overrides.motivos) overrides.motivos = {};
+  if (!overrides.ajustes) overrides.ajustes = {};
 
   const linhas = [];
   escalas.forEach(e => {
@@ -598,8 +597,13 @@ function calcularFolhaPagamento() {
     const cargoKey = _CARGO_PAG_KEY[cargo];
     if (!cargoKey) return;
     const pag = _calcPagamento(cargoKey, col.nivel, regiao, horasContr, horasNH, convidados);
-    const totalFinal = overrides.totalOverride[col.id] !== undefined ? overrides.totalOverride[col.id] : pag.total;
-    linhas.push({ col, cargo, ...pag, total: totalFinal, totalEditado: overrides.totalOverride[col.id] !== undefined, motivoAjuste: overrides.motivos[col.id] || '' });
+    const ajuste = overrides.ajustes[col.id] || { extra: 0, desconto: 0, motivo: '' };
+    const totalFinal = pag.total + (ajuste.extra||0) - (ajuste.desconto||0);
+    linhas.push({
+      col, cargo, ...pag,
+      extra: ajuste.extra||0, desconto: ajuste.desconto||0,
+      total: totalFinal, totalEditado: !!(ajuste.extra||ajuste.desconto), motivoAjuste: ajuste.motivo||'',
+    });
   });
 
   // Calcular vagas ausentes (slots esperados não preenchidos)
@@ -644,7 +648,7 @@ function calcularFolhaPagamento() {
 
   let totalGeral = linhas.reduce((s,l)=>s+l.total,0);
   const fmt = v => v !== undefined && v !== null ? `R$ ${Number(v).toFixed(2).replace('.',',')}` : '—';
-  const cspan = temHE ? 7 : 6;
+  const cspan = temHE ? 9 : 8;
 
   const pagExist = (D.pagamentosEquipe||[]).filter(p => p.contratoId === ev?.id);
   const jaAutorizado = pagExist.length > 0;
@@ -661,6 +665,8 @@ function calcularFolhaPagamento() {
             <th style="padding:7px 10px;text-align:right">Valor base</th>
             ${temHE?`<th style="padding:7px 10px;text-align:right">H. extra${horasNH>0?` (+${horasNH}h NH)`:''}</th>`:''}
             <th style="padding:7px 10px;text-align:right">Bônus</th>
+            <th style="padding:7px 10px;text-align:right;color:var(--green)">Valor Extra</th>
+            <th style="padding:7px 10px;text-align:right;color:var(--red)">Desconto</th>
             <th style="padding:7px 10px;text-align:right;color:var(--green)">Total</th>
             <th style="padding:7px 10px;text-align:center;min-width:130px">Chave PIX</th>
           </tr>
@@ -675,13 +681,21 @@ function calcularFolhaPagamento() {
             ${temHE?`<td style="padding:7px 10px;text-align:right;color:var(--amber)">${fmt(l.valorHE)}</td>`:''}
             <td style="padding:7px 10px;text-align:right;color:var(--text3)">${l.valorBonus>0?fmt(l.valorBonus):'—'}</td>
             <td style="padding:4px 10px;text-align:right">
+              <input type="number" value="${l.extra||''}" step="0.01" min="0" placeholder="0,00"
+                style="width:75px;text-align:right;padding:3px 5px;background:var(--bg3);border:1px solid ${l.extra?'var(--green)':'var(--border2)'};border-radius:var(--radius);color:var(--green);font-size:12px"
+                onchange="salvarAjusteFolha('${l.col.id}','extra',this.value)"
+                onkeydown="if(event.key==='Enter')this.blur()">
+            </td>
+            <td style="padding:4px 10px;text-align:right">
+              <input type="number" value="${l.desconto||''}" step="0.01" min="0" placeholder="0,00"
+                style="width:75px;text-align:right;padding:3px 5px;background:var(--bg3);border:1px solid ${l.desconto?'var(--red)':'var(--border2)'};border-radius:var(--radius);color:var(--red);font-size:12px"
+                onchange="salvarAjusteFolha('${l.col.id}','desconto',this.value)"
+                onkeydown="if(event.key==='Enter')this.blur()">
+            </td>
+            <td style="padding:7px 10px;text-align:right">
               <div style="display:flex;align-items:center;justify-content:flex-end;gap:4px">
-                ${l.totalEditado?`<button onclick="resetarTotalFolha('${l.col.id}')" title="Restaurar valor original" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:0 2px;line-height:1">↺</button>`:''}
                 ${l.motivoAjuste?`<span title="${l.motivoAjuste.replace(/"/g,'&quot;')}" style="cursor:help;font-size:11px">💬</span>`:''}
-                <input type="number" value="${l.total.toFixed(2)}" step="0.01" min="0"
-                  style="width:80px;text-align:right;padding:3px 5px;background:var(--bg3);border:1px solid ${l.totalEditado?'var(--amber)':'var(--border2)'};border-radius:var(--radius);color:${l.totalEditado?'var(--amber)':'var(--green)'};font-weight:700;font-size:12px"
-                  onchange="salvarTotalFolha('${l.col.id}',this.value)"
-                  onkeydown="if(event.key==='Enter')this.blur()">
+                <span style="font-weight:700;font-size:12px;color:${l.totalEditado?'var(--amber)':'var(--green)'}">${fmt(l.total)}</span>
               </div>
             </td>
             <td style="padding:7px 10px;text-align:center;font-size:10px;color:#4ade80;font-family:monospace">${l.col.chave_pix||'—'}</td>
@@ -804,27 +818,30 @@ function imprimirFolhaEvento() {
   w.document.close();
 }
 
-function salvarTotalFolha(colId, valor) {
+// campo = 'extra' ou 'desconto'. O Total não é editável direto — sempre
+// base + extra - desconto, calculado sozinho em calcularFolhaPagamento().
+function salvarAjusteFolha(colId, campo, valor) {
   const v = parseFloat(valor);
-  if (isNaN(v) || v < 0) { calcularFolhaPagamento(); return; }
-  const motivo = prompt('Motivo do ajuste (desconto ou valor extra) — obrigatório:');
-  if (motivo === null) { calcularFolhaPagamento(); return; }
-  if (!motivo.trim()) { alert2('É necessário informar um motivo para o ajuste.', 'error'); calcularFolhaPagamento(); return; }
+  const num = isNaN(v) || v < 0 ? 0 : v;
   const ev = escalaEventoAtual;
   if (!ev) return;
   if (!_folhaState[ev.id]) _folhaState[ev.id] = {};
-  if (!_folhaState[ev.id].totalOverride) _folhaState[ev.id].totalOverride = {};
-  if (!_folhaState[ev.id].motivos) _folhaState[ev.id].motivos = {};
-  _folhaState[ev.id].totalOverride[colId] = v;
-  _folhaState[ev.id].motivos[colId] = motivo.trim();
-  calcularFolhaPagamento();
-}
+  if (!_folhaState[ev.id].ajustes) _folhaState[ev.id].ajustes = {};
+  const atual = _folhaState[ev.id].ajustes[colId] || { extra: 0, desconto: 0, motivo: '' };
+  const novo = { ...atual, [campo]: num };
 
-function resetarTotalFolha(colId) {
-  const ev = escalaEventoAtual;
-  if (!ev || !_folhaState[ev.id]?.totalOverride) return;
-  delete _folhaState[ev.id].totalOverride[colId];
-  if (_folhaState[ev.id].motivos) delete _folhaState[ev.id].motivos[colId];
+  if (!novo.extra && !novo.desconto) {
+    // zerou os dois campos — remove o ajuste, sem precisar de motivo
+    delete _folhaState[ev.id].ajustes[colId];
+    calcularFolhaPagamento();
+    return;
+  }
+
+  const motivo = prompt('Motivo do ajuste (obrigatório):', atual.motivo || '');
+  if (motivo === null) { calcularFolhaPagamento(); return; }
+  if (!motivo.trim()) { alert2('É necessário informar um motivo para o ajuste.', 'error'); calcularFolhaPagamento(); return; }
+  novo.motivo = motivo.trim();
+  _folhaState[ev.id].ajustes[colId] = novo;
   calcularFolhaPagamento();
 }
 
@@ -834,11 +851,14 @@ function distribuirValorAusente(valor) {
   const ev = escalaEventoAtual;
   if (!ev) return;
   if (!_folhaState[ev.id]) _folhaState[ev.id] = {};
-  if (!_folhaState[ev.id].totalOverride) _folhaState[ev.id].totalOverride = {};
+  if (!_folhaState[ev.id].ajustes) _folhaState[ev.id].ajustes = {};
   _folhaLinhas.forEach(l => {
-    const atual = _folhaState[ev.id].totalOverride[l.col.id] !== undefined
-      ? _folhaState[ev.id].totalOverride[l.col.id] : l.total;
-    _folhaState[ev.id].totalOverride[l.col.id] = Math.round((atual + partes) * 100) / 100;
+    const atual = _folhaState[ev.id].ajustes[l.col.id] || { extra: 0, desconto: 0, motivo: '' };
+    _folhaState[ev.id].ajustes[l.col.id] = {
+      extra: Math.round(((atual.extra||0) + partes) * 100) / 100,
+      desconto: atual.desconto || 0,
+      motivo: atual.motivo || 'Distribuição de vaga ausente',
+    };
   });
   calcularFolhaPagamento();
 }
@@ -866,14 +886,13 @@ function rEscalaEvento() {
     const pagSalvos = (D.pagamentosEquipe||[]).filter(p => p.contratoId === ev.id);
     if (pagSalvos.length) {
       // Prioridade 1: restaura configuração da folha autorizada, mas NÃO bloqueia o recálculo
-      // (totalOverride intencional bloqueava alterações de região/horas)
+      // (ajuste intencional bloqueava alterações de região/horas)
       const pRef = pagSalvos[0];
       _folhaState[ev.id] = {
         regiao:        pRef.regiao       || '',
         temHE:         (pRef.horasExtras || 0) > 0,
         horasExtra:    pRef.horasExtras  || 0,
-        totalOverride: {},
-        motivos:       {},
+        ajustes:       {},
       };
     } else if (contrato?.folhaConfig?.regiao) {
       // Prioridade 2: rascunho salvo antes da autorização
@@ -882,8 +901,7 @@ function rEscalaEvento() {
         regiao:        fc.regiao        || '',
         temHE:         fc.temHE         || false,
         horasExtra:    fc.horasExtra    || 0,
-        totalOverride: fc.totalOverride || {},
-        motivos:       fc.motivos       || {},
+        ajustes:       fc.ajustes       || {},
       };
     }
   }
@@ -1858,6 +1876,8 @@ function autorizarPagamentosEvento() {
       valorHE:          l.valorHE,
       valorBonus:       l.valorBonus,
       total:            l.total,
+      extra:            l.extra || 0,
+      desconto:         l.desconto || 0,
       motivoAjuste:     l.motivoAjuste || '',
       regiao,
       horasContratadas: horasContr,
