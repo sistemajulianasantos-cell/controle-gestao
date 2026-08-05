@@ -150,7 +150,7 @@ function _registrarPagamentoEquipeComoDespesa(p) {
     categoria:        cat,
     descricao:        `${p.nomeColab} – ${p.nomeEvento}`,
     valor:            p.total,
-    obs:              `Pgto equipe${p.cargo?' – '+p.cargo:''}`,
+    obs:              `Pgto equipe${p.cargo?' – '+p.cargo:''}${p.motivoAjuste?' · Ajuste: '+p.motivoAjuste:''}`,
     pagamentoEquipeId: p.id,
     fornecedor:       '',
     forma:            'pix_manual',
