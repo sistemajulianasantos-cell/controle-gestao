@@ -747,14 +747,17 @@ function imprimirFolhaEvento() {
   const fmtD = d => d ? d.split('-').reverse().join('/') : '—';
   const totalGeral = _folhaLinhas.reduce((s,l)=>s+l.total,0);
 
+  const notasRodape = _folhaLinhas.filter(l => l.motivoAjuste).map(l => `${l.col.nome}: ${l.motivoAjuste}`);
   const linhasHtml = _folhaLinhas.map(l => `
     <tr>
-      <td>${l.col.nome}</td>
+      <td>${l.col.nome}${l.motivoAjuste?' <sup>*</sup>':''}</td>
       <td>${l.cargo}</td>
       <td>${l.col.nivel||'—'}</td>
       <td style="text-align:right">${fmtR(l.valorBase)}</td>
       <td style="text-align:right">${l.valorHE>0?'<span style="color:#b45309">'+fmtR(l.valorHE)+(l.horasExtra?' <span style="font-size:9px;color:#999">(+'+l.horasExtra+'h)</span>':'')+'</span>':'—'}</td>
       <td style="text-align:right">${l.valorBonus>0?fmtR(l.valorBonus):'—'}</td>
+      <td style="text-align:right;color:#166534">${l.extra>0?fmtR(l.extra):'—'}</td>
+      <td style="text-align:right;color:#b91c1c">${l.desconto>0?fmtR(l.desconto):'—'}</td>
       <td style="text-align:right;font-weight:700;color:#1a6b1a">${fmtR(l.total)}</td>
       <td style="font-family:monospace;font-size:10px">${l.col.chave_pix||'—'}</td>
     </tr>`).join('');
@@ -776,6 +779,7 @@ function imprimirFolhaEvento() {
     td{padding:5px 8px;border-bottom:1px solid #eee;font-size:11px}
     tr:last-child td{border-bottom:1px solid #ccc}
     tfoot td{background:#f4f4f4;font-weight:700;border-top:2px solid #ccc;padding:6px 8px}
+    .notas{margin-top:14px;font-size:9px;color:#555;border-top:1px solid #ddd;padding-top:6px;line-height:1.6}
     .rodape{margin-top:24px;font-size:9px;color:#999;border-top:1px solid #ddd;padding-top:6px}
     @media print{body{margin:10px}.totais,.ev-head{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
   </style>
@@ -802,16 +806,19 @@ function imprimirFolhaEvento() {
       <th style="text-align:right">Valor base</th>
       <th style="text-align:right">H. extra</th>
       <th style="text-align:right">Bônus</th>
+      <th style="text-align:right;color:#166534">Extra</th>
+      <th style="text-align:right;color:#b91c1c">Desconto</th>
       <th style="text-align:right;color:#1a6b1a">Total</th>
       <th>Chave PIX</th>
     </tr></thead>
     <tbody>${linhasHtml}</tbody>
     <tfoot><tr>
-      <td colspan="6" style="text-align:right;text-transform:uppercase;font-size:10px;color:#555">Total geral</td>
+      <td colspan="8" style="text-align:right;text-transform:uppercase;font-size:10px;color:#555">Total geral</td>
       <td style="text-align:right;color:#1a6b1a;font-size:13px">${fmtR(totalGeral)}</td>
       <td></td>
     </tr></tfoot>
   </table>
+  ${notasRodape.length ? `<div class="notas">${notasRodape.map(n=>`* ${n}`).join('<br>')}</div>` : ''}
   <div class="rodape">Controle e Gestão — Juliana Santos · ${new Date().toLocaleDateString('pt-BR')}</div>
   <script>window.onload=function(){window.print()};<\/script>
   </body></html>`);
@@ -2147,6 +2154,7 @@ function imprimirPagamentosEquipe() {
   const filtroLabel = _pgFiltro === 'pendente' ? 'Pendentes' : _pgFiltro === 'pago' ? 'Pagos' : 'Todos';
 
   let corpo = '';
+  const notasRodape = [];
   Object.entries(porEvento).sort((a,b)=>(b[1].data||'').localeCompare(a[1].data||'')).forEach(([cid, ev]) => {
     const contrato    = (D.contratos||[]).find(c=>c.id===cid);
     const regiaoLabel = REGIOES_PAGAMENTO.find(r=>r.key===ev.regiao)?.label || ev.regiao || '';
@@ -2165,27 +2173,34 @@ function imprimirPagamentosEquipe() {
         </div>
         <table>
           <thead><tr>
-            <th style="width:24%">Colaborador</th>
-            <th style="width:13%">Cargo</th>
-            <th style="width:8%">Nível</th>
-            <th style="text-align:right;width:10%">Valor base</th>
-            <th style="text-align:right;width:10%">H. extra</th>
-            <th style="text-align:right;width:8%">Bônus</th>
-            <th style="text-align:right;color:#1a6b1a;width:10%">Total</th>
-            <th style="width:17%">Chave PIX</th>
+            <th style="width:18%">Colaborador</th>
+            <th style="width:11%">Cargo</th>
+            <th style="width:7%">Nível</th>
+            <th style="text-align:right;width:9%">Valor base</th>
+            <th style="text-align:right;width:9%">H. extra</th>
+            <th style="text-align:right;width:7%">Bônus</th>
+            <th style="text-align:right;width:8%;color:#166534">Extra</th>
+            <th style="text-align:right;width:8%;color:#b91c1c">Desconto</th>
+            <th style="text-align:right;color:#1a6b1a;width:9%">Total</th>
+            <th style="width:14%">Chave PIX</th>
           </tr></thead>
           <tbody>
-            ${ev.itens.map(p=>`
+            ${ev.itens.map(p=>{
+              if (p.motivoAjuste) notasRodape.push(`${p.nomeColab} (${ev.nome}): ${p.motivoAjuste}`);
+              return `
             <tr>
-              <td>${p.nomeColab}</td>
+              <td>${p.nomeColab}${p.motivoAjuste?' <sup>*</sup>':''}</td>
               <td>${p.cargo}</td>
               <td>${p.nivel||'—'}</td>
               <td style="text-align:right;white-space:nowrap">${fmtR(p.valorBase||0)}</td>
               <td style="text-align:right;white-space:nowrap">${(p.valorHE&&p.valorHE>0)?'<span style="color:#b45309">'+fmtR(p.valorHE)+(p.horasExtras?' <span style="font-size:9px;color:#999">(+'+p.horasExtras+'h)</span>':'')+'</span>':'—'}</td>
               <td style="text-align:right;white-space:nowrap">${(p.valorBonus&&p.valorBonus>0)?fmtR(p.valorBonus):'—'}</td>
+              <td style="text-align:right;white-space:nowrap;color:#166534">${(p.extra&&p.extra>0)?fmtR(p.extra):'—'}</td>
+              <td style="text-align:right;white-space:nowrap;color:#b91c1c">${(p.desconto&&p.desconto>0)?fmtR(p.desconto):'—'}</td>
               <td style="text-align:right;font-weight:700;color:#1a6b1a;white-space:nowrap">${fmtR(p.total)}</td>
               <td style="font-family:monospace;font-size:9px;word-break:break-all">${p.chave_pix||'—'}</td>
-            </tr>`).join('')}
+            </tr>`;
+            }).join('')}
           </tbody>
         </table>
       </div>`;
@@ -2210,6 +2225,7 @@ function imprimirPagamentosEquipe() {
     th{background:#f4f4f4;color:#444;padding:4px 6px;text-align:left;font-size:9px;text-transform:uppercase;border:1px solid #ddd;font-weight:600;overflow:hidden}
     td{padding:4px 6px;border:1px solid #eee;font-size:10px;word-break:break-word}
     tr:last-child td{border-bottom:1px solid #ccc}
+    .notas{margin-top:14px;font-size:9px;color:#555;border-top:1px solid #ddd;padding-top:6px;line-height:1.6}
     .rodape{margin-top:24px;font-size:9px;color:#999;border-top:1px solid #ddd;padding-top:6px}
     @media print{
       body{margin:10px}
@@ -2227,6 +2243,7 @@ function imprimirPagamentosEquipe() {
     <div class="tot-item"><div class="lbl">H. Extra + Bônus</div><div class="val extra">${fmtR(totalHE+totalBonus)}</div></div>
   </div>
   ${corpo}
+  ${notasRodape.length ? `<div class="notas">${notasRodape.map(n=>`* ${n}`).join('<br>')}</div>` : ''}
   <div class="rodape">Controle e Gestão — Juliana Santos · ${new Date().toLocaleDateString('pt-BR')}</div>
   <script>window.onload=function(){window.print()};<\/script>
   </body></html>`);
