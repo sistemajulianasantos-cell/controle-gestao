@@ -563,7 +563,7 @@ function rOrcCalc() {
             onchange="calcSetParam('margemLucro', Number(this.value))"
             style="width:100px;font-size:13px;padding:6px 8px;background:var(--bg3);border:1px solid var(--border2);color:var(--green);border-radius:var(--radius);font-family:var(--mono)">
         </div>
-        <button onclick="recalcularAutos()" class="btn btn-primary" style="padding:8px 20px">⚡ Recalcular automáticos</button>
+        <button onclick="atualizarValoresOrcamento('${orc.id}')" class="btn btn-primary" style="padding:8px 20px" title="Recalcula os itens automáticos da Calculadora e o custo/quantidade dos insumos do Cardápio a partir dos cadastros atuais">🔄 Atualizar valores</button>
       </div>
     </div>`;
 

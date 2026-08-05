@@ -830,9 +830,12 @@ function rOrcCardapio(orc) {
 
   const insumosHtml = `
     <div style="background:var(--bg2);border:1px solid var(--border);border-left:3px solid #F97316;border-radius:var(--radius)">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);gap:10px">
         <span style="font-size:12px;font-weight:700;color:#F97316">🍾 Insumos / Bebidas</span>
-        <span style="font-size:13px;font-weight:700;font-family:var(--mono);color:#F97316">${fR(custoInsumos)}</span>
+        <div style="display:flex;align-items:center;gap:10px">
+          ${insumos.length ? `<button onclick="atualizarValoresOrcamento('${orc.id}')" style="background:transparent;border:1px solid #F97316;color:#F97316;border-radius:var(--radius);font-size:10px;padding:4px 8px;cursor:pointer" title="Recalcula custo e quantidade de cada insumo (Cadastro de Insumos/Regras de Proporção) e os itens automáticos da Calculadora">🔄 Atualizar valores</button>` : ''}
+          <span style="font-size:13px;font-weight:700;font-family:var(--mono);color:#F97316">${fR(custoInsumos)}</span>
+        </div>
       </div>
       ${insumos.length ? `
         <div style="display:grid;grid-template-columns:${_insCols};font-size:9px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);padding:5px 10px">
@@ -998,6 +1001,48 @@ function _orcPrecoInsumoComTemporada(nome, temporada) {
     if (revenda) return { valor: Number(revenda), viaRevenda: true };
   }
   return { valor: _orcPrecoInsumo(nome), viaRevenda: false };
+}
+
+// Botão "🔄 Atualizar valores" (aba Calculadora e aba Cardápio) — traz pra
+// dentro deste orçamento específico os valores atuais dos cadastros, sem
+// precisar excluir/re-incluir item por item: recalcula os itens automáticos
+// da Calculadora (recalcularAutos, já existente) e, pra cada insumo já
+// aplicado no Cardápio, re-busca custo/revenda (_orcPrecoInsumoComTemporada)
+// e, quando o nome bate com uma Regra de Proporção cadastrada, recalcula
+// também a quantidade (calcQtdItem). Sobrescreve ajustes manuais feitos
+// nesses valores dentro deste orçamento — por isso pede confirmação antes.
+// Não afeta nenhum outro orçamento.
+function atualizarValoresOrcamento(orcId) {
+  const orc = (D.orcamentos||[]).find(o => o.id === orcId);
+  if (!orc) return;
+  if (!confirm('Isso vai recalcular os valores automáticos da Calculadora e re-buscar custo e quantidade de cada insumo do Cardápio a partir dos cadastros atuais.\n\nQualquer ajuste manual que você já tenha feito nesses valores, dentro deste orçamento, será substituído. Itens manuais da Calculadora e insumos sem Regra de Proporção correspondente não são afetados na quantidade. Continuar?')) return;
+
+  recalcularAutos();
+
+  const p = orc.calcParams || {};
+  const conv = orc.convidados || 0;
+  const temporada = p.temporada || 'baixa';
+  const autoS = _calcAutoStaff(conv);
+  const bartenders  = p.bartender != null ? Number(p.bartender) : (autoS.bt||0);
+  const equipeTotal = bartenders
+    + (p.barback != null ? Number(p.barback) : (autoS.bb||0))
+    + (p.head    != null ? Number(p.head)    : (autoS.hb||0))
+    + (p.coord   != null ? Number(p.coord)   : (autoS.cd||0))
+    + (p.copeiro != null ? Number(p.copeiro) : 0);
+  const regras = getRegrasItens();
+
+  (orc.insumos||[]).forEach(ins => {
+    const preco = _orcPrecoInsumoComTemporada(ins.nome, temporada);
+    ins.custoGarrafa = preco.valor;
+    ins.viaRevenda = preco.viaRevenda;
+    const regra = regras.find(r => (r.item||'').trim().toUpperCase() === (ins.nome||'').trim().toUpperCase());
+    if (regra) ins.qtdGarrafas = calcQtdItem(regra, conv, bartenders, equipeTotal);
+    ins.total = Math.round((ins.qtdGarrafas||0) * (ins.custoGarrafa||0) * 100) / 100;
+  });
+
+  sv('orcamentos');
+  alert2('Valores atualizados!');
+  _rTabContent();
 }
 
 function orcAplicarCardapio(orcId) {
