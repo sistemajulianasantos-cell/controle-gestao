@@ -296,6 +296,11 @@ function recalcularAutos() {
 
   const manuais = (orc.calcItens || []).filter(i => !i.auto);
   orc.calcItens = [...autos, ...manuais];
+
+  // Itens "sempre tem" que não vêm de Ficha de Coquetel (ex: Gelo) — Regra
+  // de Proporção marcada "autoOrcamento" (Regras e Cálculos → Proporções).
+  if (typeof _sincronizarInsumosAutoRegra === 'function') _sincronizarInsumosAutoRegra(orc, pax, qt.bt, eqTotal);
+
   sv('orcamentos');
   rOrcCalc();
 }

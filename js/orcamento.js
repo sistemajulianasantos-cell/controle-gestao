@@ -1054,6 +1054,45 @@ function atualizarValoresOrcamento(orcId) {
   _rTabContent();
 }
 
+// Garante que orc.insumos tem uma entrada pra cada Regra de Proporção
+// marcada "autoOrcamento" (Regras e Cálculos → Proporções) — gera/atualiza
+// quantidade (calcQtdItem) e custo (_orcPrecoInsumoComTemporada) sem
+// precisar de Ficha de Coquetel (categorias como GELO são excluídas de
+// propósito da ficha, ver ITENS_FICHA_COQUETEL em js/regras.js). Chamada
+// por recalcularAutos() (js/orcCalc.js). Cada linha gerada aqui é marcada
+// com `autoRegra:true` — só essas são criadas/atualizadas/removidas
+// automaticamente; insumo manual ou vindo de ficha com o mesmo nome nunca
+// é tocado por esta função.
+function _sincronizarInsumosAutoRegra(orc, conv, bartenders, equipeTotal) {
+  if (!orc.insumos) orc.insumos = [];
+  const temporada = (orc.calcParams && orc.calcParams.temporada) || 'baixa';
+  const regrasAuto = getRegrasItens().filter(r => r.autoOrcamento);
+
+  regrasAuto.forEach(regra => {
+    const qtd = calcQtdItem(regra, conv, bartenders, equipeTotal);
+    let item = orc.insumos.find(i => i.autoRegra && (i.nome||'').toUpperCase() === (regra.item||'').toUpperCase());
+    if (qtd <= 0) {
+      if (item) orc.insumos = orc.insumos.filter(i => i !== item);
+      return;
+    }
+    const preco = _orcPrecoInsumoComTemporada(regra.item, temporada);
+    if (!item) {
+      item = { id: 'ins-auto-' + Date.now() + '-' + Math.random().toString(36).slice(2, 4), nome: regra.item, autoRegra: true };
+      orc.insumos.push(item);
+    }
+    item.cat = regra.cat;
+    item.qtdGarrafas = qtd;
+    item.custoGarrafa = preco.valor;
+    item.viaRevenda = preco.viaRevenda;
+    item.total = Math.round(qtd * preco.valor * 100) / 100;
+  });
+
+  // Remove itens auto de regra que ela desmarcou/excluiu depois — nunca
+  // mexe em item manual ou vindo de ficha (só os marcados autoRegra:true).
+  const nomesAtivos = new Set(regrasAuto.map(r => (r.item||'').toUpperCase()));
+  orc.insumos = orc.insumos.filter(i => !i.autoRegra || nomesAtivos.has((i.nome||'').toUpperCase()));
+}
+
 function orcAplicarCardapio(orcId) {
   const orc = (D.orcamentos||[]).find(o => o.id === orcId);
   if (!orc) return;

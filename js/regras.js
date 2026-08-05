@@ -712,7 +712,7 @@ function rProporcoes() {
 
     itens.forEach(function(r, idx) {
       var ri = regras.indexOf(r);
-      html += '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;display:grid;grid-template-columns:180px 1fr 80px 80px 80px;gap:8px;align-items:center;font-size:11px">' +
+      html += '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;display:grid;grid-template-columns:180px 1fr 80px 80px 80px 90px;gap:8px;align-items:center;font-size:11px">' +
         '<span style="color:var(--text);font-weight:500">' + r.item + '</span>' +
         '<div style="display:flex;align-items:center;gap:6px">' +
           '<select onchange="atualizarRegra(' + ri + ',\'tipo\',this.value)" style="font-size:10px;padding:3px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">' +
@@ -733,6 +733,10 @@ function rProporcoes() {
         '<div style="text-align:center">' +
           '<label style="font-size:9px;color:var(--text3);display:block;margin-bottom:2px">SÓ C/ COQUET.</label>' +
           '<input type="checkbox" ' + (r.soSeCardapio?'checked':'') + ' onchange="atualizarRegra(' + ri + ',\'soSeCardapio\',this.checked)" style="cursor:pointer">' +
+        '</div>' +
+        '<div style="text-align:center" title="Gera automaticamente em todo orçamento, mesmo sem ficha de coquetel — usa o Cadastro de Insumos pra achar o custo">' +
+          '<label style="font-size:9px;color:var(--text3);display:block;margin-bottom:2px">AUTO ORÇAMENTO</label>' +
+          '<input type="checkbox" ' + (r.autoOrcamento?'checked':'') + ' onchange="atualizarRegra(' + ri + ',\'autoOrcamento\',this.checked)" style="cursor:pointer">' +
         '</div>' +
       '</div>';
     });
@@ -812,7 +816,7 @@ function adicionarItemRegra() {
     alert('Esse item já tem uma regra cadastrada.');
     return;
   }
-  D.regrasItens.push({item:item, cat:cat, tipo:'fixo', valor:1, min:1, soSeCardapio:false});
+  D.regrasItens.push({item:item, cat:cat, tipo:'fixo', valor:1, min:1, soSeCardapio:false, autoOrcamento:false});
   rProporcoes();
 }
 
