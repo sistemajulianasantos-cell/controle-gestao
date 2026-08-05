@@ -731,16 +731,25 @@ function salvarDadosEvento(orcId) {
 
 // ─── ABA CARDÁPIO ─────────────────────────────────────────────────────────────
 
-// Ordem das categorias tal como cadastradas nas Fichas de Coquetéis (Regras → Fichas)
-var _ORC_CAT_ORDEM = ['BEBIDAS ALCOÓLICAS','COPOS E TAÇAS','HORTIFRUTI','ESPECIARIAS','MIX ARTESANAL','PRODUÇÃO','XAROPES','MATERIAL (ESPECÍFICO)'];
-
+// Ordem das categorias no Cardápio/Calculadora do orçamento — vem do campo
+// `ordem` do Cadastro de Categorias (Cadastro Central → Categorias,
+// js/categorias.js), editável lá com as setas ▲▼. Categoria sem entrada em
+// D.categorias (ex: nome que não bate exatamente, tipo "MATERIAL
+// (ESPECÍFICO)" vindo de uma ficha) cai no fim, em ordem alfabética.
 function _orcOrdenarCats(cats) {
-  return cats.sort((a,b) => {
-    const ia = _ORC_CAT_ORDEM.indexOf(a), ib = _ORC_CAT_ORDEM.indexOf(b);
-    if (ia===-1 && ib===-1) return a.localeCompare(b);
-    if (ia===-1) return 1;
-    if (ib===-1) return -1;
-    return ia-ib;
+  // Garante que D.categorias já tem `ordem` mesmo se ela nunca abriu a tela
+  // Cadastro Central → Categorias (onde essa migração normalmente roda) —
+  // o Cardápio/Calculadora do orçamento é usado com muito mais frequência.
+  if (typeof migrarCategorias === 'function') migrarCategorias();
+  if (typeof _migrarOrdemCategorias === 'function') _migrarOrdemCategorias();
+  const mapa = {};
+  (D.categorias || []).forEach(c => { mapa[(c.nome || '').toUpperCase()] = c.ordem; });
+  return cats.sort((a, b) => {
+    const oa = mapa[(a || '').toUpperCase()], ob = mapa[(b || '').toUpperCase()];
+    if (oa == null && ob == null) return a.localeCompare(b);
+    if (oa == null) return 1;
+    if (ob == null) return -1;
+    return oa - ob;
   });
 }
 
