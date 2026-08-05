@@ -45,8 +45,8 @@ function _propostaLocalLabel(p) {
 }
 
 function _propostaTipoLabel(p) {
-  var TIPOS = { casamento: 'Casamento', '15anos': '15 Anos', formatura: 'Formatura', outros: 'Outros' };
-  return TIPOS[p.tipoEvento || 'outros'] || (p.tipoEvento || 'Evento');
+  var t = (typeof buscarTipoEventoPorId === 'function') ? buscarTipoEventoPorId(p.tipoEvento || 'outros') : null;
+  return (t && t.nome) || (p.tipoEvento || 'Evento');
 }
 
 // ─── ABA: EDIÇÃO DOS DADOS DA PROPOSTA ───────────────────────────────────────

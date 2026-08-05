@@ -355,6 +355,7 @@ function criarOrcamento() {
     calcParams: {
       local,
       tipoEvento,
+      temporada: 'baixa',
       cfVas:    'padrao',
       cfCond:   'padrao',
       cfCI:     'normal',
@@ -665,7 +666,7 @@ function rOrcEvento(orc) {
   const LOCAIS = (typeof REGIOES_LOCAL !== 'undefined')
     ? Object.fromEntries(REGIOES_LOCAL.map(r => [r.key, r.label]))
     : { area_central:'Área Central BH', jardim_canada:'Jardim Canadá / C. Nova', reg_metro:'Região Metropolitana' };
-  const TIPOS = {casamento:'Casamento', '15anos':'15 Anos', formatura:'Formatura', outros:'Outros'};
+  const TIPOS = Object.fromEntries(getTiposEvento().map(t => [t.id, t.nome]));
 
   el.innerHTML = `
     <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;max-width:600px">
@@ -695,6 +696,13 @@ function rOrcEvento(orc) {
             ${Object.entries(TIPOS).map(([k,v])=>`<option value="${k}"${(p.tipoEvento||'outros')===k?' selected':''}>${v}</option>`).join('')}
           </select>
         </div>
+        <div>
+          <label class="lbl">Temporada</label>
+          <select id="ev-temporada" class="inp" title="Usada pra escolher o preço de revenda (baixa/alta) dos insumos aplicados via Cardápio">
+            <option value="baixa"${(p.temporada||'baixa')==='baixa'?' selected':''}>Baixa Temporada</option>
+            <option value="alta"${p.temporada==='alta'?' selected':''}>Alta Temporada</option>
+          </select>
+        </div>
       </div>
       <div style="margin-top:16px">
         <button class="btn btn-primary" onclick="salvarDadosEvento('${orc.id}')">💾 Salvar alterações</button>
@@ -715,6 +723,7 @@ function salvarDadosEvento(orcId) {
   if (!orc.calcParams) orc.calcParams = {};
   orc.calcParams.local      = document.getElementById('ev-local')?.value  || 'area_central';
   orc.calcParams.tipoEvento = document.getElementById('ev-tipo')?.value   || 'outros';
+  orc.calcParams.temporada  = document.getElementById('ev-temporada')?.value || 'baixa';
   sv('orcamentos');
   alert2('Alterações salvas!');
   rOrcDetalhe();
@@ -842,6 +851,7 @@ function rOrcCardapio(orc) {
               <div style="display:grid;grid-template-columns:${_insCols};align-items:center;gap:0;padding:6px 10px;border-bottom:1px solid var(--border);font-size:12px">
                 <div>
                   <span style="font-weight:500;color:var(--text)">${ins.nome}</span>
+                  ${ins.viaRevenda ? `<span style="font-size:8px;font-weight:600;color:var(--green);background:rgba(34,197,94,.14);padding:1px 6px;border-radius:8px;white-space:nowrap;margin-left:4px" title="Preço final de revenda (${(orc.calcParams&&orc.calcParams.temporada)==='alta'?'Alta':'Baixa'} Temporada) — não recebe margem de segurança/lucro">💲 Revenda</span>` : ''}
                   ${(ins.coqueteis&&ins.coqueteis.length) ? `<div style="margin-top:2px;display:flex;gap:3px;flex-wrap:wrap">${ins.coqueteis.map(c=>`<span style="font-size:8px;font-weight:600;color:#4F8EF7;background:rgba(79,142,247,.14);padding:1px 6px;border-radius:8px;white-space:nowrap">🍹 ${c}</span>`).join('')}</div>` : ''}
                 </div>
                 <div style="text-align:right">${typeof _calcInsumoQtdCell==='function' ? _calcInsumoQtdCell(ins) : `<input type="number" value="${ins.qtdGarrafas}" min="0" step="1" onchange="calcUpdateInsumo('${ins.id}','qtdGarrafas',this.value)" style="width:65px;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono)">`}</div>
@@ -975,9 +985,25 @@ function _orcPrecoInsumo(nome) {
   return (D.precos && D.precos[nome]) ? (D.precos[nome].custo || 0) : 0;
 }
 
+// Preço + flag de revenda pra um item do Cardápio, considerando a temporada
+// escolhida no orçamento (aba Evento/Calculadora). Se o insumo tiver revenda
+// cadastrada pra essa temporada (Cadastro de Insumos), ela vira o valor final
+// do item — sem passar pela margem de segurança/lucro depois (ver
+// _orcCalcResumo em orcCalc.js). Sem revenda cadastrada, cai no preço de
+// sempre (_orcPrecoInsumo) — retrocompatível com orçamentos já existentes.
+function _orcPrecoInsumoComTemporada(nome, temporada) {
+  const insumo = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(nome) : null;
+  if (insumo) {
+    const revenda = temporada === 'alta' ? insumo.revendaAltaTemporada : insumo.revendaBaixaTemporada;
+    if (revenda) return { valor: Number(revenda), viaRevenda: true };
+  }
+  return { valor: _orcPrecoInsumo(nome), viaRevenda: false };
+}
+
 function orcAplicarCardapio(orcId) {
   const orc = (D.orcamentos||[]).find(o => o.id === orcId);
   if (!orc) return;
+  const temporada = (orc.calcParams && orc.calcParams.temporada) || 'baixa';
   const fichaAtual = (D.fichas||[]).find(f => f.id === _orcCardapioFichaId);
   const fichaNome  = fichaAtual ? fichaAtual.nome : '';
   _orcCardapioItems.forEach((item, idx) => {
@@ -1001,18 +1027,22 @@ function orcAplicarCardapio(orcId) {
       existing.qtdGarrafas = qtd;
       // Backfill: só preenche se ainda estiver zerado (nunca sobrescreve um
       // custo que ela já tenha ajustado manualmente na tabela do orçamento).
-      if (!existing.custoGarrafa) existing.custoGarrafa = _orcPrecoInsumo(nome);
+      if (!existing.custoGarrafa) {
+        const p = _orcPrecoInsumoComTemporada(nome, temporada);
+        existing.custoGarrafa = p.valor;
+        existing.viaRevenda = p.viaRevenda;
+      }
       existing.total = Math.round(qtd * (existing.custoGarrafa||0) * 100) / 100;
       if (!existing.cat) existing.cat = item.cat;
       if (!existing.coqueteis) existing.coqueteis = [];
       if (fichaNome && !existing.coqueteis.includes(fichaNome)) existing.coqueteis.push(fichaNome);
       atualizados++;
     } else {
-      const precoRef = _orcPrecoInsumo(nome);
+      const p = _orcPrecoInsumoComTemporada(nome, temporada);
       orc.insumos.push({
         id: 'ins-' + Date.now() + '-' + Math.random().toString(36).slice(2,4),
-        nome, qtdGarrafas: qtd, custoGarrafa: precoRef,
-        total: Math.round(qtd * precoRef * 100) / 100,
+        nome, qtdGarrafas: qtd, custoGarrafa: p.valor, viaRevenda: p.viaRevenda,
+        total: Math.round(qtd * p.valor * 100) / 100,
         cat: item.cat,
         coqueteis: fichaNome ? [fichaNome] : [],
       });

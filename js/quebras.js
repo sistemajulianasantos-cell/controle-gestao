@@ -10,6 +10,18 @@ function setQView(v){
   if(v==='lista')rQuebrasList();
   if(v==='consolidado')rQuebrasConsolidado();
 }
+// Ao escolher o produto, sugere o custo unit. já cadastrado em Preços
+// (Cadastro Central → Preços → Editar preços). Continua editável na hora —
+// serve só pra evitar redigitar valores que se repetem toda quebra.
+// Quando uma NF de verdade é lançada em Estoque, ela substitui esse valor
+// em D.precos (ver regEnt em entradas.js), então a sugestão já vem atualizada.
+function preencherCustoQuebra(){
+  var prod=document.getElementById('qprod').value;
+  var campo=document.getElementById('qcusto');
+  if(!campo)return;
+  var custo=prod&&D.precos&&D.precos[prod]?D.precos[prod].custo:null;
+  campo.value=custo?custo:'';
+}
 function regQbr(){
   const prod=document.getElementById('qprod').value,qtd=document.getElementById('qqtd').value,data=document.getElementById('qdata').value;
   if(!prod||!qtd||!data){alert2('Preencha os campos','error');return;}

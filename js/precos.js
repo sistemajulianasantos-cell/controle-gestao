@@ -27,6 +27,15 @@ function sincronizarPrecosDeEntradas(){
   }catch(err){console.error('sincronizarPrecos:',err);}
 }
 
+// Valor efetivo de custo do produto: prioriza o custo manual (mais estável,
+// definido por ela em Editar preços) sobre o custo de reposição (volátil,
+// muda a cada NF lançada). Cai pro de reposição quando não há manual.
+function custoEfetivoProduto(nome){
+  var pr=(D.precos&&D.precos[nome])||{};
+  if(pr.manual!=null&&pr.manual!=='')return Number(pr.manual);
+  return Number(pr.custo||0);
+}
+
 function setPrecosView(v){
   precosView=v;
   ['lista','editar'].forEach(x=>{
@@ -70,22 +79,24 @@ function rPrecos(){
     return true;
   });
 
-  const comPreco=rows.filter(p=>D.precos[p.nome]?.custo||D.precos[p.nome]?.revenda).length;
+  const comPreco=rows.filter(p=>D.precos[p.nome]?.custo||D.precos[p.nome]?.manual||D.precos[p.nome]?.revenda).length;
 
   container.innerHTML=`
     <div style="padding:8px 16px;font-size:11px;color:var(--text3);border-bottom:1px solid var(--border)">
       ${comPreco} de ${rows.length} produto(s) com preço cadastrado
     </div>
     <table>
-      <thead><tr><th>Produto</th><th>Categoria</th><th style="text-align:right">Custo unit.</th><th style="text-align:right">Revenda unit.</th><th style="text-align:right">Margem</th></tr></thead>
+      <thead><tr><th>Produto</th><th>Categoria</th><th style="text-align:right">Custo efetivo</th><th style="text-align:right">Revenda unit.</th><th style="text-align:right">Margem</th></tr></thead>
       <tbody>
         ${rows.map(p=>{
           const pr=D.precos[p.nome]||{};
-          const margem=pr.custo&&pr.revenda?((pr.revenda-pr.custo)/pr.revenda*100).toFixed(0):null;
+          const efetivo=custoEfetivoProduto(p.nome);
+          const usaManual=pr.manual!=null&&pr.manual!=='';
+          const margem=efetivo&&pr.revenda?((pr.revenda-efetivo)/pr.revenda*100).toFixed(0):null;
           return`<tr>
             <td class="bold">${p.nome}</td>
             <td>${p.cat?`<span class="badge b-blue" style="font-size:9px">${p.cat}</span>`:'<span style="color:var(--text3);font-size:11px">—</span>'}</td>
-            <td style="font-family:var(--mono);text-align:right;color:${pr.custo?'var(--text2)':'var(--text3)'}">${pr.custo?fR(pr.custo):'— a preencher'}</td>
+            <td style="font-family:var(--mono);text-align:right;color:${efetivo?'var(--text2)':'var(--text3)'}">${efetivo?fR(efetivo):'— a preencher'}${usaManual?' <span style="color:var(--blue);font-size:9px" title="Valor manual — sobrepõe o custo de reposição">(manual)</span>':''}</td>
             <td style="font-family:var(--mono);text-align:right;color:${pr.revenda?'var(--green)':'var(--text3)'}">${pr.revenda?fR(pr.revenda):'— a preencher'}</td>
             <td style="font-family:var(--mono);text-align:right;color:${margem?Number(margem)>=30?'var(--green)':'var(--amber)':'var(--text3)'}">${margem?margem+'%':'—'}</td>
           </tr>`;
@@ -108,17 +119,18 @@ function rEditarPrecos(){
   });
 
   container.innerHTML=`
-    <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:0;background:var(--bg3);border-bottom:1px solid var(--border)">
+    <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:0;background:var(--bg3);border-bottom:1px solid var(--border)">
       <div style="padding:8px 14px;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase">Produto</div>
       <div style="padding:8px 14px;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase">Categoria</div>
-      <div style="padding:8px 14px;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;text-align:center">Custo unit. (R$)</div>
+      <div style="padding:8px 14px;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;text-align:center" title="Atualizado automaticamente pela última NF lançada em Estoque">Reposição (R$)</div>
+      <div style="padding:8px 14px;font-size:10px;font-weight:600;color:var(--blue);text-transform:uppercase;text-align:center" title="Valor fixo que você define — sobrepõe o de reposição no Dashboard e na Tabela de preços">Custo manual (R$)</div>
       <div style="padding:8px 14px;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;text-align:center">Revenda unit. (R$)</div>
     </div>`+
   rows.map(p=>{
     const n=p.nome;
     const pr=D.precos[n]||{};
     const nEsc=n.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    return`<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:0;border-bottom:1px solid var(--border);align-items:center">
+    return`<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:0;border-bottom:1px solid var(--border);align-items:center">
       <div style="padding:8px 14px;font-size:12px;font-weight:500;color:var(--text)">${n}</div>
       <div style="padding:8px 14px">${p.cat?`<span class="badge b-blue" style="font-size:9px">${p.cat}</span>`:'<span style="color:var(--text3);font-size:11px">—</span>'}</div>
       <div style="padding:6px 10px;text-align:center">
@@ -126,6 +138,12 @@ function rEditarPrecos(){
           value="${pr.custo||''}"
           onchange="if(!D.precos['${nEsc}'])D.precos['${nEsc}']={};D.precos['${nEsc}'].custo=this.value?Number(this.value):null"
           style="width:90px;text-align:center;font-size:12px;padding:4px 6px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius)">
+      </div>
+      <div style="padding:6px 10px;text-align:center">
+        <input type="number" min="0" step="0.01" placeholder="0,00"
+          value="${pr.manual!=null?pr.manual:''}"
+          onchange="if(!D.precos['${nEsc}'])D.precos['${nEsc}']={};D.precos['${nEsc}'].manual=this.value?Number(this.value):null"
+          style="width:90px;text-align:center;font-size:12px;padding:4px 6px;background:var(--bg3);border:1px solid var(--blue);color:var(--text);border-radius:var(--radius)">
       </div>
       <div style="padding:6px 10px;text-align:center">
         <input type="number" min="0" step="0.01" placeholder="0,00"

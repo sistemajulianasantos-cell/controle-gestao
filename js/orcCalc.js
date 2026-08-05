@@ -23,12 +23,109 @@ var CALC_LOCAIS_PADRAO = {
   viagem_mais:   { label:'Viagem acima de 400 km',     la:0,  rf:0,  ca:0    },
 };
 
-var CALC_COND_PADRAO  = { padrao:1.0417, simples:0.63 };
-var CALC_DESC_PADRAO  = 0.6417;
-var CALC_CI_PADRAO    = { normal:3.4417, reduzido:2.53 };
-var CALC_PERDA_PADRAO = { reduzida:0.42, padrao:0.60, alta:0.85 };
-var CALC_SEG_PADRAO   = { casamento:1.67, '15anos':1.67, formatura:3.30, outros:2.20 };
-var CALC_VAS_PADRAO   = { simples:133.33, padrao:191.67, complexo:241.67 };
+// ─── FATORES DE PREÇO (dinâmicos) ──────────────────────────────────────────────
+// Substituem os antigos CALC_COND_PADRAO/CALC_DESC_PADRAO/CALC_CI_PADRAO/
+// CALC_PERDA_PADRAO/CALC_SEG_PADRAO/CALC_VAS_PADRAO (valores fixos no código,
+// sem tela de edição de nome/ordem). Cada fator tem nome editável e uma ou
+// mais opções (ex. Padrão/Simples), cada opção com um valor "por convidado"
+// ou "fixo" — editável em Regras e Cálculos → Preços do Orçamento
+// (rPrecosOrcamento, js/regras.js). Os 6 fatores abaixo (builtin:true) não
+// podem ser excluídos porque recalcularAutos() os lê por id; fatores novos
+// criados nessa tela podem. 'seg' é especial: suas opções não ficam salvas
+// aqui, vêm do Cadastro de Tipos de Evento (opcoesFonte:'tiposEvento',
+// js/tiposEvento.js) — criar um tipo de evento novo já cria a opção de
+// Seguro correspondente (valor 0 até ela editar).
+var ORC_FATORES_PADRAO = [
+  { id:'cond',  nome:'Condicional (por convidado)',                tipoValor:'porConvidado', unicoValor:false, opcoesFonte:null,         secao:'custos', builtin:true, chavePadrao:'padrao',
+    opcoes:[{chave:'padrao',label:'Padrão',valor:1.0417},{chave:'simples',label:'Simples',valor:0.63}] },
+  { id:'desc',  nome:'Descartáveis (por convidado)',                tipoValor:'porConvidado', unicoValor:true,  opcoesFonte:null,         secao:'custos', builtin:true, chavePadrao:null,
+    opcoes:[{chave:'_unico',label:'Valor',valor:0.6417}] },
+  { id:'ci',    nome:'Cobertura de Insumos (por convidado)',        tipoValor:'porConvidado', unicoValor:false, opcoesFonte:null,         secao:'custos', builtin:true, chavePadrao:'normal',
+    opcoes:[{chave:'normal',label:'Normal',valor:3.4417},{chave:'reduzido',label:'Reduzido',valor:2.53}] },
+  { id:'perda', nome:'Previsão de Perda (por convidado)',           tipoValor:'porConvidado', unicoValor:false, opcoesFonte:null,         secao:'custos', builtin:true, chavePadrao:'padrao',
+    opcoes:[{chave:'reduzida',label:'Reduzida',valor:0.42},{chave:'padrao',label:'Padrão',valor:0.60},{chave:'alta',label:'Alta',valor:0.85}] },
+  { id:'seg',   nome:'Seguro (por convidado, por tipo de evento)',  tipoValor:'porConvidado', unicoValor:false, opcoesFonte:'tiposEvento', secao:'seguro', builtin:true, chavePadrao:null,
+    opcoes:[{chave:'casamento',label:'Casamento',valor:1.67},{chave:'15anos',label:'15 Anos',valor:1.67},{chave:'formatura',label:'Formatura',valor:3.30},{chave:'outros',label:'Outros',valor:2.20}] },
+  { id:'vas',   nome:'Vasilhames (valor fixo, por complexidade)',   tipoValor:'fixo',         unicoValor:false, opcoesFonte:null,         secao:'copos',  builtin:true, chavePadrao:'padrao',
+    opcoes:[{chave:'simples',label:'Simples',valor:133.33},{chave:'padrao',label:'Padrão',valor:191.67},{chave:'complexo',label:'Complexo',valor:241.67}] },
+];
+
+var ORC_BLOCOS_ORDEM_PADRAO = ['equipe', 'locais', 'cond', 'desc', 'ci', 'perda', 'seg', 'vas'];
+
+// Semeia D.orcFatores/D.orcBlocosOrdem uma única vez (idempotente) — depois
+// disso ela é livre pra renomear/adicionar/reordenar sem nunca ser resetada.
+// Note que os VALORES continuam guardados só em D.orcPrecos (getOrcPrecos()),
+// aqui fica só a definição (nome, quais opções existem). A ORDEM não fica no
+// fator — vive só em D.orcBlocosOrdem (única fonte de verdade, evita os dois
+// ficarem dessincronizados quando ela usa as setas ▲▼).
+function migrarOrcFatores() {
+  if (!D.orcFatores || !D.orcFatores.length) {
+    D.orcFatores = ORC_FATORES_PADRAO.map(function(f) {
+      return {
+        id: f.id, nome: f.nome, tipoValor: f.tipoValor, unicoValor: f.unicoValor,
+        opcoesFonte: f.opcoesFonte, secao: f.secao, builtin: f.builtin, chavePadrao: f.chavePadrao,
+        opcoes: f.opcoes.map(function(o) { return { chave: o.chave, label: o.label }; }),
+      };
+    });
+    sv('orcFatores');
+  }
+  if (!D.orcBlocosOrdem || !D.orcBlocosOrdem.length) {
+    D.orcBlocosOrdem = ORC_BLOCOS_ORDEM_PADRAO.slice();
+    sv('orcBlocosOrdem');
+  }
+  var faltantes = D.orcFatores.map(function(f) { return f.id; })
+    .filter(function(id) { return D.orcBlocosOrdem.indexOf(id) === -1; });
+  if (faltantes.length) { D.orcBlocosOrdem = D.orcBlocosOrdem.concat(faltantes); sv('orcBlocosOrdem'); }
+}
+
+// Fatores ordenados pela posição em D.orcBlocosOrdem — mesma ordem usada na
+// tela de Preços do Orçamento (setas ▲▼) e no painel de parâmetros da
+// Calculadora, sempre em sincronia.
+function getOrcFatores() {
+  migrarOrcFatores();
+  var ordem = D.orcBlocosOrdem;
+  return D.orcFatores.slice().sort(function(a, b) { return ordem.indexOf(a.id) - ordem.indexOf(b.id); });
+}
+
+function buscarOrcFatorPorId(id) {
+  return (D.orcFatores || []).find(function(f) { return f.id === id; }) || null;
+}
+
+// Opções selecionáveis de um fator — pra 'seg' vêm do Cadastro de Tipos de
+// Evento (dinâmico), pros demais vêm da própria definição do fator.
+function _orcFatorOpcoes(fator) {
+  if (fator.opcoesFonte === 'tiposEvento') {
+    return (typeof getTiposEvento === 'function') ? getTiposEvento().map(function(t) { return { chave: t.id, label: t.nome }; }) : [];
+  }
+  return fator.opcoes || [];
+}
+
+var _ORC_FATOR_PARAM_LEGADO = { cond: 'cfCond', ci: 'cfCI', perda: 'cfPerda', vas: 'cfVas' };
+// Nome do campo em orc.calcParams que guarda a opção escolhida desse fator
+// naquele orçamento. Os 4 fatores originais mantêm os nomes de sempre
+// (cfCond/cfCI/cfPerda/cfVas) pra não precisar migrar orçamentos já salvos;
+// fatores novos usam cf_<id>.
+function _orcFatorParamKey(fatorId) {
+  return _ORC_FATOR_PARAM_LEGADO[fatorId] || ('cf_' + fatorId);
+}
+
+function getOrcBlocosOrdem() {
+  migrarOrcFatores();
+  return D.orcBlocosOrdem.slice();
+}
+
+// Troca a posição de um bloco (fator, 'equipe' ou 'locais') com o vizinho —
+// usado pelos botões ↑/↓ em Regras e Cálculos → Preços do Orçamento.
+function moverOrcBloco(id, dir) {
+  var ordem = getOrcBlocosOrdem();
+  var idx = ordem.indexOf(id);
+  var alvo = idx + dir;
+  if (idx === -1 || alvo < 0 || alvo >= ordem.length) return;
+  var tmp = ordem[idx]; ordem[idx] = ordem[alvo]; ordem[alvo] = tmp;
+  D.orcBlocosOrdem = ordem;
+  sv('orcBlocosOrdem');
+  if (typeof rPrecosOrcamento === 'function') rPrecosOrcamento();
+}
 
 // ─── PREÇOS EDITÁVEIS ─────────────────────────────────────────────────────────
 // Mescla os padrões acima com o que estiver salvo em D.orcPrecos, campo a
@@ -48,16 +145,24 @@ function _orcMergeCat(padrao, salvo) {
 
 function getOrcPrecos() {
   _migrarOrcPrecosLocaisSeNecessario();
+  migrarOrcFatores();
   var salvo = D.orcPrecos || {};
-  return {
-    locais: _orcMergeCat(CALC_LOCAIS_PADRAO, salvo.locais),
-    cond:   _orcMergeCat(CALC_COND_PADRAO,   salvo.cond),
-    ci:     _orcMergeCat(CALC_CI_PADRAO,     salvo.ci),
-    perda:  _orcMergeCat(CALC_PERDA_PADRAO,  salvo.perda),
-    seg:    _orcMergeCat(CALC_SEG_PADRAO,    salvo.seg),
-    vas:    _orcMergeCat(CALC_VAS_PADRAO,    salvo.vas),
-    desc:   salvo.desc != null ? Number(salvo.desc) : CALC_DESC_PADRAO,
-  };
+  var out = { locais: _orcMergeCat(CALC_LOCAIS_PADRAO, salvo.locais) };
+  getOrcFatores().forEach(function(fator) {
+    var padraoDef = ORC_FATORES_PADRAO.find(function(f) { return f.id === fator.id; });
+    if (fator.unicoValor) {
+      var padraoVal = (padraoDef && padraoDef.opcoes[0]) ? padraoDef.opcoes[0].valor : 0;
+      out[fator.id] = salvo[fator.id] != null ? Number(salvo[fator.id]) : padraoVal;
+    } else {
+      var padraoObj = {};
+      _orcFatorOpcoes(fator).forEach(function(o) {
+        var seedOpt = padraoDef && padraoDef.opcoes.find(function(x) { return x.chave === o.chave; });
+        padraoObj[o.chave] = seedOpt ? seedOpt.valor : 0; // opção sem valor de fábrica (ex: tipo de evento novo) começa em 0
+      });
+      out[fator.id] = _orcMergeCat(padraoObj, salvo[fator.id]);
+    }
+  });
+  return out;
 }
 
 // D.orcPrecos.locais foi editado numa versão anterior (esquema de 7 faixas
@@ -151,10 +256,6 @@ function recalcularAutos() {
   };
   const eqTotal = qt.bt + qt.bb + qt.hb + qt.cd + qt.cp;
 
-  const cfCond  = p.cfCond    || 'padrao';
-  const cfCI    = p.cfCI      || 'normal';
-  const cfPerda = p.cfPerda   || 'padrao';
-  const cfVas   = p.cfVas     || 'padrao';
   const tipoEvt = p.tipoEvento|| 'outros';
 
   // Toda festa sempre tem alguém exercendo o papel de Head Bartender/
@@ -177,12 +278,20 @@ function recalcularAutos() {
     _mk('auto-ca',   'logistica', 'Carregamento',        1,        loc.ca),
     _mk('auto-rf',   'logistica', 'Refrigério equipe',   eqTotal,  loc.rf),
     _mk('auto-la',   'logistica', 'Limpeza equipe',      eqTotal,  loc.la),
-    _mk('auto-cond', 'custos',    'Condicional',         pax,      precos.cond[cfCond]),
-    _mk('auto-desc', 'custos',    'Descartáveis',        pax,      precos.desc),
-    _mk('auto-ci',   'custos',    'Cobertura de insumos',pax,      precos.ci[cfCI]),
-    _mk('auto-perd', 'custos',    'Previsão de perda',   pax,      precos.perda[cfPerda]),
-    _mk('auto-seg',  'seguro',    'Seguro',              pax,      precos.seg[tipoEvt]),
-    _mk('auto-vas',  'copos',     'Vasilhames',          1,        precos.vas[cfVas]),
+    ...getOrcFatores().map(function(fator) {
+      var qtd = fator.tipoValor === 'porConvidado' ? pax : 1;
+      var valor;
+      if (fator.unicoValor) {
+        valor = precos[fator.id] || 0;
+      } else {
+        var chave = fator.opcoesFonte === 'tiposEvento'
+          ? tipoEvt
+          : (p[_orcFatorParamKey(fator.id)] || fator.chavePadrao || (_orcFatorOpcoes(fator)[0] && _orcFatorOpcoes(fator)[0].chave));
+        valor = (precos[fator.id] && precos[fator.id][chave] != null) ? precos[fator.id][chave] : 0;
+      }
+      var nomeCurto = fator.nome.replace(/\s*\([^)]*\)\s*$/, '');
+      return _mk('auto-' + fator.id, fator.secao || 'custos', nomeCurto, qtd, valor);
+    }),
   ].filter(i => i.qtd > 0);
 
   const manuais = (orc.calcItens || []).filter(i => !i.auto);
@@ -207,8 +316,11 @@ function calcSetParam(chave, valor) {
   if (!orc.calcParams) orc.calcParams = {};
   orc.calcParams[chave] = valor;
   sv('orcamentos');
-  const triggerRecalc = ['local','tipoEvento','cfCond','cfCI','cfPerda','cfVas'];
-  if (triggerRecalc.includes(chave)) recalcularAutos();
+  // 'local'/'tipoEvento' + qualquer seletor de fator (cfCond/cfCI/cfPerda/
+  // cfVas legados, ou cf_<id> de fatores novos — ver _orcFatorParamKey)
+  // exigem recalcular os itens automáticos; o resto só redesenha a tela.
+  const disparaRecalc = chave === 'local' || chave === 'tipoEvento' || chave.indexOf('cf') === 0;
+  if (disparaRecalc) recalcularAutos();
   else rOrcCalc();
 }
 
@@ -310,29 +422,38 @@ function _orcCalcResumo(orc) {
   const itens  = orc.calcItens || [];
   const insumos = orc.insumos || [];
 
-  // Custo de insumos = soma de (qtd garrafas × custo/garrafa)
-  const custoInsumos = insumos.reduce((s, i) => s + (i.total || 0), 0);
+  // Insumos com preço de revenda por temporada (viaRevenda, ver
+  // orcAplicarCardapio/_orcPrecoInsumoComTemporada em orcamento.js) já têm
+  // valor final de venda — não entram na base de custo que recebe margem de
+  // segurança/lucro, são somados direto no total depois. Sem nenhum item
+  // viaRevenda (todo orçamento anterior a essa funcionalidade), o cálculo é
+  // idêntico ao de sempre.
+  const insumosCusto   = insumos.filter(i => !i.viaRevenda);
+  const insumosRevenda = insumos.filter(i => i.viaRevenda);
+  const custoInsumos = insumosCusto.reduce((s, i) => s + (i.total || 0), 0);
+  const valorInsumosRevenda = insumosRevenda.reduce((s, i) => s + (i.total || 0), 0);
 
   const custoPresente = itens.reduce((s, i) => s + (i.total || 0), 0) + custoInsumos;
   const margSeg = Number(p.margemSeguranca != null ? p.margemSeguranca : 10);
   const margLuc = Number(p.margemLucro     != null ? p.margemLucro     : 30);
   const custoEst  = custoPresente * (1 + margSeg / 100);
-  const valorTotal = custoEst  * (1 + margLuc / 100);
+  const valorTotal = custoEst * (1 + margLuc / 100) + valorInsumosRevenda;
   const porPessoa  = pax > 0 ? valorTotal / pax : 0;
 
   // Pacote Essencial = mesmo cálculo (custo → +margem segurança → +margem
   // lucro), só que sem o custo das Bebidas Alcoólicas do Cardápio/Insumos —
   // Pacote Completo é o valorTotal de sempre, com tudo incluso.
-  const custoBebidasAlc = insumos.filter(i => i.cat === 'BEBIDAS ALCOÓLICAS').reduce((s, i) => s + (i.total || 0), 0);
+  const custoBebidasAlc = insumosCusto.filter(i => i.cat === 'BEBIDAS ALCOÓLICAS').reduce((s, i) => s + (i.total || 0), 0);
+  const valorBebidasAlcRevenda = insumosRevenda.filter(i => i.cat === 'BEBIDAS ALCOÓLICAS').reduce((s, i) => s + (i.total || 0), 0);
   const custoPresenteEssencial = custoPresente - custoBebidasAlc;
   const custoEstEssencial  = custoPresenteEssencial * (1 + margSeg / 100);
-  const valorTotalEssencial = custoEstEssencial * (1 + margLuc / 100);
+  const valorTotalEssencial = custoEstEssencial * (1 + margLuc / 100) + (valorInsumosRevenda - valorBebidasAlcRevenda);
   const porPessoaEssencial  = pax > 0 ? valorTotalEssencial / pax : 0;
 
   return {
     pax, autoS, itens, insumos, custoInsumos, custoPresente, margSeg, margLuc,
     custoEst, valorTotal, porPessoa, custoBebidasAlc, custoPresenteEssencial,
-    custoEstEssencial, valorTotalEssencial, porPessoaEssencial,
+    custoEstEssencial, valorTotalEssencial, porPessoaEssencial, valorInsumosRevenda,
   };
 }
 
@@ -378,37 +499,31 @@ function rOrcCalc() {
         <div>
           <label style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:3px">Tipo de evento</label>
           <select onchange="calcSetParam('tipoEvento',this.value)" style="width:100%;font-size:12px;padding:6px 8px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius)">
-            ${[['casamento','Casamento'],['15anos','15 Anos'],['formatura','Formatura'],['outros','Outros']].map(([k,l])=>`<option value="${k}"${(p.tipoEvento||'outros')===k?' selected':''}>${l}</option>`).join('')}
+            ${getTiposEvento().map(t=>`<option value="${t.id}"${(p.tipoEvento||'outros')===t.id?' selected':''}>${t.nome}</option>`).join('')}
           </select>
         </div>
 
         <div>
-          <label style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:3px">Complexidade</label>
-          <select onchange="calcSetParam('cfVas',this.value)" style="width:100%;font-size:12px;padding:6px 8px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius)">
-            ${[['simples','Simples'],['padrao','Padrão'],['complexo','Complexo']].map(([k,l])=>`<option value="${k}"${(p.cfVas||'padrao')===k?' selected':''}>${l}</option>`).join('')}
+          <label style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:3px" title="Usada pra escolher o preço de revenda (baixa/alta) dos insumos aplicados via Cardápio">Temporada</label>
+          <select onchange="calcSetParam('temporada',this.value)" style="width:100%;font-size:12px;padding:6px 8px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius)">
+            <option value="baixa"${(p.temporada||'baixa')==='baixa'?' selected':''}>Baixa Temporada</option>
+            <option value="alta"${p.temporada==='alta'?' selected':''}>Alta Temporada</option>
           </select>
         </div>
 
+        ${getOrcFatores().filter(function(f){ return !f.unicoValor && f.opcoesFonte !== 'tiposEvento'; }).map(function(f) {
+          var paramKey = _orcFatorParamKey(f.id);
+          var opcoes = _orcFatorOpcoes(f);
+          var atual = p[paramKey] || f.chavePadrao || (opcoes[0] && opcoes[0].chave);
+          var labelCurto = f.nome.replace(/\s*\([^)]*\)\s*$/, '');
+          return `
         <div>
-          <label style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:3px">Condicional</label>
-          <select onchange="calcSetParam('cfCond',this.value)" style="width:100%;font-size:12px;padding:6px 8px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius)">
-            ${[['padrao','Padrão'],['simples','Simples']].map(([k,l])=>`<option value="${k}"${(p.cfCond||'padrao')===k?' selected':''}>${l}</option>`).join('')}
+          <label style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:3px">${labelCurto}</label>
+          <select onchange="calcSetParam('${paramKey}',this.value)" style="width:100%;font-size:12px;padding:6px 8px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius)">
+            ${opcoes.map(function(o){ return `<option value="${o.chave}"${atual===o.chave?' selected':''}>${o.label}</option>`; }).join('')}
           </select>
-        </div>
-
-        <div>
-          <label style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:3px">Insumos</label>
-          <select onchange="calcSetParam('cfCI',this.value)" style="width:100%;font-size:12px;padding:6px 8px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius)">
-            ${[['normal','Normal'],['reduzido','Reduzido']].map(([k,l])=>`<option value="${k}"${(p.cfCI||'normal')===k?' selected':''}>${l}</option>`).join('')}
-          </select>
-        </div>
-
-        <div>
-          <label style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:3px">Previsão de perda</label>
-          <select onchange="calcSetParam('cfPerda',this.value)" style="width:100%;font-size:12px;padding:6px 8px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius)">
-            ${[['reduzida','Reduzida'],['padrao','Padrão'],['alta','Alta']].map(([k,l])=>`<option value="${k}"${(p.cfPerda||'padrao')===k?' selected':''}>${l}</option>`).join('')}
-          </select>
-        </div>
+        </div>`;
+        }).join('')}
 
       </div>
 

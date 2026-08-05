@@ -110,6 +110,10 @@
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 8a6 6 0 0 1 10.5-4M14 8a6 6 0 0 1-10.5 4"/><path d="M11 2v3h-3M5 14v-3h3"/></svg>
           Serviços
         </div>
+        <div class="nav-item" data-page="tiposevento" data-modulo="estoque" onclick="go('tiposevento')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M2 6h12"/></svg>
+          Tipos de Evento
+        </div>
       </div>
     </div>
 
@@ -854,8 +858,9 @@
       <div id="qview-nova" style="display:none">
         <div class="sec">
           <div class="sec-head"><span class="sec-title">Registrar quebra / perda avulsa</span></div>
+          <div style="padding:8px 16px 0;font-size:11px;color:var(--text3)">💡 O custo unit. é sugerido a partir de <a href="#" onclick="go('precos');setPrecosView('editar');return false" style="color:var(--blue)">Preços → Editar preços</a> — lance lá os valores que se repetem, uma vez só.</div>
           <div class="form-grid c3">
-            <div class="form-group"><label>Produto</label><select id="qprod"><option value="">Selecione...</option></select></div>
+            <div class="form-group"><label>Produto</label><select id="qprod" onchange="preencherCustoQuebra()"><option value="">Selecione...</option></select></div>
             <div class="form-group"><label>Motivo</label><select id="qmot"><option>Quebra/Avaria</option><option>Vencimento</option><option>Furto/Desvio</option><option>Diferença Inventário</option><option>Outro</option></select></div>
             <div class="form-group"><label>Data</label><input type="date" id="qdata"></div>
             <div class="form-group"><label>Quantidade</label><input type="number" id="qqtd" step="0.01" placeholder="0"></div>
@@ -1013,6 +1018,18 @@
       <div class="sec">
         <div class="sec-head"><span class="sec-title">🏷️ Categorias cadastradas</span></div>
         <div id="ctg-lista-body" style="padding:8px 16px"></div>
+      </div>
+    </div>
+
+    <!-- ═══ CADASTRO DE TIPOS DE EVENTO ═══ -->
+    <div id="page-tiposevento" class="page">
+      <div style="margin-bottom:14px">
+        <div style="font-size:15px;font-weight:600">Tipos de Evento</div>
+        <div style="font-size:11px;color:var(--text3)">Lista única usada pelo Orçamento (aba Evento/Calculadora) e pelas opções do fator Seguro em Regras e Cálculos → Preços do Orçamento</div>
+      </div>
+      <div class="sec">
+        <div class="sec-head"><span class="sec-title">🎉 Tipos de evento cadastrados</span></div>
+        <div id="tev-lista-body" style="padding:8px 16px"></div>
       </div>
     </div>
 
@@ -2325,17 +2342,17 @@
 <script src="js/data.js?v=20260610z"></script>
 <script src="js/globals.js?v=20260728a"></script>
 <!-- ── Módulos do sistema ── -->
-<script src="js/dashboard.js?v=20260610z"></script>
+<script src="js/dashboard.js?v=20260804a"></script>
 <script src="js/estoques.js?v=20260610z"></script>
 <script src="js/contagens.js?v=20260610z"></script>
-<script src="js/precos.js?v=20260610z"></script>
+<script src="js/precos.js?v=20260804a"></script>
 <script src="js/selects.js?v=20260610z"></script>
 <script src="js/entradas.js?v=20260610z"></script>
-<script src="js/quebras.js?v=20260610z"></script>
+<script src="js/quebras.js?v=20260804a"></script>
 <script src="js/festas.js?v=20260713b"></script>
 <script src="js/relatorio.js?v=20260610z"></script>
 <script src="js/fornecedores.js?v=20260611d"></script>
-<script src="js/nav.js?v=20260726a"></script>
+<script src="js/nav.js?v=20260804a"></script>
 <script src="js/auth.js?v=20260610z"></script>
 <script src="js/contratos.js?v=20260804b"></script>
 <script src="js/agenda.js?v=20260610z"></script>
@@ -2347,17 +2364,18 @@
 <script src="js/produtos.js?v=20260610z"></script>
 <script src="js/categorias.js?v=20260713b"></script>
 <script src="js/servicos.js?v=20260713b"></script>
+<script src="js/tiposEvento.js?v=20260804a"></script>
 <script src="js/fechamentoMensal.js?v=20260726b"></script>
-<script src="js/insumos.js?v=20260804"></script>
+<script src="js/insumos.js?v=20260804b"></script>
 <script src="js/estoqueSeparacao.js?v=20260722a"></script>
 <script src="js/cargos.js?v=20260713b"></script>
-<script src="js/regras.js?v=20260803b"></script>
+<script src="js/regras.js?v=20260804a"></script>
 <script src="js/separacao.js?v=20260610z"></script>
 <script src="js/equipe.js?v=20260722c"></script>
 <script src="js/solicitacaoOrcamento.js?v=20260803f"></script>
-<script src="js/orcamento.js?v=20260803b"></script>
-<script src="js/orcCalc.js?v=20260803a"></script>
-<script src="js/orcProposta.js?v=20260803g"></script>
+<script src="js/orcamento.js?v=20260804a"></script>
+<script src="js/orcCalc.js?v=20260804a"></script>
+<script src="js/orcProposta.js?v=20260804a"></script>
 <script src="js/_refConsumoData.js?v=20260610z"></script>
 <script src="js/refConsumo.js?v=20260610z"></script>
 <script src="js/seguranca-admin.js?v=20260610z"></script>
@@ -2404,6 +2422,8 @@ window.svFirebase = async function(chave) {
     if(chave==='regrasItens')  campo.regrasItens  = D.regrasItens;
     if(chave==='regrasCopos')  campo.regrasCopos  = D.regrasCopos;
     if(chave==='orcPrecos')    campo.orcPrecos    = D.orcPrecos;
+    if(chave==='orcFatores')   campo.orcFatores   = D.orcFatores;
+    if(chave==='orcBlocosOrdem') campo.orcBlocosOrdem = D.orcBlocosOrdem;
     if(chave==='bibliotecaItens') campo.bibliotecaItens = D.bibliotecaItens;
     if(chave==='produtos')       campo.produtos       = D.produtos;
     if(chave==='insumos')        campo.insumos        = D.insumos;
@@ -2411,6 +2431,7 @@ window.svFirebase = async function(chave) {
     if(chave==='enderecos')      campo.enderecos      = D.enderecos;
     if(chave==='categorias')     campo.categorias     = D.categorias;
     if(chave==='servicos')       campo.servicos       = D.servicos;
+    if(chave==='tiposEvento')    campo.tiposEvento    = D.tiposEvento;
     if(chave==='categoriasServico') campo.categoriasServico = D.categoriasServico;
     if(chave==='historico')    campo.historico    = D.historico;
     if(chave==='metas')        campo.metas        = D.metas;
@@ -2655,6 +2676,8 @@ async function carregarDados() {
     D.regrasProp   = r.regrasProp   || [];
     D.regrasItens  = r.regrasItens  || [];
     D.orcPrecos    = r.orcPrecos    || {};
+    D.orcFatores   = r.orcFatores   || [];
+    D.orcBlocosOrdem = r.orcBlocosOrdem || [];
     D.historico    = r.historico    || {};
     D.metas        = r.metas        || {};
     D.produtos     = r.produtos     || [];
@@ -2662,6 +2685,7 @@ async function carregarDados() {
     D.cargos       = r.cargos       || [];
     D.enderecos    = r.enderecos    || [];
     D.categorias   = r.categorias   || [];
+    D.tiposEvento  = r.tiposEvento  || [];
     D.servicos          = r.servicos          || [];
     D.categoriasServico = r.categoriasServico || [];
     D.equipe           = r.equipe           || [];

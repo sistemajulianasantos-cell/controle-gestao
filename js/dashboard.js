@@ -20,7 +20,7 @@ function rFechamento(){
     ultimaContagem.itens.forEach(item=>{
       const preco=D.precos[item.prod]||{};
       const tot=(item.est||0)+(item.salao||0);
-      valorEstoque+=tot*(preco.custo||0);
+      valorEstoque+=tot*custoEfetivoProduto(item.prod);
       valorRevenda+=tot*(preco.revenda||0);
     });
   }

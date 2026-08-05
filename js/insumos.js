@@ -298,6 +298,15 @@ function rFormInsumo(id) {
           '<div class="inp" style="background:var(--bg3);color:var(--amber)" title="Mínimo recomendado — é só um alerta, não bloqueia nada">' + (teto ? fR(teto) : '—') + '</div></div>' +
       '</div>' +
 
+      '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">Revenda por Temporada</div>' +
+      '<div style="font-size:11px;color:var(--text3);margin-bottom:10px">Quando preenchido, esse valor vira o preço final do item no orçamento (conforme a temporada escolhida em cada orçamento), no lugar do custo/manual acima.</div>' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:20px">' +
+        '<div><label class="lbl">Revenda — Baixa Temporada</label>' +
+          '<input class="inp" id="cad-revenda-baixa" type="number" min="0" step="0.01" placeholder="0,00" value="' + (i && i.revendaBaixaTemporada ? i.revendaBaixaTemporada : '') + '"></div>' +
+        '<div><label class="lbl">Revenda — Alta Temporada</label>' +
+          '<input class="inp" id="cad-revenda-alta" type="number" min="0" step="0.01" placeholder="0,00" value="' + (i && i.revendaAltaTemporada ? i.revendaAltaTemporada : '') + '"></div>' +
+      '</div>' +
+
       (i ? (
         '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">Ficha Técnica</div>' +
         '<div style="font-size:12px;color:var(--text3);margin-bottom:8px">' +
@@ -321,6 +330,8 @@ function salvarInsumo() {
   var aliasesRaw = (document.getElementById('cad-aliases')?.value || '').trim();
   var aliases = aliasesRaw ? aliasesRaw.split(',').map(function(a) { return a.trim().toUpperCase(); }).filter(Boolean) : [];
   var precoManualVal = document.getElementById('cad-preco-manual')?.value;
+  var revendaBaixaVal = document.getElementById('cad-revenda-baixa')?.value;
+  var revendaAltaVal  = document.getElementById('cad-revenda-alta')?.value;
 
   if (!D.insumos) D.insumos = [];
   var existente = _insumoEditandoId ? buscarInsumoPorId(_insumoEditandoId) : null;
@@ -340,6 +351,8 @@ function salvarInsumo() {
     estoqueMinimo: parseFloat(document.getElementById('cad-estoque-minimo')?.value) || 0,
     custoReposicao: existente ? existente.custoReposicao : 0,
     precoManual: (precoManualVal != null && precoManualVal !== '') ? Number(precoManualVal) : null,
+    revendaBaixaTemporada: (revendaBaixaVal != null && revendaBaixaVal !== '') ? Number(revendaBaixaVal) : 0,
+    revendaAltaTemporada:  (revendaAltaVal  != null && revendaAltaVal  !== '') ? Number(revendaAltaVal)  : 0,
     ultimaCompra: existente ? existente.ultimaCompra : '',
     ultimoFornecedor: existente ? existente.ultimoFornecedor : '',
   };

@@ -840,9 +840,9 @@ function atualizarPrecoFator(grupo, chave, valor) {
   p[grupo][chave] = parseFloat(valor) || 0;
 }
 
-function atualizarPrecoDesc(valor) {
+function atualizarPrecoUnico(fatorId, valor) {
   var p = _ensureOrcPrecos();
-  p.desc = parseFloat(valor) || 0;
+  p[fatorId] = parseFloat(valor) || 0;
 }
 
 function salvarPrecosOrcamento() {
@@ -919,39 +919,140 @@ function rPrecosOrcamento() {
     }).join('') : '') +
     '</tbody></table></div></div>';
 
-  function bloco(titulo, grupo, labels) {
-    return '<div class="sec" style="margin-bottom:14px">' +
-      '<div class="sec-head"><span class="sec-title">' + titulo + '</span></div>' +
-      '<div style="padding:12px 16px;display:flex;gap:16px;flex-wrap:wrap">' +
-      Object.keys(precos[grupo]).map(function(k) {
-        return '<div><label style="font-size:9px;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:3px">' + (labels[k]||k) + '</label>' +
-          '<input type="number" value="' + precos[grupo][k] + '" step="0.01" ' +
-          'onchange="atualizarPrecoFator(\'' + grupo + '\',\'' + k + '\',this.value)" ' +
-          'style="width:100px;font-size:12px;padding:5px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)"></div>';
-      }).join('') +
-      '</div></div>';
+  var ordem = getOrcBlocosOrdem();
+  function _ordArrows(id) {
+    var idx = ordem.indexOf(id);
+    return '<div style="display:flex;flex-direction:column;gap:1px;margin-right:8px">' +
+      '<button class="btn-sm" style="padding:0 5px;line-height:1.3;background:var(--bg3)" ' + (idx<=0?'disabled':'') + ' onclick="moverOrcBloco(\'' + id + '\',-1)" title="Mover para cima">▲</button>' +
+      '<button class="btn-sm" style="padding:0 5px;line-height:1.3;background:var(--bg3)" ' + (idx>=ordem.length-1?'disabled':'') + ' onclick="moverOrcBloco(\'' + id + '\',1)" title="Mover para baixo">▼</button>' +
+    '</div>';
   }
 
-  var htmlCond  = bloco('⚖️ Condicional (por convidado)',                    'cond',  { padrao:'Padrão', simples:'Simples' });
-  var htmlCI    = bloco('🧴 Cobertura de Insumos (por convidado)',            'ci',    { normal:'Normal', reduzido:'Reduzido' });
-  var htmlPerda = bloco('📉 Previsão de Perda (por convidado)',               'perda', { reduzida:'Reduzida', padrao:'Padrão', alta:'Alta' });
-  var htmlSeg   = bloco('🛡️ Seguro (por convidado, por tipo de evento)',      'seg',   { casamento:'Casamento', '15anos':'15 Anos', formatura:'Formatura', outros:'Outros' });
-  var htmlVas   = bloco('🥂 Vasilhames (valor fixo, por complexidade)',       'vas',   { simples:'Simples', padrao:'Padrão', complexo:'Complexo' });
+  // Injeta as setas de ordem no início do sec-head dos dois blocos estruturais
+  // (Equipe/Locais não são "fatores" — têm formato próprio, só a posição é configurável).
+  htmlPrecoEquipe = htmlPrecoEquipe.replace('<div class="sec-head">', '<div class="sec-head">' + _ordArrows('equipe'));
+  htmlLocais      = htmlLocais.replace('<div class="sec-head">',      '<div class="sec-head">' + _ordArrows('locais'));
 
-  var htmlDesc = '<div class="sec" style="margin-bottom:14px">' +
-    '<div class="sec-head"><span class="sec-title">🗑️ Descartáveis (por convidado)</span></div>' +
-    '<div style="padding:12px 16px">' +
-    '<input type="number" value="' + precos.desc + '" step="0.01" onchange="atualizarPrecoDesc(this.value)" ' +
-    'style="width:100px;font-size:12px;padding:5px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">' +
+  // Cada categoria (fator) tem nome editável, ordem (setas ▲▼) e opções
+  // editáveis (rename via input, valores, +/- opção). Os 6 fatores originais
+  // (builtin) não podem ser excluídos; categorias criadas por ela podem.
+  function blocoFator(fator) {
+    var opcoes = _orcFatorOpcoes(fator);
+    var podeEditarOpcoes = fator.opcoesFonte !== 'tiposEvento';
+    var corpo;
+    if (fator.unicoValor) {
+      corpo = '<input type="number" value="' + (precos[fator.id]||0) + '" step="0.01" onchange="atualizarPrecoUnico(\'' + fator.id + '\',this.value)" ' +
+        'style="width:100px;font-size:12px;padding:5px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">';
+    } else {
+      corpo = '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">' +
+        opcoes.map(function(o) {
+          var val = (precos[fator.id] && precos[fator.id][o.chave] != null) ? precos[fator.id][o.chave] : 0;
+          return '<div style="position:relative;padding-top:2px">' +
+            '<label style="font-size:9px;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:3px">' + o.label + '</label>' +
+            '<input type="number" value="' + val + '" step="0.01" onchange="atualizarPrecoFator(\'' + fator.id + '\',\'' + o.chave + '\',this.value)" ' +
+            'style="width:100px;font-size:12px;padding:5px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">' +
+            (podeEditarOpcoes && opcoes.length > 1 ? '<button class="btn-sm btn-red" style="position:absolute;top:-4px;right:-4px;padding:0 4px;font-size:9px;line-height:1.4" onclick="removerOpcaoFator(\'' + fator.id + '\',\'' + o.chave + '\')" title="Remover opção">×</button>' : '') +
+          '</div>';
+        }).join('') +
+        (podeEditarOpcoes ? '<button class="btn-sm" style="background:var(--bg3);align-self:flex-end" onclick="adicionarOpcaoFator(\'' + fator.id + '\')">+ opção</button>' : '') +
+        '</div>' +
+        (fator.opcoesFonte === 'tiposEvento' ? '<div style="font-size:10px;color:var(--text3);margin-top:10px">As opções vêm do <a href="#" onclick="go(\'tiposevento\');return false" style="color:var(--blue)">Cadastro → Tipos de Evento</a> — adicione ou renomeie um tipo de evento lá.</div>' : '');
+    }
+    var tituloEditavel = '<input type="text" value="' + fator.nome + '" onchange="renomearOrcFator(\'' + fator.id + '\',this.value)" ' +
+      'style="font-size:13px;font-weight:600;background:transparent;border:none;border-bottom:1px dashed var(--border2);color:var(--text);padding:2px 0;flex:1;min-width:180px">';
+    return '<div class="sec" style="margin-bottom:14px">' +
+      '<div class="sec-head">' + _ordArrows(fator.id) + tituloEditavel +
+        (!fator.builtin ? '<button class="btn-sm btn-red" style="margin-left:8px" onclick="excluirOrcFator(\'' + fator.id + '\')" title="Excluir categoria">🗑️</button>' : '') +
+      '</div>' +
+      '<div style="padding:12px 16px">' + corpo + '</div></div>';
+  }
+
+  var htmlPorId = { equipe: htmlPrecoEquipe, locais: htmlLocais };
+  getOrcFatores().forEach(function(f) { htmlPorId[f.id] = blocoFator(f); });
+  var corpoOrdenado = ordem.map(function(id) { return htmlPorId[id] || ''; }).join('');
+
+  var htmlNovaCategoria = '<div class="sec" style="margin-bottom:14px;border-style:dashed">' +
+    '<div class="sec-head"><span class="sec-title">➕ Nova categoria de preço</span></div>' +
+    '<div style="padding:12px 16px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">' +
+      '<div><label style="font-size:9px;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:3px">Nome</label>' +
+        '<input class="inp" id="pfat-nome" type="text" placeholder="Ex: Locação de Gelo" style="width:220px"></div>' +
+      '<div><label style="font-size:9px;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:3px">Tipo de valor</label>' +
+        '<select class="inp" id="pfat-tipo" style="width:160px">' +
+          '<option value="porConvidado">Por convidado</option>' +
+          '<option value="fixo">Valor fixo</option>' +
+        '</select></div>' +
+      '<button class="btn" style="background:var(--green)" onclick="adicionarOrcFator()">+ Adicionar categoria</button>' +
     '</div></div>';
 
   cont.innerHTML =
-    '<div style="font-size:12px;color:var(--text3);margin-bottom:14px">Esses valores preenchem automaticamente os itens do orçamento (Bartender, Carregamento, Seguro etc.) conforme o Local, Tipo de Evento e Complexidade escolhidos na Calculadora de Orçamento.</div>' +
-    htmlPrecoEquipe + htmlLocais + htmlCond + htmlDesc + htmlCI + htmlPerda + htmlSeg + htmlVas +
+    '<div style="font-size:12px;color:var(--text3);margin-bottom:14px">Esses valores preenchem automaticamente os itens do orçamento (Bartender, Carregamento, Seguro etc.) conforme o Local, Tipo de Evento e Complexidade escolhidos na Calculadora de Orçamento. Use as setas ▲▼ pra mudar a ordem — o nome de cada categoria é editável, e dá pra criar novas categorias no fim da lista.</div>' +
+    corpoOrdenado + htmlNovaCategoria +
     '<div style="display:flex;gap:8px">' +
       '<button class="btn" onclick="salvarPrecosOrcamento()" style="background:var(--green)">💾 Salvar Preços</button>' +
       '<button class="btn" onclick="resetarPrecosOrcamento()" style="background:var(--red-dim);color:var(--red)">↺ Restaurar Padrão</button>' +
     '</div>';
+}
+
+function renomearOrcFator(id, novoNomeRaw) {
+  var novoNome = (novoNomeRaw || '').trim();
+  if (!novoNome) { alert('O nome não pode ficar vazio.'); rPrecosOrcamento(); return; }
+  var f = buscarOrcFatorPorId(id);
+  if (!f) return;
+  f.nome = novoNome;
+  sv('orcFatores');
+  rPrecosOrcamento();
+}
+
+function adicionarOrcFator() {
+  var nome = (document.getElementById('pfat-nome')?.value || '').trim();
+  var tipoValor = document.getElementById('pfat-tipo')?.value || 'porConvidado';
+  if (!nome) { alert('Informe o nome da categoria.'); return; }
+  if (!D.orcFatores) D.orcFatores = [];
+  var id = 'fat' + Date.now() + Math.random().toString(36).slice(2, 5);
+  D.orcFatores.push({
+    id: id, nome: nome, tipoValor: tipoValor, unicoValor: false,
+    opcoesFonte: null, secao: 'custos', builtin: false, chavePadrao: 'padrao',
+    opcoes: [{ chave: 'padrao', label: 'Padrão' }],
+  });
+  sv('orcFatores');
+  getOrcBlocosOrdem(); // migrarOrcFatores() detecta o id novo e já acrescenta ele ao fim da ordem
+  document.getElementById('pfat-nome').value = '';
+  rPrecosOrcamento();
+}
+
+function excluirOrcFator(id) {
+  var f = buscarOrcFatorPorId(id);
+  if (!f) return;
+  if (f.builtin) { alert('Essa categoria faz parte do cálculo padrão e não pode ser excluída — renomeie ou edite as opções dela.'); return; }
+  if (!confirm('Excluir a categoria "' + f.nome + '"?')) return;
+  D.orcFatores = D.orcFatores.filter(function(x) { return x.id !== id; });
+  D.orcBlocosOrdem = (D.orcBlocosOrdem || []).filter(function(x) { return x !== id; });
+  sv('orcFatores');
+  sv('orcBlocosOrdem');
+  rPrecosOrcamento();
+}
+
+function adicionarOpcaoFator(fatorId) {
+  var f = buscarOrcFatorPorId(fatorId);
+  if (!f) return;
+  var label = prompt('Nome da nova opção (ex: Premium):');
+  if (!label || !label.trim()) return;
+  var base = label.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '') || ('op' + Date.now());
+  var chave = base, n = 2;
+  while (f.opcoes.some(function(o) { return o.chave === chave; })) { chave = base + n; n++; }
+  f.opcoes.push({ chave: chave, label: label.trim() });
+  sv('orcFatores');
+  rPrecosOrcamento();
+}
+
+function removerOpcaoFator(fatorId, chave) {
+  var f = buscarOrcFatorPorId(fatorId);
+  if (!f) return;
+  if (f.opcoes.length <= 1) { alert('A categoria precisa ter pelo menos uma opção.'); return; }
+  if (!confirm('Remover essa opção?')) return;
+  f.opcoes = f.opcoes.filter(function(o) { return o.chave !== chave; });
+  sv('orcFatores');
+  rPrecosOrcamento();
 }
 
 // ── Cruzar cardápio com fichas ──────────────────────────
