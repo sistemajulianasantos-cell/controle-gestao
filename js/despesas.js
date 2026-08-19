@@ -1070,9 +1070,12 @@ function imprimirDespesas() {
     .card-r .lbl{font-size:9px;color:#777;text-transform:uppercase;letter-spacing:.05em}
     .card-r .val{font-size:14px;font-weight:700;margin-top:2px}
     .sec-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#222;margin:18px 0 6px;border-bottom:2px solid #222;padding-bottom:4px}
-    .grupo-titulo{background:#222;color:#fff;padding:5px 10px;font-size:11px;font-weight:700;display:flex;justify-content:space-between}
+    .grupo-bloco{break-inside:avoid;page-break-inside:avoid}
+    .grupo-titulo{background:#222;color:#fff;padding:5px 10px;font-size:11px;font-weight:700;display:flex;justify-content:space-between;break-after:avoid;page-break-after:avoid}
     .grupo-subtotal td{background:#f4f4f4;font-weight:700;border-top:1px solid #ccc;font-size:10px;color:#333}
     table{width:100%;border-collapse:collapse;margin-bottom:6px}
+    thead{display:table-header-group}
+    tr{break-inside:avoid;page-break-inside:avoid}
     th{background:#f4f4f4;color:#444;padding:5px 8px;text-align:left;font-size:10px;text-transform:uppercase;border:1px solid #ddd;font-weight:600}
     td{padding:5px 8px;border-bottom:1px solid #f0f0f0;vertical-align:top}
     tfoot td{background:#efefef;font-weight:700;border-top:2px solid #999}
@@ -1107,15 +1110,17 @@ function imprimirDespesas() {
     const thsData  = `<th style="text-transform:capitalize">${campoDataLabel}</th><th>Forma</th><th>Fornecedor</th><th style="text-align:right">Valor</th>`;
     const thsCat   = `<th>Categoria</th><th>Forma</th><th>Fornecedor</th><th style="text-align:right">Valor</th>`;
     return `
-      <div class="grupo-titulo"><span>${titulo}</span><span>${fmtR(subTot)}</span></div>
-      <table>
-        <thead><tr>${colunas==='cat'?thsData:thsCat}</tr></thead>
-        <tbody>${linhas}</tbody>
-        <tbody class="grupo-subtotal"><tr>
-          <td colspan="3" style="text-align:right;text-transform:uppercase;font-size:10px">${subTotLabel}</td>
-          <td style="text-align:right;color:#b91c1c">${fmtR(subTot)}</td>
-        </tr></tbody>
-      </table>`;
+      <div class="grupo-bloco">
+        <div class="grupo-titulo"><span>${titulo}</span><span>${fmtR(subTot)}</span></div>
+        <table>
+          <thead><tr>${colunas==='cat'?thsData:thsCat}</tr></thead>
+          <tbody>${linhas}</tbody>
+          <tbody class="grupo-subtotal"><tr>
+            <td colspan="3" style="text-align:right;text-transform:uppercase;font-size:10px">${subTotLabel}</td>
+            <td style="text-align:right;color:#b91c1c">${fmtR(subTot)}</td>
+          </tr></tbody>
+        </table>
+      </div>`;
   }
 
   if (ordem === 'categoria') {
