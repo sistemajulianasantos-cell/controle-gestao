@@ -612,7 +612,7 @@ function salvarDespesa() {
   const obs        = document.getElementById('desp-form-obs')?.value?.trim() || '';
   const numeroNF   = document.getElementById('desp-form-nf')?.value?.trim() || '';
 
-  if (!data || !categoria || !fornecedor || !descricao || !valorStr) {
+  if (!data || !categoria || !fornecedor || !valorStr) {
     alert2('Preencha todos os campos obrigatórios (*).', 'error');
     _salvandoDespesa = false; return;
   }
@@ -906,7 +906,7 @@ function salvarEditDespesa() {
   const numeroNF   = document.getElementById('desp-edit-nf')?.value?.trim() || '';
   const dataVencimento = document.getElementById('desp-edit-vencimento')?.value || '';
   const dataPagamento  = document.getElementById('desp-edit-pagamento')?.value || '';
-  if (!data || !categoria || !fornecedor || !descricao || !valorStr) { alert2('Preencha todos os campos obrigatórios (*).', 'error'); return; }
+  if (!data || !categoria || !fornecedor || !valorStr) { alert2('Preencha todos os campos obrigatórios (*).', 'error'); return; }
   const valor = parseFloat(valorStr.toString().replace(',','.'));
   if (!valor || valor <= 0) { alert2('Valor inválido.', 'error'); return; }
   d.data = data; d.categoria = categoria; d.forma = forma;
