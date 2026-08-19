@@ -136,7 +136,45 @@ function normalizarNF(nf){
   return nf.replace(/[\s.\-\/\\]/g,'').replace(/^0+/,'').toLowerCase();
 }
 
+// ─── VÍNCULO COM DESPESAS (NF lançada mas sem entrada de produtos) ──────────
+function _despesasNFPendentesEntrada(){
+  const nfsComEntrada=new Set((D.entradas||[]).filter(e=>e.nf).map(e=>normalizarNF(e.nf)));
+  return (D.despesas||[]).filter(d=>{
+    if(!d.numeroNF||!d.numeroNF.trim())return false;
+    return !nfsComEntrada.has(normalizarNF(d.numeroNF));
+  }).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
+}
+
+function rEntradasNFPendentes(){
+  const el=document.getElementById('ent-nf-pendentes');
+  if(!el)return;
+  const pendentes=_despesasNFPendentesEntrada();
+  if(!pendentes.length){el.style.display='none';el.innerHTML='';return;}
+  el.style.display='block';
+  el.innerHTML=`<div class="sec" style="margin:0 0 16px;border-left:3px solid #F7C84F">
+    <div class="sec-head"><span class="sec-title" style="color:#F7C84F">⚠ ${pendentes.length} NF lançada(s) em Despesas aguardando entrada de produtos</span></div>
+    <div style="padding:8px 16px 14px;display:flex;flex-direction:column;gap:6px">
+      ${pendentes.map(d=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12px;color:var(--text2);background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:7px 12px">
+          <span><strong style="color:var(--text)">NF ${d.numeroNF}</strong> — ${d.fornecedor||d.descricao||'—'} · ${fd(d.data)} · R$ ${Number(d.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span>
+          <button class="btn-sm" onclick="_preencherEntradaDaDespesa('${d.id}')" style="background:var(--bg2);border:1px solid var(--border2);color:var(--text);font-size:11px;padding:3px 10px;white-space:nowrap">Dar entrada</button>
+        </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function _preencherEntradaDaDespesa(despId){
+  const d=(D.despesas||[]).find(x=>x.id===despId);
+  if(!d)return;
+  const enf=document.getElementById('enf'); if(enf)enf.value=d.numeroNF||'';
+  const edata=document.getElementById('edata'); if(edata)edata.value=d.data||'';
+  const eforn=document.getElementById('eforn'); if(eforn)eforn.value=d.fornecedor||'';
+  verificarNFDuplicada();
+  document.getElementById('enf')?.scrollIntoView({behavior:'smooth',block:'center'});
+}
+
 function rEntradas(){
+  rEntradasNFPendentes();
   const groups={};
   D.entradas.forEach((e,idx)=>{
     const key=(e.nf||'SEM NF')+'|'+e.data;

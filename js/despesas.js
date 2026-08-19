@@ -141,7 +141,17 @@ function removerDuplicatasDespesas() {
 
 function _registrarPagamentoEquipeComoDespesa(p) {
   if (!D.despesas) D.despesas = [];
-  if (D.despesas.some(d => d.pagamentoEquipeId === p.id)) return;
+  const pago = p.status === 'pago';
+  const dataPagamento = pago ? (p.dataPagamento || new Date().toISOString().slice(0,10)) : '';
+  const obs = `Pgto equipe${p.cargo?' – '+p.cargo:''}${p.motivoAjuste?' · Ajuste: '+p.motivoAjuste:''}`;
+  const existente = D.despesas.find(d => d.pagamentoEquipeId === p.id);
+  if (existente) {
+    existente.valor = p.total;
+    existente.obs = obs;
+    existente.status = pago ? 'pago' : 'pendente';
+    existente.dataPagamento = dataPagamento;
+    return;
+  }
   const cats = _getCategoriasDespesas();
   const cat  = cats.includes('Pessoal') ? 'Pessoal' : (cats[0] || 'Pessoal');
   D.despesas.push({
@@ -150,10 +160,12 @@ function _registrarPagamentoEquipeComoDespesa(p) {
     categoria:        cat,
     descricao:        `${p.nomeColab} – ${p.nomeEvento}`,
     valor:            p.total,
-    obs:              `Pgto equipe${p.cargo?' – '+p.cargo:''}${p.motivoAjuste?' · Ajuste: '+p.motivoAjuste:''}`,
+    obs,
     pagamentoEquipeId: p.id,
     fornecedor:       '',
     forma:            'pix_manual',
+    status:           pago ? 'pago' : 'pendente',
+    dataPagamento,
   });
 }
 
@@ -555,7 +567,7 @@ function rDespesasLista() {
       <td style="padding:8px 10px">${_statusTag(status)}</td>
       ${catCell}
       <td style="padding:8px 10px">${_formaTag(forma)}</td>
-      <td style="padding:8px 10px">${desc||'—'}${d.fornecedor?`<div style="font-size:10px;color:#8B91A8;margin-top:2px">${d.fornecedor}</div>`:''}${pagCell}</td>
+      <td style="padding:8px 10px">${d.fornecedor||desc||'—'}${d.fornecedor&&desc?`<div style="font-size:10px;color:#8B91A8;margin-top:2px">${desc}</div>`:''}${pagCell}</td>
       <td style="padding:8px 10px;color:#F74F6B;font-weight:600;white-space:nowrap">${fR(d.valor||0)}</td>
       <td style="padding:8px 10px;white-space:nowrap">
         <div style="display:flex;gap:4px;align-items:center">
@@ -598,6 +610,7 @@ function salvarDespesa() {
   const descricao  = document.getElementById('desp-form-desc')?.value?.trim();
   const valorStr   = document.getElementById('desp-form-valor')?.value;
   const obs        = document.getElementById('desp-form-obs')?.value?.trim() || '';
+  const numeroNF   = document.getElementById('desp-form-nf')?.value?.trim() || '';
 
   if (!data || !categoria || !fornecedor || !descricao || !valorStr) {
     alert2('Preencha todos os campos obrigatórios (*).', 'error');
@@ -612,7 +625,7 @@ function salvarDespesa() {
 
   if (!D.despesas) D.despesas = [];
   D.despesas.push({ id: _gerarId('DESP'), data, categoria, forma, fornecedor, descricao, valor, obs,
-                    dataVencimento, dataPagamento, status });
+                    dataVencimento, dataPagamento, status, numeroNF });
   sv('despesas');
   _salvandoDespesa = false;
 
@@ -620,6 +633,7 @@ function salvarDespesa() {
   document.getElementById('desp-form-desc').value = '';
   document.getElementById('desp-form-valor').value = '';
   document.getElementById('desp-form-obs').value = '';
+  document.getElementById('desp-form-nf').value = '';
   const formaEl = document.getElementById('desp-form-forma');
   if (formaEl) formaEl.value = '';
   const fornEl = document.getElementById('desp-form-forn');
@@ -863,6 +877,7 @@ function abrirEditDespesa(id) {
   _populateFornecedoresDespesas();
   document.getElementById('desp-edit-id').value         = id;
   document.getElementById('desp-edit-data').value       = d.data || '';
+  document.getElementById('desp-edit-nf').value         = d.numeroNF || '';
   document.getElementById('desp-edit-cat').value        = d.categoria || '';
   document.getElementById('desp-edit-forma').value      = d.forma || _detectarFormaDespesa(d);
   document.getElementById('desp-edit-forn').value       = d.fornecedor || '';
@@ -888,6 +903,7 @@ function salvarEditDespesa() {
   const descricao  = document.getElementById('desp-edit-desc')?.value?.trim();
   const valorStr   = document.getElementById('desp-edit-valor')?.value;
   const obs        = document.getElementById('desp-edit-obs')?.value?.trim() || '';
+  const numeroNF   = document.getElementById('desp-edit-nf')?.value?.trim() || '';
   const dataVencimento = document.getElementById('desp-edit-vencimento')?.value || '';
   const dataPagamento  = document.getElementById('desp-edit-pagamento')?.value || '';
   if (!data || !categoria || !fornecedor || !descricao || !valorStr) { alert2('Preencha todos os campos obrigatórios (*).', 'error'); return; }
@@ -895,6 +911,7 @@ function salvarEditDespesa() {
   if (!valor || valor <= 0) { alert2('Valor inválido.', 'error'); return; }
   d.data = data; d.categoria = categoria; d.forma = forma;
   d.fornecedor = fornecedor; d.descricao = descricao; d.valor = valor; d.obs = obs;
+  d.numeroNF = numeroNF;
   d.dataVencimento = dataVencimento;
   d.dataPagamento  = dataPagamento;
   d.status         = dataPagamento ? 'pago' : (d.status === 'pago' && !dataPagamento ? 'pendente' : d.status || 'pendente');
