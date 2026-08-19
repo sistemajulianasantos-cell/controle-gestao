@@ -1055,19 +1055,20 @@ function imprimirDespesas() {
     const linhas = itens.map(d => {
       const forma = _detectarFormaDespesa(d);
       const desc  = _descricaoSemPrefixo(d);
+      const fornCell = `${d.fornecedor||desc||'—'}${d.fornecedor&&desc?`<div style="font-size:9px;color:#888;margin-top:1px">${desc}</div>`:''}`;
       return `<tr>
         ${colunas === 'cat'
           ? `<td style="width:80px">${fmtD(d.data)}</td>
              <td style="color:${formaColor[forma]||'#555'};font-weight:600;width:80px">${formaLabel[forma]||'—'}</td>
-             <td>${desc||'—'}</td>`
+             <td>${fornCell}</td>`
           : `<td style="width:120px">${d.categoria||'—'}</td>
              <td style="color:${formaColor[forma]||'#555'};font-weight:600;width:80px">${formaLabel[forma]||'—'}</td>
-             <td>${desc||'—'}</td>`}
+             <td>${fornCell}</td>`}
         <td style="text-align:right;font-weight:600;color:#b91c1c;width:110px">${fmtR(d.valor||0)}</td>
       </tr>`;
     }).join('');
-    const thsData  = `<th>Data</th><th>Forma</th><th>Descrição</th><th style="text-align:right">Valor</th>`;
-    const thsCat   = `<th>Categoria</th><th>Forma</th><th>Descrição</th><th style="text-align:right">Valor</th>`;
+    const thsData  = `<th>Data</th><th>Forma</th><th>Fornecedor</th><th style="text-align:right">Valor</th>`;
+    const thsCat   = `<th>Categoria</th><th>Forma</th><th>Fornecedor</th><th style="text-align:right">Valor</th>`;
     return `
       <div class="grupo-titulo"><span>${titulo}</span><span>${fmtR(subTot)}</span></div>
       <table>
