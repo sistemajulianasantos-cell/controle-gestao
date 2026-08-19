@@ -940,20 +940,49 @@ function rDespesasCategorias() {
           </div>
           <button class="btn btn-primary btn-sm" onclick="adicionarCategoriaDespesa()">+ Adicionar</button>
         </div>
-        <div style="display:flex;flex-wrap:wrap;gap:8px">
+        <div style="display:flex;flex-direction:column;gap:6px">
           ${cats.map(c => {
             const qtd = (D.despesas||[]).filter(d=>d.categoria===c).length;
-            return `<div style="display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:7px 12px">
-              <span style="font-size:13px;color:var(--text)">${c}</span>
-              ${qtd ? `<span style="font-size:10px;color:#8B91A8;background:var(--bg2);padding:1px 6px;border-radius:4px">${qtd}</span>` : ''}
-              <button onclick="excluirCategoriaDespesa('${c.replace(/'/g,"\\'")}')"
-                style="background:none;border:none;color:#F74F6B;cursor:pointer;padding:0;font-size:13px;line-height:1;margin-left:2px" title="Remover">✕</button>
+            const cEsc = c.replace(/'/g,"\\'");
+            return `<div style="display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:9px 14px">
+              <span style="flex:1;font-size:13px;color:var(--text)">${c}</span>
+              ${qtd ? `<span style="font-size:10px;color:#8B91A8;background:var(--bg2);padding:1px 7px;border-radius:4px">${qtd}</span>` : ''}
+              <button class="btn-sm" onclick="editarNomeCategoriaDespesa('${cEsc}')"
+                style="background:var(--bg2);border:1px solid var(--border2);color:var(--text2);font-size:11px;padding:3px 10px">Editar</button>
+              <button class="btn-sm btn-red" onclick="excluirCategoriaDespesa('${cEsc}')"
+                style="font-size:11px;padding:3px 10px">Remover</button>
             </div>`;
           }).join('')}
         </div>
         <div style="margin-top:14px;font-size:11px;color:#8B91A8">O número mostra quantas despesas usam cada categoria.</div>
       </div>
     </div>`;
+}
+
+function editarNomeCategoriaDespesa(nomeAntigo) {
+  const novoNome = prompt('Novo nome da categoria:', nomeAntigo)?.trim();
+  if (!novoNome || novoNome === nomeAntigo) return;
+  const cats = _getCategoriasDespesas();
+  if (cats.some(c => c.toLowerCase() === novoNome.toLowerCase() && c !== nomeAntigo)) {
+    alert2('Já existe uma categoria com esse nome.', 'error'); return;
+  }
+  if (!D.categoriasDespesas) D.categoriasDespesas = [...cats];
+  const idx = D.categoriasDespesas.indexOf(nomeAntigo);
+  if (idx >= 0) D.categoriasDespesas[idx] = novoNome;
+  else D.categoriasDespesas.push(novoNome);
+  sv('categoriasDespesas');
+
+  let despesasAlteradas = 0;
+  (D.despesas||[]).forEach(d => { if (d.categoria === nomeAntigo) { d.categoria = novoNome; despesasAlteradas++; } });
+  if (despesasAlteradas) sv('despesas');
+
+  let fornecedoresAlterados = 0;
+  (D.fornecedores||[]).forEach(f => { if (f.categoria === nomeAntigo) { f.categoria = novoNome; fornecedoresAlterados++; } });
+  if (fornecedoresAlterados) sv('fornecedores');
+
+  _populateCategoriasSelects();
+  rDespesasCategorias();
+  alert2(`Categoria renomeada para "${novoNome}"!${despesasAlteradas?` ${despesasAlteradas} despesa(s) atualizada(s).`:''}`, 'success');
 }
 
 function adicionarCategoriaDespesa() {
