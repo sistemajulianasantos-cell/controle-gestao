@@ -137,6 +137,10 @@ function normalizarNF(nf){
 }
 
 // ─── VÍNCULO COM DESPESAS (NF lançada mas sem entrada de produtos) ──────────
+function _escHtmlEnt(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
 function _despesasNFPendentesEntrada(){
   const nfsComEntrada=new Set((D.entradas||[]).filter(e=>e.nf).map(e=>normalizarNF(e.nf)));
   return (D.despesas||[]).filter(d=>{
@@ -156,21 +160,28 @@ function rEntradasNFPendentes(){
     <div style="padding:8px 16px 14px;display:flex;flex-direction:column;gap:6px">
       ${pendentes.map(d=>`
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12px;color:var(--text2);background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:7px 12px">
-          <span><strong style="color:var(--text)">NF ${d.numeroNF}</strong> — ${d.fornecedor||d.descricao||'—'} · ${fd(d.data)} · R$ ${Number(d.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span>
-          <button class="btn-sm" onclick="_preencherEntradaDaDespesa('${d.id}')" style="background:var(--bg2);border:1px solid var(--border2);color:var(--text);font-size:11px;padding:3px 10px;white-space:nowrap">Dar entrada</button>
+          <span><strong style="color:var(--text)">NF ${_escHtmlEnt(d.numeroNF)}</strong> — ${_escHtmlEnt(d.fornecedor||d.descricao||'—')} · ${fd(d.data)} · R$ ${Number(d.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span>
+          <button type="button" class="btn-sm ent-dar-entrada" data-desp-id="${_escHtmlEnt(d.id)}" style="background:var(--bg2);border:1px solid var(--border2);color:var(--text);font-size:11px;padding:3px 10px;white-space:nowrap">Dar entrada</button>
         </div>`).join('')}
     </div>
   </div>`;
 }
 
+document.addEventListener('click', function(e){
+  const btn = e.target.closest('.ent-dar-entrada');
+  if(!btn) return;
+  _preencherEntradaDaDespesa(btn.dataset.despId);
+});
+
 function _preencherEntradaDaDespesa(despId){
   const d=(D.despesas||[]).find(x=>x.id===despId);
-  if(!d)return;
+  if(!d){ alert2('Despesa não encontrada.','error'); return; }
   const enf=document.getElementById('enf'); if(enf)enf.value=d.numeroNF||'';
   const edata=document.getElementById('edata'); if(edata)edata.value=d.data||'';
   const eforn=document.getElementById('eforn'); if(eforn)eforn.value=d.fornecedor||'';
   verificarNFDuplicada();
   document.getElementById('enf')?.scrollIntoView({behavior:'smooth',block:'center'});
+  alert2('Campos preenchidos — adicione os produtos e clique em "Lançar nota fiscal".','success');
 }
 
 function rEntradas(){
