@@ -1026,11 +1026,13 @@ function imprimirDespesas() {
   const statusLabel  = { pendente:'Pendente', vencido:'Vencido', pago:'Pago' };
 
   const lista = (D.despesas || []).filter(d => {
-    const ref = d.data || '';
     if (periodoDe || periodoAte) {
-      if (periodoDe && ref < periodoDe) return false;
-      if (periodoAte && ref > periodoAte) return false;
+      // Período de impressão é sempre por data de vencimento
+      if (!d.dataVencimento) return false;
+      if (periodoDe && d.dataVencimento < periodoDe) return false;
+      if (periodoAte && d.dataVencimento > periodoAte) return false;
     } else {
+      const ref = d.data || '';
       if (ano && !ref.startsWith(ano)) return false;
       if (mes && !ref.startsWith(`${ano}-${mes.padStart(2,'0')}`)) return false;
     }
@@ -1038,7 +1040,7 @@ function imprimirDespesas() {
     if (statusFiltro && _statusDesp(d) !== statusFiltro) return false;
     if (formaFiltro && _detectarFormaDespesa(d) !== formaFiltro) return false;
     return true;
-  }).sort((a,b) => (a.data||'').localeCompare(b.data||''));
+  }).sort((a,b) => (a.dataVencimento||a.data||'').localeCompare(b.dataVencimento||b.data||''));
 
   if (!lista.length) { alert('Nenhuma despesa para imprimir com os filtros atuais.'); return; }
 
@@ -1089,7 +1091,7 @@ function imprimirDespesas() {
       const fornCell = `${d.fornecedor||desc||'—'}${d.fornecedor&&desc?`<div style="font-size:9px;color:#888;margin-top:1px">${desc}</div>`:''}`;
       return `<tr>
         ${colunas === 'cat'
-          ? `<td style="width:80px">${fmtD(d.data)}</td>
+          ? `<td style="width:80px">${fmtD(d.dataVencimento)}</td>
              <td style="color:${formaColor[forma]||'#555'};font-weight:600;width:80px">${formaLabel[forma]||'—'}</td>
              <td>${fornCell}</td>`
           : `<td style="width:120px">${d.categoria||'—'}</td>
@@ -1098,7 +1100,7 @@ function imprimirDespesas() {
         <td style="text-align:right;font-weight:600;color:#b91c1c;width:110px">${fmtR(d.valor||0)}</td>
       </tr>`;
     }).join('');
-    const thsData  = `<th>Data</th><th>Forma</th><th>Fornecedor</th><th style="text-align:right">Valor</th>`;
+    const thsData  = `<th>Vencimento</th><th>Forma</th><th>Fornecedor</th><th style="text-align:right">Valor</th>`;
     const thsCat   = `<th>Categoria</th><th>Forma</th><th>Fornecedor</th><th style="text-align:right">Valor</th>`;
     return `
       <div class="grupo-titulo"><span>${titulo}</span><span>${fmtR(subTot)}</span></div>
@@ -1116,15 +1118,16 @@ function imprimirDespesas() {
     const grupos = {};
     lista.forEach(d => { const c = d.categoria||'Outros'; if (!grupos[c]) grupos[c]=[]; grupos[c].push(d); });
     Object.keys(grupos).sort().forEach(cat => {
-      const itens = grupos[cat].sort((a,b)=>(a.data||'').localeCompare(b.data||''));
+      const itens = grupos[cat].sort((a,b)=>(a.dataVencimento||a.data||'').localeCompare(b.dataVencimento||b.data||''));
       detalheHtml += _blocoGrupo(cat, itens, 'cat', `Total ${cat}`);
     });
   } else {
-    // Agrupa por data, ordem crescente
+    // Agrupa por data de vencimento, ordem crescente
     const grupos = {};
-    lista.forEach(d => { const dt = d.data||''; if (!grupos[dt]) grupos[dt]=[]; grupos[dt].push(d); });
+    lista.forEach(d => { const dt = d.dataVencimento||'zzz'; if (!grupos[dt]) grupos[dt]=[]; grupos[dt].push(d); });
     Object.keys(grupos).sort().forEach(dt => {
-      detalheHtml += _blocoGrupo(fmtD(dt), grupos[dt], 'data', `Total ${fmtD(dt)}`);
+      const label = dt === 'zzz' ? 'Sem vencimento' : fmtD(dt);
+      detalheHtml += _blocoGrupo(label, grupos[dt], 'data', `Total ${label}`);
     });
   }
 
