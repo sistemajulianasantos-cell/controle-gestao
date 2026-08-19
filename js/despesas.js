@@ -991,18 +991,28 @@ function imprimirDespesas() {
   const catFiltro    = document.getElementById('desp-cat-filtro')?.value || '';
   const statusFiltro = document.getElementById('desp-status-filtro')?.value || '';
   const formaFiltro  = document.getElementById('desp-forma-filtro')?.value || '';
+  const periodoDe  = document.getElementById('desp-print-de')?.value || '';
+  const periodoAte = document.getElementById('desp-print-ate')?.value || '';
   const ordem     = document.getElementById('desp-print-ordem')?.value || 'data';
 
   const NOMES_MESES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-  const periodoLabel = mes ? `${NOMES_MESES[parseInt(mes)]}/${ano}` : ano;
+  const fmtDLabel = s => s ? s.split('-').reverse().join('/') : '';
+  const periodoLabel = periodoDe || periodoAte
+    ? `${fmtDLabel(periodoDe) || 'início'} a ${fmtDLabel(periodoAte) || 'hoje'}`
+    : (mes ? `${NOMES_MESES[parseInt(mes)]}/${ano}` : ano);
   const formaLabel   = { boleto:'Boleto', pix_manual:'PIX Manual', pix_nota:'PIX c/ Nota', outros:'Outros' };
   const formaColor   = { boleto:'#1d4ed8', pix_manual:'#15803d', pix_nota:'#0e7490', outros:'#555' };
   const statusLabel  = { pendente:'Pendente', vencido:'Vencido', pago:'Pago' };
 
   const lista = (D.despesas || []).filter(d => {
     const ref = d.data || '';
-    if (ano && !ref.startsWith(ano)) return false;
-    if (mes && !ref.startsWith(`${ano}-${mes.padStart(2,'0')}`)) return false;
+    if (periodoDe || periodoAte) {
+      if (periodoDe && ref < periodoDe) return false;
+      if (periodoAte && ref > periodoAte) return false;
+    } else {
+      if (ano && !ref.startsWith(ano)) return false;
+      if (mes && !ref.startsWith(`${ano}-${mes.padStart(2,'0')}`)) return false;
+    }
     if (catFiltro && d.categoria !== catFiltro) return false;
     if (statusFiltro && _statusDesp(d) !== statusFiltro) return false;
     if (formaFiltro && _detectarFormaDespesa(d) !== formaFiltro) return false;
