@@ -107,10 +107,10 @@ function _populateFornecedoresDespesas() {
 
 function _autoFillCatFromForn(val, catId) {
   const el=document.getElementById(catId); if(!el) return;
-  if(!val){ el.disabled=false; return; }
+  el.disabled=false; // só sugere a categoria do fornecedor; nunca bloqueia edição
+  if(!val) return;
   const forn=(D.fornecedores||[]).find(f=>f.nome===val);
   if(forn && forn.categoria){ el.value=forn.categoria; }
-  el.disabled=!!forn; // bloqueia se há fornecedor cadastrado (independente de ter categoria)
 }
 
 function _chaveDesp(data, descricao, valor) {
@@ -193,7 +193,7 @@ function _sincronizarCategoriasComFornecedores() {
         (descLower === nomeLower || descLower.startsWith(nomeLower + ' '));
       if (matchForn || matchDesc) {
         if (matchDesc) { d.fornecedor = f.nome; changed = true; }
-        if (d.categoria !== f.categoria) { d.categoria = f.categoria; changed = true; }
+        if (!d.categoria) { d.categoria = f.categoria; changed = true; } // só preenche se vazia; nunca sobrescreve edição manual
       }
     });
   });
@@ -541,15 +541,10 @@ function rDespesasLista() {
     const desc   = _descricaoSemPrefixo(d);
     const status = _statusDesp(d);
     const descEsc = (d.descricao||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
-    const temForn = !!(d.fornecedor && (D.fornecedores||[]).find(f=>f.nome===d.fornecedor));
     const vencCell = d.dataVencimento
       ? `<span style="color:${status==='vencido'?'#F74F6B':status==='pago'?'#8B91A8':'#F59E0B'};font-size:12px">${fd(d.dataVencimento)}</span>`
       : `<span style="color:#8B91A8;font-size:12px">—</span>`;
-    const catCell = temForn
-      ? `<td style="padding:8px 10px" title="Categoria gerenciada pelo fornecedor">
-           <span class="tag" style="background:#2A2F42;color:#CDD3E3;border:none;opacity:.75">${d.categoria||'—'}</span>
-         </td>`
-      : `<td style="padding:4px 10px">
+    const catCell = `<td style="padding:4px 10px">
            <select onchange="editarCategoriaDespesa('${d.id}','${descEsc}',this.value)"
              style="background:#2A2F42;color:#CDD3E3;border:1px solid #3A4055;border-radius:4px;font-size:11px;padding:2px 6px;cursor:pointer;max-width:120px">
              ${_getCategoriasDespesas().map(c=>`<option value="${c}"${c===d.categoria?' selected':''}>${c}</option>`).join('')}
@@ -886,9 +881,6 @@ function abrirEditDespesa(id) {
   document.getElementById('desp-edit-obs').value        = d.obs || '';
   document.getElementById('desp-edit-vencimento').value = d.dataVencimento || '';
   document.getElementById('desp-edit-pagamento').value  = d.dataPagamento || '';
-  // Bloqueia categoria se há fornecedor vinculado
-  const catEditEl = document.getElementById('desp-edit-cat');
-  if(catEditEl) catEditEl.disabled = !!(d.fornecedor && (D.fornecedores||[]).find(f=>f.nome===d.fornecedor));
   document.getElementById('m-edit-despesa').style.display = 'flex';
 }
 
