@@ -988,19 +988,24 @@ function excluirCategoriaDespesa(nome) {
 function imprimirDespesas() {
   const mes       = document.getElementById('desp-mes')?.value || '';
   const ano       = document.getElementById('desp-ano')?.value || new Date().getFullYear().toString();
-  const catFiltro = document.getElementById('desp-cat-filtro')?.value || '';
+  const catFiltro    = document.getElementById('desp-cat-filtro')?.value || '';
+  const statusFiltro = document.getElementById('desp-status-filtro')?.value || '';
+  const formaFiltro  = document.getElementById('desp-forma-filtro')?.value || '';
   const ordem     = document.getElementById('desp-print-ordem')?.value || 'data';
 
   const NOMES_MESES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   const periodoLabel = mes ? `${NOMES_MESES[parseInt(mes)]}/${ano}` : ano;
   const formaLabel   = { boleto:'Boleto', pix_manual:'PIX Manual', pix_nota:'PIX c/ Nota', outros:'Outros' };
   const formaColor   = { boleto:'#1d4ed8', pix_manual:'#15803d', pix_nota:'#0e7490', outros:'#555' };
+  const statusLabel  = { pendente:'Pendente', vencido:'Vencido', pago:'Pago' };
 
   const lista = (D.despesas || []).filter(d => {
     const ref = d.data || '';
     if (ano && !ref.startsWith(ano)) return false;
     if (mes && !ref.startsWith(`${ano}-${mes.padStart(2,'0')}`)) return false;
     if (catFiltro && d.categoria !== catFiltro) return false;
+    if (statusFiltro && _statusDesp(d) !== statusFiltro) return false;
+    if (formaFiltro && _detectarFormaDespesa(d) !== formaFiltro) return false;
     return true;
   }).sort((a,b) => (a.data||'').localeCompare(b.data||''));
 
@@ -1106,6 +1111,8 @@ function imprimirDespesas() {
     <div style="text-align:right">
       <div class="periodo">${periodoLabel}</div>
       ${catFiltro ? `<div class="sub" style="margin-top:4px">Categoria: <strong>${catFiltro}</strong></div>` : ''}
+      ${statusFiltro ? `<div class="sub" style="margin-top:2px">Status: <strong>${statusLabel[statusFiltro]||statusFiltro}</strong></div>` : ''}
+      ${formaFiltro ? `<div class="sub" style="margin-top:2px">Forma: <strong>${(_FORMAS_DESP[formaFiltro]||{}).label||formaFiltro}</strong></div>` : ''}
     </div>
   </div>
 
