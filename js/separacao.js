@@ -70,37 +70,40 @@ function sepCarregarProducao(prodId) {
     .reduce(function(s,e){return s+(parseInt(e.qtd)||0);},0) || Math.max(1,Math.ceil(conv/30));
   var equipeTotal = equipe.reduce(function(s,e){return s+(parseInt(e.qtd)||0);},0) || bartenders;
 
-  // Itens removidos desta separação (persistidos no D via campo temporário)
-  var _sepRemovidosKey = 'sep_removidos_' + prodId;
-  if (!window._sepRemovidosMap) window._sepRemovidosMap = {};
-  if (!window._sepRemovidosMap[prodId]) window._sepRemovidosMap[prodId] = [];
-
-  // Cruzar cardápio com fichas — retorna { cat: { item: {count, coqueteis} } }
-  var itensCardapio = cruzarCardapioComFichas(p.cardapio||'');
-  var temFichas = Object.keys(itensCardapio).length > 0;
-
-  // Identificar coquetéis do cardápio e quais têm ficha
-  var coqueteisCardapio = []; // [{nome, temFicha, itens:[]}]
-  if (p.cardapio) {
-    var linhasCard = p.cardapio.split('\n').filter(Boolean);
-    linhasCard.forEach(function(linha) {
-      var linhaNorm = linha.toUpperCase().replace(/[-•*:]/g,'').trim();
-      if (!linhaNorm || linhaNorm.length < 3) return;
-      var fichaEncontrada = null;
-      (D.fichas||[]).forEach(function(ficha) {
-        var nomes = [ficha.nome].concat((ficha.variantes||'').split(',').map(function(v){return v.trim();})).filter(Boolean);
-        if (nomes.some(function(n){return linhaNorm.includes(n.toUpperCase());})) {
-          fichaEncontrada = ficha;
-        }
-      });
-      coqueteisCardapio.push({
-        nome: linha.trim(),
-        nomeLimpo: linhaNorm,
-        temFicha: !!fichaEncontrada,
-        ficha: fichaEncontrada
-      });
-    });
+  // Coquetéis deste evento: ela escolhe direto da lista de Fichas cadastradas
+  // — não tenta mais adivinhar a partir do texto do cardápio (nome parecido
+  // gerava falso positivo, como "Mix Frutas Vermelhas" entrando num evento
+  // que não usa nenhum coquetel com esse ingrediente). Seleção fica em
+  // memória (window._sepCoqueteisMap) até "Gerar Folha", quando é salva na
+  // separação; reabrir uma separação já gerada recupera a seleção anterior.
+  if (!window._sepCoqueteisMap) window._sepCoqueteisMap = {};
+  if (!window._sepCoqueteisMap[prodId]) {
+    var sepExistente = (D.separacoes||[]).find(function(s){return s.producaoId===prodId;});
+    window._sepCoqueteisMap[prodId] = (sepExistente && sepExistente.coqueteisIds) ? sepExistente.coqueteisIds.slice() : [];
   }
+  var coqueteisSelecionadosIds = window._sepCoqueteisMap[prodId];
+  var coqueteisCardapio = coqueteisSelecionadosIds
+    .map(function(fid){ return (D.fichas||[]).find(function(f){return f.id===fid;}); })
+    .filter(Boolean)
+    .map(function(ficha){ return { nome: ficha.nome, ficha: ficha }; });
+
+  // Monta itensCardapio (cat -> item -> {count, coqueteis}) direto das
+  // fichas selecionadas, sem depender de casamento de texto.
+  var itensCardapio = {};
+  coqueteisCardapio.forEach(function(coq) {
+    var vistos = new Set();
+    (coq.ficha.itens||[]).forEach(function(item) {
+      var key = item.cat + '|' + item.nome;
+      if (vistos.has(key)) return;
+      vistos.add(key);
+      if (!itensCardapio[item.cat]) itensCardapio[item.cat] = {};
+      if (!itensCardapio[item.cat][item.nome]) itensCardapio[item.cat][item.nome] = { count: 0, coqueteis: [] };
+      itensCardapio[item.cat][item.nome].count++;
+      if (itensCardapio[item.cat][item.nome].coqueteis.indexOf(coq.ficha.nome) === -1) {
+        itensCardapio[item.cat][item.nome].coqueteis.push(coq.ficha.nome);
+      }
+    });
+  });
 
   var regras = getRegrasItens();
   var cont = document.getElementById('sep-form-campos');
@@ -116,7 +119,11 @@ function sepCarregarProducao(prodId) {
   regras.forEach(function(r) {
     var itensDoCardapio = itensCardapio[r.cat] && itensCardapio[r.cat][r.item];
     var coquetelDoItem = itensDoCardapio ? itensCardapio[r.cat][r.item].coqueteis : [];
-    if (r.soSeCardapio && !itensDoCardapio && r.min === 0) return;
+    // "Só se cardápio" precisa valer de verdade: antes, um item com mínimo >
+    // 0 aparecia sempre (com aviso ⚠️), mesmo sem estar em nenhum coquetel
+    // do cardápio deste evento — ex: Mix Frutas Vermelhas somando quantidade
+    // num evento que não usa nenhum coquetel com esse ingrediente (08-26).
+    if (r.soSeCardapio && !itensDoCardapio) return;
     if (!todosItens[r.cat]) todosItens[r.cat] = [];
     var qtd = calcQtdItem(r, conv, bartenders, equipeTotal);
     todosItens[r.cat].push({
@@ -124,7 +131,7 @@ function sepCarregarProducao(prodId) {
       doCardapio: !!itensDoCardapio,
       coqueteis: coquetelDoItem || [],
       soSeCardapio: r.soSeCardapio, obs: r.obs||'',
-      semFicha: r.soSeCardapio && !itensDoCardapio && r.min > 0
+      semFicha: false
     });
   });
 
@@ -170,6 +177,28 @@ function sepCarregarProducao(prodId) {
   html += '<div style="display:grid;gap:16px">';
 
   // ══════════════════════════════════════════════════════
+  // SELEÇÃO DE COQUETÉIS — ela escolhe, não é automático
+  // ══════════════════════════════════════════════════════
+  var fichasOrdenadas = (D.fichas||[]).slice().sort(function(a,b){return a.nome.localeCompare(b.nome,'pt-BR');});
+  html += '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden">' +
+    '<div style="padding:10px 14px;background:var(--bg3);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
+      '<span style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.8px">Coquetéis deste evento</span>' +
+      '<span style="font-size:11px;color:var(--text3)">Marque os coquetéis do cardápio — a separação calcula só a partir do que estiver marcado aqui</span>' +
+      '<a href="#" onclick="irParaCadastroFicha();return false" style="font-size:11px;color:var(--blue);margin-left:auto;white-space:nowrap">+ Cadastrar nova ficha</a>' +
+    '</div>' +
+    '<div style="padding:10px 14px">' +
+      '<input class="inp" id="sep-coq-busca" type="text" placeholder="Buscar coquetel..." oninput="filtrarCoqueteisSeparacao(this.value)" style="width:100%;max-width:280px;margin-bottom:10px">' +
+      '<div id="sep-coq-lista" style="display:flex;flex-wrap:wrap;gap:6px">' +
+        (fichasOrdenadas.length ? fichasOrdenadas.map(function(f) {
+          var marcado = coqueteisSelecionadosIds.indexOf(f.id) !== -1;
+          return '<label class="sep-coq-item" data-busca="' + f.nome.toLowerCase() + '" style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;background:' + (marcado?'var(--green-bg)':'var(--bg3)') + ';padding:4px 10px;border-radius:var(--radius);border:1px solid ' + (marcado?'var(--green-dim)':'var(--border)') + '">' +
+            '<input type="checkbox" ' + (marcado?'checked':'') + ' data-fichaid="' + f.id + '" data-prodid="' + prodId + '" onchange="sepToggleCoquetel(this.dataset.prodid,this.dataset.fichaid,this.checked)"> ' + f.nome + '</label>';
+        }).join('') : '<span style="font-size:11px;color:var(--text3)">Nenhuma ficha cadastrada ainda.</span>') +
+      '</div>' +
+    '</div>' +
+  '</div>';
+
+  // ══════════════════════════════════════════════════════
   // SEÇÃO 1 — COQUETÉIS
   // ══════════════════════════════════════════════════════
   html += '<div style="background:var(--bg2);border:2px solid var(--blue-dim);border-radius:var(--radius-lg);overflow:hidden">' +
@@ -179,77 +208,39 @@ function sepCarregarProducao(prodId) {
     '</div>';
 
   if (coqueteisCardapio.length === 0) {
-    html += '<div style="padding:14px;font-size:12px;color:var(--text3)">Nenhum coquetel no cardápio ou cardápio não preenchido.</div>';
+    html += '<div style="padding:14px;font-size:12px;color:var(--text3)">Nenhum coquetel marcado ainda — selecione acima.</div>';
   } else {
-    coqueteisCardapio.forEach(function(coq, coqIdx) {
-      // Verificar se foi removido desta separação
-      var removidos = window._sepRemovidosMap[prodId] || [];
-      if (removidos.includes(coq.nomeLimpo)) return;
-
-      var corBorda = coq.temFicha ? 'var(--green-dim)' : 'var(--amber-dim)';
-      var corTitulo = coq.temFicha ? 'var(--green)' : 'var(--amber)';
-      var bgTitulo = coq.temFicha ? 'var(--green-bg)' : 'var(--amber-bg)';
-      var icone = coq.temFicha ? '✅' : '⚠️';
-      var nomeEsc = coq.nomeLimpo.replace(/'/g,"\\'");
-
+    coqueteisCardapio.forEach(function(coq) {
       html += '<div style="border-bottom:1px solid var(--border);padding:0">';
-      html += '<div style="padding:8px 14px;background:' + bgTitulo + ';border-left:3px solid ' + corBorda + ';display:flex;align-items:center;gap:8px">' +
-        '<span style="font-size:12px;font-weight:600;color:' + corTitulo + '">' + icone + ' ' + coq.nome + '</span>' +
-        '<div style="margin-left:auto;display:flex;gap:6px;align-items:center">' +
-          (!coq.temFicha ? '<button class="btn-sm" onclick="irParaCadastroFicha()" style="background:var(--amber-dim);color:var(--amber)">+ Cadastrar ficha</button>' : '') +
-          '<button class="btn-sm" data-nomecoq="' + coq.nomeLimpo + '" data-prodid="' + prodId + '" onclick="removerItemSeparacao(this.dataset.nomecoq,this.dataset.prodid)" style="background:var(--red-dim);color:var(--red)" title="Remover desta separação">✕ Remover</button>' +
-        '</div>' +
+      html += '<div style="padding:8px 14px;background:var(--green-bg);border-left:3px solid var(--green-dim)">' +
+        '<span style="font-size:12px;font-weight:600;color:var(--green)">' + coq.nome + '</span>' +
       '</div>';
 
-      if (coq.temFicha && coq.ficha) {
-        var itensCoquetel = coq.ficha.itens || [];
-        if (itensCoquetel.length) {
-          html += '<div style="padding:6px 0">';
-          itensCoquetel.forEach(function(item) {
-            var qtdItem = 0;
-            if (todosItens[item.cat]) {
-              var found = todosItens[item.cat].find(function(x){return x.item===item.nome;});
-              if (found) qtdItem = found.qtd;
-            }
-            html += '<div style="display:grid;grid-template-columns:1fr 100px;gap:8px;align-items:center;padding:4px 14px;border-bottom:1px solid var(--border)">' +
-              '<div style="font-size:12px;color:var(--text)">' +
-                '<span style="font-size:10px;color:var(--text3);margin-right:6px">' + item.cat + '</span>' + item.nome +
-              '</div>' +
-              '<input type="number" value="' + qtdItem + '" min="0" ' +
-                'data-item="' + item.nome.replace(/"/g,'') + '" data-cat="' + item.cat.replace(/"/g,'') + '" ' +
-                'style="font-size:12px;font-weight:600;padding:4px 8px;border-radius:4px;border:1px solid var(--green-dim);background:var(--bg);color:var(--green);text-align:center;font-family:var(--mono)">' +
-            '</div>';
-          });
-          html += '</div>';
-        } else {
-          html += '<div style="padding:8px 14px;font-size:11px;color:var(--text3)">Ficha sem itens cadastrados.</div>';
-        }
-      } else if (!coq.temFicha) {
-        html += '<div style="padding:8px 14px;font-size:11px;color:var(--amber)">Sem ficha — quantidades não calculadas automaticamente.</div>';
+      var itensCoquetel = coq.ficha.itens || [];
+      if (itensCoquetel.length) {
+        html += '<div style="padding:6px 0">';
+        itensCoquetel.forEach(function(item) {
+          var qtdItem = 0;
+          if (todosItens[item.cat]) {
+            var found = todosItens[item.cat].find(function(x){return x.item===item.nome;});
+            if (found) qtdItem = found.qtd;
+          }
+          html += '<div style="display:grid;grid-template-columns:1fr 100px;gap:8px;align-items:center;padding:4px 14px;border-bottom:1px solid var(--border)">' +
+            '<div style="font-size:12px;color:var(--text)">' +
+              '<span style="font-size:10px;color:var(--text3);margin-right:6px">' + item.cat + '</span>' + item.nome +
+            '</div>' +
+            '<input type="number" value="' + qtdItem + '" min="0" ' +
+              'data-item="' + item.nome.replace(/"/g,'') + '" data-cat="' + item.cat.replace(/"/g,'') + '" ' +
+              'style="font-size:12px;font-weight:600;padding:4px 8px;border-radius:4px;border:1px solid var(--green-dim);background:var(--bg);color:var(--green);text-align:center;font-family:var(--mono)">' +
+          '</div>';
+        });
+        html += '</div>';
+      } else {
+        html += '<div style="padding:8px 14px;font-size:11px;color:var(--text3)">Ficha sem itens cadastrados.</div>';
       }
 
       html += '</div>';
     });
-
-    // Mostrar itens removidos (para poder restaurar)
-    var removidosAtivos = (window._sepRemovidosMap[prodId]||[]).filter(function(r){
-      return coqueteisCardapio.some(function(c){return c.nomeLimpo===r;});
-    });
-    if (removidosAtivos.length) {
-      html += '<div style="padding:8px 14px;border-top:1px solid var(--border)">' +
-        '<div style="font-size:10px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Itens removidos desta separação</div>' +
-        '<div style="display:flex;flex-wrap:wrap;gap:6px">' +
-        removidosAtivos.map(function(r) {
-          var coq = coqueteisCardapio.find(function(c){return c.nomeLimpo===r;});
-          var nomeEsc = r.replace(/'/g,"\'");
-          return '<span style="display:inline-flex;align-items:center;gap:5px;background:var(--bg4);border:1px solid var(--border2);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--text3)">' +
-            (coq ? coq.nome : r) +
-            '<button data-nomecoq="' + r + '" data-prodid="' + prodId + '" onclick="restaurarItemSeparacao(this.dataset.nomecoq,this.dataset.prodid)" style="background:none;border:none;color:var(--green);cursor:pointer;font-size:11px;padding:0;margin-left:4px" title="Restaurar">↩ restaurar</button>' +
-          '</span>';
-        }).join('') +
-        '</div>' +
-      '</div>';
-    }
   }
 
   html += '</div>'; // fim seção coquetéis
@@ -339,8 +330,10 @@ function sepCarregarProducao(prodId) {
 
   html += '</div></div>'; // fim kit base
 
-  // Coquetéis (campo oculto para impressão)
-  html += '<input type="hidden" id="sep-coqueteis" value="' + (p.cardapio||'').replace(/"/g,'&quot;') + '">';
+  // Coquetéis (campo oculto para impressão) — vem dos coquetéis marcados
+  // acima, não mais do texto bruto do cardápio.
+  var textoCoqueteis = coqueteisCardapio.map(function(c){ return c.nome; }).join('\n');
+  html += '<input type="hidden" id="sep-coqueteis" value="' + textoCoqueteis.replace(/"/g,'&quot;') + '">';
 
   // Campos ocultos
   html += '<input type="hidden" id="sep-prod-id" value="' + prodId + '">' +
@@ -359,19 +352,21 @@ function sepCarregarProducao(prodId) {
 }
 
 
-function removerItemSeparacao(nomeLimpo, prodId) {
-  if (!window._sepRemovidosMap) window._sepRemovidosMap = {};
-  if (!window._sepRemovidosMap[prodId]) window._sepRemovidosMap[prodId] = [];
-  if (!window._sepRemovidosMap[prodId].includes(nomeLimpo)) {
-    window._sepRemovidosMap[prodId].push(nomeLimpo);
-  }
+function sepToggleCoquetel(prodId, fichaId, marcado) {
+  if (!window._sepCoqueteisMap) window._sepCoqueteisMap = {};
+  if (!window._sepCoqueteisMap[prodId]) window._sepCoqueteisMap[prodId] = [];
+  var lst = window._sepCoqueteisMap[prodId];
+  var idx = lst.indexOf(fichaId);
+  if (marcado && idx === -1) lst.push(fichaId);
+  if (!marcado && idx !== -1) lst.splice(idx, 1);
   sepCarregarProducao(prodId);
 }
 
-function restaurarItemSeparacao(nomeLimpo, prodId) {
-  if (!window._sepRemovidosMap || !window._sepRemovidosMap[prodId]) return;
-  window._sepRemovidosMap[prodId] = window._sepRemovidosMap[prodId].filter(function(r){return r!==nomeLimpo;});
-  sepCarregarProducao(prodId);
+function filtrarCoqueteisSeparacao(v) {
+  var termo = (v||'').trim().toLowerCase();
+  document.querySelectorAll('#sep-coq-lista .sep-coq-item').forEach(function(label) {
+    label.style.display = (!termo || label.dataset.busca.indexOf(termo) !== -1) ? '' : 'none';
+  });
 }
 
 function irParaCadastroFicha() {
@@ -429,6 +424,7 @@ function salvarSeparacao() {
     itens: itensFinais,
     bebidasAlc: document.getElementById('sep-bebidas-alc')?.value||'',
     coqueteis: document.getElementById('sep-coqueteis')?.value||'',
+    coqueteisIds: (window._sepCoqueteisMap && window._sepCoqueteisMap[prodId]) ? window._sepCoqueteisMap[prodId].slice() : [],
     criadoEm: new Date().toISOString()
   };
 
