@@ -81,6 +81,12 @@ function sepCarregarProducao(prodId) {
     }
     return null;
   }
+  function fornecedorSalvo(cat, item) {
+    if (sepExistente && sepExistente.fornecedores && sepExistente.fornecedores[cat] && sepExistente.fornecedores[cat][item] != null) {
+      return sepExistente.fornecedores[cat][item];
+    }
+    return '';
+  }
 
   // Coquetéis deste evento: ela escolhe direto da lista de Fichas cadastradas
   // — não tenta mais adivinhar a partir do texto do cardápio (nome parecido
@@ -300,9 +306,13 @@ function sepCarregarProducao(prodId) {
   html += '</div>';
 
   // Categorias de conferência calculadas
+  var FORN_OPCOES = [['', 'Fornecedor…'], ['romero', 'Romero'], ['consignado', 'Consignado'], ['cliente', 'Cliente']];
+
   CATS_CONFERENCIA.forEach(function(cat) {
     var itens = todosItens[cat];
     if (!itens || !itens.length) return;
+    var isAlcoolica = cat === 'BEBIDAS ALCOÓLICAS';
+    var cols = isAlcoolica ? '1fr 130px 100px' : '1fr 100px';
     html += '<div style="border-bottom:1px solid var(--border)">' +
       '<div style="padding:6px 14px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;background:var(--bg3)">' + cat + '</div>';
     itens.forEach(function(it) {
@@ -312,12 +322,23 @@ function sepCarregarProducao(prodId) {
       var qtdConf = it.qtd;
       var salvoConf = qtdSalva(cat, it.item);
       if (salvoConf != null) qtdConf = salvoConf;
-      html += '<div style="display:grid;grid-template-columns:1fr 100px;gap:8px;align-items:center;padding:4px 14px;border-bottom:1px solid var(--border)">' +
+      var itemAttr = it.item.replace(/"/g,'');
+      var catAttr = cat.replace(/"/g,'');
+      var fornHtml = '';
+      if (isAlcoolica) {
+        var fornAtual = fornecedorSalvo(cat, it.item);
+        fornHtml = '<select data-forn-item="' + itemAttr + '" data-forn-cat="' + catAttr + '" ' +
+          'style="font-size:11px;font-weight:600;padding:4px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">' +
+          FORN_OPCOES.map(function(o){ return '<option value="' + o[0] + '"' + (fornAtual===o[0]?' selected':'') + '>' + o[1] + '</option>'; }).join('') +
+        '</select>';
+      }
+      html += '<div style="display:grid;grid-template-columns:' + cols + ';gap:8px;align-items:center;padding:4px 14px;border-bottom:1px solid var(--border)">' +
         '<div style="font-size:12px;color:var(--text)">' + it.item + badge +
           (it.obs ? '<span style="font-size:10px;color:var(--text3);margin-left:6px">' + it.obs + '</span>' : '') +
         '</div>' +
+        fornHtml +
         '<input type="number" value="' + qtdConf + '" min="0" ' +
-          'data-item="' + it.item.replace(/"/g,'') + '" data-cat="' + cat.replace(/"/g,'') + '" ' +
+          'data-item="' + itemAttr + '" data-cat="' + catAttr + '" ' +
           'style="font-size:12px;font-weight:600;padding:4px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:center;font-family:var(--mono)">' +
       '</div>';
     });
@@ -439,6 +460,16 @@ function salvarSeparacao() {
     itensFinais[cat][item] = qtd;
   });
 
+  // Fornecedor por item (hoje só existe o seletor em Bebidas Alcoólicas)
+  var fornecedoresFinais = {};
+  document.querySelectorAll('[data-forn-item][data-forn-cat]').forEach(function(sel) {
+    if (!sel.value) return;
+    var cat = sel.dataset.fornCat;
+    var item = sel.dataset.fornItem;
+    if (!fornecedoresFinais[cat]) fornecedoresFinais[cat] = {};
+    fornecedoresFinais[cat][item] = sel.value;
+  });
+
   var sep = {
     id: 'SEP'+Date.now(),
     producaoId: prodId,
@@ -454,6 +485,7 @@ function salvarSeparacao() {
     bartenders: bt,
     totalEquipe: teq,
     itens: itensFinais,
+    fornecedores: fornecedoresFinais,
     coqueteis: document.getElementById('sep-coqueteis')?.value||'',
     coqueteisIds: (window._sepCoqueteisMap && window._sepCoqueteisMap[prodId]) ? window._sepCoqueteisMap[prodId].slice() : [],
     criadoEm: new Date().toISOString()
@@ -492,14 +524,21 @@ function imprimirSeparacao(id) {
   var w = window.open('','_blank');
   var body = '';
 
+  var FORN_LABEL = { romero: 'Romero', consignado: 'Consignado', cliente: 'Cliente' };
   if (s.itens) {
     Object.entries(s.itens).forEach(function(entry) {
       var cat = entry[0]; var itens = entry[1];
       var linhas = Object.entries(itens).filter(function(e){return e[1]>0;});
       if (!linhas.length) return;
+      var fornMap = (s.fornecedores && s.fornecedores[cat]) || {};
       body += '<div class="st">' + cat + '</div>' +
         '<table>' + col + thead + '<tbody>' +
-        linhas.map(function(e){return '<tr><td>'+e[0]+'</td><td>'+e[1]+' UN</td><td></td><td></td></tr>';}).join('') +
+        linhas.map(function(e){
+          var nomeItem = e[0];
+          var forn = fornMap[nomeItem];
+          if (forn) nomeItem += ' <span style="color:#888;font-size:9px">(' + (FORN_LABEL[forn]||forn) + ')</span>';
+          return '<tr><td>'+nomeItem+'</td><td>'+e[1]+' UN</td><td></td><td></td></tr>';
+        }).join('') +
         '</tbody></table>';
     });
   }
