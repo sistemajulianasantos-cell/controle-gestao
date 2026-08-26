@@ -123,7 +123,7 @@ function sepCarregarProducao(prodId) {
 
   // Classificar categorias por seção
   var CATS_KIT_BASE = ['MATERIAL','DESCARTÁVEIS','ESPECIARIAS','KIT BARTENDER'];
-  var CATS_CONFERENCIA = ['BEBIDAS SEM ÁLCOOL','GELO','COPOS E TAÇAS','PRODUÇÃO','XAROPES'];
+  var CATS_CONFERENCIA = ['BEBIDAS ALCOÓLICAS','BEBIDAS SEM ÁLCOOL','GELO','COPOS E TAÇAS','PRODUÇÃO','XAROPES'];
 
   // Calcular todos os itens
   var todosItens = {}; // cat -> [item]
@@ -174,6 +174,31 @@ function sepCarregarProducao(prodId) {
     }
   });
 
+  // Garante uma linha agregada única por item de ficha, mesmo sem regra de
+  // proporção nem entrada em Cálculos (ex: Mix Penicillin, exclusivo de um
+  // coquetel). Sem isso, um item usado por dois coquetéis (ex: Pink Mandarim
+  // e Gin Tônica no mesmo copo, ou dois coquetéis com Gin) apareceria como
+  // campo editável separado em cada um, e a soma dava quantidade maior do
+  // que ela realmente precisa levar pra festa toda (pedido 08-26).
+  coqueteisCardapio.forEach(function(coq) {
+    (coq.ficha.itens||[]).forEach(function(item) {
+      if (!todosItens[item.cat]) todosItens[item.cat] = [];
+      var existente = todosItens[item.cat].find(function(x){ return x.item === item.nome; });
+      if (existente) {
+        if (existente.coqueteis.indexOf(coq.nome) === -1) existente.coqueteis.push(coq.nome);
+        existente.doCardapio = true;
+      } else {
+        todosItens[item.cat].push({
+          item: item.nome, qtd: 0,
+          doCardapio: true,
+          coqueteis: [coq.nome],
+          soSeCardapio: false, obs: '',
+          semFicha: false
+        });
+      }
+    });
+  });
+
   var equipeHtml = equipe.length
     ? equipe.map(function(e){return '<span style="margin-right:10px">'+e.qtd+' '+e.cargo+'</span>';}).join('')
     : (p.equipeTexto||'—');
@@ -215,7 +240,7 @@ function sepCarregarProducao(prodId) {
   html += '<div style="background:var(--bg2);border:2px solid var(--blue-dim);border-radius:var(--radius-lg);overflow:hidden">' +
     '<div style="padding:10px 14px;background:var(--blue-bg);border-bottom:1px solid var(--blue-dim);display:flex;align-items:center;gap:8px">' +
       '<span style="font-size:12px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.8px">🍹 Coquetéis</span>' +
-      '<span style="font-size:11px;color:var(--text3)">Insumos por coquetel — confira cada item</span>' +
+      '<span style="font-size:11px;color:var(--text3)">Confira quais itens cada coquetel usa — a quantidade final (somada pra festa toda) fica em Conferência / Kit Base</span>' +
     '</div>';
 
   if (coqueteisCardapio.length === 0) {
@@ -231,20 +256,22 @@ function sepCarregarProducao(prodId) {
       if (itensCoquetel.length) {
         html += '<div style="padding:6px 0">';
         itensCoquetel.forEach(function(item) {
-          var qtdItem = 0;
-          if (todosItens[item.cat]) {
-            var found = todosItens[item.cat].find(function(x){return x.item===item.nome;});
-            if (found) qtdItem = found.qtd;
-          }
-          var salvoItem = qtdSalva(item.cat, item.nome);
-          if (salvoItem != null) qtdItem = salvoItem;
+          // Só leitura — a quantidade é sempre a soma agregada pra festa
+          // toda (calculada/editada em Conferência ou Kit Base), nunca por
+          // coquetel isolado. Sem isso, um item usado por 2+ coquetéis (ex:
+          // mesmo copo do Pink Mandarim e do Gin Tônica, ou Gin em dois
+          // drinks) virava campo editável separado em cada um, e a soma
+          // dava quantidade maior do que ela realmente precisa levar
+          // (pedido 08-26).
+          var found = todosItens[item.cat] ? todosItens[item.cat].find(function(x){return x.item===item.nome;}) : null;
+          var qtdAgregada = found ? found.qtd : 0;
+          var salvoAgg = qtdSalva(item.cat, item.nome);
+          if (salvoAgg != null) qtdAgregada = salvoAgg;
           html += '<div style="display:grid;grid-template-columns:1fr 100px;gap:8px;align-items:center;padding:4px 14px;border-bottom:1px solid var(--border)">' +
-            '<div style="font-size:12px;color:var(--text)">' +
-              '<span style="font-size:10px;color:var(--text3);margin-right:6px">' + item.cat + '</span>' + item.nome +
+            '<div style="font-size:12px;color:var(--text3)">' +
+              '<span style="font-size:10px;margin-right:6px">' + item.cat + '</span>' + item.nome +
             '</div>' +
-            '<input type="number" value="' + qtdItem + '" min="0" ' +
-              'data-item="' + item.nome.replace(/"/g,'') + '" data-cat="' + item.cat.replace(/"/g,'') + '" ' +
-              'style="font-size:12px;font-weight:600;padding:4px 8px;border-radius:4px;border:1px solid var(--green-dim);background:var(--bg);color:var(--green);text-align:center;font-family:var(--mono)">' +
+            '<span style="display:block;font-size:12px;font-weight:600;padding:4px 8px;text-align:center;font-family:var(--mono);color:var(--text3)">' + qtdAgregada + '</span>' +
           '</div>';
         });
         html += '</div>';
