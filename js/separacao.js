@@ -315,9 +315,21 @@ function sepCarregarProducao(prodId) {
   var catsConhecidas = CATS_KIT_BASE.concat(CATS_CONFERENCIA);
   var catsExtras = Object.keys(todosItens).filter(function(c){ return c !== 'EQUIPE' && catsConhecidas.indexOf(c) === -1; });
 
-  CATS_CONFERENCIA.concat(catsExtras).forEach(function(cat) {
-    var itens = todosItens[cat];
-    if (!itens || !itens.length) return;
+  // Item de Kit Base (ex: ESPECIARIAS) que veio de um coquetel deste evento —
+  // como Sal de Páprica ou Angostura usados numa receita — fica visível aqui
+  // em Conferência em vez de só dentro do Kit Base colapsado ("▼ Ver itens"):
+  // é ingrediente de receita, ela precisa ver sem precisar abrir nada
+  // (pedido 08-26: pareciam não aparecer). Kit Base continua só com o que
+  // não está ligado a nenhum coquetel selecionado.
+  var catsKitBaseComCardapio = CATS_KIT_BASE.filter(function(cat) {
+    return (todosItens[cat]||[]).some(function(it){ return it.doCardapio; });
+  });
+
+  CATS_CONFERENCIA.concat(catsExtras).concat(catsKitBaseComCardapio).forEach(function(cat) {
+    var todos = todosItens[cat];
+    if (!todos || !todos.length) return;
+    var itens = catsKitBaseComCardapio.indexOf(cat) !== -1 ? todos.filter(function(it){ return it.doCardapio; }) : todos;
+    if (!itens.length) return;
     var isAlcoolica = cat === 'BEBIDAS ALCOÓLICAS';
     var cols = isAlcoolica ? '1fr 130px 100px' : '1fr 100px';
     html += '<div style="border-bottom:1px solid var(--border)">' +
@@ -368,8 +380,10 @@ function sepCarregarProducao(prodId) {
     '<div id="sep-kit-base" style="display:none">';
 
   CATS_KIT_BASE.forEach(function(cat) {
-    var itens = todosItens[cat];
-    if (!itens || !itens.length) return;
+    // O que já foi mostrado em Conferência (por vir de um coquetel) não se
+    // repete aqui — ver comentário em catsKitBaseComCardapio acima.
+    var itens = (todosItens[cat]||[]).filter(function(it){ return !it.doCardapio; });
+    if (!itens.length) return;
     html += '<div style="border-bottom:1px solid var(--border)">' +
       '<div style="padding:6px 14px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;background:var(--bg3)">' + cat + '</div>';
     itens.forEach(function(it) {
