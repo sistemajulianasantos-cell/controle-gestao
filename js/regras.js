@@ -456,10 +456,12 @@ function rFichas() {
     cont.innerHTML = '<div style="text-align:center;color:var(--text3);padding:32px;font-size:13px">Nenhuma ficha cadastrada.<br>Cadastre seus coquetéis para que a separação seja preenchida automaticamente.</div>';
     return;
   }
-  cont.innerHTML = fichas.map(function(f) {
+  var html = '<input class="inp" id="fichas-busca" type="text" placeholder="Buscar coquetel..." oninput="filtrarFichas(this.value)" style="width:100%;max-width:320px;margin-bottom:12px">';
+  html += fichas.map(function(f) {
     var porCat = {};
     (f.itens||[]).forEach(function(i) { if(!porCat[i.cat]) porCat[i.cat]=[]; porCat[i.cat].push(i.nome); });
-    return '<div class="sec" style="margin-bottom:10px">' +
+    var busca = (f.nome + ' ' + (f.variantes||'')).toLowerCase();
+    return '<div class="ficha-card sec" data-busca="' + busca.replace(/"/g,'&quot;') + '" style="margin-bottom:10px">' +
       '<div class="sec-head" style="display:flex;align-items:center;gap:10px">' +
         '<span class="sec-title">🍹 ' + f.nome + '</span>' +
         (f.variantes ? '<span style="color:var(--text3);font-size:11px">' + f.variantes + '</span>' : '') +
@@ -475,6 +477,14 @@ function rFichas() {
       '</div>' +
     '</div>';
   }).join('');
+  cont.innerHTML = html;
+}
+
+function filtrarFichas(v) {
+  var termo = (v||'').trim().toLowerCase();
+  document.querySelectorAll('#fichas-body .ficha-card').forEach(function(card) {
+    card.style.display = (!termo || card.dataset.busca.indexOf(termo) !== -1) ? '' : 'none';
+  });
 }
 
 function rFormFicha(fichaExistente) {
