@@ -1331,9 +1331,20 @@
         <div style="font-size:11px;color:var(--text3)">Geração automática a partir da produção do evento</div></div>
         <button class="btn" onclick="setSepView('nova')" style="background:var(--green)">+ Nova Folha</button>
       </div>
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        <button class="sort-btn active" id="sep-tab-lista" onclick="setSepView('lista')">Folhas</button>
+        <button class="sort-btn" id="sep-tab-calculos" onclick="setSepView('calculos')">Cálculos</button>
+      </div>
       <div id="sep-view-lista">
         <div class="sec"><div class="sec-head"><span class="sec-title">📋 Folhas geradas</span></div>
         <div id="sep-lista-body" style="padding:8px 16px"></div></div>
+      </div>
+      <div id="sep-view-calculos" style="display:none">
+        <div class="sec">
+          <div class="sec-head"><span class="sec-title">Tabela de estimativa</span>
+          <span style="color:var(--text3);font-size:11px;margin-left:8px">Proporções manuais (ex: 12 garrafas de Gin a cada 100 convidados) — usada só aqui na Separação</span></div>
+          <div id="sep-calc-body"></div>
+        </div>
       </div>
       <div id="sep-view-nova" style="display:none">
         <div class="sec">
@@ -2384,8 +2395,8 @@
 <script src="js/insumos.js?v=20260804b"></script>
 <script src="js/estoqueSeparacao.js?v=20260722a"></script>
 <script src="js/cargos.js?v=20260713b"></script>
-<script src="js/regras.js?v=20260805a"></script>
-<script src="js/separacao.js?v=20260610z"></script>
+<script src="js/regras.js?v=20260826a"></script>
+<script src="js/separacao.js?v=20260826a"></script>
 <script src="js/equipe.js?v=20260805e"></script>
 <script src="js/solicitacaoOrcamento.js?v=20260803f"></script>
 <script src="js/orcamento.js?v=20260805b"></script>
@@ -2432,6 +2443,7 @@ window.svFirebase = async function(chave) {
     if(chave==='contratos')    campo.contratos    = D.contratos;
     if(chave==='producoes')    campo.producoes    = D.producoes;
     if(chave==='separacoes')   campo.separacoes   = D.separacoes;
+    if(chave==='sepCalculos')  campo.sepCalculos  = D.sepCalculos;
     if(chave==='fichas')       campo.fichas       = D.fichas;
     if(chave==='regrasProp')   campo.regrasProp   = D.regrasProp;
     if(chave==='regrasItens')  campo.regrasItens  = D.regrasItens;
@@ -2687,6 +2699,7 @@ async function carregarDados() {
     if (typeof atualizarStatusContratos === 'function') atualizarStatusContratos();
     D.producoes    = r.producoes    || [];
     D.separacoes   = r.separacoes   || [];
+    D.sepCalculos  = r.sepCalculos  || [];
     D.fichas       = r.fichas       || [];
     D.regrasProp   = r.regrasProp   || [];
     D.regrasItens  = r.regrasItens  || [];

@@ -512,16 +512,17 @@ function rFormFicha(fichaExistente) {
         '<textarea class="inp" id="fc-descricao" rows="2" style="width:100%;resize:vertical" placeholder="Ex: Vodka ou gin, ginger ale artesanal e espuma de gengibre">' + (f.descricao||'') + '</textarea></div>' +
     '</div>' +
     '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Marque os itens que este coquetel precisa</div>' +
+    '<input class="inp" id="fc-item-busca" type="text" placeholder="Buscar item..." oninput="filtrarItensFicha(this.value)" style="width:100%;max-width:320px;margin-bottom:10px">' +
     '<div id="fc-itens-container">';
 
   Object.entries(getItensFicha()).forEach(function(entry) {
     var cat = entry[0]; var itens = entry[1];
-    html += '<div style="margin-bottom:14px">' +
+    html += '<div class="fc-cat-block" style="margin-bottom:14px">' +
       '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid var(--border2);padding-bottom:4px;margin-bottom:8px">' + cat + '</div>' +
       '<div style="display:flex;flex-wrap:wrap;gap:6px">' +
       itens.map(function(item) {
         var checked = itensIds.has(cat+'|'+item) ? 'checked' : '';
-        return '<label style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;background:var(--bg3);padding:3px 8px;border-radius:var(--radius);border:1px solid var(--border)">' +
+        return '<label class="fc-item-label" data-busca="' + item.toLowerCase() + '" style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;background:var(--bg3);padding:3px 8px;border-radius:var(--radius);border:1px solid var(--border)">' +
           '<input type="checkbox" data-cat="' + cat + '" data-nome="' + item + '" ' + checked + ' style="cursor:pointer"> ' + item + '</label>';
       }).join('') +
       '</div></div>';
@@ -578,6 +579,19 @@ function rFormFicha(fichaExistente) {
       if (b64 && prev) { prev.src = b64; prev.style.display = 'inline-block'; }
     });
   }
+}
+
+function filtrarItensFicha(v) {
+  var termo = (v||'').trim().toLowerCase();
+  document.querySelectorAll('#fc-itens-container .fc-cat-block').forEach(function(bloco) {
+    var algumVisivel = false;
+    bloco.querySelectorAll('.fc-item-label').forEach(function(label) {
+      var visivel = !termo || label.dataset.busca.indexOf(termo) !== -1;
+      label.style.display = visivel ? '' : 'none';
+      if (visivel) algumVisivel = true;
+    });
+    bloco.style.display = algumVisivel ? '' : 'none';
+  });
 }
 
 if (!window._customItens) window._customItens = [];

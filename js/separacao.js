@@ -2,16 +2,22 @@
 
 function initSeparacao() {
   if (!D.separacoes) D.separacoes = [];
+  if (!D.sepCalculos) D.sepCalculos = [];
   setSepView('lista');
 }
 
+var _sepCalcEventoId = '';
+
 function setSepView(v) {
-  ['lista','nova','detalhe'].forEach(function(x) {
+  ['lista','nova','detalhe','calculos'].forEach(function(x) {
     var el = document.getElementById('sep-view-'+x);
     if (el) el.style.display = x===v ? '' : 'none';
+    var btn = document.getElementById('sep-tab-'+x);
+    if (btn) btn.classList.toggle('active', x===v);
   });
-  if (v==='lista') rSeparacoes();
-  if (v==='nova')  rSepNova();
+  if (v==='lista')    rSeparacoes();
+  if (v==='nova')     rSepNova();
+  if (v==='calculos') rSepCalculos();
 }
 
 function rSeparacoes() {
@@ -512,4 +518,93 @@ function excluirSeparacao(id) {
   if (!confirm('Excluir esta folha?')) return;
   D.separacoes = (D.separacoes||[]).filter(function(s){return s.id!==id;});
   sv('separacoes'); rSeparacoes();
+}
+
+// ─── CÁLCULOS (tabela de estimativa manual, só usada aqui na Separação) ───
+function rSepCalculos() {
+  var cont = document.getElementById('sep-calc-body');
+  if (!cont) return;
+  if (!D.sepCalculos) D.sepCalculos = [];
+
+  var producoes = (D.producoes||[]).slice().sort(function(a,b){return (b.data||'').localeCompare(a.data||'');});
+  var optsEvt = producoes.map(function(p){
+    return '<option value="' + p.id + '"' + (_sepCalcEventoId===p.id?' selected':'') + '>' + (p.evento||p.cliente||'—') + ' · ' + (fd(p.data)||'') + '</option>';
+  }).join('');
+  var evt = producoes.find(function(p){return p.id===_sepCalcEventoId;});
+  var conv = evt ? (parseInt(evt.convidados)||0) : 0;
+
+  var html = '<div style="padding:12px 16px 4px">' +
+    '<label class="lbl" style="display:block;margin-bottom:6px">Calcular para o evento</label>' +
+    '<select id="sep-calc-evt-sel" class="inp" onchange="sepCalcSelecionarEvento(this.value)" style="width:100%;max-width:420px">' +
+      '<option value="">— Sem evento (só ver a proporção) —</option>' + optsEvt +
+    '</select>' +
+    (evt ? '<div style="font-size:12px;color:var(--text3);margin-top:6px">' + conv + ' convidados em ' + (evt.evento||evt.cliente||'') + '</div>' : '') +
+  '</div>';
+
+  var lista = D.sepCalculos.slice();
+  html += '<div style="padding:12px 16px 0">';
+  if (!lista.length) {
+    html += '<div style="text-align:center;color:var(--text3);padding:24px 0;font-size:13px">Nenhum item cadastrado. Adicione abaixo (ex: Gin, 12 unidades a cada 100 convidados).</div>';
+  } else {
+    html += '<div style="display:grid;grid-template-columns:1fr 90px 130px 90px 70px;gap:8px;padding:0 0 6px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid var(--border2)">' +
+      '<span>Item</span><span style="text-align:center">Qtd</span><span style="text-align:center">A cada X convid.</span><span style="text-align:center">Sugestão</span><span></span>' +
+    '</div>';
+    lista.forEach(function(r) {
+      var sugestao = conv > 0 ? Math.ceil((conv / (parseFloat(r.convRef)||100)) * (parseFloat(r.qtd)||0)) : null;
+      html += '<div style="display:grid;grid-template-columns:1fr 90px 130px 90px 70px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">' +
+        '<input class="inp" type="text" value="' + (r.item||'').replace(/"/g,'&quot;') + '" onchange="sepCalcAtualizarItem(\'' + r.id + '\',\'item\',this.value)" style="font-size:12px">' +
+        '<input class="inp" type="number" min="0" step="0.5" value="' + r.qtd + '" onchange="sepCalcAtualizarItem(\'' + r.id + '\',\'qtd\',this.value)" style="text-align:center;font-size:12px">' +
+        '<input class="inp" type="number" min="1" value="' + r.convRef + '" onchange="sepCalcAtualizarItem(\'' + r.id + '\',\'convRef\',this.value)" style="text-align:center;font-size:12px">' +
+        '<span style="text-align:center;font-weight:700;color:var(--green)">' + (sugestao===null ? '—' : sugestao) + '</span>' +
+        '<button class="btn-sm btn-red" onclick="sepCalcExcluirItem(\'' + r.id + '\')" style="justify-self:center">Excluir</button>' +
+      '</div>';
+    });
+  }
+  html += '</div>';
+
+  html += '<div style="padding:14px 16px;margin:14px 16px 16px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius)">' +
+    '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Adicionar item</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">' +
+      '<div style="flex:2;min-width:180px"><label class="lbl">Item</label><input class="inp" id="sc-item" type="text" placeholder="Ex: Gin" style="width:100%"></div>' +
+      '<div style="min-width:100px"><label class="lbl">Quantidade</label><input class="inp" id="sc-qtd" type="number" min="0" step="0.5" placeholder="12" style="width:100%"></div>' +
+      '<div style="min-width:140px"><label class="lbl">A cada quantos convidados</label><input class="inp" id="sc-conv" type="number" min="1" placeholder="100" style="width:100%"></div>' +
+      '<button class="btn" onclick="sepCalcAdicionarItem()" style="background:var(--blue)">Adicionar</button>' +
+    '</div>' +
+  '</div>';
+
+  cont.innerHTML = html;
+}
+
+function sepCalcSelecionarEvento(id) {
+  _sepCalcEventoId = id || '';
+  rSepCalculos();
+}
+
+function sepCalcAdicionarItem() {
+  var item = (document.getElementById('sc-item')?.value||'').trim();
+  var qtd  = parseFloat(document.getElementById('sc-qtd')?.value);
+  var conv = parseFloat(document.getElementById('sc-conv')?.value);
+  if (!item || !qtd || !conv) { alert('Preencha item, quantidade e a cada quantos convidados.'); return; }
+  if (!D.sepCalculos) D.sepCalculos = [];
+  D.sepCalculos.push({ id: _gerarId('SC'), item: item, qtd: qtd, convRef: conv });
+  sv('sepCalculos');
+  document.getElementById('sc-item').value = '';
+  document.getElementById('sc-qtd').value = '';
+  document.getElementById('sc-conv').value = '';
+  rSepCalculos();
+}
+
+function sepCalcAtualizarItem(id, campo, valor) {
+  var r = (D.sepCalculos||[]).find(function(x){return x.id===id;});
+  if (!r) return;
+  r[campo] = (campo==='item') ? valor : (parseFloat(valor)||0);
+  sv('sepCalculos');
+  rSepCalculos();
+}
+
+function sepCalcExcluirItem(id) {
+  if (!confirm('Excluir este item?')) return;
+  D.sepCalculos = (D.sepCalculos||[]).filter(function(x){return x.id!==id;});
+  sv('sepCalculos');
+  rSepCalculos();
 }
