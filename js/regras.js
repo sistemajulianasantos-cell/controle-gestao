@@ -662,7 +662,12 @@ function salvarFicha(idExistente) {
     itensVistos.add(key);
     itens.push({cat:cat, nome:nomeItem});
   }
-  document.querySelectorAll('#fc-itens-container input[type="checkbox"]:checked').forEach(function(cb){
+  // Inclui tanto os checkboxes da lista padrão (#fc-itens-container) quanto os
+  // de "Itens já associados (fora das categorias padrão)", que ficam fora
+  // desse container — restrito só a #fc-itens-container, esses itens extras
+  // (nome/categoria que não bate mais com o Cadastro de Insumos atual) eram
+  // descartados a cada salvamento, mesmo marcados (bug real, 2026-08-26).
+  document.querySelectorAll('#regras-view-nova-ficha input[type="checkbox"]:checked').forEach(function(cb){
     addItem(cb.dataset.cat, cb.dataset.nome);
   });
   (window._customItens||[]).forEach(function(i){ addItem(i.cat, i.nome); });
