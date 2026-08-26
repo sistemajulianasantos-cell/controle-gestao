@@ -128,6 +128,34 @@ function sepCarregarProducao(prodId) {
     });
   });
 
+  // Sobrepõe/injeta os itens da tabela de referência da aba Cálculos
+  // (D.sepCalculos) — ela tem prioridade sobre a Regra de Proporção padrão
+  // pro mesmo item, já que é o valor que a usuária ajusta direto aqui na
+  // Separação (ex: Vodka 12 a cada 100 convidados).
+  (D.sepCalculos||[]).forEach(function(r) {
+    var refN = parseFloat(r.ref) || 1;
+    var qtdN = parseFloat(r.qtd) || 0;
+    var base = (r.tipo === 'bartender') ? bartenders : conv;
+    var qty = Math.ceil((qtdN / refN) * base);
+    var itensDoCardapio = itensCardapio[r.cat] && itensCardapio[r.cat][r.item];
+    var coquetelDoItem = itensDoCardapio ? itensCardapio[r.cat][r.item].coqueteis : [];
+    if (!todosItens[r.cat]) todosItens[r.cat] = [];
+    var existente = todosItens[r.cat].find(function(x){ return x.item === r.item; });
+    if (existente) {
+      existente.qtd = qty;
+      existente.doCardapio = existente.doCardapio || !!itensDoCardapio;
+      if (coquetelDoItem.length) existente.coqueteis = coquetelDoItem;
+    } else {
+      todosItens[r.cat].push({
+        item: r.item, qtd: qty,
+        doCardapio: !!itensDoCardapio,
+        coqueteis: coquetelDoItem || [],
+        soSeCardapio: false, obs: '',
+        semFicha: false
+      });
+    }
+  });
+
   var equipeHtml = equipe.length
     ? equipe.map(function(e){return '<span style="margin-right:10px">'+e.qtd+' '+e.cargo+'</span>';}).join('')
     : (p.equipeTexto||'—');
@@ -568,8 +596,67 @@ function rSepCalculos() {
     '<div style="font-size:10px;color:var(--text3);margin-top:6px">Só aparecem itens já cadastrados na Biblioteca de Itens / Cadastro de Insumos e que ainda não estão nesta tabela — evita duplicar o mesmo produto com nome escrito diferente.</div>' +
   '</div>';
 
+  html += '<div style="margin:8px 16px 0;padding-top:16px;border-top:2px solid var(--border2)">' +
+    '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Itens do Kit Base e demais itens automáticos</div>' +
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:12px">Gelo, Material, Descartáveis, Especiarias, Kit Bartender, Produção, Bebidas sem Álcool — aparecem em toda Separação independente do cardápio. Editar aqui muda a regra de cálculo (mesma regra de Regras e Cálculos &gt; Proporções), não só a quantidade de um evento específico.</div>' +
+  '</div>';
+  html += _sepBuildFixosTabela();
+
   cont.innerHTML = html;
   _scAtualizarItensDisponiveis();
+}
+
+// Reaproveita a mesma engine de Regras de Proporção (getRegrasItens/
+// atualizarRegra/salvarRegrasItens, definidas em js/regras.js) — edita os
+// mesmos dados de D.regrasItens, sem criar uma segunda fonte de verdade.
+function _sepBuildFixosTabela() {
+  var regras = getRegrasItens();
+  var porCat = {};
+  regras.forEach(function(r) {
+    if (!porCat[r.cat]) porCat[r.cat] = [];
+    porCat[r.cat].push(r);
+  });
+
+  var html = '<div style="padding:0 16px">';
+  Object.entries(porCat).forEach(function(entry) {
+    var cat = entry[0]; var itens = entry[1];
+    html += '<div style="margin-bottom:14px">' +
+      '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid var(--border2);padding-bottom:4px;margin-bottom:8px">' + cat + '</div>' +
+      '<div style="display:grid;gap:6px">';
+    itens.forEach(function(r) {
+      var ri = regras.indexOf(r);
+      html += '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;display:grid;grid-template-columns:180px 1fr 80px 80px 90px;gap:8px;align-items:center;font-size:11px">' +
+        '<span style="color:var(--text);font-weight:500">' + r.item + '</span>' +
+        '<div style="display:flex;align-items:center;gap:6px">' +
+          '<select onchange="atualizarRegra(' + ri + ',\'tipo\',this.value)" style="font-size:10px;padding:3px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">' +
+            ['bartender','convidado','equipe','fixo'].map(function(t){
+              return '<option value="'+t+'"'+(r.tipo===t?' selected':'')+'>'+t+'</option>';
+            }).join('') +
+          '</select>' +
+          '<span style="color:var(--text3);font-size:10px">' +
+            (r.tipo==='bartender'?'× bartenders':r.tipo==='convidado'?'÷ convidados':r.tipo==='equipe'?'× equipe':'fixo') +
+          '</span>' +
+        '</div>' +
+        '<div><div style="font-size:9px;color:var(--text3);margin-bottom:2px">VALOR</div>' +
+          '<input type="number" value="' + r.valor + '" min="0" step="0.5" style="width:100%;font-size:11px;padding:3px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:center" onchange="atualizarRegra(' + ri + ',\'valor\',parseFloat(this.value))">' +
+        '</div>' +
+        '<div><div style="font-size:9px;color:var(--text3);margin-bottom:2px">MÍNIMO</div>' +
+          '<input type="number" value="' + r.min + '" min="0" style="width:100%;font-size:11px;padding:3px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:center" onchange="atualizarRegra(' + ri + ',\'min\',parseFloat(this.value))">' +
+        '</div>' +
+        '<div style="text-align:center">' +
+          '<label style="font-size:9px;color:var(--text3);display:block;margin-bottom:2px">SÓ C/ COQUET.</label>' +
+          '<input type="checkbox" ' + (r.soSeCardapio?'checked':'') + ' onchange="atualizarRegra(' + ri + ',\'soSeCardapio\',this.checked)" style="cursor:pointer">' +
+        '</div>' +
+      '</div>';
+    });
+    html += '</div></div>';
+  });
+  html += '<div style="display:flex;gap:10px;align-items:center;margin:8px 0 20px">' +
+    '<button class="btn" onclick="salvarRegrasItens()" style="background:var(--green)">Salvar Kit Base</button>' +
+    '<a href="#" onclick="go(\'regras\');setRegrasView(\'proporcoes\');return false" style="font-size:11px;color:var(--blue)">Adicionar novo item ao Kit Base (abre Regras e Cálculos)</a>' +
+  '</div>';
+  html += '</div>';
+  return html;
 }
 
 // Preenche o select de item conforme a categoria escolhida, excluindo itens
