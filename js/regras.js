@@ -2,14 +2,19 @@
 
 // ── Lista completa de itens da folha de separação ──────
 
-// Itens disponíveis na FICHA DE COQUETEL (específicos do coquetel)
-// Não inclui itens calculados automaticamente (equipe, gelo, material base, kit bartender, descartáveis gerais)
+// Fallback offline da FICHA DE COQUETEL — só é usado se ainda não houver
+// nenhum insumo/categoria cadastrada no Cadastro de Insumos. Com o Cadastro
+// já populado, getItensFicha() ignora esta lista e mostra todas as
+// categorias de Insumo (pedido 08-26: "todos os insumos" devem aparecer).
 var ITENS_FICHA_COQUETEL = {
   "BEBIDAS ALCOÓLICAS": [
     "VODKA ABSOLUT 1000ML","GIM BEEFEATER 750ML","GIM TANQUERAY","TEQUILA",
     "RUM HAVANA","ESPUMANTE LE BLANC","LICOR 43","CAMPARI","WHISKEY JAMESON 750ML",
     "VERMUTE CARPANO 950ML","APEROL","CACHAÇA SPIRAL","FERNET","BANANINHA",
     "FIREBALL","MANZA"
+  ],
+  "BEBIDAS SEM ÁLCOOL": [
+    "ÁGUA TÔNICA","ÁGUA COM GÁS"
   ],
   "COPOS E TAÇAS": [
     "CANECA DE COBRE","COPO BAIXO TIMELLES","COPO LONGO REVEL",
@@ -48,25 +53,17 @@ var ITENS_FICHA_COQUETEL = {
 };
 
 function getItensFicha() {
-  // Se tiver biblioteca personalizada, usar; mas filtrar só categorias da ficha
+  // Todas as categorias do Cadastro de Insumos ficam disponíveis pra seleção
+  // na Ficha de Coquetel — ela escolhe o que faz sentido em cada receita; o
+  // que faltar, cadastra direto no Cadastro de Insumos (pedido 08-26).
   var bib = getBiblioteca();
+  var categorias = (typeof getCategorias === 'function') ? getCategorias() : Object.keys(ITENS_FICHA_COQUETEL);
   var resultado = {};
-  var CATS_FICHA = Object.keys(ITENS_FICHA_COQUETEL);
-  
-  Object.entries(bib).forEach(function(entry) {
-    var cat = entry[0]; var itens = entry[1];
-    // Verificar se é categoria da ficha
-    var catFicha = CATS_FICHA.find(function(c) {
-      return cat === c || cat === c.replace(' (ESPECÍFICO)','');
-    });
-    if (catFicha) {
-      resultado[catFicha] = resultado[catFicha] 
-        ? resultado[catFicha].concat(itens.filter(function(i){ return !resultado[catFicha].includes(i); }))
-        : itens.slice();
-    }
+  categorias.forEach(function(cat) {
+    if (bib[cat] && bib[cat].length) resultado[cat] = bib[cat];
   });
-  
-  // Se resultado vazio, usar padrão
+
+  // Se resultado vazio (nada cadastrado ainda), usar padrão offline
   if (!Object.keys(resultado).length) {
     return JSON.parse(JSON.stringify(ITENS_FICHA_COQUETEL));
   }
