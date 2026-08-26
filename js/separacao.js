@@ -308,7 +308,14 @@ function sepCarregarProducao(prodId) {
   // Categorias de conferência calculadas
   var FORN_OPCOES = [['', 'Fornecedor…'], ['romero', 'Romero'], ['consignado', 'Consignado'], ['cliente', 'Cliente']];
 
-  CATS_CONFERENCIA.forEach(function(cat) {
+  // Nenhum item de ficha pode sumir por ter uma categoria fora das listas
+  // fixas acima (ex: insumo cadastrado como "OUTROS" ou "MIX ARTESANAL" no
+  // Cadastro de Insumos) — categoria não prevista cai aqui, dentro de
+  // Conferência, em vez de nunca aparecer em lugar nenhum (pedido 08-26).
+  var catsConhecidas = CATS_KIT_BASE.concat(CATS_CONFERENCIA);
+  var catsExtras = Object.keys(todosItens).filter(function(c){ return c !== 'EQUIPE' && catsConhecidas.indexOf(c) === -1; });
+
+  CATS_CONFERENCIA.concat(catsExtras).forEach(function(cat) {
     var itens = todosItens[cat];
     if (!itens || !itens.length) return;
     var isAlcoolica = cat === 'BEBIDAS ALCOÓLICAS';
