@@ -146,40 +146,14 @@ function sepCarregarProducao(prodId) {
     });
   });
 
-  // Sobrepõe/injeta os itens da tabela de referência da aba Cálculos
-  // (D.sepCalculos) — ela tem prioridade sobre a Regra de Proporção padrão
-  // pro mesmo item, já que é o valor que a usuária ajusta direto aqui na
-  // Separação (ex: Vodka 12 a cada 100 convidados).
-  (D.sepCalculos||[]).forEach(function(r) {
-    var refN = parseFloat(r.ref) || 1;
-    var qtdN = parseFloat(r.qtd) || 0;
-    var base = (r.tipo === 'bartender') ? bartenders : conv;
-    var qty = Math.ceil((qtdN / refN) * base);
-    var itensDoCardapio = itensCardapio[r.cat] && itensCardapio[r.cat][r.item];
-    var coquetelDoItem = itensDoCardapio ? itensCardapio[r.cat][r.item].coqueteis : [];
-    if (!todosItens[r.cat]) todosItens[r.cat] = [];
-    var existente = todosItens[r.cat].find(function(x){ return x.item === r.item; });
-    if (existente) {
-      existente.qtd = qty;
-      existente.doCardapio = existente.doCardapio || !!itensDoCardapio;
-      if (coquetelDoItem.length) existente.coqueteis = coquetelDoItem;
-    } else {
-      todosItens[r.cat].push({
-        item: r.item, qtd: qty,
-        doCardapio: !!itensDoCardapio,
-        coqueteis: coquetelDoItem || [],
-        soSeCardapio: false, obs: '',
-        semFicha: false
-      });
-    }
-  });
-
   // Garante uma linha agregada única por item de ficha, mesmo sem regra de
   // proporção nem entrada em Cálculos (ex: Mix Penicillin, exclusivo de um
   // coquetel). Sem isso, um item usado por dois coquetéis (ex: Pink Mandarim
   // e Gin Tônica no mesmo copo, ou dois coquetéis com Gin) apareceria como
   // campo editável separado em cada um, e a soma dava quantidade maior do
-  // que ela realmente precisa levar pra festa toda (pedido 08-26).
+  // que ela realmente precisa levar pra festa toda (pedido 08-26). Precisa
+  // rodar ANTES do merge de Cálculos abaixo, pra esse merge só atualizar
+  // item que já está de fato associado a um coquetel deste evento.
   coqueteisCardapio.forEach(function(coq) {
     (coq.ficha.itens||[]).forEach(function(item) {
       if (!todosItens[item.cat]) todosItens[item.cat] = [];
@@ -197,6 +171,22 @@ function sepCarregarProducao(prodId) {
         });
       }
     });
+  });
+
+  // Ajusta a quantidade de itens já existentes usando a tabela de referência
+  // da aba Cálculos (D.sepCalculos) — nunca cria item novo sozinha, só
+  // recalcula item que já está associado a algum coquetel deste evento (ou a
+  // uma Regra de Proporção). Sem essa checagem, todo item cadastrado na
+  // tabela de referência aparecia em qualquer evento, mesmo sem nenhum
+  // coquetel que o usasse (pedido 08-26).
+  (D.sepCalculos||[]).forEach(function(r) {
+    if (!todosItens[r.cat]) return;
+    var existente = todosItens[r.cat].find(function(x){ return x.item === r.item; });
+    if (!existente) return;
+    var refN = parseFloat(r.ref) || 1;
+    var qtdN = parseFloat(r.qtd) || 0;
+    var base = (r.tipo === 'bartender') ? bartenders : conv;
+    existente.qtd = Math.ceil((qtdN / refN) * base);
   });
 
   var equipeHtml = equipe.length
