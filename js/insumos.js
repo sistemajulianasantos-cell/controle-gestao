@@ -112,6 +112,18 @@ function buscarInsumoPorNome(nome) {
   }) || null;
 }
 
+// Ficha de coquetel e Folha de Separação guardam uma cópia da categoria do
+// insumo no momento em que o item foi adicionado à ficha — mudar a categoria
+// do insumo depois, aqui no Cadastro de Insumos, não reescreve sozinha as
+// fichas que já usam esse insumo. Por isso, toda tela que agrupa/filtra item
+// de ficha por categoria deve resolver a categoria atual por nome (aqui) em
+// vez de confiar na guardada na ficha (pedido 08-26, ex: mudou a categoria
+// do Triple Sec e a ficha/folha continuavam mostrando a antiga).
+function categoriaAtualDoInsumo(nome, catFallback) {
+  var insumo = buscarInsumoPorNome(nome);
+  return (insumo && insumo.categoria) || catFallback;
+}
+
 // Média ponderada das últimas N compras registradas (D.entradas) — aproximação
 // simples de "custo médio do estoque atual", sem precisar rastrear lote/FIFO.
 function calcCustoMedioEstoque(nome, n) {

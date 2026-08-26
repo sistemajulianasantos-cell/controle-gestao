@@ -456,7 +456,11 @@ function rFichas() {
   var html = '<input class="inp" id="fichas-busca" type="text" placeholder="Buscar coquetel..." oninput="filtrarFichas(this.value)" style="width:100%;max-width:320px;margin-bottom:12px">';
   html += fichas.map(function(f) {
     var porCat = {};
-    (f.itens||[]).forEach(function(i) { if(!porCat[i.cat]) porCat[i.cat]=[]; porCat[i.cat].push(i.nome); });
+    (f.itens||[]).forEach(function(i) {
+      var cat = categoriaAtualDoInsumo(i.nome, i.cat);
+      if(!porCat[cat]) porCat[cat]=[];
+      porCat[cat].push(i.nome);
+    });
     var busca = (f.nome + ' ' + (f.variantes||'')).toLowerCase();
     return '<div class="ficha-card sec" data-busca="' + busca.replace(/"/g,'&quot;') + '" style="margin-bottom:10px">' +
       '<div class="sec-head" style="display:flex;align-items:center;gap:10px">' +
@@ -488,13 +492,20 @@ function rFormFicha(fichaExistente) {
   var cont = document.getElementById('regras-view-nova-ficha');
   if (!cont) return;
   var f = fichaExistente || { nome:'', variantes:'', itens:[], descricao:'', copo:'' };
-  var itensIds = new Set((f.itens||[]).map(function(i){return i.cat+'|'+i.nome;}));
+  // "Já na ficha" usa a categoria ATUAL do insumo (não a guardada na ficha)
+  // — senão, reclassificar um insumo (ex: Triple Sec) faz o checkbox dele
+  // aparecer desmarcado na categoria nova, e resalvar a ficha sem notar
+  // apaga o item dela (pedido 08-26).
+  var itensIds = new Set((f.itens||[]).map(function(i){ return categoriaAtualDoInsumo(i.nome, i.cat) + '|' + i.nome; }));
 
-  // Itens da ficha existente que não estão na nova lista filtrada
+  // Itens da ficha existente que não estão na nova lista filtrada — só sobra
+  // aqui quem o NOME não existe mais em nenhuma categoria do Cadastro de
+  // Insumos (insumo excluído/renomeado); quem só mudou de categoria já
+  // aparece marcado corretamente na categoria nova, acima.
   var itensFicha = getItensFicha();
-  var todosItensNovos = new Set();
-  Object.entries(itensFicha).forEach(function(e){ e[1].forEach(function(i){ todosItensNovos.add(e[0]+'|'+i); }); });
-  var itensExtras = fichaExistente ? (fichaExistente.itens||[]).filter(function(i){ return !todosItensNovos.has(i.cat+'|'+i.nome); }) : [];
+  var todosNomesAtuais = new Set();
+  Object.values(itensFicha).forEach(function(lista){ lista.forEach(function(nome){ todosNomesAtuais.add(nome); }); });
+  var itensExtras = fichaExistente ? (fichaExistente.itens||[]).filter(function(i){ return !todosNomesAtuais.has(i.nome); }) : [];
 
   var html = '<div class="sec"><div class="sec-head">' +
     '<span class="sec-title">' + (fichaExistente ? '✏️ Editar Ficha' : '+ Nova Ficha de Coquetel') + '</span>' +

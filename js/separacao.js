@@ -59,6 +59,12 @@ function rSepNova() {
   '</div>';
 }
 
+// Ver categoriaAtualDoInsumo (js/insumos.js) — resolve a categoria atual do
+// Cadastro de Insumos por nome, em vez da guardada na ficha.
+function catAtualFichaItem(item) {
+  return (typeof categoriaAtualDoInsumo === 'function') ? categoriaAtualDoInsumo(item.nome, item.cat) : item.cat;
+}
+
 function sepCarregarProducao(prodId) {
   if (!prodId) return;
   var p = (D.producoes||[]).find(function(x){return x.id===prodId;});
@@ -110,14 +116,15 @@ function sepCarregarProducao(prodId) {
   coqueteisCardapio.forEach(function(coq) {
     var vistos = new Set();
     (coq.ficha.itens||[]).forEach(function(item) {
-      var key = item.cat + '|' + item.nome;
+      var cat = catAtualFichaItem(item);
+      var key = cat + '|' + item.nome;
       if (vistos.has(key)) return;
       vistos.add(key);
-      if (!itensCardapio[item.cat]) itensCardapio[item.cat] = {};
-      if (!itensCardapio[item.cat][item.nome]) itensCardapio[item.cat][item.nome] = { count: 0, coqueteis: [] };
-      itensCardapio[item.cat][item.nome].count++;
-      if (itensCardapio[item.cat][item.nome].coqueteis.indexOf(coq.ficha.nome) === -1) {
-        itensCardapio[item.cat][item.nome].coqueteis.push(coq.ficha.nome);
+      if (!itensCardapio[cat]) itensCardapio[cat] = {};
+      if (!itensCardapio[cat][item.nome]) itensCardapio[cat][item.nome] = { count: 0, coqueteis: [] };
+      itensCardapio[cat][item.nome].count++;
+      if (itensCardapio[cat][item.nome].coqueteis.indexOf(coq.ficha.nome) === -1) {
+        itensCardapio[cat][item.nome].coqueteis.push(coq.ficha.nome);
       }
     });
   });
@@ -162,13 +169,14 @@ function sepCarregarProducao(prodId) {
   // item que já está de fato associado a um coquetel deste evento.
   coqueteisCardapio.forEach(function(coq) {
     (coq.ficha.itens||[]).forEach(function(item) {
-      if (!todosItens[item.cat]) todosItens[item.cat] = [];
-      var existente = todosItens[item.cat].find(function(x){ return x.item === item.nome; });
+      var cat = catAtualFichaItem(item);
+      if (!todosItens[cat]) todosItens[cat] = [];
+      var existente = todosItens[cat].find(function(x){ return x.item === item.nome; });
       if (existente) {
         if (existente.coqueteis.indexOf(coq.nome) === -1) existente.coqueteis.push(coq.nome);
         existente.doCardapio = true;
       } else {
-        todosItens[item.cat].push({
+        todosItens[cat].push({
           item: item.nome, qtd: 0,
           doCardapio: true,
           coqueteis: [coq.nome],
@@ -259,13 +267,14 @@ function sepCarregarProducao(prodId) {
           // drinks) virava campo editável separado em cada um, e a soma
           // dava quantidade maior do que ela realmente precisa levar
           // (pedido 08-26).
-          var found = todosItens[item.cat] ? todosItens[item.cat].find(function(x){return x.item===item.nome;}) : null;
+          var catItem = catAtualFichaItem(item);
+          var found = todosItens[catItem] ? todosItens[catItem].find(function(x){return x.item===item.nome;}) : null;
           var qtdAgregada = found ? found.qtd : 0;
-          var salvoAgg = qtdSalva(item.cat, item.nome);
+          var salvoAgg = qtdSalva(catItem, item.nome);
           if (salvoAgg != null) qtdAgregada = salvoAgg;
           html += '<div style="display:grid;grid-template-columns:1fr 100px;gap:8px;align-items:center;padding:4px 14px;border-bottom:1px solid var(--border)">' +
             '<div style="font-size:12px;color:var(--text3)">' +
-              '<span style="font-size:10px;margin-right:6px">' + item.cat + '</span>' + item.nome +
+              '<span style="font-size:10px;margin-right:6px">' + catItem + '</span>' + item.nome +
             '</div>' +
             '<span style="display:block;font-size:12px;font-weight:600;padding:4px 8px;text-align:center;font-family:var(--mono);color:var(--text3)">' + qtdAgregada + '</span>' +
           '</div>';
