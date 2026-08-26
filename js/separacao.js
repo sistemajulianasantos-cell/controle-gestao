@@ -534,7 +534,7 @@ function rSepCalculos() {
     '</div>';
     lista.forEach(function(r) {
       html += '<div style="display:grid;grid-template-columns:1fr 90px 130px 90px 70px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">' +
-        '<input class="inp" type="text" value="' + (r.item||'').replace(/"/g,'&quot;') + '" onchange="sepCalcAtualizarItem(\'' + r.id + '\',\'item\',this.value)" style="font-size:12px">' +
+        '<span style="color:var(--text)"><span style="color:var(--text3);font-size:10px;margin-right:6px">' + (r.cat||'') + '</span>' + (r.item||'') + '</span>' +
         '<input class="inp" type="number" min="0" step="0.5" value="' + r.qtd + '" onchange="sepCalcAtualizarItem(\'' + r.id + '\',\'qtd\',this.value)" style="text-align:center;font-size:12px">' +
         '<select class="inp" onchange="sepCalcAtualizarItem(\'' + r.id + '\',\'tipo\',this.value)" style="text-align:center;font-size:12px">' +
           '<option value="convidados"' + (r.tipo!=='bartender'?' selected':'') + '>convidados</option>' +
@@ -547,10 +547,15 @@ function rSepCalculos() {
   }
   html += '</div>';
 
+  var biblioteca = getBiblioteca();
   html += '<div style="padding:14px 16px;margin:14px 16px 16px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius)">' +
     '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Adicionar item</div>' +
     '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">' +
-      '<div style="flex:2;min-width:160px"><label class="lbl">Item</label><input class="inp" id="sc-item" type="text" placeholder="Ex: Vodka" style="width:100%"></div>' +
+      '<div style="flex:1;min-width:160px"><label class="lbl">Categoria</label>' +
+        '<select id="sc-cat" class="inp" onchange="_scAtualizarItensDisponiveis()" style="width:100%">' +
+          Object.keys(biblioteca).sort().map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('') +
+        '</select></div>' +
+      '<div style="flex:2;min-width:200px"><label class="lbl">Item</label><select id="sc-item-sel" class="inp" style="width:100%"></select></div>' +
       '<div style="min-width:90px"><label class="lbl">Quantidade</label><input class="inp" id="sc-qtd" type="number" min="0" step="0.5" placeholder="12" style="width:100%"></div>' +
       '<div style="min-width:120px"><label class="lbl">Por</label>' +
         '<select class="inp" id="sc-tipo" style="width:100%">' +
@@ -560,21 +565,44 @@ function rSepCalculos() {
       '<div style="min-width:100px"><label class="lbl">A cada</label><input class="inp" id="sc-ref" type="number" min="1" placeholder="100" style="width:100%"></div>' +
       '<button class="btn" onclick="sepCalcAdicionarItem()" style="background:var(--blue)">Adicionar</button>' +
     '</div>' +
+    '<div style="font-size:10px;color:var(--text3);margin-top:6px">Só aparecem itens já cadastrados na Biblioteca de Itens / Cadastro de Insumos e que ainda não estão nesta tabela — evita duplicar o mesmo produto com nome escrito diferente.</div>' +
   '</div>';
 
   cont.innerHTML = html;
+  _scAtualizarItensDisponiveis();
+}
+
+// Preenche o select de item conforme a categoria escolhida, excluindo itens
+// que já estão na tabela de estimativa (evita duplicar o mesmo produto com
+// nome escrito diferente do cadastro).
+function _scAtualizarItensDisponiveis() {
+  var cat = document.getElementById('sc-cat')?.value;
+  var sel = document.getElementById('sc-item-sel');
+  if (!cat || !sel) return;
+  var biblioteca = getBiblioteca();
+  var jaTem = {};
+  (D.sepCalculos||[]).forEach(function(r) { jaTem[r.cat + '|' + r.item] = true; });
+  var disponiveis = (biblioteca[cat] || []).filter(function(item) { return !jaTem[cat + '|' + item]; });
+  sel.innerHTML = disponiveis.length
+    ? disponiveis.map(function(item){ return '<option value="'+item+'">'+item+'</option>'; }).join('')
+    : '<option value="">(todos os itens desta categoria já estão na tabela)</option>';
 }
 
 function sepCalcAdicionarItem() {
-  var item = (document.getElementById('sc-item')?.value||'').trim();
+  var cat  = document.getElementById('sc-cat')?.value;
+  var item = document.getElementById('sc-item-sel')?.value;
   var qtd  = parseFloat(document.getElementById('sc-qtd')?.value);
   var tipo = document.getElementById('sc-tipo')?.value || 'convidados';
   var ref  = parseFloat(document.getElementById('sc-ref')?.value);
-  if (!item || !qtd || !ref) { alert('Preencha item, quantidade e a cada quantos.'); return; }
+  if (!cat || !item) { alert('Escolha uma categoria e um item.'); return; }
+  if (!qtd || !ref) { alert('Preencha quantidade e a cada quantos.'); return; }
   if (!D.sepCalculos) D.sepCalculos = [];
-  D.sepCalculos.push({ id: _gerarId('SC'), item: item, qtd: qtd, tipo: tipo, ref: ref });
+  if (D.sepCalculos.some(function(r){ return r.cat===cat && r.item===item; })) {
+    alert('Esse item já está na tabela.');
+    return;
+  }
+  D.sepCalculos.push({ id: _gerarId('SC'), item: item, cat: cat, qtd: qtd, tipo: tipo, ref: ref });
   sv('sepCalculos');
-  document.getElementById('sc-item').value = '';
   document.getElementById('sc-qtd').value = '';
   document.getElementById('sc-ref').value = '';
   rSepCalculos();
@@ -583,7 +611,7 @@ function sepCalcAdicionarItem() {
 function sepCalcAtualizarItem(id, campo, valor) {
   var r = (D.sepCalculos||[]).find(function(x){return x.id===id;});
   if (!r) return;
-  r[campo] = (campo==='item' || campo==='tipo') ? valor : (parseFloat(valor)||0);
+  r[campo] = (campo==='tipo') ? valor : (parseFloat(valor)||0);
   sv('sepCalculos');
   rSepCalculos();
 }
