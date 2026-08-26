@@ -7,7 +7,7 @@ function initSeparacao() {
 }
 
 function setSepView(v) {
-  ['lista','nova','detalhe','calculos'].forEach(function(x) {
+  ['lista','nova','calculos'].forEach(function(x) {
     var el = document.getElementById('sep-view-'+x);
     if (el) el.style.display = x===v ? '' : 'none';
     var btn = document.getElementById('sep-tab-'+x);
@@ -33,7 +33,7 @@ function rSeparacoes() {
         '<span style="color:var(--text3);font-size:12px">' + (fd(s.data)||'') + '</span>' +
         '<span style="color:var(--text3);font-size:11px">' + (s.convidados||'—') + ' convidados</span>' +
         '<div style="margin-left:auto;display:flex;gap:6px">' +
-          '<button class="btn-sm" style="background:var(--blue)" onclick="abrirSeparacao(\'' + s.id + '\')">✏️ Ver / Editar</button>' +
+          '<button class="btn-sm" style="background:var(--blue)" onclick="editarSeparacao(\'' + s.id + '\')">✏️ Ver / Editar</button>' +
           '<button class="btn-sm" style="background:#6C63FF" onclick="imprimirSeparacao(\'' + s.id + '\')">🖨️ Imprimir</button>' +
           '<button class="btn-sm btn-red" onclick="excluirSeparacao(\'' + s.id + '\')">Excluir</button>' +
         '</div>' +
@@ -70,6 +70,18 @@ function sepCarregarProducao(prodId) {
     .reduce(function(s,e){return s+(parseInt(e.qtd)||0);},0) || Math.max(1,Math.ceil(conv/30));
   var equipeTotal = equipe.reduce(function(s,e){return s+(parseInt(e.qtd)||0);},0) || bartenders;
 
+  // Se já existe uma folha gerada pra este evento, editar reabre essa mesma
+  // tela (não uma tela separada só de leitura) — os valores salvos por ela
+  // (quantidades ajustadas manualmente) têm prioridade sobre o cálculo
+  // automático, via qtdSalva() abaixo.
+  var sepExistente = (D.separacoes||[]).find(function(s){return s.producaoId===prodId;});
+  function qtdSalva(cat, item) {
+    if (sepExistente && sepExistente.itens && sepExistente.itens[cat] && sepExistente.itens[cat][item] != null) {
+      return sepExistente.itens[cat][item];
+    }
+    return null;
+  }
+
   // Coquetéis deste evento: ela escolhe direto da lista de Fichas cadastradas
   // — não tenta mais adivinhar a partir do texto do cardápio (nome parecido
   // gerava falso positivo, como "Mix Frutas Vermelhas" entrando num evento
@@ -78,7 +90,6 @@ function sepCarregarProducao(prodId) {
   // separação; reabrir uma separação já gerada recupera a seleção anterior.
   if (!window._sepCoqueteisMap) window._sepCoqueteisMap = {};
   if (!window._sepCoqueteisMap[prodId]) {
-    var sepExistente = (D.separacoes||[]).find(function(s){return s.producaoId===prodId;});
     window._sepCoqueteisMap[prodId] = (sepExistente && sepExistente.coqueteisIds) ? sepExistente.coqueteisIds.slice() : [];
   }
   var coqueteisSelecionadosIds = window._sepCoqueteisMap[prodId];
@@ -225,6 +236,8 @@ function sepCarregarProducao(prodId) {
             var found = todosItens[item.cat].find(function(x){return x.item===item.nome;});
             if (found) qtdItem = found.qtd;
           }
+          var salvoItem = qtdSalva(item.cat, item.nome);
+          if (salvoItem != null) qtdItem = salvoItem;
           html += '<div style="display:grid;grid-template-columns:1fr 100px;gap:8px;align-items:center;padding:4px 14px;border-bottom:1px solid var(--border)">' +
             '<div style="font-size:12px;color:var(--text)">' +
               '<span style="font-size:10px;color:var(--text3);margin-right:6px">' + item.cat + '</span>' + item.nome +
@@ -258,20 +271,16 @@ function sepCarregarProducao(prodId) {
   html += '<div style="border-bottom:1px solid var(--border)">' +
     '<div style="padding:6px 14px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;background:var(--bg3)">EQUIPE</div>';
   equipe.forEach(function(e) {
+    var qtdEquipe = e.qtd;
+    var salvoEquipe = qtdSalva('EQUIPE', e.cargo);
+    if (salvoEquipe != null) qtdEquipe = salvoEquipe;
     html += '<div style="display:grid;grid-template-columns:1fr 100px;gap:8px;align-items:center;padding:4px 14px;border-bottom:1px solid var(--border)">' +
       '<span style="font-size:12px;color:var(--text)">' + e.cargo + '</span>' +
-      '<input type="number" value="' + e.qtd + '" min="0" data-item="' + e.cargo + '" data-cat="EQUIPE" ' +
+      '<input type="number" value="' + qtdEquipe + '" min="0" data-item="' + e.cargo + '" data-cat="EQUIPE" ' +
         'style="font-size:12px;font-weight:600;padding:4px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:center;font-family:var(--mono)">' +
     '</div>';
   });
   html += '</div>';
-
-  // Bebidas alcoólicas
-  var bebidasAlc = [p.bebidasConsignadas, p.bebidasRomero, p.bebidasCliente].filter(Boolean).join('\n');
-  html += '<div style="border-bottom:1px solid var(--border)">' +
-    '<div style="padding:6px 14px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;background:var(--bg3)">BEBIDAS ALCOÓLICAS</div>' +
-    '<div style="padding:8px 14px"><textarea class="inp" id="sep-bebidas-alc" rows="4" style="font-size:12px;resize:vertical;width:100%">' + bebidasAlc + '</textarea></div>' +
-  '</div>';
 
   // Categorias de conferência calculadas
   CATS_CONFERENCIA.forEach(function(cat) {
@@ -283,11 +292,14 @@ function sepCarregarProducao(prodId) {
       var badge = it.doCardapio
         ? '<span style="font-size:9px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-dim);padding:1px 6px;border-radius:10px;margin-left:6px">' + it.coqueteis.join(', ') + '</span>'
         : it.semFicha ? '<span style="font-size:9px;background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-dim);padding:1px 6px;border-radius:10px;margin-left:6px">⚠️</span>' : '';
+      var qtdConf = it.qtd;
+      var salvoConf = qtdSalva(cat, it.item);
+      if (salvoConf != null) qtdConf = salvoConf;
       html += '<div style="display:grid;grid-template-columns:1fr 100px;gap:8px;align-items:center;padding:4px 14px;border-bottom:1px solid var(--border)">' +
         '<div style="font-size:12px;color:var(--text)">' + it.item + badge +
           (it.obs ? '<span style="font-size:10px;color:var(--text3);margin-left:6px">' + it.obs + '</span>' : '') +
         '</div>' +
-        '<input type="number" value="' + it.qtd + '" min="0" ' +
+        '<input type="number" value="' + qtdConf + '" min="0" ' +
           'data-item="' + it.item.replace(/"/g,'') + '" data-cat="' + cat.replace(/"/g,'') + '" ' +
           'style="font-size:12px;font-weight:600;padding:4px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:center;font-family:var(--mono)">' +
       '</div>';
@@ -316,11 +328,14 @@ function sepCarregarProducao(prodId) {
     html += '<div style="border-bottom:1px solid var(--border)">' +
       '<div style="padding:6px 14px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;background:var(--bg3)">' + cat + '</div>';
     itens.forEach(function(it) {
+      var qtdKit = it.qtd;
+      var salvoKit = qtdSalva(cat, it.item);
+      if (salvoKit != null) qtdKit = salvoKit;
       html += '<div style="display:grid;grid-template-columns:1fr 100px;gap:8px;align-items:center;padding:4px 14px;border-bottom:1px solid var(--border)">' +
         '<span style="font-size:12px;color:var(--text2)">' + it.item +
           (it.obs ? '<span style="font-size:10px;color:var(--text3);margin-left:6px">' + it.obs + '</span>' : '') +
         '</span>' +
-        '<input type="number" value="' + it.qtd + '" min="0" ' +
+        '<input type="number" value="' + qtdKit + '" min="0" ' +
           'data-item="' + it.item.replace(/"/g,'') + '" data-cat="' + cat.replace(/"/g,'') + '" ' +
           'style="font-size:12px;padding:4px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text2);text-align:center;font-family:var(--mono)">' +
       '</div>';
@@ -422,7 +437,6 @@ function salvarSeparacao() {
     bartenders: bt,
     totalEquipe: teq,
     itens: itensFinais,
-    bebidasAlc: document.getElementById('sep-bebidas-alc')?.value||'',
     coqueteis: document.getElementById('sep-coqueteis')?.value||'',
     coqueteisIds: (window._sepCoqueteisMap && window._sepCoqueteisMap[prodId]) ? window._sepCoqueteisMap[prodId].slice() : [],
     criadoEm: new Date().toISOString()
@@ -441,54 +455,15 @@ function salvarSeparacao() {
   setSepView('lista');
 }
 
-function abrirSeparacao(id) {
+function editarSeparacao(id) {
   var s = (D.separacoes||[]).find(function(x){return x.id===id;});
   if (!s) return;
-  var cont = document.getElementById('sep-detalhe-body');
-  if (!cont) return;
-
-  var html = '<div style="padding:16px">';
-  html += '<div style="background:var(--bg3);border-radius:var(--radius);padding:10px 14px;margin-bottom:14px;border:1px solid var(--border)">' +
-    '<div style="font-size:15px;font-weight:700">' + (s.evento||'—') + '</div>' +
-    '<div style="font-size:12px;color:var(--text3)">' + (s.local||'') + ' · ' + (fd(s.data)||'') + ' · ' + (s.hrInicio||'') + '–' + (s.hrFim||'') + '</div>' +
-    '<div style="font-size:12px;color:var(--text3)">' + s.convidados + ' convidados · Equipe: ' + s.totalEquipe + ' · Bartenders: ' + s.bartenders + '</div>' +
-  '</div>';
-
-  if (s.itens) {
-    Object.entries(s.itens).forEach(function(entry) {
-      var cat = entry[0]; var itens = entry[1];
-      var linhas = Object.entries(itens).filter(function(e){return e[1]>0;});
-      if (!linhas.length) return;
-      html += '<div style="margin-bottom:12px">' +
-        '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;padding-bottom:4px;border-bottom:2px solid var(--border2);margin-bottom:6px">' + cat + '</div>' +
-        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:4px">';
-      linhas.forEach(function(e) {
-        html += '<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border);font-size:12px">' +
-          '<span style="color:var(--text2)">' + e[0] + '</span>' +
-          '<span style="font-weight:600;font-family:var(--mono)">' + e[1] + ' UN</span>' +
-        '</div>';
-      });
-      html += '</div></div>';
-    });
-  }
-
-  if (s.bebidasAlc) {
-    html += '<div style="margin-bottom:12px">' +
-      '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;padding-bottom:4px;border-bottom:2px solid var(--border2);margin-bottom:6px">BEBIDAS ALCOÓLICAS</div>' +
-      '<div style="white-space:pre-wrap;font-size:12px;color:var(--text2)">' + s.bebidasAlc + '</div>' +
-    '</div>';
-  }
-
-  if (s.coqueteis) {
-    html += '<div style="margin-bottom:12px">' +
-      '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;padding-bottom:4px;border-bottom:2px solid var(--border2);margin-bottom:6px">COQUETÉIS</div>' +
-      '<div style="white-space:pre-wrap;font-size:12px;color:var(--text2)">' + s.coqueteis + '</div>' +
-    '</div>';
-  }
-
-  html += '</div>';
-  cont.innerHTML = html;
-  setSepView('detalhe');
+  setSepView('nova');
+  setTimeout(function(){
+    var sel = document.getElementById('sep-prod-sel');
+    if (sel) sel.value = s.producaoId;
+    sepCarregarProducao(s.producaoId);
+  }, 50);
 }
 
 function imprimirSeparacao(id) {
