@@ -3,6 +3,8 @@
 function initSeparacao() {
   if (!D.separacoes) D.separacoes = [];
   if (!D.sepCalculos) D.sepCalculos = [];
+  if (typeof migrarRegrasBaseCalculo === 'function') migrarRegrasBaseCalculo();
+  if (typeof migrarInsumosDoKitBase === 'function') migrarInsumosDoKitBase();
   setSepView('lista');
 }
 
@@ -75,6 +77,7 @@ function sepCarregarProducao(prodId) {
   var bartenders = equipe.filter(function(e){return (e.cargo||'').toLowerCase().includes('bartender');})
     .reduce(function(s,e){return s+(parseInt(e.qtd)||0);},0) || Math.max(1,Math.ceil(conv/30));
   var equipeTotal = equipe.reduce(function(s,e){return s+(parseInt(e.qtd)||0);},0) || bartenders;
+  var cargoCounts = equipe.length ? _sepCargoCounts(equipe) : null;
 
   // Se já existe uma folha gerada pra este evento, editar reabre essa mesma
   // tela (não uma tela separada só de leitura) — os valores salvos por ela
@@ -149,7 +152,7 @@ function sepCarregarProducao(prodId) {
     // num evento que não usa nenhum coquetel com esse ingrediente (08-26).
     if (r.soSeCardapio && !itensDoCardapio) return;
     if (!todosItens[r.cat]) todosItens[r.cat] = [];
-    var qtd = calcQtdItem(r, conv, bartenders, equipeTotal);
+    var qtd = calcQtdItem(r, conv, bartenders, equipeTotal, cargoCounts);
     todosItens[r.cat].push({
       item: r.item, qtd: qtd,
       doCardapio: !!itensDoCardapio,
@@ -654,66 +657,45 @@ function rSepCalculos() {
   '</div>';
 
   html += '<div style="margin:8px 16px 0;padding-top:16px;border-top:2px solid var(--border2)">' +
-    '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Itens do Kit Base e demais itens automáticos</div>' +
-    '<div style="font-size:11px;color:var(--text3);margin-bottom:12px">Gelo, Material, Descartáveis, Especiarias, Kit Bartender, Produção, Bebidas sem Álcool — aparecem em toda Separação independente do cardápio. Editar aqui muda a regra de cálculo (mesma regra de Regras e Cálculos &gt; Proporções), não só a quantidade de um evento específico.</div>' +
+    '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Kit Base e demais itens automáticos</div>' +
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:12px">Gelo, Material, Descartáveis, Especiarias, Kit Bartender, Produção, Bebidas sem Álcool — aparecem em toda Separação independente do cardápio. Cada item é escolhido do Cadastro de Insumos e tem uma base de cálculo (por evento, por convidado, por equipe ou por cargo). Editar aqui é a mesma coisa que editar em Regras e Cálculos &gt; Proporções.</div>' +
+    _sepAlertaInsumosPendentes() +
+    '<div id="sep-kitbase-body"></div>' +
   '</div>';
-  html += _sepBuildFixosTabela();
 
   cont.innerHTML = html;
   _scAtualizarItensDisponiveis();
+  rRegrasKitBase('sep-kitbase-body', 'separacao');
 }
 
-// Reaproveita a mesma engine de Regras de Proporção (getRegrasItens/
-// atualizarRegra/salvarRegrasItens, definidas em js/regras.js) — edita os
-// mesmos dados de D.regrasItens, sem criar uma segunda fonte de verdade.
-function _sepBuildFixosTabela() {
-  var regras = getRegrasItens();
-  var porCat = {};
-  regras.forEach(function(r) {
-    if (!porCat[r.cat]) porCat[r.cat] = [];
-    porCat[r.cat].push(r);
-  });
-
-  var html = '<div style="padding:0 16px">';
-  Object.entries(porCat).forEach(function(entry) {
-    var cat = entry[0]; var itens = entry[1];
-    html += '<div style="margin-bottom:14px">' +
-      '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid var(--border2);padding-bottom:4px;margin-bottom:8px">' + cat + '</div>' +
-      '<div style="display:grid;gap:6px">';
-    itens.forEach(function(r) {
-      var ri = regras.indexOf(r);
-      html += '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;display:grid;grid-template-columns:180px 1fr 80px 80px 90px;gap:8px;align-items:center;font-size:11px">' +
-        '<span style="color:var(--text);font-weight:500">' + r.item + '</span>' +
-        '<div style="display:flex;align-items:center;gap:6px">' +
-          '<select onchange="atualizarRegra(' + ri + ',\'tipo\',this.value)" style="font-size:10px;padding:3px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">' +
-            ['bartender','convidado','equipe','fixo'].map(function(t){
-              return '<option value="'+t+'"'+(r.tipo===t?' selected':'')+'>'+t+'</option>';
-            }).join('') +
-          '</select>' +
-          '<span style="color:var(--text3);font-size:10px">' +
-            (r.tipo==='bartender'?'× bartenders':r.tipo==='convidado'?'÷ convidados':r.tipo==='equipe'?'× equipe':'fixo') +
-          '</span>' +
-        '</div>' +
-        '<div><div style="font-size:9px;color:var(--text3);margin-bottom:2px">VALOR</div>' +
-          '<input type="number" value="' + r.valor + '" min="0" step="0.5" style="width:100%;font-size:11px;padding:3px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:center" onchange="atualizarRegra(' + ri + ',\'valor\',parseFloat(this.value))">' +
-        '</div>' +
-        '<div><div style="font-size:9px;color:var(--text3);margin-bottom:2px">MÍNIMO</div>' +
-          '<input type="number" value="' + r.min + '" min="0" style="width:100%;font-size:11px;padding:3px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:center" onchange="atualizarRegra(' + ri + ',\'min\',parseFloat(this.value))">' +
-        '</div>' +
-        '<div style="text-align:center">' +
-          '<label style="font-size:9px;color:var(--text3);display:block;margin-bottom:2px">SÓ C/ COQUET.</label>' +
-          '<input type="checkbox" ' + (r.soSeCardapio?'checked':'') + ' onchange="atualizarRegra(' + ri + ',\'soSeCardapio\',this.checked)" style="cursor:pointer">' +
-        '</div>' +
-      '</div>';
-    });
-    html += '</div></div>';
-  });
-  html += '<div style="display:flex;gap:10px;align-items:center;margin:8px 0 20px">' +
-    '<button class="btn" onclick="salvarRegrasItens()" style="background:var(--green)">Salvar Kit Base</button>' +
-    '<a href="#" onclick="go(\'regras\');setRegrasView(\'proporcoes\');return false" style="font-size:11px;color:var(--blue)">Adicionar novo item ao Kit Base (abre Regras e Cálculos)</a>' +
+function _sepAlertaInsumosPendentes() {
+  var pend = (typeof kitBaseInsumosPendentes === 'function') ? kitBaseInsumosPendentes() : [];
+  if (!pend.length) return '';
+  var nomes = pend.map(function(i){ return i.nome; }).sort();
+  return '<div style="background:rgba(247,195,90,.10);border:1px solid rgba(247,195,90,.4);border-radius:var(--radius);padding:10px 14px;margin-bottom:12px">' +
+    '<div style="font-size:11px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">' +
+      pend.length + ' item(ns) do Kit Base sem categoria</div>' +
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:6px">Foram criados no Cadastro de Insumos e precisam de uma categoria pra aparecerem certinho nas listas: <strong>' + nomes.join(', ') + '</strong></div>' +
+    '<a href="#" onclick="go(\'cadastro\');return false" style="font-size:11px;color:var(--blue)">Abrir Cadastro de Insumos</a>' +
   '</div>';
-  html += '</div>';
-  return html;
+}
+
+// Conta as pessoas da equipe do evento por cargo do Cadastro Central → Cargos.
+function _sepCargoCounts(equipe) {
+  var counts = {};
+  var cargosCad = (typeof getCargos === 'function') ? getCargos() : [];
+  (equipe || []).forEach(function(e) {
+    var nome = (e.cargo || '').trim().toLowerCase();
+    var q = parseInt(e.qtd) || 0;
+    if (!nome || !q) return;
+    var match = cargosCad.find(function(c) {
+      var cn = (c.nome || '').toLowerCase();
+      return cn && (cn === nome || nome.indexOf(cn) === 0);
+    });
+    var key = match ? match.key : ('x_' + nome.replace(/\s+/g, '_'));
+    counts[key] = (counts[key] || 0) + q;
+  });
+  return counts;
 }
 
 // Preenche o select de item conforme a categoria escolhida, excluindo itens

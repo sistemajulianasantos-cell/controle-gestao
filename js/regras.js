@@ -202,19 +202,136 @@ function getRegrasItens() {
   return (D.regrasItens && D.regrasItens.length) ? D.regrasItens : JSON.parse(JSON.stringify(REGRAS_ITENS_PADRAO));
 }
 
+// ── Modelo novo de base de cálculo (2026-08-27) ─────────────────────────────
+// Cada regra passa a ter um campo `base`:
+//   'fixo'      → sempre `valor` por evento (ex: balde, escorredor)
+//   'convidado' → `valor` a cada `ref` convidados (ex: guardanapo, gelo)
+//   'equipe'    → `valor` a cada `ref` pessoas escaladas (ex: lanche, uniforme)
+//   'cargo'     → `valor` a cada `ref` pessoas nos cargos em `cargos[]`
+//                 (ex: bailarina = 1 por Bartender + Head Bartender)
+// O campo `tipo` antigo ('bartender'|'convidado'|'equipe'|'fixo') continua
+// gravado por retrocompatibilidade (Orçamento ainda lê algumas regras), mas
+// `base` é a fonte de verdade quando presente.
+
+// Traduz uma regra (nova ou legada) para os parâmetros efetivos de cálculo,
+// sem depender de a migração já ter rodado — assim calcQtdItem sempre acerta.
+function _regraBaseEfetiva(r) {
+  if (r.base) {
+    return {
+      base: r.base,
+      valor: parseFloat(r.valor) || 1,
+      ref: parseFloat(r.ref) || 1,
+      cargos: (r.cargos || []).slice(),
+    };
+  }
+  switch (r.tipo) {
+    case 'convidado': return { base: 'convidado', valor: 1, ref: parseFloat(r.valor) || 1, cargos: [] };
+    case 'equipe':    return { base: 'equipe',    valor: parseFloat(r.valor) || 1, ref: 1, cargos: [] };
+    case 'bartender': return { base: 'cargo',     valor: parseFloat(r.valor) || 1, ref: 1, cargos: ['bt', 'hb'] };
+    default:          return { base: 'fixo',      valor: parseFloat(r.valor) || 1, ref: 1, cargos: [] };
+  }
+}
+
+// Soma de pessoas nos cargos selecionados. `cargoCounts` (mapa keyCargo->qtd)
+// vem da Folha de Separação, montado a partir da equipe real do evento. Sem
+// esse mapa (ex: Orçamento), cai numa aproximação: se os cargos são só
+// bartender/head, usa o total de bartenders; senão, o total da equipe.
+function _contarPessoasNosCargos(cargos, cargoCounts, bartenders, equipeTotal) {
+  if (!cargos || !cargos.length) return equipeTotal || 0;
+  if (cargoCounts) {
+    return cargos.reduce(function(s, k) { return s + (parseInt(cargoCounts[k]) || 0); }, 0);
+  }
+  var soBartender = cargos.every(function(k) { return k === 'bt' || k === 'hb'; });
+  return soBartender ? (bartenders || 0) : (equipeTotal || 0);
+}
+
+// Materializa D.regrasItens a partir do padrão e converte cada regra para o
+// modelo novo (base/ref/cargos/id). Idempotente — só mexe em regra sem `base`.
+function migrarRegrasBaseCalculo() {
+  if (!D.regrasItens || !D.regrasItens.length) {
+    D.regrasItens = JSON.parse(JSON.stringify(REGRAS_ITENS_PADRAO));
+  }
+  var mudou = false;
+  D.regrasItens.forEach(function(r) {
+    if (!r.id) { r.id = _gerarId('RG'); mudou = true; }
+    if (!r.base) {
+      var ef = _regraBaseEfetiva(r);
+      r.base = ef.base;
+      r.valor = ef.valor;
+      r.ref = ef.ref;
+      r.cargos = ef.cargos;
+      mudou = true;
+    }
+    if (r.autoOrcamento == null) { r.autoOrcamento = false; mudou = true; }
+  });
+  if (mudou) sv('regrasItens');
+}
+
+function _regraKitPorId(id) {
+  return (D.regrasItens || []).find(function(r) { return r.id === id; }) || null;
+}
+
+// Cria no Cadastro de Insumos os itens do Kit Base que ainda são só texto
+// (LANCHE, BAILARINA, BALDE COPA...). Categoria fica em branco de propósito —
+// a Juliana classifica cada um; até lá aparece um alerta (na Separação e no
+// próprio Cadastro de Insumos). Idempotente.
+function migrarInsumosDoKitBase() {
+  migrarRegrasBaseCalculo();
+  if (!D.insumos) D.insumos = [];
+  var criados = 0;
+  (D.regrasItens || []).forEach(function(r) {
+    if (!r.item) return;
+    if (typeof buscarInsumoPorNome === 'function' && buscarInsumoPorNome(r.item)) return;
+    if (D.insumos.some(function(i){ return (i.nome || '').toUpperCase() === r.item.toUpperCase(); })) return;
+    D.insumos.push({
+      id: 'INS' + Date.now() + Math.random().toString(36).slice(2, 6),
+      codigo: (typeof _proximoCodigoInsumo === 'function') ? _proximoCodigoInsumo() : '',
+      origemProdutoId: null,
+      origemAuto: true,
+      nome: r.item.toUpperCase(),
+      aliases: [],
+      categoria: '',
+      unidadeCompra: 'UN',
+      tamanhoEmbalagem: 1,
+      classificacaoProducao: 'materia_prima',
+      estoqueMinimo: 0,
+      custoReposicao: 0,
+      precoManual: null,
+      ultimaCompra: '',
+      ultimoFornecedor: '',
+    });
+    criados++;
+  });
+  if (criados > 0) sv('insumos');
+  return criados;
+}
+
+// Insumos criados pela migração acima que ainda estão sem categoria.
+function kitBaseInsumosPendentes() {
+  return (D.insumos || []).filter(function(i) { return i.origemAuto && !i.categoria; });
+}
+
 // Unidades de compra vendidas em embalagem fechada — arredondar pra cima até
 // o próximo múltiplo do tamanho da embalagem. UN/KG/LT/ML ficam de fora por
 // serem fracionáveis (compra-se exatamente a quantidade calculada).
 var UNIDADES_EMBALAGEM_FECHADA = ['CX', 'FARDO', 'PCT'];
 
-function calcQtdItem(regra, conv, bartenders, equipeTotal) {
-  var v = parseFloat(regra.valor) || 1;
+function calcQtdItem(regra, conv, bartenders, equipeTotal, cargoCounts) {
+  var ef = _regraBaseEfetiva(regra);
+  var v = ef.valor || 1;
+  var ref = ef.ref || 1;
   var min = parseFloat(regra.min) || 0;
   var qtd = min;
-  if (regra.tipo === 'bartender') qtd = Math.max(min, bartenders * v);
-  else if (regra.tipo === 'convidado') qtd = Math.max(min, Math.ceil(conv / v));
-  else if (regra.tipo === 'equipe') qtd = Math.max(min, equipeTotal * v);
-  else if (regra.tipo === 'fixo') qtd = Math.max(min, v);
+  if (ef.base === 'fixo') {
+    qtd = Math.max(min, v);
+  } else if (ef.base === 'convidado') {
+    qtd = Math.max(min, Math.ceil(v * (conv || 0) / ref));
+  } else if (ef.base === 'equipe') {
+    qtd = Math.max(min, Math.ceil(v * (equipeTotal || 0) / ref));
+  } else if (ef.base === 'cargo') {
+    var n = _contarPessoasNosCargos(ef.cargos, cargoCounts, bartenders, equipeTotal);
+    qtd = Math.max(min, Math.ceil(v * n / ref));
+  }
   qtd = Math.ceil(qtd);
 
   // Casa com o Cadastro de Insumos pelo nome (mesmo casamento já usado no
@@ -727,109 +844,213 @@ function excluirFicha(id) {
   sv('fichas'); rFichas();
 }
 
-// ── Regras de Proporção ─────────────────────────────────
+// ── Regras de Proporção / Kit Base ──────────────────────
+// A tela "Regras e Cálculos → Proporções" e a aba "Separação → Cálculos"
+// editam a MESMA lista (D.regrasItens) e usam o MESMO renderizador abaixo
+// (rRegrasKitBase). Antes eram duas telas com código quase igual, o que já
+// causou divergência de comportamento entre elas (2026-07).
+
 function rProporcoes() {
-  var cont = document.getElementById('regras-prop-body');
+  rRegrasKitBase('regras-prop-body', 'proporcoes');
+}
+
+// contexto: 'proporcoes' (mostra coluna Auto Orçamento) | 'separacao'
+function rRegrasKitBase(containerId, contexto) {
+  var cont = document.getElementById(containerId);
   if (!cont) return;
+  migrarRegrasBaseCalculo();
+  migrarInsumosDoKitBase();
+  window._rkCtx = { containerId: containerId, contexto: contexto };
+
+  var mostrarAuto = contexto === 'proporcoes';
   var regras = getRegrasItens();
+  var cargos = _cargosDisponiveis();
 
   var porCat = {};
-  regras.forEach(function(r) {
-    if (!porCat[r.cat]) porCat[r.cat] = [];
-    porCat[r.cat].push(r);
-  });
+  regras.forEach(function(r) { (porCat[r.cat] = porCat[r.cat] || []).push(r); });
 
-  var html = '<div style="font-size:12px;color:var(--text3);margin-bottom:14px">Defina como cada item é calculado. As quantidades são geradas automaticamente na folha de separação.</div>';
+  var BASE_OPCOES = [
+    ['fixo', 'Fixo (por evento)'],
+    ['convidado', 'Por convidado'],
+    ['equipe', 'Por equipe'],
+    ['cargo', 'Por cargo'],
+  ];
 
-  Object.entries(porCat).forEach(function(entry) {
-    var cat = entry[0]; var itens = entry[1];
+  var html = '<div>' +
+    '<div style="font-size:12px;color:var(--text3);margin-bottom:14px">Cada item é escolhido do Cadastro de Insumos e tem uma base de cálculo. As quantidades são geradas automaticamente na Folha de Separação.<br>' +
+    '<span style="color:var(--text3)">Fixo = sempre a mesma quantidade por evento · Por convidado / Por equipe / Por cargo = quantidade a cada X pessoas.</span></div>';
+
+  Object.keys(porCat).forEach(function(cat) {
+    var itens = porCat[cat];
     html += '<div style="margin-bottom:16px">' +
       '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;border-bottom:2px solid var(--border2);padding-bottom:4px;margin-bottom:8px">' + cat + '</div>' +
       '<div style="display:grid;gap:6px">';
 
-    itens.forEach(function(r, idx) {
-      var ri = regras.indexOf(r);
-      html += '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;display:grid;grid-template-columns:180px 1fr 80px 80px 80px 90px;gap:8px;align-items:center;font-size:11px">' +
-        '<span style="color:var(--text);font-weight:500">' + r.item + '</span>' +
-        '<div style="display:flex;align-items:center;gap:6px">' +
-          '<select onchange="atualizarRegra(' + ri + ',\'tipo\',this.value)" style="font-size:10px;padding:3px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">' +
-            ['bartender','convidado','equipe','fixo'].map(function(t){
-              return '<option value="'+t+'"'+(r.tipo===t?' selected':'')+'>'+t+'</option>';
-            }).join('') +
+    itens.forEach(function(r) {
+      var ef = _regraBaseEfetiva(r);
+      var insumoDaRegra = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(r.item) : null;
+      var pendente = !insumoDaRegra || !insumoDaRegra.categoria;
+      var cols = mostrarAuto ? 'minmax(120px,1fr) 118px 60px 108px 58px 66px 74px 40px' : 'minmax(120px,1fr) 118px 60px 108px 58px 66px 40px';
+
+      html += '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;font-size:11px">' +
+        '<div style="display:grid;grid-template-columns:' + cols + ';gap:8px;align-items:end">' +
+
+        '<div><span style="color:var(--text);font-weight:500">' + r.item + '</span>' +
+          (pendente ? '<div style="font-size:9px;color:var(--amber);margin-top:2px">⚠️ falta categoria no Cadastro de Insumos</div>' : '') +
+        '</div>' +
+
+        '<div><div style="font-size:9px;color:var(--text3);margin-bottom:2px">BASE</div>' +
+          '<select onchange="regraKitSet(\'' + r.id + '\',\'base\',this.value)" style="width:100%;font-size:10px;padding:3px 4px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">' +
+            BASE_OPCOES.map(function(o){ return '<option value="'+o[0]+'"'+(ef.base===o[0]?' selected':'')+'>'+o[1]+'</option>'; }).join('') +
           '</select>' +
-          '<span style="color:var(--text3);font-size:10px">' +
-            (r.tipo==='bartender'?'× bartenders':r.tipo==='convidado'?'÷ convidados':r.tipo==='equipe'?'× equipe':'fixo') +
-          '</span>' +
         '</div>' +
-        '<div><div style="font-size:9px;color:var(--text3);margin-bottom:2px">VALOR</div>' +
-          '<input type="number" value="' + r.valor + '" min="0" step="0.5" style="width:100%;font-size:11px;padding:3px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:center" onchange="atualizarRegra(' + ri + ',\'valor\',parseFloat(this.value))">' +
+
+        '<div><div style="font-size:9px;color:var(--text3);margin-bottom:2px">QTD</div>' +
+          '<input type="number" value="' + ef.valor + '" min="0" step="0.5" onchange="regraKitSet(\'' + r.id + '\',\'valor\',this.value)" style="width:100%;font-size:11px;padding:3px 5px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:center">' +
         '</div>' +
-        '<div><div style="font-size:9px;color:var(--text3);margin-bottom:2px">MÍNIMO</div>' +
-          '<input type="number" value="' + r.min + '" min="0" style="width:100%;font-size:11px;padding:3px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:center" onchange="atualizarRegra(' + ri + ',\'min\',parseFloat(this.value))">' +
+
+        '<div><div style="font-size:9px;color:var(--text3);margin-bottom:2px">' + (ef.base==='fixo' ? '—' : 'A CADA') + '</div>' +
+          '<input type="number" value="' + ef.ref + '" min="1" ' + (ef.base==='fixo'?'disabled':'') + ' onchange="regraKitSet(\'' + r.id + '\',\'ref\',this.value)" style="width:100%;font-size:11px;padding:3px 5px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:center' + (ef.base==='fixo'?';opacity:.4':'') + '">' +
         '</div>' +
-        '<div style="text-align:center">' +
-          '<label style="font-size:9px;color:var(--text3);display:block;margin-bottom:2px">SÓ C/ COQUET.</label>' +
-          '<input type="checkbox" ' + (r.soSeCardapio?'checked':'') + ' onchange="atualizarRegra(' + ri + ',\'soSeCardapio\',this.checked)" style="cursor:pointer">' +
+
+        '<div><div style="font-size:9px;color:var(--text3);margin-bottom:2px">MÍN.</div>' +
+          '<input type="number" value="' + (r.min||0) + '" min="0" onchange="regraKitSet(\'' + r.id + '\',\'min\',this.value)" style="width:100%;font-size:11px;padding:3px 5px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:center">' +
         '</div>' +
-        '<div style="text-align:center" title="Gera automaticamente em todo orçamento, mesmo sem ficha de coquetel — usa o Cadastro de Insumos pra achar o custo">' +
-          '<label style="font-size:9px;color:var(--text3);display:block;margin-bottom:2px">AUTO ORÇAMENTO</label>' +
-          '<input type="checkbox" ' + (r.autoOrcamento?'checked':'') + ' onchange="atualizarRegra(' + ri + ',\'autoOrcamento\',this.checked)" style="cursor:pointer">' +
+
+        '<div style="text-align:center"><div style="font-size:9px;color:var(--text3);margin-bottom:2px">SÓ C/ COQUET.</div>' +
+          '<input type="checkbox" ' + (r.soSeCardapio?'checked':'') + ' onchange="regraKitSet(\'' + r.id + '\',\'soSeCardapio\',this.checked)" style="cursor:pointer">' +
         '</div>' +
+
+        (mostrarAuto ? '<div style="text-align:center" title="Gera automaticamente em todo orçamento, mesmo sem ficha de coquetel"><div style="font-size:9px;color:var(--text3);margin-bottom:2px">AUTO ORÇ.</div>' +
+          '<input type="checkbox" ' + (r.autoOrcamento?'checked':'') + ' onchange="regraKitSet(\'' + r.id + '\',\'autoOrcamento\',this.checked)" style="cursor:pointer">' +
+        '</div>' : '') +
+
+        '<div style="text-align:center"><button class="btn-sm btn-red" onclick="regraKitExcluir(\'' + r.id + '\')" style="padding:2px 6px">×</button></div>' +
+
+        '</div>' +
+
+        (ef.base === 'cargo'
+          ? '<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border2);display:flex;flex-wrap:wrap;gap:8px;align-items:center">' +
+              '<span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Cargos:</span>' +
+              (cargos.length ? cargos.map(function(c){
+                var m = (r.cargos||[]).indexOf(c.key) !== -1;
+                return '<label style="display:flex;align-items:center;gap:4px;font-size:10px;cursor:pointer;background:' + (m?'var(--green-bg)':'var(--bg)') + ';border:1px solid ' + (m?'var(--green-dim)':'var(--border2)') + ';padding:2px 8px;border-radius:12px">' +
+                  '<input type="checkbox" ' + (m?'checked':'') + ' onchange="regraKitToggleCargo(\'' + r.id + '\',\'' + c.key + '\',this.checked)"> ' + c.nome + '</label>';
+              }).join('') : '<span style="font-size:10px;color:var(--amber)">Nenhum cargo no Cadastro Central → Cargos</span>') +
+            '</div>'
+          : '') +
       '</div>';
     });
 
     html += '</div></div>';
   });
 
-  // Adicionar item novo à lista de regras — escolhido da Biblioteca de Itens
-  // (mesma fonte que a Ficha de Coquetel usa), nunca digitado do zero. Antes
-  // era um prompt() de texto livre: bastava uma letra/acento diferente do
-  // nome real do item pra regra "casar" com nada e sumir silenciosamente do
-  // orçamento (aconteceu 3x na prática — Limão Siciliano, Gim Beefeater,
-  // Angostura/Xarope de Açúcar). Escolher da lista elimina esse erro de raiz.
-  var bibliotecaAdd = getBiblioteca();
+  // Adicionar item — sempre escolhido da Biblioteca de Itens / Cadastro de
+  // Insumos, nunca digitado do zero (nome digitado diferente = regra que não
+  // casa com nada e some silenciosamente).
+  var biblioteca = getBiblioteca();
   html += '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-top:8px">' +
-    '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">+ Adicionar item à lista de regras</div>' +
+    '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">+ Adicionar item</div>' +
     '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">' +
       '<div style="flex:1;min-width:160px"><label class="lbl">Categoria</label>' +
-        '<select id="rp-nova-cat" class="inp" onchange="_rpAtualizarItensDisponiveis()" style="width:100%">' +
-          Object.keys(bibliotecaAdd).sort().map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('') +
+        '<select id="rk-cat-' + contexto + '" class="inp" onchange="_rkAtualizarItens()" style="width:100%">' +
+          Object.keys(biblioteca).sort().map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('') +
         '</select></div>' +
       '<div style="flex:2;min-width:200px"><label class="lbl">Item</label>' +
-        '<select id="rp-novo-item" class="inp" style="width:100%"></select></div>' +
-      '<button class="btn" onclick="adicionarItemRegra()" style="background:var(--blue);white-space:nowrap">+ Adicionar</button>' +
+        '<select id="rk-item-' + contexto + '" class="inp" style="width:100%"></select></div>' +
+      '<button class="btn" onclick="regraKitAdd()" style="background:var(--blue);white-space:nowrap">+ Adicionar</button>' +
     '</div>' +
-    '<div style="font-size:10px;color:var(--text3);margin-top:6px">Só aparecem itens já cadastrados na Biblioteca de Itens e que ainda não têm regra. Item novo? <a href="#" onclick="setRegrasView(\'biblioteca\');return false" style="color:var(--blue)">Cadastre lá primeiro</a>.</div>' +
+    '<div style="font-size:10px;color:var(--text3);margin-top:6px">Item novo? <a href="#" onclick="go(\'cadastro\');return false" style="color:var(--blue)">Cadastre no Cadastro de Insumos</a> primeiro.</div>' +
   '</div>';
 
-  html += '<div style="margin-top:8px;display:flex;gap:8px">' +
+  html += '<div style="margin:8px 0 20px;display:flex;gap:8px">' +
     '<button class="btn" onclick="salvarRegrasItens()" style="background:var(--green)">💾 Salvar Regras</button>' +
     '<button class="btn" onclick="resetarRegras()" style="background:var(--red-dim);color:var(--red)">↺ Restaurar Padrão</button>' +
   '</div>';
 
+  html += '</div>';
   cont.innerHTML = html;
-  _rpAtualizarItensDisponiveis();
+  _rkAtualizarItens();
 }
 
-// Preenche o select de item de acordo com a categoria escolhida, excluindo
-// itens que já têm regra cadastrada (evita duplicar a mesma regra 2x).
-function _rpAtualizarItensDisponiveis() {
-  var cat = document.getElementById('rp-nova-cat')?.value;
-  var sel = document.getElementById('rp-novo-item');
+function _cargosDisponiveis() {
+  var cs = (typeof getCargos === 'function' && getCargos().length) ? getCargos()
+         : (typeof _CARGOS_DEF !== 'undefined' ? _CARGOS_DEF : []);
+  return cs.map(function(c) { return { key: c.key, nome: c.nome }; });
+}
+
+function _rkRerender() {
+  var c = window._rkCtx;
+  if (c) rRegrasKitBase(c.containerId, c.contexto);
+}
+
+function _rkAtualizarItens() {
+  var ctx = (window._rkCtx && window._rkCtx.contexto) || 'proporcoes';
+  var cat = document.getElementById('rk-cat-' + ctx)?.value;
+  var sel = document.getElementById('rk-item-' + ctx);
   if (!cat || !sel) return;
   var biblioteca = getBiblioteca();
-  var jaTemRegra = {};
-  getRegrasItens().forEach(function(r) { jaTemRegra[r.cat + '|' + r.item] = true; });
-  var disponiveis = (biblioteca[cat] || []).filter(function(item) { return !jaTemRegra[cat + '|' + item]; });
-  sel.innerHTML = disponiveis.length
-    ? disponiveis.map(function(item){ return '<option value="'+item+'">'+item+'</option>'; }).join('')
+  var jaTem = {};
+  getRegrasItens().forEach(function(r) { jaTem[r.cat + '|' + r.item] = true; });
+  var disp = (biblioteca[cat] || []).filter(function(item) { return !jaTem[cat + '|' + item]; });
+  sel.innerHTML = disp.length
+    ? disp.map(function(item){ return '<option value="'+item+'">'+item+'</option>'; }).join('')
     : '<option value="">(todos os itens desta categoria já têm regra)</option>';
 }
 
-function atualizarRegra(idx, campo, valor) {
-  var regras = getRegrasItens();
-  if (!D.regrasItens || !D.regrasItens.length) D.regrasItens = JSON.parse(JSON.stringify(REGRAS_ITENS_PADRAO));
-  if (D.regrasItens[idx]) D.regrasItens[idx][campo] = valor;
+function regraKitSet(id, campo, valor) {
+  if (typeof migrarRegrasBaseCalculo === 'function') migrarRegrasBaseCalculo();
+  var r = _regraKitPorId(id);
+  if (!r) return;
+  if (campo === 'soSeCardapio' || campo === 'autoOrcamento') {
+    r[campo] = !!valor;
+  } else if (campo === 'base') {
+    r.base = valor;
+    if (valor !== 'cargo' && !r.cargos) r.cargos = [];
+    if (valor === 'cargo' && !(r.cargos && r.cargos.length)) r.cargos = ['bt', 'hb'];
+  } else {
+    r[campo] = parseFloat(valor) || 0;
+  }
+  // `tipo` (legado, lido pelo Orçamento) acompanha a base nova.
+  r.tipo = ({ fixo: 'fixo', convidado: 'convidado', equipe: 'equipe', cargo: 'bartender' })[r.base || 'fixo'];
+  if (campo === 'base') _rkRerender();
+}
+
+function regraKitToggleCargo(id, cargoKey, checked) {
+  var r = _regraKitPorId(id);
+  if (!r) return;
+  if (!r.cargos) r.cargos = [];
+  var i = r.cargos.indexOf(cargoKey);
+  if (checked && i === -1) r.cargos.push(cargoKey);
+  if (!checked && i !== -1) r.cargos.splice(i, 1);
+}
+
+function regraKitExcluir(id) {
+  var r = _regraKitPorId(id);
+  if (!r) return;
+  if (!confirm('Remover a regra de "' + r.item + '"?')) return;
+  D.regrasItens = (D.regrasItens || []).filter(function(x) { return x.id !== id; });
+  sv('regrasItens');
+  _rkRerender();
+}
+
+function regraKitAdd() {
+  if (typeof migrarRegrasBaseCalculo === 'function') migrarRegrasBaseCalculo();
+  var ctx = (window._rkCtx && window._rkCtx.contexto) || 'proporcoes';
+  var cat = document.getElementById('rk-cat-' + ctx)?.value;
+  var item = document.getElementById('rk-item-' + ctx)?.value;
+  if (!cat || !item) { alert('Escolha uma categoria e um item.'); return; }
+  if (D.regrasItens.some(function(r){ return r.cat === cat && r.item === item; })) {
+    alert('Esse item já tem uma regra cadastrada.');
+    return;
+  }
+  D.regrasItens.push({
+    id: _gerarId('RG'), item: item, cat: cat,
+    base: 'fixo', tipo: 'fixo', valor: 1, ref: 1, cargos: [],
+    min: 1, soSeCardapio: false, autoOrcamento: false,
+  });
+  sv('regrasItens');
+  _rkRerender();
 }
 
 function salvarRegrasItens() {
@@ -840,22 +1061,17 @@ function salvarRegrasItens() {
 function resetarRegras() {
   if (!confirm('Restaurar todas as regras para o padrão?')) return;
   D.regrasItens = JSON.parse(JSON.stringify(REGRAS_ITENS_PADRAO));
-  sv('regrasItens');
-  rProporcoes();
+  migrarRegrasBaseCalculo();
+  _rkRerender();
 }
 
-function adicionarItemRegra() {
-  var cat  = document.getElementById('rp-nova-cat')?.value;
-  var item = document.getElementById('rp-novo-item')?.value;
-  if (!cat || !item) { alert('Escolha uma categoria e um item.'); return; }
+// Compat: chamadas antigas por índice (não usadas pelas telas atuais).
+function atualizarRegra(idx, campo, valor) {
   if (!D.regrasItens || !D.regrasItens.length) D.regrasItens = JSON.parse(JSON.stringify(REGRAS_ITENS_PADRAO));
-  if (D.regrasItens.some(function(r){ return r.cat === cat && r.item === item; })) {
-    alert('Esse item já tem uma regra cadastrada.');
-    return;
-  }
-  D.regrasItens.push({item:item, cat:cat, tipo:'fixo', valor:1, min:1, soSeCardapio:false, autoOrcamento:false});
-  rProporcoes();
+  if (D.regrasItens[idx]) D.regrasItens[idx][campo] = valor;
 }
+function adicionarItemRegra() { regraKitAdd(); }
+function _rpAtualizarItensDisponiveis() { _rkAtualizarItens(); }
 
 // ── Preços do Orçamento (Local, Condicional, Insumos, Perda, Seguro, Vasilhames) ──
 // Estes valores alimentam os itens "auto" da Calculadora de Orçamento (orcCalc.js).

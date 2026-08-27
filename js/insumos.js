@@ -200,7 +200,16 @@ function rCadastroInsumos() {
     (porCat[i.categoria || 'OUTROS'] = porCat[i.categoria || 'OUTROS'] || []).push(i);
   });
 
-  cont.innerHTML = Object.entries(porCat).map(function(entry) {
+  var pendentes = getInsumos().filter(function(i) { return i.origemAuto && !i.categoria; });
+  var bannerPend = pendentes.length
+    ? '<div style="background:rgba(247,195,90,.10);border:1px solid rgba(247,195,90,.4);border-radius:var(--radius);padding:10px 14px;margin-bottom:14px">' +
+        '<div style="font-size:11px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">' + pendentes.length + ' item(ns) do Kit Base sem categoria</div>' +
+        '<div style="font-size:11px;color:var(--text3)">Criados automaticamente a partir da Folha de Separação. Edite cada um e escolha a categoria: <strong>' +
+          pendentes.map(function(i){ return i.nome; }).sort().join(', ') + '</strong></div>' +
+      '</div>'
+    : '';
+
+  cont.innerHTML = bannerPend + Object.entries(porCat).map(function(entry) {
     var cat = entry[0], itens = entry[1];
     return '<div style="margin-bottom:16px">' +
       '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;padding:6px 0;border-bottom:2px solid var(--border2);margin-bottom:6px">' +
@@ -268,6 +277,7 @@ function rFormInsumo(id) {
           '<div style="font-size:10px;color:var(--text3);margin-top:2px">Separados por vírgula — resolve os diferentes nomes usados na ficha, na Ref. Consumo e na NF.</div></div>' +
         '<div><label class="lbl">Categoria *</label>' +
           '<select class="inp" id="cad-categoria">' +
+            ((!i || !i.categoria) ? '<option value="" selected>— escolha a categoria —</option>' : '') +
             getCategorias().map(function(c) {
               return '<option value="' + c + '"' + (i && i.categoria === c ? ' selected' : '') + '>' + c + '</option>';
             }).join('') +
@@ -338,6 +348,8 @@ function rFormInsumo(id) {
 function salvarInsumo() {
   var nome = (document.getElementById('cad-nome')?.value || '').trim().toUpperCase();
   if (!nome) { alert('Preencha o nome do insumo.'); return; }
+  var categoriaSel = document.getElementById('cad-categoria')?.value || '';
+  if (!categoriaSel) { alert('Escolha a categoria do insumo.'); return; }
 
   var aliasesRaw = (document.getElementById('cad-aliases')?.value || '').trim();
   var aliases = aliasesRaw ? aliasesRaw.split(',').map(function(a) { return a.trim().toUpperCase(); }).filter(Boolean) : [];
@@ -356,7 +368,7 @@ function salvarInsumo() {
     origemProdutoId: existente ? existente.origemProdutoId : null,
     nome: nome,
     aliases: aliases,
-    categoria: document.getElementById('cad-categoria')?.value || 'OUTROS',
+    categoria: categoriaSel,
     unidadeCompra: document.getElementById('cad-unidade')?.value || 'UN',
     tamanhoEmbalagem: parseInt(document.getElementById('cad-embalagem')?.value) || 1,
     classificacaoProducao: classProdEl ? classProdEl.value : 'materia_prima',
