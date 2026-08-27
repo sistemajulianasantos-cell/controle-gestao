@@ -278,9 +278,13 @@ function _regraKitPorId(id) {
 function migrarInsumosDoKitBase() {
   migrarRegrasBaseCalculo();
   if (!D.insumos) D.insumos = [];
+  // Itens que ela excluiu do Cadastro de Insumos não devem voltar sozinhos —
+  // ver excluirInsumo() em js/insumos.js, que também remove a regra do Kit Base.
+  var excluidos = new Set((D.kitBaseInsumosExcluidos || []).map(function(n){ return (n || '').toUpperCase(); }));
   var criados = 0;
   (D.regrasItens || []).forEach(function(r) {
     if (!r.item) return;
+    if (excluidos.has(r.item.toUpperCase())) return;
     if (typeof buscarInsumoPorNome === 'function' && buscarInsumoPorNome(r.item)) return;
     if (D.insumos.some(function(i){ return (i.nome || '').toUpperCase() === r.item.toUpperCase(); })) return;
     D.insumos.push({

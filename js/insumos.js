@@ -399,10 +399,27 @@ function editarInsumo(id) {
 }
 
 function excluirInsumo(id) {
-  if (!confirm('Excluir este insumo do cadastro? (O produto original em "Produtos" não é apagado.)')) return;
   var insumo = buscarInsumoPorId(id);
+  var msg = (insumo && insumo.origemAuto)
+    ? 'Excluir "' + (insumo.nome || '') + '"? Ele foi criado automaticamente pelo Kit Base — a regra de cálculo dele na Folha de Separação também será removida e ele não volta sozinho.'
+    : 'Excluir este insumo do cadastro? (O produto original em "Produtos" não é apagado.)';
+  if (!confirm(msg)) return;
   D.insumos = (D.insumos || []).filter(function(i) { return i.id !== id; });
   sv('insumos');
+
+  // Insumo auto-criado pelo Kit Base: registra a exclusão pra migrarInsumosDoKitBase()
+  // não recriar, e apaga a regra correspondente de D.regrasItens.
+  if (insumo && insumo.origemAuto) {
+    var nomeUp = (insumo.nome || '').toUpperCase();
+    if (!D.kitBaseInsumosExcluidos) D.kitBaseInsumosExcluidos = [];
+    if (D.kitBaseInsumosExcluidos.indexOf(nomeUp) === -1) D.kitBaseInsumosExcluidos.push(nomeUp);
+    sv('kitBaseInsumosExcluidos');
+    if (D.regrasItens && D.regrasItens.some(function(r){ return (r.item || '').toUpperCase() === nomeUp; })) {
+      D.regrasItens = D.regrasItens.filter(function(r){ return (r.item || '').toUpperCase() !== nomeUp; });
+      sv('regrasItens');
+    }
+  }
+
   // Insumo migrado de Produtos: sem isso, migrarInsumosDeProdutos() o recria
   // sozinho na próxima vez que a tela abrir (o produto original continua lá).
   if (insumo && insumo.origemProdutoId) {
