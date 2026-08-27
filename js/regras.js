@@ -551,7 +551,7 @@ if (!D.produtos) D.produtos = [];
 }
 
 function setRegrasView(v) {
-  ['fichas','proporcoes','nova-ficha','biblioteca','copos','precos'].forEach(function(x) {
+  ['fichas','proporcoes','associacoes','nova-ficha','biblioteca','copos','precos'].forEach(function(x) {
     var el = document.getElementById('regras-view-' + x);
     if (el) el.style.display = x === v ? '' : 'none';
     var btn = document.getElementById('regras-tab-' + x);
@@ -559,6 +559,7 @@ function setRegrasView(v) {
   });
   if (v === 'fichas') rFichas();
   if (v === 'proporcoes') rProporcoes();
+  if (v === 'associacoes' && typeof rAssociacoes === 'function') rAssociacoes();
   if (v === 'nova-ficha') rFormFicha();
   if (v === 'biblioteca') rBiblioteca();
   if (v === 'copos') rCopos();

@@ -67,6 +67,58 @@ function catAtualFichaItem(item) {
   return (typeof categoriaAtualDoInsumo === 'function') ? categoriaAtualDoInsumo(item.nome, item.cat) : item.cat;
 }
 
+// Célula de quantidade de um item na folha. Item normal = input editável.
+// Item travado (acessório de uma associação) = valor só-leitura que segue o
+// principal, com um input escondido pra ser salvo por salvarSeparacao().
+function _sepQtdCell(it, catAttr, itemAttr, valor, corTexto) {
+  if (it.travado) {
+    return '<div style="text-align:right" data-assoc-principal="' + (it.associadoA || '').replace(/"/g, '') + '" ' +
+      'data-assoc-quantos="' + (it.assocQuantos || 1) + '" data-assoc-acada="' + (it.assocACada || 1) + '" data-assoc-min="' + (it.assocMin || 0) + '">' +
+      '<span class="assoc-val" style="font-family:var(--mono);font-size:12px;font-weight:600;color:' + (corTexto || 'var(--text)') + '">' + valor + '</span>' +
+      '<input type="hidden" data-item="' + itemAttr + '" data-cat="' + catAttr + '" value="' + valor + '">' +
+    '</div>';
+  }
+  return '<input type="number" value="' + valor + '" min="0" data-item="' + itemAttr + '" data-cat="' + catAttr + '" ' +
+    'style="font-size:12px;font-weight:600;padding:4px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:' + (corTexto || 'var(--text)') + ';text-align:center;font-family:var(--mono)">';
+}
+
+function _sepBadgeAssoc(it) {
+  return it.associadoA
+    ? '<span style="font-size:9px;background:var(--bg4);color:var(--text3);border:1px solid var(--border2);padding:1px 6px;border-radius:10px;margin-left:6px">segue ' + it.associadoA + '</span>'
+    : '';
+}
+
+// Recalcula, ao vivo, os acessórios quando a quantidade do principal muda na
+// tela (a Juliana pediu que o acessório acompanhe na hora). Roda 2x pra
+// cobrir uma associação que aponte pra outro acessório.
+function _sepRecalcAssociacoes() {
+  var wrap = document.getElementById('sep-form-campos');
+  if (!wrap) return;
+  function valorDoItem(nome) {
+    var alvo = (nome || '').toUpperCase();
+    var achou = null;
+    wrap.querySelectorAll('[data-item]').forEach(function(el) {
+      if ((el.dataset.item || '').toUpperCase() === alvo) {
+        achou = parseFloat(el.value != null ? el.value : el.textContent) || 0;
+      }
+    });
+    return achou;
+  }
+  for (var passo = 0; passo < 2; passo++) {
+    wrap.querySelectorAll('[data-assoc-principal]').forEach(function(box) {
+      var quantos = parseFloat(box.dataset.assocQuantos) || 1;
+      var aCada = parseFloat(box.dataset.assocAcada) || 1;
+      var min = parseFloat(box.dataset.assocMin) || 0;
+      var qp = valorDoItem(box.dataset.assocPrincipal);
+      var qtd = Math.max(min, qp == null ? 0 : Math.ceil(qp * quantos / aCada));
+      var span = box.querySelector('.assoc-val');
+      var hidden = box.querySelector('input[type="hidden"]');
+      if (span) span.textContent = qtd;
+      if (hidden) hidden.value = qtd;
+    });
+  }
+}
+
 function sepCarregarProducao(prodId) {
   if (!prodId) return;
   var p = (D.producoes||[]).find(function(x){return x.id===prodId;});
@@ -205,6 +257,10 @@ function sepCarregarProducao(prodId) {
     var base = (r.tipo === 'bartender') ? bartenders : conv;
     existente.qtd = Math.ceil((qtdN / refN) * base);
   });
+
+  // Acessórios que seguem outro item (Regras e Cálculos → Associações) —
+  // roda por último, quando a quantidade dos principais já está resolvida.
+  if (typeof aplicarAssociacoesSeparacao === 'function') aplicarAssociacoesSeparacao(todosItens);
 
   var equipeHtml = equipe.length
     ? equipe.map(function(e){return '<span style="margin-right:10px">'+e.qtd+' '+e.cargo+'</span>';}).join('')
@@ -352,7 +408,7 @@ function sepCarregarProducao(prodId) {
         : it.semFicha ? '<span style="font-size:9px;background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-dim);padding:1px 6px;border-radius:10px;margin-left:6px">⚠️</span>' : '';
       var qtdConf = it.qtd;
       var salvoConf = qtdSalva(cat, it.item);
-      if (salvoConf != null) qtdConf = salvoConf;
+      if (salvoConf != null && !it.travado) qtdConf = salvoConf;
       var itemAttr = it.item.replace(/"/g,'');
       var catAttr = cat.replace(/"/g,'');
       var fornHtml = '';
@@ -364,13 +420,11 @@ function sepCarregarProducao(prodId) {
         '</select>';
       }
       html += '<div style="display:grid;grid-template-columns:' + cols + ';gap:8px;align-items:center;padding:4px 14px;border-bottom:1px solid var(--border)">' +
-        '<div style="font-size:12px;color:var(--text)">' + it.item + badge +
+        '<div style="font-size:12px;color:var(--text)">' + it.item + badge + _sepBadgeAssoc(it) +
           (it.obs ? '<span style="font-size:10px;color:var(--text3);margin-left:6px">' + it.obs + '</span>' : '') +
         '</div>' +
         fornHtml +
-        '<input type="number" value="' + qtdConf + '" min="0" ' +
-          'data-item="' + itemAttr + '" data-cat="' + catAttr + '" ' +
-          'style="font-size:12px;font-weight:600;padding:4px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:center;font-family:var(--mono)">' +
+        _sepQtdCell(it, catAttr, itemAttr, qtdConf, 'var(--text)') +
       '</div>';
     });
     html += '</div>';
@@ -401,14 +455,12 @@ function sepCarregarProducao(prodId) {
     itens.forEach(function(it) {
       var qtdKit = it.qtd;
       var salvoKit = qtdSalva(cat, it.item);
-      if (salvoKit != null) qtdKit = salvoKit;
+      if (salvoKit != null && !it.travado) qtdKit = salvoKit;
       html += '<div style="display:grid;grid-template-columns:1fr 100px;gap:8px;align-items:center;padding:4px 14px;border-bottom:1px solid var(--border)">' +
-        '<span style="font-size:12px;color:var(--text2)">' + it.item +
+        '<span style="font-size:12px;color:var(--text2)">' + it.item + _sepBadgeAssoc(it) +
           (it.obs ? '<span style="font-size:10px;color:var(--text3);margin-left:6px">' + it.obs + '</span>' : '') +
         '</span>' +
-        '<input type="number" value="' + qtdKit + '" min="0" ' +
-          'data-item="' + it.item.replace(/"/g,'') + '" data-cat="' + cat.replace(/"/g,'') + '" ' +
-          'style="font-size:12px;padding:4px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text2);text-align:center;font-family:var(--mono)">' +
+        _sepQtdCell(it, cat.replace(/"/g,''), it.item.replace(/"/g,''), qtdKit, 'var(--text2)') +
       '</div>';
     });
     html += '</div>';
@@ -435,6 +487,17 @@ function sepCarregarProducao(prodId) {
   '</div>';
 
   cont.innerHTML = html;
+
+  // Acessórios (associações) seguem o principal ao vivo: qualquer mudança
+  // numa quantidade recalcula os campos travados. O listener fica no
+  // container (que persiste entre recargas), registrado uma vez só.
+  if (!cont._assocListener) {
+    cont._assocListener = true;
+    cont.addEventListener('input', function(e) {
+      if (e.target && e.target.matches && e.target.matches('[data-item]')) _sepRecalcAssociacoes();
+    });
+  }
+  _sepRecalcAssociacoes();
 }
 
 
