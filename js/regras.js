@@ -589,6 +589,7 @@ function rFichas() {
         '<span class="sec-title">🍹 ' + f.nome + '</span>' +
         (f.variantes ? '<span style="color:var(--text3);font-size:11px">' + f.variantes + '</span>' : '') +
         '<div style="margin-left:auto;display:flex;gap:6px">' +
+          '<button class="btn-sm" style="background:#6C63FF" onclick="imprimirFichaTecnicaCoquetel(\'' + f.id + '\')">🖨️ Ficha Técnica</button>' +
           '<button class="btn-sm" style="background:var(--blue)" onclick="editarFicha(\'' + f.id + '\')">✏️ Editar</button>' +
           '<button class="btn-sm btn-red" onclick="excluirFicha(\'' + f.id + '\')">Excluir</button>' +
         '</div>' +
@@ -613,7 +614,17 @@ function filtrarFichas(v) {
 function rFormFicha(fichaExistente) {
   var cont = document.getElementById('regras-view-nova-ficha');
   if (!cont) return;
-  var f = fichaExistente || { nome:'', variantes:'', itens:[], descricao:'', copo:'' };
+  var f = fichaExistente || { nome:'', variantes:'', itens:[], descricao:'', copo:'', copoId:'', metodo:'', modoPreparo:'', finalizacao:'' };
+
+  // Medidas dos ingredientes ({cat|nome} -> {qtd, un}), pré-carregadas da
+  // ficha; _fcSyncMedidas() mantém isso em dia conforme ela marca/desmarca.
+  window._fcMedidas = {};
+  (f.itens||[]).forEach(function(i){
+    window._fcMedidas[categoriaAtualDoInsumo(i.nome, i.cat) + '|' + i.nome] = { qtd: i.qtd, un: i.un };
+  });
+
+  var _copos = (typeof getCopos === 'function') ? getCopos().slice().sort(function(a,b){return (a.nome||'').localeCompare(b.nome||'');}) : [];
+  var _metodos = (typeof METODOS_PREPARO !== 'undefined') ? METODOS_PREPARO : ['BATIDO','MEXIDO','MONTADO','DIRETO','DRY SHAKE'];
   // "Já na ficha" usa a categoria ATUAL do insumo (não a guardada na ficha)
   // — senão, reclassificar um insumo (ex: Triple Sec) faz o checkbox dele
   // aparecer desmarcado na categoria nova, e resalvar a ficha sem notar
@@ -639,17 +650,21 @@ function rFormFicha(fichaExistente) {
       '<div><label class="lbl">Variantes / Aliases</label>' +
         '<input class="inp" id="fc-variantes" type="text" placeholder="Ex: FITZ, FITZGERAL" value="' + (f.variantes||'') + '">' +
         '<div style="font-size:10px;color:var(--text3);margin-top:2px">Nomes alternativos separados por vírgula</div></div>' +
-      '<div><label class="lbl">Copo</label>' +
-        '<input class="inp" id="fc-copo" type="text" placeholder="Ex: Copo baixo, Taça, Copo mule..." value="' + (f.copo||'') + '"></div>' +
-      '<div><label class="lbl">Foto do copo (pra Proposta em Word)</label>' +
-        '<div style="display:flex;align-items:center;gap:10px">' +
-          '<img id="fc-foto-preview" src="" style="display:none;width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--border2)">' +
-          '<label class="btn-sm" style="background:var(--bg3);cursor:pointer">📷 Escolher foto' +
-            '<input type="file" accept="image/*" onchange="fichaSelecionarFoto(this)" style="display:none"></label>' +
-          '<button type="button" class="btn-sm" style="background:var(--bg3)" onclick="fichaRemoverFoto()">✕ Remover</button>' +
-        '</div></div>' +
+      '<div><label class="lbl">Copo / Serviço</label>' +
+        '<select class="inp" id="fc-copo-id">' +
+          '<option value="">' + ((f.copo && !f.copoId) ? 'texto atual: ' + f.copo : '— sem copo definido —') + '</option>' +
+          _copos.map(function(c){ return '<option value="'+c.id+'"'+(f.copoId===c.id?' selected':'')+'>'+c.nome+'</option>'; }).join('') +
+        '</select>' +
+        '<div style="font-size:10px;color:var(--text3);margin-top:2px"><a href="#" onclick="setRegrasView(\'copos\');return false" style="color:var(--blue)">Gerenciar copos e fotos</a></div></div>' +
+      '<div><label class="lbl">Método de preparo</label>' +
+        '<input class="inp" id="fc-metodo" list="fc-metodo-lista" type="text" placeholder="Ex: BATIDO" value="' + (f.metodo||'').replace(/"/g,'&quot;') + '" style="text-transform:uppercase">' +
+        '<datalist id="fc-metodo-lista">' + _metodos.map(function(m){ return '<option value="'+m+'">'; }).join('') + '</datalist></div>' +
       '<div style="grid-column:1/-1"><label class="lbl">Descrição (pra proposta / cardápio ao cliente)</label>' +
         '<textarea class="inp" id="fc-descricao" rows="2" style="width:100%;resize:vertical" placeholder="Ex: Vodka ou gin, ginger ale artesanal e espuma de gengibre">' + (f.descricao||'') + '</textarea></div>' +
+      '<div style="grid-column:1/-1"><label class="lbl">Modo de preparo (pra ficha técnica dos colaboradores)</label>' +
+        '<textarea class="inp" id="fc-modo-preparo" rows="2" style="width:100%;resize:vertical" placeholder="Ex: Adicionar todos os ingredientes na coqueteleira com gelo e bater vigorosamente. Servir no copo baixo.">' + (f.modoPreparo||'') + '</textarea></div>' +
+      '<div style="grid-column:1/-1"><label class="lbl">Finalização</label>' +
+        '<textarea class="inp" id="fc-finalizacao" rows="1" style="width:100%;resize:vertical" placeholder="Ex: Finalizar com casca de limão siciliano aromatizada.">' + (f.finalizacao||'') + '</textarea></div>' +
     '</div>' +
     '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Marque os itens que este coquetel precisa</div>' +
     '<input class="inp" id="fc-item-busca" type="text" placeholder="Buscar item..." oninput="filtrarItensFicha(this.value)" style="width:100%;max-width:320px;margin-bottom:10px">' +
@@ -663,7 +678,7 @@ function rFormFicha(fichaExistente) {
       itens.map(function(item) {
         var checked = itensIds.has(cat+'|'+item) ? 'checked' : '';
         return '<label class="fc-item-label" data-busca="' + item.toLowerCase() + '" style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;background:var(--bg3);padding:3px 8px;border-radius:var(--radius);border:1px solid var(--border)">' +
-          '<input type="checkbox" data-cat="' + cat + '" data-nome="' + item + '" ' + checked + ' style="cursor:pointer"> ' + item + '</label>';
+          '<input type="checkbox" data-cat="' + cat + '" data-nome="' + item + '" ' + checked + ' onchange="_fcSyncMedidas()" style="cursor:pointer"> ' + item + '</label>';
       }).join('') +
       '</div></div>';
   });
@@ -687,12 +702,16 @@ function rFormFicha(fichaExistente) {
         '<div style="display:flex;flex-wrap:wrap;gap:6px">' +
         itensExtras.map(function(item) {
           return '<label style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;background:var(--bg4);padding:3px 8px;border-radius:var(--radius);border:1px solid var(--blue-dim)">' +
-            '<input type="checkbox" data-cat="' + item.cat + '" data-nome="' + item.nome + '" checked style="cursor:pointer"> ' +
+            '<input type="checkbox" data-cat="' + item.cat + '" data-nome="' + item.nome + '" checked onchange="_fcSyncMedidas()" style="cursor:pointer"> ' +
             '<span style="color:var(--text3)">' + item.cat + ':</span> ' + item.nome + '</label>';
         }).join('') +
         '</div>' +
       '</div>'
     : '') +
+    '<div style="margin-top:18px">' +
+      '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Medidas dos ingredientes (pra ficha técnica)</div>' +
+      '<div id="fc-medidas"></div>' +
+    '</div>' +
     '<div style="display:flex;gap:8px;margin-top:16px">' +
       '<button class="btn" id="pf-btn-salvar-ficha" onclick="salvarFicha(\'' + (fichaExistente ? fichaExistente.id : '') + '\')" style="background:var(--green)">💾 Salvar Ficha</button>' +
       '<button class="btn" onclick="setRegrasView(\'fichas\')" style="background:var(--bg3);color:var(--text)">Cancelar</button>' +
@@ -709,16 +728,49 @@ function rFormFicha(fichaExistente) {
   // nomes reais do Cadastro de Insumos), em vez do todosItensNovos já
   // calculado acima a partir de getItensFicha().
 
-  // Foto fica em documento próprio (js/../fichaFotos), não em D.fichas — busca
-  // assíncrona à parte. null = "sem alteração" (mantém a que já existe ao
-  // salvar); '' = removida na tela; string base64 = nova foto selecionada.
-  window._fichaFotoAtual = null;
-  if (fichaExistente && typeof window.buscarFichaFoto === 'function') {
-    window.buscarFichaFoto(fichaExistente.id).then(function(b64){
-      var prev = document.getElementById('fc-foto-preview');
-      if (b64 && prev) { prev.src = b64; prev.style.display = 'inline-block'; }
-    });
+  // A foto agora fica na Biblioteca de Copos (js/fichaTecnica.js), não mais
+  // por ficha — a ficha só aponta pra um copo (fc-copo-id).
+  if (typeof _fcSyncMedidas === 'function') _fcSyncMedidas();
+}
+
+// Reconstrói a lista de medidas (#fc-medidas) a partir dos ingredientes
+// marcados, preservando o que já foi digitado (em window._fcMedidas).
+function _fcSyncMedidas() {
+  var cont = document.getElementById('fc-medidas');
+  if (!cont) return;
+  if (!window._fcMedidas) window._fcMedidas = {};
+
+  // 1) grava o que está digitado nas linhas atuais
+  cont.querySelectorAll('[data-med-key]').forEach(function(row) {
+    var k = row.dataset.medKey;
+    var q = row.querySelector('.med-qtd');
+    var u = row.querySelector('.med-un');
+    window._fcMedidas[k] = { qtd: q ? q.value : '', un: u ? u.value : '' };
+  });
+
+  // 2) lista dos ingredientes marcados agora (checkbox + customizados)
+  var sel = [];
+  document.querySelectorAll('#regras-view-nova-ficha input[type="checkbox"]:checked').forEach(function(cb) {
+    if (cb.dataset.nome) sel.push({ cat: cb.dataset.cat, nome: cb.dataset.nome });
+  });
+  (window._customItens || []).forEach(function(i) { sel.push({ cat: i.cat, nome: i.nome }); });
+  var vistos = {};
+  sel = sel.filter(function(x) { var k = x.cat + '|' + x.nome; if (vistos[k]) return false; vistos[k] = 1; return true; });
+
+  if (!sel.length) {
+    cont.innerHTML = '<div style="font-size:11px;color:var(--text3)">Marque os ingredientes acima pra definir as medidas.</div>';
+    return;
   }
+  var UNS = (typeof UNIDADES_INGREDIENTE !== 'undefined') ? UNIDADES_INGREDIENTE : ['ML','GR','UN','DASH','GTS','BSP','—'];
+  cont.innerHTML = sel.map(function(x) {
+    var k = x.cat + '|' + x.nome;
+    var m = window._fcMedidas[k] || {};
+    return '<div data-med-key="' + k.replace(/"/g,'&quot;') + '" style="display:grid;grid-template-columns:1fr 80px 90px;gap:8px;align-items:center;padding:4px 0;border-bottom:1px solid var(--border)">' +
+      '<span style="font-size:12px;color:var(--text2)">' + x.nome + ' <span style="font-size:9px;color:var(--text3)">' + x.cat + '</span></span>' +
+      '<input class="inp med-qtd" type="number" min="0" step="any" value="' + (m.qtd != null ? m.qtd : '') + '" placeholder="qtd" style="font-size:12px;text-align:center">' +
+      '<select class="inp med-un" style="font-size:12px">' + UNS.map(function(u){ return '<option' + (m.un === u ? ' selected' : '') + '>' + u + '</option>'; }).join('') + '</select>' +
+    '</div>';
+  }).join('');
 }
 
 function filtrarItensFicha(v) {
@@ -781,26 +833,43 @@ function adicionarTagCustom(cat, nome) {
   tag.dataset.id = id;
   tag.innerHTML = cat + ': ' + nome + ' <span style="cursor:pointer;font-weight:700" onclick="removerCustom(\'' + id + '\',this.parentElement)">×</span>';
   cont.appendChild(tag);
+  if (typeof _fcSyncMedidas === 'function') _fcSyncMedidas();
 }
 
 function removerCustom(id, el) {
   window._customItens = (window._customItens||[]).filter(function(x){return x.id!==id;});
+  if (typeof _fcSyncMedidas === 'function') setTimeout(_fcSyncMedidas, 0);
   if (el) el.remove();
 }
 
 function salvarFicha(idExistente) {
   var nome = (document.getElementById('fc-nome')?.value||'').trim().toUpperCase();
   if (!nome) { alert('Preencha o nome do coquetel.'); return; }
+  if (typeof _fcSyncMedidas === 'function') _fcSyncMedidas(); // captura o que foi digitado sem sair do campo
   var variantes = (document.getElementById('fc-variantes')?.value||'').trim();
-  var copo = (document.getElementById('fc-copo')?.value||'').trim();
+  var copoId = document.getElementById('fc-copo-id')?.value || '';
+  var _fichaAnt = idExistente ? ((D.fichas||[]).find(function(f){return f.id===idExistente;}) || {}) : {};
+  var copoNome = copoId && typeof buscarCopoPorId === 'function'
+    ? ((buscarCopoPorId(copoId)||{}).nome || '')
+    : (_fichaAnt.copo || '');  // sem copo escolhido: mantém o texto antigo, não apaga
   var descricao = (document.getElementById('fc-descricao')?.value||'').trim();
+  var metodo = (document.getElementById('fc-metodo')?.value||'').trim().toUpperCase();
+  var modoPreparo = (document.getElementById('fc-modo-preparo')?.value||'').trim();
+  var finalizacao = (document.getElementById('fc-finalizacao')?.value||'').trim();
+  var medidas = window._fcMedidas || {};
   var itens = [];
   var itensVistos = new Set();
   function addItem(cat, nomeItem) {
     var key = cat + '|' + nomeItem;
     if (itensVistos.has(key)) return; // evita item duplicado na mesma ficha
     itensVistos.add(key);
-    itens.push({cat:cat, nome:nomeItem});
+    var it = { cat: cat, nome: nomeItem };
+    var m = medidas[key];
+    if (m) {
+      if (m.qtd != null && m.qtd !== '' && !isNaN(parseFloat(m.qtd))) it.qtd = parseFloat(m.qtd);
+      if (m.un && m.un !== '—') it.un = m.un;
+    }
+    itens.push(it);
   }
   // Inclui tanto os checkboxes da lista padrão (#fc-itens-container) quanto os
   // de "Itens já associados (fora das categorias padrão)", que ficam fora
@@ -808,28 +877,27 @@ function salvarFicha(idExistente) {
   // (nome/categoria que não bate mais com o Cadastro de Insumos atual) eram
   // descartados a cada salvamento, mesmo marcados (bug real, 2026-08-26).
   document.querySelectorAll('#regras-view-nova-ficha input[type="checkbox"]:checked').forEach(function(cb){
-    addItem(cb.dataset.cat, cb.dataset.nome);
+    if (cb.dataset.nome) addItem(cb.dataset.cat, cb.dataset.nome);
   });
   (window._customItens||[]).forEach(function(i){ addItem(i.cat, i.nome); });
   if (!D.fichas) D.fichas = [];
   var idFicha = idExistente || _gerarId('FIC');
+  var ficha = {
+    id: idFicha, nome: nome, variantes: variantes,
+    copo: copoNome, copoId: copoId,
+    descricao: descricao, metodo: metodo, modoPreparo: modoPreparo, finalizacao: finalizacao,
+    itens: itens,
+    criadoEm: _fichaAnt.criadoEm || new Date().toISOString(),
+  };
   if (idExistente) {
     var idx = D.fichas.findIndex(function(f){return f.id===idExistente;});
-    if (idx>=0) D.fichas[idx] = {id:idExistente, nome:nome, variantes:variantes, copo:copo, descricao:descricao, itens:itens};
+    if (idx>=0) D.fichas[idx] = ficha; else D.fichas.push(ficha);
   } else {
-    D.fichas.push({id:idFicha, nome:nome, variantes:variantes, copo:copo, descricao:descricao, itens:itens, criadoEm:new Date().toISOString()});
+    D.fichas.push(ficha);
   }
   window._customItens = [];
+  window._fcMedidas = {};
   sv('fichas');
-
-  // Foto fica em documento próprio (ver window.salvarFichaFoto/index.html) —
-  // só grava/apaga se ela de fato mexeu na foto nesta tela.
-  if (window._fichaFotoAtual && typeof window.salvarFichaFoto === 'function') {
-    window.salvarFichaFoto(idFicha, window._fichaFotoAtual);
-  } else if (window._fichaFotoAtual === '' && typeof window.excluirFichaFoto === 'function') {
-    window.excluirFichaFoto(idFicha);
-  }
-  window._fichaFotoAtual = null;
 
   alert('Ficha salva!');
   setRegrasView('fichas');
@@ -1357,6 +1425,10 @@ function rCopos() {
   var el = document.getElementById('regras-view-copos');
   if (!el) return;
 
+  var bibSec = '<div class="sec" style="margin-bottom:12px">' +
+    '<div class="sec-head"><span class="sec-title">🥂 Biblioteca de Copos</span></div>' +
+    '<div id="copos-biblioteca-body" style="padding:14px 16px"></div></div>';
+
   var rc         = D.regrasCopos || {};
   var fatorBase  = rc.fatorBase  != null ? rc.fatorBase  : 2;
   var fatorExtra = rc.fatorExtra != null ? rc.fatorExtra : 0.5;
@@ -1382,8 +1454,9 @@ function rCopos() {
   var nomes = Object.keys(copoPorFicha).sort();
 
   if (!nomes.length) {
-    el.innerHTML = '<div class="sec"><div class="sec-head"><span class="sec-title">🥂 Regras de Copos</span></div>' +
+    el.innerHTML = bibSec + '<div class="sec"><div class="sec-head"><span class="sec-title">🥂 Regras de Copos</span></div>' +
       '<div style="padding:20px;color:var(--text3)">Cadastre produtos na categoria COPOS E TAÇAS ou inclua copos nas Fichas de Coquetéis para configurar as regras.</div></div>';
+    if (typeof rCoposBiblioteca === 'function') rCoposBiblioteca();
     return;
   }
 
@@ -1411,7 +1484,7 @@ function rCopos() {
     '</tr>';
   }).join('');
 
-  el.innerHTML =
+  el.innerHTML = bibSec +
     '<div class="sec" style="margin-bottom:12px">' +
       '<div class="sec-head" style="display:flex;justify-content:space-between;align-items:center">' +
         '<span class="sec-title">🥂 Regras de Copos</span>' +
@@ -1464,6 +1537,8 @@ function rCopos() {
         '<tbody>' + rows + '</tbody>' +
       '</table>' +
     '</div>';
+
+  if (typeof rCoposBiblioteca === 'function') rCoposBiblioteca();
 }
 
 function salvarRegrasCopos() {

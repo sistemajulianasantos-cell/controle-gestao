@@ -2393,9 +2393,10 @@
 <script src="js/insumos.js?v=20260827b"></script>
 <script src="js/estoqueSeparacao.js?v=20260722a"></script>
 <script src="js/cargos.js?v=20260713b"></script>
-<script src="js/regras.js?v=20260827c"></script>
+<script src="js/regras.js?v=20260828a"></script>
 <script src="js/associacoes.js?v=20260827a"></script>
-<script src="js/separacao.js?v=20260827b"></script>
+<script src="js/fichaTecnica.js?v=20260828a"></script>
+<script src="js/separacao.js?v=20260828a"></script>
 <script src="js/equipe.js?v=20260805e"></script>
 <script src="js/solicitacaoOrcamento.js?v=20260803f"></script>
 <script src="js/orcamento.js?v=20260805b"></script>
@@ -2497,6 +2498,7 @@ window.svFirebase = async function(chave) {
     if(chave==='insumosProdutosExcluidos') campo.insumosProdutosExcluidos = D.insumosProdutosExcluidos;
     if(chave==='kitBaseInsumosExcluidos')  campo.kitBaseInsumosExcluidos  = D.kitBaseInsumosExcluidos;
     if(chave==='associacoes')              campo.associacoes              = D.associacoes;
+    if(chave==='copos')                    campo.copos                    = D.copos;
 
     if (chave === 'financeiro') {
       // Fatiado por ano (financeiro_AAAA) em vez de um documento único com
@@ -2639,6 +2641,24 @@ window.excluirFichaFoto = async function(fichaId) {
   catch(e) { console.error('Erro ao excluir foto da ficha:', e); }
 };
 
+// ─── FOTO DO COPO (Biblioteca de Copos) ────────────────────────────────────
+// Mesmo esquema da foto de ficha: 1 documento por foto (prefixo copoFoto_)
+// dentro da coleção "dados".
+window.salvarCopoFoto = async function(copoId, base64) {
+  try { await setDoc(doc(db, "dados", "copoFoto_" + copoId), { valor: base64 }); return true; }
+  catch(e) { console.error('Erro ao salvar foto do copo:', e); return false; }
+};
+window.buscarCopoFoto = async function(copoId) {
+  try {
+    const snap = await getDoc(doc(db, "dados", "copoFoto_" + copoId));
+    return snap.exists() ? snap.data().valor : null;
+  } catch(e) { console.error('Erro ao buscar foto do copo:', e); return null; }
+};
+window.excluirCopoFoto = async function(copoId) {
+  try { await deleteDoc(doc(db, "dados", "copoFoto_" + copoId)); }
+  catch(e) { console.error('Erro ao excluir foto do copo:', e); }
+};
+
 // ─── BACKUP/RESTAURAÇÃO DO FINANCEIRO ──────────────────────────────────────
 // Backup é criado automaticamente em svFirebase antes de cada gravação (ver
 // acima) — guarda só a última versão anterior de cada ano, não histórico
@@ -2743,6 +2763,7 @@ async function carregarDados() {
     D.insumosProdutosExcluidos = r.insumosProdutosExcluidos || [];
     D.kitBaseInsumosExcluidos  = r.kitBaseInsumosExcluidos  || [];
     D.associacoes              = r.associacoes              || [];
+    D.copos                    = r.copos                    || [];
 
     // Senhas: migra texto puro → SHA-256 e inicializa se vazio
     const _isHashed = k => /^[0-9a-f]{64}$/.test(k);

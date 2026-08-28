@@ -36,7 +36,8 @@ function rSeparacoes() {
         '<span style="color:var(--text3);font-size:11px">' + (s.convidados||'—') + ' convidados</span>' +
         '<div style="margin-left:auto;display:flex;gap:6px">' +
           '<button class="btn-sm" style="background:var(--blue)" onclick="editarSeparacao(\'' + s.id + '\')">✏️ Ver / Editar</button>' +
-          '<button class="btn-sm" style="background:#6C63FF" onclick="imprimirSeparacao(\'' + s.id + '\')">🖨️ Imprimir</button>' +
+          '<button class="btn-sm" style="background:#6C63FF" onclick="imprimirSeparacao(\'' + s.id + '\')">🖨️ Separação</button>' +
+          '<button class="btn-sm" style="background:#6C63FF" onclick="imprimirFichaTecnica(\'' + s.id + '\')">🖨️ Ficha Técnica</button>' +
           '<button class="btn-sm btn-red" onclick="excluirSeparacao(\'' + s.id + '\')">Excluir</button>' +
         '</div>' +
       '</div>' +
@@ -297,6 +298,38 @@ function sepCarregarProducao(prodId) {
     '</div>' +
   '</div>';
 
+  // ── Copos da Ficha Técnica (troca por evento) ──────────────────────────
+  // Seleção fica em window._sepCoposOverrideMap[prodId] até "Gerar Folha"
+  // (mesmo padrão dos coquetéis) pra não perder a troca a cada re-render.
+  if (!window._sepCoposOverrideMap) window._sepCoposOverrideMap = {};
+  if (!window._sepCoposOverrideMap[prodId]) {
+    window._sepCoposOverrideMap[prodId] = Object.assign({}, (sepExistente && sepExistente.coposOverride) || {});
+  }
+  if (coqueteisCardapio.length) {
+    var _coposLib = (typeof getCopos === 'function') ? getCopos().slice().sort(function(a,b){return (a.nome||'').localeCompare(b.nome||'');}) : [];
+    var _ovSalvo = window._sepCoposOverrideMap[prodId];
+    html += '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden">' +
+      '<div style="padding:10px 14px;background:var(--bg3);border-bottom:1px solid var(--border)">' +
+        '<span style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.8px">Copos da Ficha Técnica</span>' +
+        '<span style="font-size:11px;color:var(--text3);margin-left:8px">Vem o copo padrão de cada ficha — troque aqui se este evento usa outro. Vale só pra este evento.</span>' +
+      '</div>' +
+      '<div style="padding:8px 14px;display:grid;gap:6px">' +
+      coqueteisCardapio.map(function(coq){
+        var fid = coq.ficha.id;
+        var atual = _ovSalvo[fid] || coq.ficha.copoId || '';
+        var padraoNome = coq.ficha.copoId ? '' : (coq.ficha.copo || '');
+        return '<div style="display:grid;grid-template-columns:1fr 220px;gap:8px;align-items:center">' +
+          '<span style="font-size:12px;color:var(--text)">' + coq.ficha.nome + (padraoNome ? ' <span style="font-size:10px;color:var(--text3)">(padrão: ' + padraoNome + ')</span>' : '') + '</span>' +
+          '<select data-copo-override="' + fid + '" onchange="sepSetCopoOverride(\'' + prodId + '\',\'' + fid + '\',this.value)" style="font-size:11px;padding:4px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">' +
+            '<option value="">— copo padrão da ficha —</option>' +
+            _coposLib.map(function(c){ return '<option value="' + c.id + '"' + (atual===c.id?' selected':'') + '>' + c.nome + '</option>'; }).join('') +
+          '</select>' +
+        '</div>';
+      }).join('') +
+      '</div>' +
+    '</div>';
+  }
+
   // ══════════════════════════════════════════════════════
   // SEÇÃO 1 — COQUETÉIS
   // ══════════════════════════════════════════════════════
@@ -501,6 +534,13 @@ function sepCarregarProducao(prodId) {
 }
 
 
+function sepSetCopoOverride(prodId, fichaId, copoId) {
+  if (!window._sepCoposOverrideMap) window._sepCoposOverrideMap = {};
+  if (!window._sepCoposOverrideMap[prodId]) window._sepCoposOverrideMap[prodId] = {};
+  if (copoId) window._sepCoposOverrideMap[prodId][fichaId] = copoId;
+  else delete window._sepCoposOverrideMap[prodId][fichaId];
+}
+
 function sepToggleCoquetel(prodId, fichaId, marcado) {
   if (!window._sepCoqueteisMap) window._sepCoqueteisMap = {};
   if (!window._sepCoqueteisMap[prodId]) window._sepCoqueteisMap[prodId] = [];
@@ -566,6 +606,13 @@ function salvarSeparacao() {
     fornecedoresFinais[cat][item] = sel.value;
   });
 
+  // Troca de copo por evento (Ficha Técnica) — só guarda quem foi trocado.
+  var coposOverride = Object.assign({}, (window._sepCoposOverrideMap && window._sepCoposOverrideMap[prodId]) || {});
+  document.querySelectorAll('[data-copo-override]').forEach(function(sel) {
+    if (sel.value) coposOverride[sel.dataset.copoOverride] = sel.value;
+    else delete coposOverride[sel.dataset.copoOverride];
+  });
+
   var sep = {
     id: 'SEP'+Date.now(),
     producaoId: prodId,
@@ -584,6 +631,7 @@ function salvarSeparacao() {
     fornecedores: fornecedoresFinais,
     coqueteis: document.getElementById('sep-coqueteis')?.value||'',
     coqueteisIds: (window._sepCoqueteisMap && window._sepCoqueteisMap[prodId]) ? window._sepCoqueteisMap[prodId].slice() : [],
+    coposOverride: coposOverride,
     criadoEm: new Date().toISOString()
   };
 
