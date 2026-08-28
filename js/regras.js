@@ -222,6 +222,7 @@ function _regraBaseEfetiva(r) {
       valor: parseFloat(r.valor) || 1,
       ref: parseFloat(r.ref) || 1,
       cargos: (r.cargos || []).slice(),
+      principal: r.principal || '',
     };
   }
   switch (r.tipo) {
@@ -264,6 +265,46 @@ function migrarRegrasBaseCalculo() {
     }
     if (r.autoOrcamento == null) { r.autoOrcamento = false; mudou = true; }
   });
+
+  // Dobra a antiga tela "Associações" (D.associacoes) dentro desta tabela —
+  // cada associação vira uma regra com base 'associado'. Uma vez migrada, a
+  // entrada em D.associacoes fica marcada e é ignorada daqui pra frente.
+  (D.associacoes || []).forEach(function(a) {
+    if (a._migrada) return;
+    a._migrada = true;
+    mudou = true;
+    if (!a.acessorio || !a.principal) return;
+    if (D.regrasItens.some(function(r) { return (r.item || '').toUpperCase() === a.acessorio.toUpperCase(); })) return;
+    D.regrasItens.push({
+      id: _gerarId('RG'), item: a.acessorio, cat: a.acessorioCat || 'MATERIAL',
+      base: 'associado', tipo: 'fixo', principal: a.principal,
+      valor: parseFloat(a.quantos) || 1, ref: parseFloat(a.aCada) || 1, cargos: [],
+      min: parseFloat(a.min) || 0, soSeCardapio: false, autoOrcamento: false,
+    });
+  });
+  if (mudou && (D.associacoes || []).length) sv('associacoes');
+
+  // Dobra a antiga "tabela de estimativa" da Separação (D.sepCalculos) —
+  // "X a cada Y convidados / bartenders" vira uma regra normal marcada
+  // "só c/ cardápio" (era o comportamento dela: só ajustava item que já
+  // estava no cardápio do evento).
+  (D.sepCalculos || []).forEach(function(sc) {
+    if (sc._migrada) return;
+    sc._migrada = true;
+    mudou = true;
+    if (!sc.item) return;
+    if (D.regrasItens.some(function(r) { return (r.item || '').toUpperCase() === (sc.item || '').toUpperCase(); })) return;
+    var ehBar = sc.tipo === 'bartender';
+    D.regrasItens.push({
+      id: _gerarId('RG'), item: sc.item, cat: sc.cat || 'OUTROS',
+      base: ehBar ? 'cargo' : 'convidado', tipo: ehBar ? 'bartender' : 'convidado',
+      cargos: ehBar ? ['bt', 'hb'] : [],
+      valor: parseFloat(sc.qtd) || 1, ref: parseFloat(sc.ref) || 1,
+      min: 0, soSeCardapio: true, autoOrcamento: false,
+    });
+  });
+  if (mudou && (D.sepCalculos || []).length) sv('sepCalculos');
+
   if (mudou) sv('regrasItens');
 }
 
@@ -335,6 +376,10 @@ function calcQtdItem(regra, conv, bartenders, equipeTotal, cargoCounts) {
   } else if (ef.base === 'cargo') {
     var n = _contarPessoasNosCargos(ef.cargos, cargoCounts, bartenders, equipeTotal);
     qtd = Math.max(min, Math.ceil(v * n / ref));
+  } else if (ef.base === 'associado') {
+    // A quantidade real depende de outro item — resolvida na Folha de
+    // Separação (aplicarAssociacoesSeparacao). Aqui só o mínimo.
+    qtd = min;
   }
   qtd = Math.ceil(qtd);
 
@@ -551,15 +596,15 @@ if (!D.produtos) D.produtos = [];
 }
 
 function setRegrasView(v) {
-  ['fichas','proporcoes','associacoes','nova-ficha','biblioteca','copos','precos'].forEach(function(x) {
+  // Proporções e Associações saíram daqui (2026-08-28) — viraram a tabela
+  // única de Cálculo em Separação → Cálculos.
+  ['fichas','nova-ficha','biblioteca','copos','precos'].forEach(function(x) {
     var el = document.getElementById('regras-view-' + x);
     if (el) el.style.display = x === v ? '' : 'none';
     var btn = document.getElementById('regras-tab-' + x);
     if (btn) btn.classList.toggle('active', x === v);
   });
   if (v === 'fichas') rFichas();
-  if (v === 'proporcoes') rProporcoes();
-  if (v === 'associacoes' && typeof rAssociacoes === 'function') rAssociacoes();
   if (v === 'nova-ficha') rFormFicha();
   if (v === 'biblioteca') rBiblioteca();
   if (v === 'copos') rCopos();
@@ -575,7 +620,8 @@ function rFichas() {
     cont.innerHTML = '<div style="text-align:center;color:var(--text3);padding:32px;font-size:13px">Nenhuma ficha cadastrada.<br>Cadastre seus coquetéis para que a separação seja preenchida automaticamente.</div>';
     return;
   }
-  var html = '<input class="inp" id="fichas-busca" type="text" placeholder="Buscar coquetel..." oninput="filtrarFichas(this.value)" style="width:100%;max-width:320px;margin-bottom:12px">';
+  var html = '<div style="font-size:11px;color:var(--text3);margin-bottom:10px">A ficha diz <strong>o que tem</strong> no coquetel. <strong>Quanto levar</strong> de cada item (base de cálculo, "segue outro item", etc.) agora fica em <a href="#" onclick="go(\'separacao\');setSepView(\'calculos\');return false" style="color:var(--blue)">Separação → Cálculos</a>.</div>' +
+    '<input class="inp" id="fichas-busca" type="text" placeholder="Buscar coquetel..." oninput="filtrarFichas(this.value)" style="width:100%;max-width:320px;margin-bottom:12px">';
   html += fichas.map(function(f) {
     var porCat = {};
     (f.itens||[]).forEach(function(i) {
@@ -917,17 +963,14 @@ function excluirFicha(id) {
   sv('fichas'); rFichas();
 }
 
-// ── Regras de Proporção / Kit Base ──────────────────────
-// A tela "Regras e Cálculos → Proporções" e a aba "Separação → Cálculos"
-// editam a MESMA lista (D.regrasItens) e usam o MESMO renderizador abaixo
-// (rRegrasKitBase). Antes eram duas telas com código quase igual, o que já
-// causou divergência de comportamento entre elas (2026-07).
-
+// ── Tabela única de Cálculo (Separação → Cálculos) ──────────────────────────
+// Uma linha por item de D.regrasItens, com a base de cálculo. Absorveu, em
+// 2026-08-28, o que antes eram as abas "Proporções" e "Associações" e a
+// "tabela de estimativa" da Separação. rProporcoes fica só por compat.
 function rProporcoes() {
   rRegrasKitBase('regras-prop-body', 'proporcoes');
 }
 
-// contexto: 'proporcoes' (mostra coluna Auto Orçamento) | 'separacao'
 function rRegrasKitBase(containerId, contexto) {
   var cont = document.getElementById(containerId);
   if (!cont) return;
@@ -935,7 +978,7 @@ function rRegrasKitBase(containerId, contexto) {
   migrarInsumosDoKitBase();
   window._rkCtx = { containerId: containerId, contexto: contexto };
 
-  var mostrarAuto = contexto === 'proporcoes';
+  var mostrarAuto = true; // coluna "Auto Orçamento" — antes só na aba Proporções, que saiu
   var regras = getRegrasItens();
   var cargos = _cargosDisponiveis();
 
@@ -947,11 +990,17 @@ function rRegrasKitBase(containerId, contexto) {
     ['convidado', 'Por convidado'],
     ['equipe', 'Por equipe'],
     ['cargo', 'Por cargo'],
+    ['associado', 'Segue outro item'],
   ];
+
+  // Itens que podem ser "principal" numa regra 'Segue outro item'
+  var _bibFlat = [];
+  var _bib = getBiblioteca();
+  Object.keys(_bib).sort().forEach(function(c) { (_bib[c] || []).forEach(function(it) { _bibFlat.push(it); }); });
 
   var html = '<div>' +
     '<div style="font-size:12px;color:var(--text3);margin-bottom:14px">Cada item é escolhido do Cadastro de Insumos e tem uma base de cálculo. As quantidades são geradas automaticamente na Folha de Separação.<br>' +
-    '<span style="color:var(--text3)">Fixo = sempre a mesma quantidade por evento · Por convidado / Por equipe / Por cargo = quantidade a cada X pessoas.</span></div>';
+    '<span style="color:var(--text3)">Fixo = sempre a mesma quantidade por evento · Por convidado / equipe / cargo = quantidade a cada X pessoas · Segue outro item = a quantidade vem de outro item (ex: bico de angostura segue angostura).</span></div>';
 
   Object.keys(porCat).forEach(function(cat) {
     var itens = porCat[cat];
@@ -978,7 +1027,7 @@ function rRegrasKitBase(containerId, contexto) {
           '</select>' +
         '</div>' +
 
-        '<div><div style="font-size:9px;color:var(--text3);margin-bottom:2px">QTD</div>' +
+        '<div><div style="font-size:9px;color:var(--text3);margin-bottom:2px">' + (ef.base==='associado' ? 'QUANTOS' : 'QTD') + '</div>' +
           '<input type="number" value="' + ef.valor + '" min="0" step="0.5" onchange="regraKitSet(\'' + r.id + '\',\'valor\',this.value)" style="width:100%;font-size:11px;padding:3px 5px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:center">' +
         '</div>' +
 
@@ -1010,6 +1059,18 @@ function rRegrasKitBase(containerId, contexto) {
                 return '<label style="display:flex;align-items:center;gap:4px;font-size:10px;cursor:pointer;background:' + (m?'var(--green-bg)':'var(--bg)') + ';border:1px solid ' + (m?'var(--green-dim)':'var(--border2)') + ';padding:2px 8px;border-radius:12px">' +
                   '<input type="checkbox" ' + (m?'checked':'') + ' onchange="regraKitToggleCargo(\'' + r.id + '\',\'' + c.key + '\',this.checked)"> ' + c.nome + '</label>';
               }).join('') : '<span style="font-size:10px;color:var(--amber)">Nenhum cargo no Cadastro Central → Cargos</span>') +
+            '</div>'
+          : '') +
+
+        (ef.base === 'associado'
+          ? '<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border2);display:flex;flex-wrap:wrap;gap:6px;align-items:center">' +
+              '<span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Segue o item:</span>' +
+              '<select onchange="regraKitSet(\'' + r.id + '\',\'principal\',this.value)" style="font-size:10px;padding:2px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);max-width:240px">' +
+                '<option value="">— escolher —</option>' +
+                _bibFlat.map(function(it){ return '<option value="' + it.replace(/"/g,'&quot;') + '"' + (ef.principal===it?' selected':'') + '>' + it + '</option>'; }).join('') +
+              '</select>' +
+              '<span style="font-size:9px;color:var(--text3)">— ' + ef.valor + ' a cada ' + ef.ref + ' do principal</span>' +
+              (!ef.principal ? '<span style="font-size:9px;color:var(--amber)">⚠️ escolha o item principal</span>' : '') +
             '</div>'
           : '') +
       '</div>';
@@ -1077,16 +1138,22 @@ function regraKitSet(id, campo, valor) {
   if (!r) return;
   if (campo === 'soSeCardapio' || campo === 'autoOrcamento') {
     r[campo] = !!valor;
+  } else if (campo === 'principal') {
+    r.principal = valor;
   } else if (campo === 'base') {
     r.base = valor;
     if (valor !== 'cargo' && !r.cargos) r.cargos = [];
     if (valor === 'cargo' && !(r.cargos && r.cargos.length)) r.cargos = ['bt', 'hb'];
+    if (valor === 'associado') {
+      if (r.valor == null || r.valor === 0) r.valor = 1;
+      if (r.ref == null || r.ref === 0) r.ref = 1;
+    }
   } else {
     r[campo] = parseFloat(valor) || 0;
   }
   // `tipo` (legado, lido pelo Orçamento) acompanha a base nova.
-  r.tipo = ({ fixo: 'fixo', convidado: 'convidado', equipe: 'equipe', cargo: 'bartender' })[r.base || 'fixo'];
-  if (campo === 'base') _rkRerender();
+  r.tipo = ({ fixo: 'fixo', convidado: 'convidado', equipe: 'equipe', cargo: 'bartender', associado: 'fixo' })[r.base || 'fixo'];
+  if (campo === 'base' || campo === 'principal') _rkRerender();
 }
 
 function regraKitToggleCargo(id, cargoKey, checked) {

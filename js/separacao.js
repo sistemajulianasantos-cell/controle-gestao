@@ -243,24 +243,8 @@ function sepCarregarProducao(prodId) {
     });
   });
 
-  // Ajusta a quantidade de itens já existentes usando a tabela de referência
-  // da aba Cálculos (D.sepCalculos) — nunca cria item novo sozinha, só
-  // recalcula item que já está associado a algum coquetel deste evento (ou a
-  // uma Regra de Proporção). Sem essa checagem, todo item cadastrado na
-  // tabela de referência aparecia em qualquer evento, mesmo sem nenhum
-  // coquetel que o usasse (pedido 08-26).
-  (D.sepCalculos||[]).forEach(function(r) {
-    if (!todosItens[r.cat]) return;
-    var existente = todosItens[r.cat].find(function(x){ return x.item === r.item; });
-    if (!existente) return;
-    var refN = parseFloat(r.ref) || 1;
-    var qtdN = parseFloat(r.qtd) || 0;
-    var base = (r.tipo === 'bartender') ? bartenders : conv;
-    existente.qtd = Math.ceil((qtdN / refN) * base);
-  });
-
-  // Acessórios que seguem outro item (Regras e Cálculos → Associações) —
-  // roda por último, quando a quantidade dos principais já está resolvida.
+  // Acessórios com base "Segue outro item" — roda por último, quando a
+  // quantidade dos itens principais já está resolvida.
   if (typeof aplicarAssociacoesSeparacao === 'function') aplicarAssociacoesSeparacao(todosItens);
 
   var equipeHtml = equipe.length
@@ -717,65 +701,20 @@ function excluirSeparacao(id) {
   sv('separacoes'); rSeparacoes();
 }
 
-// ─── CÁLCULOS (tabela de referência fixa da Separação — não é por evento) ───
+// ─── CÁLCULOS — tabela única de regras de cada item (não é por evento) ─────
+// Junta o que antes eram 3 telas: Proporções (Kit Base), Associações e a
+// "tabela de estimativa". Cada item tem UMA linha com a base de cálculo:
+// Fixo · Por convidado · Por equipe · Por cargo · Segue outro item.
 function rSepCalculos() {
   var cont = document.getElementById('sep-calc-body');
   if (!cont) return;
-  if (!D.sepCalculos) D.sepCalculos = [];
-  var lista = D.sepCalculos.slice();
 
-  var html = '<div style="padding:12px 16px 0">';
-  if (!lista.length) {
-    html += '<div style="text-align:center;color:var(--text3);padding:24px 0;font-size:13px">Nenhum item cadastrado. Adicione abaixo (ex: Vodka, 12 a cada 100 convidados · Bailarina, 1 por bartender).</div>';
-  } else {
-    html += '<div style="display:grid;grid-template-columns:1fr 90px 130px 90px 70px;gap:8px;padding:0 0 6px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid var(--border2)">' +
-      '<span>Item</span><span style="text-align:center">Qtd</span><span style="text-align:center">Por</span><span style="text-align:center">A cada</span><span></span>' +
-    '</div>';
-    lista.forEach(function(r) {
-      html += '<div style="display:grid;grid-template-columns:1fr 90px 130px 90px 70px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">' +
-        '<span style="color:var(--text)"><span style="color:var(--text3);font-size:10px;margin-right:6px">' + (r.cat||'') + '</span>' + (r.item||'') + '</span>' +
-        '<input class="inp" type="number" min="0" step="0.5" value="' + r.qtd + '" onchange="sepCalcAtualizarItem(\'' + r.id + '\',\'qtd\',this.value)" style="text-align:center;font-size:12px">' +
-        '<select class="inp" onchange="sepCalcAtualizarItem(\'' + r.id + '\',\'tipo\',this.value)" style="text-align:center;font-size:12px">' +
-          '<option value="convidados"' + (r.tipo!=='bartender'?' selected':'') + '>convidados</option>' +
-          '<option value="bartender"' + (r.tipo==='bartender'?' selected':'') + '>bartender</option>' +
-        '</select>' +
-        '<input class="inp" type="number" min="1" value="' + r.ref + '" onchange="sepCalcAtualizarItem(\'' + r.id + '\',\'ref\',this.value)" style="text-align:center;font-size:12px">' +
-        '<button class="btn-sm btn-red" onclick="sepCalcExcluirItem(\'' + r.id + '\')" style="justify-self:center">Excluir</button>' +
-      '</div>';
-    });
-  }
-  html += '</div>';
-
-  var biblioteca = getBiblioteca();
-  html += '<div style="padding:14px 16px;margin:14px 16px 16px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius)">' +
-    '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Adicionar item</div>' +
-    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">' +
-      '<div style="flex:1;min-width:160px"><label class="lbl">Categoria</label>' +
-        '<select id="sc-cat" class="inp" onchange="_scAtualizarItensDisponiveis()" style="width:100%">' +
-          Object.keys(biblioteca).sort().map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('') +
-        '</select></div>' +
-      '<div style="flex:2;min-width:200px"><label class="lbl">Item</label><select id="sc-item-sel" class="inp" style="width:100%"></select></div>' +
-      '<div style="min-width:90px"><label class="lbl">Quantidade</label><input class="inp" id="sc-qtd" type="number" min="0" step="0.5" placeholder="12" style="width:100%"></div>' +
-      '<div style="min-width:120px"><label class="lbl">Por</label>' +
-        '<select class="inp" id="sc-tipo" style="width:100%">' +
-          '<option value="convidados">convidados</option>' +
-          '<option value="bartender">bartender</option>' +
-        '</select></div>' +
-      '<div style="min-width:100px"><label class="lbl">A cada</label><input class="inp" id="sc-ref" type="number" min="1" placeholder="100" style="width:100%"></div>' +
-      '<button class="btn" onclick="sepCalcAdicionarItem()" style="background:var(--blue)">Adicionar</button>' +
-    '</div>' +
-    '<div style="font-size:10px;color:var(--text3);margin-top:6px">Só aparecem itens já cadastrados na Biblioteca de Itens / Cadastro de Insumos e que ainda não estão nesta tabela — evita duplicar o mesmo produto com nome escrito diferente.</div>' +
-  '</div>';
-
-  html += '<div style="margin:8px 16px 0;padding-top:16px;border-top:2px solid var(--border2)">' +
-    '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Kit Base e demais itens automáticos</div>' +
-    '<div style="font-size:11px;color:var(--text3);margin-bottom:12px">Gelo, Material, Descartáveis, Especiarias, Kit Bartender, Produção, Bebidas sem Álcool — aparecem em toda Separação independente do cardápio. Cada item é escolhido do Cadastro de Insumos e tem uma base de cálculo (por evento, por convidado, por equipe ou por cargo). Editar aqui é a mesma coisa que editar em Regras e Cálculos &gt; Proporções.</div>' +
+  var html = '<div style="padding:12px 16px 0">' +
     _sepAlertaInsumosPendentes() +
     '<div id="sep-kitbase-body"></div>' +
   '</div>';
 
   cont.innerHTML = html;
-  _scAtualizarItensDisponiveis();
   rRegrasKitBase('sep-kitbase-body', 'separacao');
 }
 
@@ -809,53 +748,6 @@ function _sepCargoCounts(equipe) {
   return counts;
 }
 
-// Preenche o select de item conforme a categoria escolhida, excluindo itens
-// que já estão na tabela de estimativa (evita duplicar o mesmo produto com
-// nome escrito diferente do cadastro).
-function _scAtualizarItensDisponiveis() {
-  var cat = document.getElementById('sc-cat')?.value;
-  var sel = document.getElementById('sc-item-sel');
-  if (!cat || !sel) return;
-  var biblioteca = getBiblioteca();
-  var jaTem = {};
-  (D.sepCalculos||[]).forEach(function(r) { jaTem[r.cat + '|' + r.item] = true; });
-  var disponiveis = (biblioteca[cat] || []).filter(function(item) { return !jaTem[cat + '|' + item]; });
-  sel.innerHTML = disponiveis.length
-    ? disponiveis.map(function(item){ return '<option value="'+item+'">'+item+'</option>'; }).join('')
-    : '<option value="">(todos os itens desta categoria já estão na tabela)</option>';
-}
-
-function sepCalcAdicionarItem() {
-  var cat  = document.getElementById('sc-cat')?.value;
-  var item = document.getElementById('sc-item-sel')?.value;
-  var qtd  = parseFloat(document.getElementById('sc-qtd')?.value);
-  var tipo = document.getElementById('sc-tipo')?.value || 'convidados';
-  var ref  = parseFloat(document.getElementById('sc-ref')?.value);
-  if (!cat || !item) { alert('Escolha uma categoria e um item.'); return; }
-  if (!qtd || !ref) { alert('Preencha quantidade e a cada quantos.'); return; }
-  if (!D.sepCalculos) D.sepCalculos = [];
-  if (D.sepCalculos.some(function(r){ return r.cat===cat && r.item===item; })) {
-    alert('Esse item já está na tabela.');
-    return;
-  }
-  D.sepCalculos.push({ id: _gerarId('SC'), item: item, cat: cat, qtd: qtd, tipo: tipo, ref: ref });
-  sv('sepCalculos');
-  document.getElementById('sc-qtd').value = '';
-  document.getElementById('sc-ref').value = '';
-  rSepCalculos();
-}
-
-function sepCalcAtualizarItem(id, campo, valor) {
-  var r = (D.sepCalculos||[]).find(function(x){return x.id===id;});
-  if (!r) return;
-  r[campo] = (campo==='tipo') ? valor : (parseFloat(valor)||0);
-  sv('sepCalculos');
-  rSepCalculos();
-}
-
-function sepCalcExcluirItem(id) {
-  if (!confirm('Excluir este item?')) return;
-  D.sepCalculos = (D.sepCalculos||[]).filter(function(x){return x.id!==id;});
-  sv('sepCalculos');
-  rSepCalculos();
-}
+// (A antiga "tabela de estimativa" — D.sepCalculos, funções sepCalc* — foi
+// absorvida pela tabela única de Cálculo em 2026-08-28. Ver
+// migrarRegrasBaseCalculo em js/regras.js.)
