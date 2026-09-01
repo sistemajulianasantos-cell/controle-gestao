@@ -983,10 +983,10 @@ function imprimirSeparacao(id) {
   var s = (D.separacoes||[]).find(function(x){return x.id===id;});
   if (!s) return;
   var dataFmt = s.data ? s.data.split('-').reverse().join('/') : '—';
-  var col = '<colgroup><col style="width:55%"><col style="width:15%"><col style="width:15%"><col style="width:15%"></colgroup>';
+  var col = '<colgroup><col style="width:46%"><col style="width:16%"><col style="width:19%"><col style="width:19%"></colgroup>';
   var thead = '<thead><tr><th>Item</th><th>Qtd</th><th>Saída</th><th>Volta</th></tr></thead>';
   var w = window.open('','_blank');
-  var body = '';
+  var grupos = '';
 
   var FORN_LABEL = { romero: 'Romero', consignado: 'Consignado', cliente: 'Cliente' };
   if (s.itens) {
@@ -995,7 +995,7 @@ function imprimirSeparacao(id) {
       var linhas = Object.entries(itens).filter(function(e){return e[1]>0;});
       if (!linhas.length) return;
       var fornMap = (s.fornecedores && s.fornecedores[cat]) || {};
-      body += '<div class="st">' + cat + '</div>' +
+      grupos += '<div class="grp"><div class="st">' + cat + '</div>' +
         '<table>' + col + thead + '<tbody>' +
         linhas.map(function(e){
           var nomeItem = e[0];
@@ -1003,30 +1003,45 @@ function imprimirSeparacao(id) {
           if (forn) nomeItem += ' <span style="color:#888;font-size:9px">(' + (FORN_LABEL[forn]||forn) + ')</span>';
           return '<tr><td>'+nomeItem+'</td><td>'+e[1]+' UN</td><td></td><td></td></tr>';
         }).join('') +
-        '</tbody></table>';
+        '</tbody></table></div>';
     });
   }
 
   if (s.bebidasAlc) {
-    body += '<div class="st">BEBIDAS ALCOÓLICAS</div>' +
+    grupos += '<div class="grp"><div class="st">BEBIDAS ALCOÓLICAS</div>' +
       '<table>' + col + thead + '<tbody>' +
       s.bebidasAlc.split('\n').filter(Boolean).map(function(l){return '<tr><td colspan="2">'+l+'</td><td></td><td></td></tr>';}).join('') +
-      '</tbody></table>';
+      '</tbody></table></div>';
   }
 
+  var rodape = '';
   if (s.coqueteis) {
-    body += '<div class="st">COQUETÉIS</div><div style="white-space:pre-wrap;font-size:11px;padding:4px 0">' + s.coqueteis + '</div>';
+    rodape += '<div class="full"><div class="st">COQUETÉIS</div><div style="white-space:pre-wrap;font-size:10px;padding:2px 0;column-count:2;column-gap:14px">' + s.coqueteis + '</div></div>';
   }
 
   w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Separação — '+s.evento+'</title>' +
-    '<style>body{font-family:Arial,sans-serif;font-size:11px;margin:20px;color:#111}h2{font-size:14px;margin:0 0 2px}.sub{font-size:11px;color:#555;margin-bottom:10px}table{width:100%;border-collapse:collapse;margin-bottom:12px;table-layout:fixed}th{background:#111;color:#fff;padding:5px 8px;text-align:left;font-size:10px;text-transform:uppercase}td{padding:4px 8px;border-bottom:1px solid #e0e0e0;word-break:break-word}tr:nth-child(even)td{background:#f9f9f9}.st{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#333;margin:8px 0 4px;border-bottom:1px solid #ccc;padding-bottom:3px}@media print{body{margin:10px}}</style>' +
+    '<style>' +
+    'body{font-family:Arial,sans-serif;font-size:10px;margin:10mm 12mm;color:#111}' +
+    'h2{font-size:13px;margin:0 0 2px}' +
+    '.sub{font-size:10px;color:#555;margin-bottom:8px}' +
+    '.cols{column-count:2;column-gap:14px;column-fill:balance}' +
+    '.grp{break-inside:avoid;page-break-inside:avoid;-webkit-column-break-inside:avoid;margin-bottom:7px}' +
+    'table{width:100%;border-collapse:collapse;table-layout:fixed}' +
+    'th{background:#111;color:#fff;padding:2px 5px;text-align:left;font-size:8px;text-transform:uppercase}' +
+    'td{padding:2px 5px;border-bottom:1px solid #e0e0e0;word-break:break-word}' +
+    'tr:nth-child(even) td{background:#f7f7f7}' +
+    '.st{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#222;margin:0 0 2px;border-bottom:1px solid #bbb;padding-bottom:2px}' +
+    '.full{margin-top:10px}' +
+    '@media print{body{margin:8mm 10mm}}' +
+    '</style>' +
     '</head><body>' +
     '<h2>FOLHA DE SEPARAÇÃO — ' + (s.evento||'').toUpperCase() + '</h2>' +
     '<div class="sub">Data: ' + dataFmt + ' | Local: ' + (s.local||'—') + ' | Horário: ' + (s.hrInicio||'—') + ' às ' + (s.hrFim||'—') + '<br>' +
     'Convidados: ' + s.convidados + ' | Equipe: ' + s.totalEquipe + ' | Bartenders: ' + s.bartenders + '</div>' +
-    body +
-    '<div style="margin-top:20px;font-size:10px;color:#888">Quebras no transporte: ___________________________________</div>' +
-    '<div style="font-size:10px;color:#888;margin-top:6px">Impresso em: ' + new Date().toLocaleDateString('pt-BR') + ' ' + new Date().toLocaleTimeString('pt-BR') + '</div>' +
+    '<div class="cols">' + grupos + '</div>' +
+    rodape +
+    '<div class="full" style="margin-top:14px;font-size:10px;color:#888">Quebras no transporte: ___________________________________</div>' +
+    '<div style="font-size:9px;color:#999;margin-top:6px">Impresso em: ' + new Date().toLocaleDateString('pt-BR') + ' ' + new Date().toLocaleTimeString('pt-BR') + '</div>' +
     '<script>window.onload=function(){window.print()};<\/script></body></html>');
   w.document.close();
 }

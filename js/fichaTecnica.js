@@ -165,8 +165,8 @@ function _ftCardHtml(ficha, copoNome, fotoB64) {
     return '<div>' + (l.med ? '<strong>' + _ftEsc(l.med) + '</strong> — ' : '') + _ftEsc(l.nome) + '</div>';
   }).join('');
   var fotoHtml = fotoB64
-    ? '<img src="' + fotoB64 + '" style="width:120px;height:150px;object-fit:contain">'
-    : '<div style="width:120px;height:150px;border:1px dashed #ccc;display:flex;align-items:center;justify-content:center;color:#bbb;font-size:9px">sem foto</div>';
+    ? '<img src="' + fotoB64 + '" style="width:90px;height:115px;object-fit:contain">'
+    : '<div style="width:90px;height:115px;border:1px dashed #ccc;display:flex;align-items:center;justify-content:center;color:#bbb;font-size:9px">sem foto</div>';
   return '<div class="ft-card">' +
     '<div class="ft-title">' + _ftEsc(ficha.nome || '—') + '<span>1 UN</span></div>' +
     '<div class="ft-body">' +
@@ -192,24 +192,25 @@ function _ftEscreverDocumento(w, tituloCabecalho, subtitulo, cardsHtml, tituloAb
   if (!w) { alert('O navegador bloqueou a janela de impressão. Libere pop-ups para este site e tente de novo.'); return; }
   w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + _ftEsc(tituloAba || 'Ficha Técnica') + '</title>' +
     '<style>' +
-    'body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#111;margin:24px}' +
+    'body{font-family:Arial,Helvetica,sans-serif;font-size:10px;color:#111;margin:12mm}' +
     '.ft-head{font-weight:bold;font-size:12px;margin-bottom:2px}' +
-    '.ft-sub{font-size:11px;color:#555;margin-bottom:2px}' +
-    '.ft-band{background:#eee;text-align:center;font-style:italic;font-weight:bold;padding:4px;margin:10px 0 14px;border-top:1px solid #999;border-bottom:1px solid #999}' +
-    '.ft-card{border:1px solid #ddd;margin-bottom:14px;page-break-inside:avoid}' +
-    '.ft-title{background:#111;color:#fff;font-weight:bold;font-size:12px;padding:5px 10px;display:flex;justify-content:space-between}' +
-    '.ft-body{display:flex;gap:16px;padding:12px}' +
-    '.ft-foto{flex:0 0 120px}' +
-    '.ft-conteudo{flex:1;line-height:1.7}' +
-    '.ft-ingr{margin-bottom:8px}' +
-    '.ft-lin{margin:2px 0}' +
-    '.ft-blk{margin-top:8px}' +
-    '@media print{body{margin:10mm}.ft-card{border-color:#999}}' +
+    '.ft-sub{font-size:10px;color:#555;margin-bottom:2px}' +
+    '.ft-band{background:#eee;text-align:center;font-style:italic;font-weight:bold;font-size:11px;padding:3px;margin:8px 0 12px;border-top:1px solid #999;border-bottom:1px solid #999}' +
+    '.ft-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:10px;align-items:start}' +
+    '.ft-card{border:1px solid #ddd;break-inside:avoid;page-break-inside:avoid}' +
+    '.ft-title{background:#111;color:#fff;font-weight:bold;font-size:11px;padding:4px 8px;display:flex;justify-content:space-between}' +
+    '.ft-body{display:flex;gap:10px;padding:8px}' +
+    '.ft-foto{flex:0 0 90px}' +
+    '.ft-conteudo{flex:1;line-height:1.35}' +
+    '.ft-ingr{margin-bottom:6px}' +
+    '.ft-lin{margin:1px 0}' +
+    '.ft-blk{margin-top:6px}' +
+    '@media print{body{margin:8mm}.ft-card{border-color:#999}}' +
     '</style></head><body>' +
     (tituloCabecalho ? '<div class="ft-head">' + _ftEsc(tituloCabecalho) + '</div>' : '') +
     (subtitulo ? '<div class="ft-sub">' + _ftEsc(subtitulo) + '</div>' : '') +
     '<div class="ft-band">Ficha técnica</div>' +
-    cardsHtml +
+    '<div class="ft-grid">' + cardsHtml + '</div>' +
     '<div style="font-size:9px;color:#999;margin-top:16px">Impresso em ' + new Date().toLocaleDateString('pt-BR') + ' ' + new Date().toLocaleTimeString('pt-BR') + '</div>' +
     '<script>window.onload=function(){window.print()}<\/script>' +
     '</body></html>');
