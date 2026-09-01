@@ -292,6 +292,16 @@ function rFormInsumo(id) {
           '<input class="inp" id="cad-embalagem" type="number" min="1" value="' + (i && i.tamanhoEmbalagem ? i.tamanhoEmbalagem : 1) + '"></div>' +
       '</div>' +
 
+      '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">Foto</div>' +
+      '<div style="font-size:11px;color:var(--text3);margin-bottom:10px">Aparece na Ficha Técnica dos coquetéis — principalmente para os copos e taças (o copo é o próprio insumo, não precisa cadastrar em outro lugar). Opcional.</div>' +
+      '<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">' +
+        '<img id="cad-foto-preview" src="" alt="" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--border2);background:var(--bg3);display:none">' +
+        '<span id="cad-foto-vazio" style="width:80px;height:80px;border:1px dashed var(--border2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--text3);text-align:center">sem foto</span>' +
+        '<label class="btn-sm" style="background:var(--bg3);cursor:pointer;white-space:nowrap">📷 Escolher foto' +
+          '<input type="file" accept="image/*" onchange="cadSelecionarFoto(this)" style="display:none"></label>' +
+        '<button class="btn-sm" type="button" onclick="cadRemoverFoto()" style="background:var(--bg3)">Remover</button>' +
+      '</div>' +
+
       '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">Classificação na Produção</div>' +
       '<div style="display:flex;gap:16px;margin-bottom:20px">' +
         CLASSIFICACOES_PRODUCAO.map(function(cp) {
@@ -343,6 +353,49 @@ function rFormInsumo(id) {
       '<button class="btn" onclick="setCadastroView(\'lista\')" style="background:var(--bg3);color:var(--text)">Cancelar</button>' +
     '</div>' +
   '</div>';
+
+  // Foto: começa "não mexida" (undefined). Carrega a foto atual do insumo,
+  // se já tiver uma e ela não tiver escolhido outra no meio-tempo.
+  window._cadFotoNova = undefined;
+  _cadAtualizarPreviewFoto('');
+  if (i && typeof window.buscarInsumoFoto === 'function') {
+    window.buscarInsumoFoto(i.id).then(function(b64) {
+      if (window._cadFotoNova === undefined) _cadAtualizarPreviewFoto(b64 || '');
+    });
+  }
+}
+
+function _cadAtualizarPreviewFoto(b64) {
+  var img = document.getElementById('cad-foto-preview');
+  var vazio = document.getElementById('cad-foto-vazio');
+  if (img) { img.src = b64 || ''; img.style.display = b64 ? '' : 'none'; }
+  if (vazio) vazio.style.display = b64 ? 'none' : '';
+}
+
+function cadSelecionarFoto(inputEl) {
+  var file = inputEl.files && inputEl.files[0];
+  if (!file) return;
+  var leitor = new FileReader();
+  leitor.onload = function(e) {
+    var img = new Image();
+    img.onload = function() {
+      var sc = Math.min(400 / img.width, 400 / img.height, 1);
+      var cv = document.createElement('canvas');
+      cv.width = Math.round(img.width * sc);
+      cv.height = Math.round(img.height * sc);
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      window._cadFotoNova = cv.toDataURL('image/jpeg', 0.82);
+      _cadAtualizarPreviewFoto(window._cadFotoNova);
+    };
+    img.src = e.target.result;
+  };
+  leitor.readAsDataURL(file);
+  inputEl.value = '';
+}
+
+function cadRemoverFoto() {
+  window._cadFotoNova = ''; // string vazia = remover ao salvar
+  _cadAtualizarPreviewFoto('');
 }
 
 function salvarInsumo() {
@@ -398,6 +451,17 @@ function salvarInsumo() {
 
   sv('insumos');
   if (renomeou) _propagarRenomeInsumo(nomeAntigo, nome);
+
+  // Foto (documento próprio insumoFoto_<id>): só grava se ela mexeu.
+  if (window._cadFotoNova !== undefined) {
+    if (window._cadFotoNova) {
+      if (typeof window.salvarInsumoFoto === 'function') window.salvarInsumoFoto(insumo.id, window._cadFotoNova);
+    } else if (typeof window.excluirInsumoFoto === 'function') {
+      window.excluirInsumoFoto(insumo.id);
+    }
+  }
+  window._cadFotoNova = undefined;
+
   alert('Insumo salvo!');
   setCadastroView('lista');
 }
@@ -421,6 +485,7 @@ function _propagarRenomeInsumo(de, para) {
     (f.itens || []).forEach(function(it) {
       if ((it.nome || '').toUpperCase() === de) { it.nome = para; mudouFichas = true; }
     });
+    if ((f.copo || '').toUpperCase() === de) { f.copo = para; mudouFichas = true; }
   });
   if (mudouFichas) sv('fichas');
 
@@ -445,6 +510,7 @@ function excluirInsumo(id) {
   if (!confirm(msg)) return;
   D.insumos = (D.insumos || []).filter(function(i) { return i.id !== id; });
   sv('insumos');
+  if (typeof window.excluirInsumoFoto === 'function') window.excluirInsumoFoto(id);
 
   // Insumo auto-criado pelo Kit Base: registra a exclusão pra migrarInsumosDoKitBase()
   // não recriar, e apaga a regra correspondente de D.regrasItens.

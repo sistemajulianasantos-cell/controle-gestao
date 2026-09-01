@@ -358,13 +358,14 @@ function sepCarregarProducao(prodId) {
       '<div style="padding:8px 14px;display:grid;gap:6px">' +
       coqueteisCardapio.map(function(coq){
         var fid = coq.ficha.id;
-        var atual = _ovSalvo[fid] || coq.ficha.copoId || '';
-        var padraoNome = coq.ficha.copoId ? '' : (coq.ficha.copo || '');
+        // Override guarda o NOME do copo (insumo COPOS E TAÇAS), não mais id.
+        var atualNome = _ovSalvo[fid] || '';
+        var padraoNome = (typeof nomeCopoDaFicha === 'function') ? nomeCopoDaFicha(coq.ficha) : (coq.ficha.copo || '');
         return '<div style="display:grid;grid-template-columns:1fr 220px;gap:8px;align-items:center">' +
           '<span style="font-size:12px;color:var(--text)">' + coq.ficha.nome + (padraoNome ? ' <span style="font-size:10px;color:var(--text3)">(padrão: ' + padraoNome + ')</span>' : '') + '</span>' +
           '<select data-copo-override="' + fid + '" onchange="sepSetCopoOverride(\'' + prodId + '\',\'' + fid + '\',this.value)" style="font-size:11px;padding:4px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">' +
             '<option value="">— copo padrão da ficha —</option>' +
-            _coposLib.map(function(c){ return '<option value="' + c.id + '"' + (atual===c.id?' selected':'') + '>' + c.nome + '</option>'; }).join('') +
+            _coposLib.map(function(c){ var n = (c.nome||'').replace(/"/g,'&quot;'); return '<option value="' + n + '"' + (atualNome===c.nome?' selected':'') + '>' + c.nome + '</option>'; }).join('') +
           '</select>' +
         '</div>';
       }).join('') +

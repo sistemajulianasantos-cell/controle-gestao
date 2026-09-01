@@ -1,71 +1,102 @@
-// ─── FICHA TÉCNICA + BIBLIOTECA DE COPOS ───────────────────────────────────
+// ─── FICHA TÉCNICA + FOTOS DOS COPOS ──────────────────────────────────────
 // Ficha Técnica = documento enviado aos colaboradores, um card por coquetel:
 // foto do copo, ingredientes com medida, método, serviço, modo de preparo e
 // finalização. Gerada a partir da Folha de Separação de um evento (usa os
 // coquetéis marcados nela) ou de um coquetel avulso.
 //
-// Biblioteca de Copos: D.copos = [{ id, nome }]. A foto de cada copo fica num
-// documento próprio (copoFoto_<id>), igual à foto de ficha.
+// O "copo" de uma ficha é o INSUMO da categoria COPOS E TAÇAS (Cadastro de
+// Insumos) — não há cadastro separado. A ficha guarda o copo pelo nome
+// (f.copo); a foto vem do Cadastro de Insumos (insumoFoto_<id>). O antigo
+// D.copos / copoFoto_ fica só como fallback pra fichas que ainda apontam
+// por id (f.copoId).
 
 var METODOS_PREPARO = ['BATIDO', 'MEXIDO', 'MONTADO', 'DIRETO', 'DRY SHAKE'];
 var UNIDADES_INGREDIENTE = ['ML', 'GR', 'UN', 'DASH', 'GTS', 'BSP', '—'];
+var CAT_COPOS = 'COPOS E TAÇAS';
 
-// ── Biblioteca de Copos ───────────────────────────────────────────────────
+// Lista de copos = insumos da categoria COPOS E TAÇAS, no formato { id, nome }
+// que o resto do código espera. Copos antigos de D.copos que ainda não têm
+// insumo correspondente entram marcados como _legado.
 function getCopos() {
-  return D.copos || [];
+  var base = (typeof getInsumos === 'function' ? getInsumos() : (D.insumos || []))
+    .filter(function(i) { return (i.categoria || '') === CAT_COPOS; })
+    .map(function(i) { return { id: i.id, nome: i.nome }; });
+  (D.copos || []).forEach(function(c) {
+    if (!base.some(function(x) { return (x.nome || '').toUpperCase() === (c.nome || '').toUpperCase(); })) {
+      base.push({ id: c.id, nome: c.nome, _legado: true });
+    }
+  });
+  return base.sort(function(a, b) { return (a.nome || '').localeCompare(b.nome || ''); });
 }
 
 function buscarCopoPorId(id) {
   return (D.copos || []).find(function(c) { return c.id === id; }) || null;
 }
 
-// Nome do copo de uma ficha, resolvendo id → nome, com fallback no texto
-// livre antigo (f.copo).
+// Nome do copo de uma ficha: o texto salvo (f.copo) vale; só cai no id
+// antigo (D.copos) se não houver texto.
 function nomeCopoDaFicha(f) {
   if (!f) return '';
+  if (f.copo) return f.copo;
   if (f.copoId) {
     var c = buscarCopoPorId(f.copoId);
     if (c) return c.nome;
   }
-  return f.copo || '';
+  return '';
+}
+
+// Foto do copo pelo nome: insumo do Cadastro primeiro; se não tiver foto lá,
+// cai no esquema antigo (D.copos + copoFoto_). Sempre devolve uma Promise.
+function _ftFotoCopoPorNome(nome) {
+  if (!nome) return Promise.resolve(null);
+  var insumo = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(nome) : null;
+  if (insumo && typeof window.buscarInsumoFoto === 'function') {
+    return window.buscarInsumoFoto(insumo.id).then(function(b64) {
+      return b64 || _ftFotoCopoLegado(nome);
+    });
+  }
+  return _ftFotoCopoLegado(nome);
+}
+function _ftFotoCopoLegado(nome) {
+  var c = (D.copos || []).find(function(x) { return (x.nome || '').toUpperCase() === (nome || '').toUpperCase(); });
+  if (c && typeof window.buscarCopoFoto === 'function') return window.buscarCopoFoto(c.id);
+  return Promise.resolve(null);
 }
 
 function rCoposBiblioteca() {
   var cont = document.getElementById('copos-biblioteca-body');
   if (!cont) return;
-  if (!D.copos) D.copos = [];
-  var lista = (D.copos || []).slice().sort(function(a, b) { return (a.nome || '').localeCompare(b.nome || ''); });
+  var lista = getCopos();
 
   var html = '<div style="font-size:11px;color:var(--text3);margin-bottom:12px">' +
-    'Cadastre cada copo/taça uma vez. Clique no quadrado da foto (ou no botão <strong>📷 Foto</strong>) de cada copo pra enviar a imagem que sai na Ficha Técnica. Nas Fichas de Coquetéis você escolhe o copo desta lista; na Folha de Separação dá pra trocar o copo só de um evento.' +
-  '</div>';
-
-  html += '<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">' +
-    '<input class="inp" id="copo-novo-nome" type="text" placeholder="Nome do copo (ex: Taça Coupe)" style="flex:1;min-width:200px">' +
-    '<button class="btn" style="background:var(--green)" onclick="adicionarCopo()">+ Adicionar copo</button>' +
+    'Os copos são os insumos da categoria <strong>' + CAT_COPOS + '</strong> do Cadastro de Insumos — não tem cadastro separado. ' +
+    'Aqui você só define a <strong>foto</strong> de cada um (a mesma que aparece na Ficha Técnica). ' +
+    'Pra adicionar ou renomear um copo, use o <a href="#" onclick="go(\'cadastro\');return false" style="color:var(--blue)">Cadastro de Insumos</a>.' +
   '</div>';
 
   html += lista.length ? ('<div style="display:grid;gap:8px">' + lista.map(function(c) {
-    var nomeEsc = (c.nome || '').replace(/"/g, '&quot;');
+    var leg = c._legado ? 'true' : 'false';
     return '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;display:flex;align-items:center;gap:12px">' +
-      '<label style="position:relative;flex:0 0 auto;cursor:pointer" title="Clique pra enviar ou trocar a foto deste copo">' +
+      '<label style="position:relative;flex:0 0 auto;cursor:pointer" title="Clique pra enviar ou trocar a foto">' +
         '<img id="copo-thumb-' + c.id + '" src="" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--border2);background:var(--bg2);display:block">' +
         '<span id="copo-thumb-empty-' + c.id + '" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--text3);text-align:center;line-height:1.15;pointer-events:none">sem<br>foto</span>' +
-        '<input type="file" accept="image/*" onchange="copoSelecionarFoto(this,\'' + c.id + '\')" style="display:none">' +
+        '<input type="file" accept="image/*" onchange="copoSelecionarFoto(this,\'' + c.id + '\',' + leg + ')" style="display:none">' +
       '</label>' +
-      '<input class="inp" type="text" value="' + nomeEsc + '" onchange="renomearCopo(\'' + c.id + '\',this.value)" style="flex:1;font-size:12px">' +
+      '<span style="flex:1;font-size:12px;color:var(--text)">' + (c.nome || '').replace(/</g, '&lt;') +
+        (c._legado ? ' <span style="font-size:9px;color:var(--amber)">(copo antigo — cadastre como insumo em ' + CAT_COPOS + ')</span>' : '') +
+      '</span>' +
       '<label class="btn-sm" style="background:var(--bg2);cursor:pointer;white-space:nowrap">📷 Foto' +
-        '<input type="file" accept="image/*" onchange="copoSelecionarFoto(this,\'' + c.id + '\')" style="display:none"></label>' +
-      '<button class="btn-sm btn-red" onclick="excluirCopo(\'' + c.id + '\')">×</button>' +
+        '<input type="file" accept="image/*" onchange="copoSelecionarFoto(this,\'' + c.id + '\',' + leg + ')" style="display:none"></label>' +
     '</div>';
-  }).join('') + '</div>') : '<div style="font-size:12px;color:var(--text3)">Nenhum copo cadastrado ainda — adicione o primeiro no campo acima.</div>';
+  }).join('') + '</div>') : '<div style="font-size:12px;color:var(--text3)">Nenhum insumo na categoria ' + CAT_COPOS + '. Cadastre os copos e taças no <a href="#" onclick="go(\'cadastro\');return false" style="color:var(--blue)">Cadastro de Insumos</a>.</div>';
 
   cont.innerHTML = html;
 
-  // Carrega as fotos (documento próprio por copo)
   lista.forEach(function(c) {
-    if (typeof window.buscarCopoFoto !== 'function') return;
-    window.buscarCopoFoto(c.id).then(function(b64) {
+    var carregar = c._legado
+      ? (typeof window.buscarCopoFoto === 'function' ? window.buscarCopoFoto(c.id) : Promise.resolve(null))
+      : (typeof window.buscarInsumoFoto === 'function' ? window.buscarInsumoFoto(c.id) : Promise.resolve(null));
+    carregar.then(function(b64) {
       var img = document.getElementById('copo-thumb-' + c.id);
       var vazio = document.getElementById('copo-thumb-empty-' + c.id);
       if (img && b64) img.src = b64;
@@ -74,41 +105,7 @@ function rCoposBiblioteca() {
   });
 }
 
-function adicionarCopo() {
-  var nome = (document.getElementById('copo-novo-nome')?.value || '').trim();
-  if (!nome) { alert('Digite o nome do copo.'); return; }
-  if (!D.copos) D.copos = [];
-  if (D.copos.some(function(c) { return (c.nome || '').toUpperCase() === nome.toUpperCase(); })) {
-    alert('Já existe um copo com esse nome.');
-    return;
-  }
-  D.copos.push({ id: _gerarId('COP'), nome: nome });
-  sv('copos');
-  rCoposBiblioteca();
-}
-
-function renomearCopo(id, nome) {
-  var c = buscarCopoPorId(id);
-  if (!c) return;
-  c.nome = (nome || '').trim();
-  sv('copos');
-}
-
-function excluirCopo(id) {
-  var c = buscarCopoPorId(id);
-  if (!c) return;
-  var emUso = (D.fichas || []).filter(function(f) { return f.copoId === id; });
-  var aviso = emUso.length ? '\n\n' + emUso.length + ' ficha(s) usam este copo e vão ficar sem copo: ' + emUso.map(function(f){return f.nome;}).join(', ') : '';
-  if (!confirm('Excluir o copo "' + c.nome + '"?' + aviso)) return;
-  D.copos = (D.copos || []).filter(function(x) { return x.id !== id; });
-  sv('copos');
-  emUso.forEach(function(f) { f.copoId = null; });
-  if (emUso.length) sv('fichas');
-  if (typeof window.excluirCopoFoto === 'function') window.excluirCopoFoto(id);
-  rCoposBiblioteca();
-}
-
-function copoSelecionarFoto(inputEl, copoId) {
+function copoSelecionarFoto(inputEl, id, legado) {
   var file = inputEl.files && inputEl.files[0];
   if (!file) return;
   var leitor = new FileReader();
@@ -121,14 +118,15 @@ function copoSelecionarFoto(inputEl, copoId) {
       cv.height = Math.round(img.height * sc);
       cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
       var b64 = cv.toDataURL('image/jpeg', 0.82);
-      if (typeof window.salvarCopoFoto === 'function') {
-        window.salvarCopoFoto(copoId, b64).then(function() {
-          var t = document.getElementById('copo-thumb-' + copoId);
-          if (t) t.src = b64;
-          var vazio = document.getElementById('copo-thumb-empty-' + copoId);
-          if (vazio) vazio.style.display = 'none';
-        });
-      }
+      var salvar = legado
+        ? (typeof window.salvarCopoFoto === 'function' ? window.salvarCopoFoto(id, b64) : Promise.resolve())
+        : (typeof window.salvarInsumoFoto === 'function' ? window.salvarInsumoFoto(id, b64) : Promise.resolve());
+      salvar.then(function() {
+        var t = document.getElementById('copo-thumb-' + id);
+        if (t) t.src = b64;
+        var vazio = document.getElementById('copo-thumb-empty-' + id);
+        if (vazio) vazio.style.display = 'none';
+      });
     };
     img.src = e.target.result;
   };
@@ -206,10 +204,11 @@ function _ftEscreverDocumento(w, tituloCabecalho, subtitulo, cardsHtml, tituloAb
   w.document.close();
 }
 
-// Resolve o copoId efetivo de uma ficha num evento (override do evento vence).
-function _ftCopoIdEfetivo(ficha, coposOverride) {
+// Nome do copo efetivo de uma ficha num evento (override do evento vence).
+// O override guarda o NOME do copo (não mais um id de D.copos).
+function _ftCopoNomeEfetivo(ficha, coposOverride) {
   if (coposOverride && coposOverride[ficha.id]) return coposOverride[ficha.id];
-  return ficha.copoId || null;
+  return nomeCopoDaFicha(ficha);
 }
 
 // Gera a Ficha Técnica de uma Folha de Separação (todos os coquetéis dela).
@@ -222,17 +221,12 @@ function imprimirFichaTecnica(sepId) {
 
   var w = window.open('', '_blank'); // síncrono: evita bloqueio de pop-up
   var override = s.coposOverride || {};
-  var buscas = fichas.map(function(f) {
-    var cid = _ftCopoIdEfetivo(f, override);
-    if (cid && typeof window.buscarCopoFoto === 'function') return window.buscarCopoFoto(cid);
-    return Promise.resolve(null);
-  });
+  var nomes = fichas.map(function(f) { return _ftCopoNomeEfetivo(f, override); });
+  var buscas = nomes.map(function(n) { return _ftFotoCopoPorNome(n); });
 
   Promise.all(buscas).then(function(fotos) {
     var cards = fichas.map(function(f, i) {
-      var cid = _ftCopoIdEfetivo(f, override);
-      var nome = cid ? ((buscarCopoPorId(cid) || {}).nome || '') : nomeCopoDaFicha(f);
-      return _ftCardHtml(f, nome, fotos[i]);
+      return _ftCardHtml(f, nomes[i], fotos[i]);
     }).join('');
     var dataFmt = s.data ? s.data.split('-').reverse().join('/') : '';
     _ftEscreverDocumento(w,
@@ -249,8 +243,8 @@ function imprimirFichaTecnicaCoquetel(fichaId) {
   var f = (D.fichas || []).find(function(x) { return x.id === fichaId; });
   if (!f) return;
   var w = window.open('', '_blank');
-  var p = f.copoId && typeof window.buscarCopoFoto === 'function' ? window.buscarCopoFoto(f.copoId) : Promise.resolve(null);
-  p.then(function(foto) {
-    _ftEscreverDocumento(w, '', '', _ftCardHtml(f, nomeCopoDaFicha(f), foto), 'Ficha Técnica — ' + f.nome);
+  var nome = nomeCopoDaFicha(f);
+  _ftFotoCopoPorNome(nome).then(function(foto) {
+    _ftEscreverDocumento(w, '', '', _ftCardHtml(f, nome, foto), 'Ficha Técnica — ' + f.nome);
   });
 }

@@ -2380,13 +2380,13 @@
 <script src="js/servicos.js?v=20260713b"></script>
 <script src="js/tiposEvento.js?v=20260804a"></script>
 <script src="js/fechamentoMensal.js?v=20260726b"></script>
-<script src="js/insumos.js?v=20260901a"></script>
+<script src="js/insumos.js?v=20260901b"></script>
 <script src="js/estoqueSeparacao.js?v=20260722a"></script>
 <script src="js/cargos.js?v=20260713b"></script>
-<script src="js/regras.js?v=20260901c"></script>
+<script src="js/regras.js?v=20260901d"></script>
 <script src="js/associacoes.js?v=20260901a"></script>
-<script src="js/fichaTecnica.js?v=20260901a"></script>
-<script src="js/separacao.js?v=20260901b"></script>
+<script src="js/fichaTecnica.js?v=20260901b"></script>
+<script src="js/separacao.js?v=20260901c"></script>
 <script src="js/equipe.js?v=20260805e"></script>
 <script src="js/solicitacaoOrcamento.js?v=20260803f"></script>
 <script src="js/orcamento.js?v=20260805b"></script>
@@ -2647,6 +2647,25 @@ window.buscarCopoFoto = async function(copoId) {
 window.excluirCopoFoto = async function(copoId) {
   try { await deleteDoc(doc(db, "dados", "copoFoto_" + copoId)); }
   catch(e) { console.error('Erro ao excluir foto do copo:', e); }
+};
+
+// ─── FOTO DO INSUMO (Cadastro de Insumos) ──────────────────────────────────
+// Mesmo esquema: 1 documento por foto (prefixo insumoFoto_) dentro de "dados".
+// Usada, entre outras coisas, como a foto do copo na Ficha Técnica — o copo
+// é o próprio insumo da categoria COPOS E TAÇAS, sem cadastro separado.
+window.salvarInsumoFoto = async function(insumoId, base64) {
+  try { await setDoc(doc(db, "dados", "insumoFoto_" + insumoId), { valor: base64 }); return true; }
+  catch(e) { console.error('Erro ao salvar foto do insumo:', e); return false; }
+};
+window.buscarInsumoFoto = async function(insumoId) {
+  try {
+    const snap = await getDoc(doc(db, "dados", "insumoFoto_" + insumoId));
+    return snap.exists() ? snap.data().valor : null;
+  } catch(e) { console.error('Erro ao buscar foto do insumo:', e); return null; }
+};
+window.excluirInsumoFoto = async function(insumoId) {
+  try { await deleteDoc(doc(db, "dados", "insumoFoto_" + insumoId)); }
+  catch(e) { console.error('Erro ao excluir foto do insumo:', e); }
 };
 
 // ─── BACKUP/RESTAURAÇÃO DO FINANCEIRO ──────────────────────────────────────

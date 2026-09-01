@@ -678,6 +678,8 @@ function rFormFicha(fichaExistente) {
   });
 
   var _copos = (typeof getCopos === 'function') ? getCopos().slice().sort(function(a,b){return (a.nome||'').localeCompare(b.nome||'');}) : [];
+  // Nome do copo atual da ficha — resolve o id antigo (f.copoId) pra nome.
+  var _copoAtual = (typeof nomeCopoDaFicha === 'function') ? nomeCopoDaFicha(f) : (f.copo || '');
   var _metodos = (typeof METODOS_PREPARO !== 'undefined') ? METODOS_PREPARO : ['BATIDO','MEXIDO','MONTADO','DIRETO','DRY SHAKE'];
   // "Já na ficha" usa a categoria ATUAL do insumo (não a guardada na ficha)
   // — senão, reclassificar um insumo (ex: Triple Sec) faz o checkbox dele
@@ -706,10 +708,11 @@ function rFormFicha(fichaExistente) {
         '<div style="font-size:10px;color:var(--text3);margin-top:2px">Nomes alternativos separados por vírgula</div></div>' +
       '<div><label class="lbl">Copo / Serviço</label>' +
         '<select class="inp" id="fc-copo-id">' +
-          '<option value="">' + ((f.copo && !f.copoId) ? 'texto atual: ' + f.copo : '— sem copo definido —') + '</option>' +
-          _copos.map(function(c){ return '<option value="'+c.id+'"'+(f.copoId===c.id?' selected':'')+'>'+c.nome+'</option>'; }).join('') +
+          '<option value="">— sem copo definido —</option>' +
+          _copos.map(function(c){ var n = (c.nome||'').replace(/"/g,'&quot;'); return '<option value="'+n+'"'+(_copoAtual===c.nome?' selected':'')+'>'+c.nome+'</option>'; }).join('') +
+          ((_copoAtual && !_copos.some(function(c){ return c.nome === _copoAtual; })) ? '<option value="'+_copoAtual.replace(/"/g,'&quot;')+'" selected>'+_copoAtual+' (fora da lista)</option>' : '') +
         '</select>' +
-        '<div style="font-size:10px;color:var(--text3);margin-top:2px"><a href="#" onclick="setRegrasView(\'copos\');return false" style="color:var(--blue)">Gerenciar copos e fotos</a></div></div>' +
+        '<div style="font-size:10px;color:var(--text3);margin-top:2px">Vem da categoria "COPOS E TAÇAS" do Cadastro de Insumos · <a href="#" onclick="setRegrasView(\'copos\');return false" style="color:var(--blue)">fotos dos copos</a></div></div>' +
       '<div><label class="lbl">Método de preparo</label>' +
         '<input class="inp" id="fc-metodo" list="fc-metodo-lista" type="text" placeholder="Ex: BATIDO" value="' + (f.metodo||'').replace(/"/g,'&quot;') + '" style="text-transform:uppercase">' +
         '<datalist id="fc-metodo-lista">' + _metodos.map(function(m){ return '<option value="'+m+'">'; }).join('') + '</datalist></div>' +
@@ -923,11 +926,10 @@ function salvarFicha(idExistente) {
   if (!nome) { alert('Preencha o nome do coquetel.'); return; }
   if (typeof _fcSyncMedidas === 'function') _fcSyncMedidas(); // captura o que foi digitado sem sair do campo
   var variantes = (document.getElementById('fc-variantes')?.value||'').trim();
-  var copoId = document.getElementById('fc-copo-id')?.value || '';
   var _fichaAnt = idExistente ? ((D.fichas||[]).find(function(f){return f.id===idExistente;}) || {}) : {};
-  var copoNome = copoId && typeof buscarCopoPorId === 'function'
-    ? ((buscarCopoPorId(copoId)||{}).nome || '')
-    : (_fichaAnt.copo || '');  // sem copo escolhido: mantém o texto antigo, não apaga
+  // O select agora guarda o NOME do copo (insumo da categoria COPOS E TAÇAS),
+  // não mais um id de D.copos.
+  var copoNome = document.getElementById('fc-copo-id')?.value || '';
   var descricao = (document.getElementById('fc-descricao')?.value||'').trim();
   var metodo = (document.getElementById('fc-metodo')?.value||'').trim().toUpperCase();
   var modoPreparo = (document.getElementById('fc-modo-preparo')?.value||'').trim();
@@ -960,7 +962,7 @@ function salvarFicha(idExistente) {
   var idFicha = idExistente || _gerarId('FIC');
   var ficha = {
     id: idFicha, nome: nome, variantes: variantes,
-    copo: copoNome, copoId: copoId,
+    copo: copoNome, copoId: '',
     descricao: descricao, metodo: metodo, modoPreparo: modoPreparo, finalizacao: finalizacao,
     itens: itens,
     criadoEm: _fichaAnt.criadoEm || new Date().toISOString(),
