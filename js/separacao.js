@@ -68,6 +68,45 @@ function catAtualFichaItem(item) {
   return (typeof categoriaAtualDoInsumo === 'function') ? categoriaAtualDoInsumo(item.nome, item.cat) : item.cat;
 }
 
+// Casa dois nomes de item: iguais, ou o mesmo insumo no Cadastro (resolve
+// apelido / nome renomeado). Usado pra cruzar regra de Cálculo × item de
+// ficha sem depender de a categoria bater exatamente.
+function _sepMesmoItem(a, b) {
+  var A = (a || '').trim().toUpperCase(), B = (b || '').trim().toUpperCase();
+  if (!A || !B) return false;
+  if (A === B) return true;
+  if (typeof buscarInsumoPorNome === 'function') {
+    var ia = buscarInsumoPorNome(a), ib = buscarInsumoPorNome(b);
+    if (ia && ib && ia.id === ib.id) return true;
+  }
+  return false;
+}
+
+// Entrada {count, coqueteis} do itensCardapio pra um nome, em qualquer
+// categoria. A categoria da regra e a categoria atual do insumo podem
+// divergir — e essa divergência não pode fazer a regra "não achar" o
+// coquetel e a quantidade final zerar.
+function _sepEntradaCardapio(itensCardapio, nome) {
+  var achou = null;
+  Object.keys(itensCardapio || {}).forEach(function(c) {
+    Object.keys(itensCardapio[c]).forEach(function(n) {
+      if (_sepMesmoItem(n, nome)) achou = itensCardapio[c][n];
+    });
+  });
+  return achou;
+}
+
+// Linha já montada em todosItens pra um nome, em qualquer categoria.
+function _sepLinhaMontada(todosItens, nome) {
+  var achou = null;
+  Object.keys(todosItens || {}).forEach(function(c) {
+    (todosItens[c] || []).forEach(function(x) {
+      if (_sepMesmoItem(x.item, nome)) achou = x;
+    });
+  });
+  return achou;
+}
+
 // Célula de quantidade de um item na folha. Item normal = input editável.
 // Item travado (acessório de uma associação) = valor só-leitura que segue o
 // principal, com um input escondido pra ser salvo por salvarSeparacao().
@@ -206,8 +245,14 @@ function sepCarregarProducao(prodId) {
     // principal (ex: bico da angostura aparecendo sem nenhum coquetel usar
     // angostura).
     if (r.base === 'associado') return;
-    var itensDoCardapio = itensCardapio[r.cat] && itensCardapio[r.cat][r.item];
-    var coquetelDoItem = itensDoCardapio ? itensCardapio[r.cat][r.item].coqueteis : [];
+    // Casa por nome em qualquer categoria: antes exigia que r.cat fosse
+    // idêntico à categoria atual do insumo na ficha — quando divergiam, a
+    // regra "não via" o coquetel, e (com "só c/ coquetel") a quantidade
+    // final vinha 0 mesmo com o coquetel na folha (ex: 12 Beefeater/100
+    // convidados retornando 0).
+    var entradaCardapio = _sepEntradaCardapio(itensCardapio, r.item);
+    var itensDoCardapio = !!entradaCardapio;
+    var coquetelDoItem = entradaCardapio ? entradaCardapio.coqueteis : [];
     // "Só se cardápio" precisa valer de verdade: antes, um item com mínimo >
     // 0 aparecia sempre (com aviso ⚠️), mesmo sem estar em nenhum coquetel
     // do cardápio deste evento — ex: Mix Frutas Vermelhas somando quantidade
@@ -234,13 +279,17 @@ function sepCarregarProducao(prodId) {
   // item que já está de fato associado a um coquetel deste evento.
   coqueteisCardapio.forEach(function(coq) {
     (coq.ficha.itens||[]).forEach(function(item) {
-      var cat = catAtualFichaItem(item);
-      if (!todosItens[cat]) todosItens[cat] = [];
-      var existente = todosItens[cat].find(function(x){ return x.item === item.nome; });
+      // Procura a linha já montada pelo NOME (em qualquer categoria) — assim
+      // a linha da regra de Cálculo, mesmo numa categoria diferente da que o
+      // insumo tem hoje, recebe o coquetel e mantém a quantidade calculada,
+      // em vez de nascer uma segunda linha zerada.
+      var existente = _sepLinhaMontada(todosItens, item.nome);
       if (existente) {
         if (existente.coqueteis.indexOf(coq.nome) === -1) existente.coqueteis.push(coq.nome);
         existente.doCardapio = true;
       } else {
+        var cat = catAtualFichaItem(item);
+        if (!todosItens[cat]) todosItens[cat] = [];
         todosItens[cat].push({
           item: item.nome, qtd: 0,
           doCardapio: true,
@@ -353,7 +402,7 @@ function sepCarregarProducao(prodId) {
           // dava quantidade maior do que ela realmente precisa levar
           // (pedido 08-26).
           var catItem = catAtualFichaItem(item);
-          var found = todosItens[catItem] ? todosItens[catItem].find(function(x){return x.item===item.nome;}) : null;
+          var found = _sepLinhaMontada(todosItens, item.nome);
           var qtdAgregada = found ? found.qtd : 0;
           var salvoAgg = qtdSalva(catItem, item.nome);
           if (salvoAgg != null) qtdAgregada = salvoAgg;
