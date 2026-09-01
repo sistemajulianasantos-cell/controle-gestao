@@ -125,6 +125,26 @@ function _sepEntradaCardapio(itensCardapio, nome) {
   return achou;
 }
 
+// Arredonda a quantidade de cada item pro múltiplo mais próximo de
+// `insumo.multiploSeparacao` (item que sai em caixa fechada — água, copo,
+// cerveja). Nunca abaixo de 1 caixa se precisa de alguma unidade. Não mexe
+// em EQUIPE nem em item travado (acessório que segue outro).
+function _sepArredondarPorCaixa(todosItens) {
+  if (!todosItens) return;
+  Object.keys(todosItens).forEach(function(cat) {
+    if (cat === 'EQUIPE') return;
+    (todosItens[cat] || []).forEach(function(it) {
+      if (it.travado) return;
+      var insumo = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(it.item) : null;
+      var m = insumo ? (parseFloat(insumo.multiploSeparacao) || 0) : 0;
+      if (m > 1 && it.qtd > 0) {
+        it.qtd = Math.max(m, Math.round(it.qtd / m) * m);
+        it.multCaixa = m;
+      }
+    });
+  });
+}
+
 // Linha já montada em todosItens pra um nome, em qualquer categoria.
 function _sepLinhaMontada(todosItens, nome) {
   var achou = null;
@@ -154,6 +174,12 @@ function _sepQtdCell(it, catAttr, itemAttr, valor, corTexto) {
 function _sepBadgeAssoc(it) {
   return it.associadoA
     ? '<span style="font-size:9px;background:var(--bg4);color:var(--text3);border:1px solid var(--border2);padding:1px 6px;border-radius:10px;margin-left:6px">segue ' + it.associadoA + '</span>'
+    : '';
+}
+
+function _sepBadgeCaixa(it) {
+  return it.multCaixa
+    ? '<span style="font-size:9px;background:var(--bg4);color:var(--text3);border:1px solid var(--border2);padding:1px 6px;border-radius:10px;margin-left:6px" title="Arredondado pro múltiplo de ' + it.multCaixa + ' (caixa fechada)">cx ' + it.multCaixa + '</span>'
     : '';
 }
 
@@ -333,6 +359,10 @@ function sepCarregarProducao(prodId) {
   // Acessórios com base "Segue outro item" — roda por último, quando a
   // quantidade dos itens principais já está resolvida.
   if (typeof aplicarAssociacoesSeparacao === 'function') aplicarAssociacoesSeparacao(todosItens);
+
+  // Itens que saem em caixa fechada — arredonda pro múltiplo mais próximo
+  // (Cadastro de Insumos → "Sai do estoque em múltiplos de"). Só na folha.
+  _sepArredondarPorCaixa(todosItens);
 
   var equipeHtml = equipe.length
     ? equipe.map(function(e){return '<span style="margin-right:10px">'+e.qtd+' '+e.cargo+'</span>';}).join('')
@@ -525,7 +555,7 @@ function sepCarregarProducao(prodId) {
         '</select>';
       }
       html += '<div style="display:grid;grid-template-columns:' + cols + ';gap:8px;align-items:center;padding:4px 14px;border-bottom:1px solid var(--border)">' +
-        '<div style="font-size:12px;color:var(--text)">' + it.item + badge + _sepBadgeAssoc(it) +
+        '<div style="font-size:12px;color:var(--text)">' + it.item + badge + _sepBadgeAssoc(it) + _sepBadgeCaixa(it) +
           (it.obs ? '<span style="font-size:10px;color:var(--text3);margin-left:6px">' + it.obs + '</span>' : '') +
         '</div>' +
         fornHtml +
@@ -562,7 +592,7 @@ function sepCarregarProducao(prodId) {
       var salvoKit = qtdSalva(cat, it.item);
       if (salvoKit != null && !it.travado) qtdKit = salvoKit;
       html += '<div style="display:grid;grid-template-columns:1fr 100px;gap:8px;align-items:center;padding:4px 14px;border-bottom:1px solid var(--border)">' +
-        '<span style="font-size:12px;color:var(--text2)">' + it.item + _sepBadgeAssoc(it) +
+        '<span style="font-size:12px;color:var(--text2)">' + it.item + _sepBadgeAssoc(it) + _sepBadgeCaixa(it) +
           (it.obs ? '<span style="font-size:10px;color:var(--text3);margin-left:6px">' + it.obs + '</span>' : '') +
         '</span>' +
         _sepQtdCell(it, cat.replace(/"/g,''), it.item.replace(/"/g,''), qtdKit, 'var(--text2)') +

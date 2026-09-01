@@ -316,6 +316,9 @@ function rFormInsumo(id) {
         '<div><label class="lbl">Quantidade mínima em estoque</label>' +
           '<input class="inp" id="cad-estoque-minimo" type="number" min="0" value="' + (i && i.estoqueMinimo ? i.estoqueMinimo : 0) + '" placeholder="0">' +
           '<div style="font-size:10px;color:var(--text3);margin-top:2px">Nunca deixar o estoque cair abaixo disso. 0 = sem mínimo.</div></div>' +
+        '<div><label class="lbl">Sai do estoque em múltiplos de</label>' +
+          '<input class="inp" id="cad-multiplo-sep" type="number" min="0" step="1" value="' + (i && i.multiploSeparacao ? i.multiploSeparacao : '') + '" placeholder="ex: 12">' +
+          '<div style="font-size:10px;color:var(--text3);margin-top:2px">Item que sai em caixa fechada (água, copo, cerveja). A Folha de Separação arredonda a quantidade pro múltiplo mais próximo desse número. Vazio ou 0 = sai avulso.</div></div>' +
       '</div>' +
 
       '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">Custo e Preço</div>' +
@@ -426,6 +429,7 @@ function salvarInsumo() {
     categoria: categoriaSel,
     unidadeCompra: document.getElementById('cad-unidade')?.value || 'UN',
     tamanhoEmbalagem: parseInt(document.getElementById('cad-embalagem')?.value) || 1,
+    multiploSeparacao: parseInt(document.getElementById('cad-multiplo-sep')?.value) || 0,
     classificacaoProducao: classProdEl ? classProdEl.value : 'materia_prima',
     estoqueMinimo: parseFloat(document.getElementById('cad-estoque-minimo')?.value) || 0,
     custoReposicao: existente ? existente.custoReposicao : 0,
