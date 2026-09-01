@@ -186,7 +186,7 @@ async function compararCadastrosSeparacao() {
       difNome.push({ id: i.id, aqui: i.nome, la: s.nome });
     }
     if (s.grupo && i.categoria && _normCompara(s.grupo) !== _normCompara(i.categoria)) {
-      difCat.push({ nome: i.nome, aqui: i.categoria, la: s.grupo });
+      difCat.push({ id: i.id, nome: i.nome, aqui: i.categoria, la: s.grupo });
     }
     if (s.unidade && i.unidadeCompra && _normCompara(s.unidade) !== _normCompara(i.unidadeCompra)) {
       difUnid.push({ nome: i.nome, aqui: i.unidadeCompra, la: s.unidade });
@@ -230,9 +230,7 @@ function _compSepRenderHtml(d) {
     '<div style="font-size:10px;color:var(--text3);font-style:italic;margin-bottom:4px">Categoria: os dois sistemas agrupam de formas diferentes (aqui = tipo de produto; lá = setor/grupo de separação), então diferença aqui pode ser normal.</div>' +
 
     _compSepBlocoNome(d.difNome, caixa) +
-    bloco('Categoria diferente', 'var(--amber)', d.difCat, function(x) {
-      return '<div style="' + caixa + '"><strong>' + _fte(x.nome) + '</strong>: ' + _fte(x.aqui) + '<span style="color:var(--text3)"> (aqui)</span> &nbsp;≠&nbsp; ' + _fte(x.la) + '<span style="color:var(--text3)"> (Separação)</span></div>';
-    }) +
+    _compSepBlocoCategoria(d.difCat, caixa) +
     bloco('Unidade diferente', 'var(--amber)', d.difUnid, function(x) {
       return '<div style="' + caixa + '"><strong>' + _fte(x.nome) + '</strong>: ' + _fte(x.aqui) + '<span style="color:var(--text3)"> (aqui)</span> &nbsp;≠&nbsp; ' + _fte(x.la) + '<span style="color:var(--text3)"> (Separação)</span></div>';
     }) +
@@ -272,8 +270,99 @@ function _compSepBlocoNome(lista, caixa) {
       '</div>';
     }).join('') +
     '</div>' +
-    '<div style="margin-top:8px"><button class="btn-sm" style="background:var(--green)" onclick="_compSepPadronizarNomes()">Padronizar os marcados</button></div>' +
+    '<div style="margin-top:8px;display:flex;gap:6px">' +
+      '<button class="btn-sm" style="background:var(--green)" onclick="_compSepPadronizarNomes()">Padronizar os marcados</button>' +
+      '<button class="btn-sm" style="background:var(--bg3)" onclick="_compSepMarcar(\'comp-nome-chk\',true)">Marcar todos</button>' +
+      '<button class="btn-sm" style="background:var(--bg3)" onclick="_compSepMarcar(\'comp-nome-chk\',false)">Desmarcar</button>' +
+    '</div>' +
   '</div>';
+}
+
+function _compSepMarcar(classe, marcar) {
+  var cont = document.getElementById('cad-comparacao-sep');
+  if (!cont) return;
+  cont.querySelectorAll('.' + classe).forEach(function(c) { c.checked = !!marcar; });
+}
+
+// Bloco "Categoria diferente" com seleção por linha + dropdown da categoria
+// final (pré-selecionada com a do Sistema Separação).
+function _compSepBlocoCategoria(lista, caixa) {
+  var cab = '<div style="margin-top:12px">' +
+    '<div style="font-size:11px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Categoria diferente — ' + lista.length + '</div>';
+  if (!lista.length) return cab + '<div style="font-size:11px;color:var(--text3)">nenhum</div></div>';
+
+  var cats = (typeof getCategorias === 'function') ? getCategorias().slice() : [];
+  function opcoes(la, atual) {
+    var laU = (la || '').trim().toUpperCase();
+    var temLa = cats.some(function(c) { return c.toUpperCase() === laU; });
+    var out = '';
+    if (laU && !temLa) out += '<option value="' + _fte(la) + '" selected>' + _fte(la) + '  (criar categoria)</option>';
+    cats.forEach(function(c) {
+      var sel = temLa && c.toUpperCase() === laU;
+      out += '<option value="' + _fte(c) + '"' + (sel ? ' selected' : '') + '>' + _fte(c) + '</option>';
+    });
+    return out;
+  }
+
+  return cab +
+    '<div style="font-size:10px;color:var(--text3);margin-bottom:6px">A categoria vem pré-selecionada com a do Sistema Separação. Marque as linhas que quer mudar e clique em aplicar — muda só a categoria do insumo <strong>aqui</strong> (categoria nova é criada). Lembre: os dois sistemas agrupam diferente, nem toda diferença precisa ser igualada.</div>' +
+    '<div style="display:grid;gap:4px">' +
+    lista.map(function(x, idx) {
+      return '<div style="' + caixa + ';display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+        '<input type="checkbox" class="comp-cat-chk" data-id="' + _fte(x.id) + '" data-idx="' + idx + '" style="cursor:pointer">' +
+        '<strong>' + _fte(x.nome) + '</strong>' +
+        '<span style="color:var(--text3);text-decoration:line-through">' + _fte(x.aqui) + '</span>' +
+        '<span style="color:var(--text3)">→</span>' +
+        '<select class="comp-cat-alvo" data-idx="' + idx + '" style="font-size:11px;padding:3px 6px;background:var(--bg);color:var(--text);border:1px solid var(--border2);border-radius:4px">' + opcoes(x.la, x.aqui) + '</select>' +
+      '</div>';
+    }).join('') +
+    '</div>' +
+    '<div style="margin-top:8px;display:flex;gap:6px">' +
+      '<button class="btn-sm" style="background:var(--green)" onclick="_compSepPadronizarCategorias()">Aplicar categoria aos marcados</button>' +
+      '<button class="btn-sm" style="background:var(--bg3)" onclick="_compSepMarcar(\'comp-cat-chk\',true)">Marcar todos</button>' +
+      '<button class="btn-sm" style="background:var(--bg3)" onclick="_compSepMarcar(\'comp-cat-chk\',false)">Desmarcar</button>' +
+    '</div>' +
+  '</div>';
+}
+
+function _compSepPadronizarCategorias() {
+  var cont = document.getElementById('cad-comparacao-sep');
+  if (!cont) return;
+  var mudancas = [];
+  cont.querySelectorAll('.comp-cat-chk:checked').forEach(function(chk) {
+    var alvo = cont.querySelector('.comp-cat-alvo[data-idx="' + chk.dataset.idx + '"]');
+    var catNova = ((alvo && alvo.value) || '').trim().toUpperCase();
+    if (chk.dataset.id && catNova) mudancas.push({ id: chk.dataset.id, cat: catNova });
+  });
+  if (!mudancas.length) { alert('Marque pelo menos uma linha.'); return; }
+
+  var resumo = mudancas.map(function(m) {
+    var ins = (D.insumos || []).find(function(i) { return i.id === m.id; });
+    return '• ' + ((ins && ins.nome) || '?') + ':  ' + ((ins && ins.categoria) || '?') + '  →  ' + m.cat;
+  }).join('\n');
+  if (!confirm('Mudar a categoria de ' + mudancas.length + ' insumo(s):\n\n' + resumo + '\n\nContinuar?')) return;
+
+  var n = 0, catsNovas = 0;
+  var atuais = (typeof getCategorias === 'function') ? getCategorias().map(function(c){ return c.toUpperCase(); }) : [];
+  mudancas.forEach(function(m) {
+    var ins = (D.insumos || []).find(function(i) { return i.id === m.id; });
+    if (!ins || (ins.categoria || '').toUpperCase() === m.cat) return;
+    if (atuais.indexOf(m.cat) === -1) {
+      if (!D.categorias) D.categorias = [];
+      var ordemMax = D.categorias.reduce(function(mx, c) { return Math.max(mx, c.ordem || 0); }, 0);
+      D.categorias.push({ id: 'CAT' + Date.now() + Math.random().toString(36).slice(2, 6), nome: m.cat, ordem: ordemMax + 1 });
+      atuais.push(m.cat);
+      catsNovas++;
+    }
+    ins.categoria = m.cat;
+    n++;
+  });
+  if (catsNovas) sv('categorias');
+  if (n) sv('insumos');
+  alert(n + ' insumo(s) recategorizado(s)' + (catsNovas ? ' · ' + catsNovas + ' categoria(s) nova(s) criada(s)' : '') + '.');
+  if (typeof rCadastroInsumos === 'function') rCadastroInsumos();
+  if (typeof _atualizarFiltrosDeCategoria === 'function') _atualizarFiltrosDeCategoria();
+  compararCadastrosSeparacao();
 }
 
 function _compSepPadronizarNomes() {
