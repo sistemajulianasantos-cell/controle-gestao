@@ -93,8 +93,8 @@ function rCategoriasLista() {
   var bannerDup = dups.length
     ? '<div style="background:var(--amber-bg);border:1px solid var(--amber-dim);border-radius:var(--radius);padding:10px 14px;margin-bottom:12px">' +
         '<div style="font-size:11px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">' + dups.length + ' categoria(s) duplicada(s)</div>' +
-        '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">Mesma categoria escrita de formas diferentes (acento, maiúscula, espaço): ' +
-          dups.map(function(g){ return g.map(function(c){ return '"' + c.nome + '"'; }).join(' = '); }).join(' · ') +
+        '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">Mesma categoria escrita de formas diferentes (acento, maiúscula, espaço) — inclui categoria "fantasma" que aparece em algum insumo/ficha/regra mas não está cadastrada: ' +
+          dups.map(function(g){ return g.map(function(n){ return '"' + n + '"'; }).join(' = '); }).join(' · ') +
         '</div>' +
         '<button class="btn-sm" style="background:var(--amber);color:#1a1400;font-weight:700" onclick="unificarCategoriasDuplicadas()">Unificar automaticamente</button>' +
       '</div>'
@@ -192,30 +192,53 @@ function _contaAcentos(s) {
   return m ? m.length : 0;
 }
 
-// Grupos de categorias que são "a mesma" a menos de acento/caixa/pontuação.
-function _gruposCategoriasDuplicadas() {
-  var porChave = {};
-  (D.categorias || []).forEach(function(c) {
-    var k = _normCat(c.nome);
-    if (!k) return;
-    (porChave[k] = porChave[k] || []).push(c);
-  });
-  return Object.keys(porChave).map(function(k) { return porChave[k]; }).filter(function(g) { return g.length > 1; });
+// Todos os nomes de categoria em jogo: os cadastrados (D.categorias) MAIS os
+// que aparecem "soltos" em insumos/produtos/fichas/regras (categoria fantasma
+// — nunca foi cadastrada, ou é uma grafia antiga de uma que existe).
+function _todosNomesDeCategoria() {
+  var set = {};
+  function add(n) { n = (n || '').trim(); if (n) set[n.toUpperCase()] = n; }
+  (D.categorias || []).forEach(function(c) { add(c.nome); });
+  (D.insumos || []).forEach(function(i) { add(i.categoria); });
+  (D.produtos || []).forEach(function(p) { add(p.categoria); });
+  (D.fichas || []).forEach(function(f) { (f.itens || []).forEach(function(it) { add(it.cat); }); });
+  (D.regrasItens || []).forEach(function(r) { add(r.cat); });
+  return Object.keys(set).map(function(k) { return set[k]; });
 }
 
-// Nome oficial de um grupo: grafia do padrão (CATEGORIAS_INSUMO_PADRAO) se
-// houver; senão a mais acentuada; senão a mais usada; senão a mais longa.
+// Grupos de nomes de categoria que são "a mesma" a menos de acento/caixa/
+// pontuação. Cada grupo é uma lista de STRINGS (nomes), não de objetos.
+// Pega tanto duplicata em D.categorias quanto categoria fantasma (ex: um
+// insumo em "PRODUCAO" quando a cadastrada é "PRODUÇÃO").
+function _gruposCategoriasDuplicadas() {
+  var porChave = {};
+  _todosNomesDeCategoria().forEach(function(nome) {
+    var k = _normCat(nome);
+    if (!k) return;
+    (porChave[k] = porChave[k] || []).push(nome);
+  });
+  return Object.keys(porChave)
+    .map(function(k) { return porChave[k]; })
+    .filter(function(g) { return g.length > 1; });
+}
+
+// Nome oficial de um grupo (lista de strings): grafia do padrão se houver;
+// senão a que está cadastrada em D.categorias; senão a mais acentuada; senão
+// a mais usada; senão a mais longa.
 function _canonicaDoGrupo(grupo) {
-  var chave = _normCat(grupo[0].nome);
+  var chave = _normCat(grupo[0]);
   var padrao = CATEGORIAS_INSUMO_PADRAO.find(function(p) { return _normCat(p) === chave; });
   if (padrao) return padrao;
   return grupo.slice().sort(function(a, b) {
-    var ac = _contaAcentos(b.nome) - _contaAcentos(a.nome);
+    var cadA = (D.categorias || []).some(function(c) { return c.nome === a; }) ? 1 : 0;
+    var cadB = (D.categorias || []).some(function(c) { return c.nome === b; }) ? 1 : 0;
+    if (cadA !== cadB) return cadB - cadA;
+    var ac = _contaAcentos(b) - _contaAcentos(a);
     if (ac) return ac;
-    var us = _categoriaEmUso(b.nome) - _categoriaEmUso(a.nome);
+    var us = _categoriaEmUso(b) - _categoriaEmUso(a);
     if (us) return us;
-    return (b.nome || '').length - (a.nome || '').length;
-  })[0].nome;
+    return (b || '').length - (a || '').length;
+  })[0];
 }
 
 // Move tudo que referencia a categoria `de` (por nome) pra `para`.
@@ -253,33 +276,31 @@ function unificarCategoriasDuplicadas() {
 
   var resumo = grupos.map(function(g) {
     var canon = _canonicaDoGrupo(g);
-    var outras = g.map(function(c) { return c.nome; }).filter(function(n) { return n !== canon; });
+    var outras = g.filter(function(n) { return n !== canon; });
     return '• ' + outras.map(function(n){ return '"' + n + '"'; }).join(' + ') + '  →  "' + canon + '"';
   }).join('\n');
 
-  if (!confirm('Unificar ' + grupos.length + ' grupo(s) de categoria duplicada:\n\n' + resumo +
-    '\n\nOs insumos, fichas e regras que usavam as versões duplicadas passam a usar a versão oficial. Orçamentos já fechados não são alterados. Continuar?')) return;
+  if (!confirm('Unificar ' + grupos.length + ' grupo(s) de categoria:\n\n' + resumo +
+    '\n\nOs insumos, fichas e regras passam a usar a versão oficial. Orçamentos já fechados não são alterados. Continuar?')) return;
 
-  var removidas = 0;
+  var mudou = 0;
   grupos.forEach(function(g) {
     var canon = _canonicaDoGrupo(g);
-    var catCanon = D.categorias.find(function(c) { return c.nome === canon; });
-    if (!catCanon) {
-      // Nenhuma do grupo tem exatamente a grafia oficial — adota a 1ª e
-      // reaponta os itens dela também.
-      catCanon = g[0];
-      if (catCanon.nome !== canon) { _reatribuirCategoria(catCanon.nome, canon); catCanon.nome = canon; }
+    // Garante a categoria oficial cadastrada.
+    if (!D.categorias.some(function(c) { return c.nome === canon; })) {
+      var ordemMax = D.categorias.reduce(function(m, c) { return Math.max(m, c.ordem || 0); }, 0);
+      D.categorias.push({ id: 'CAT' + Date.now() + Math.random().toString(36).slice(2, 6), nome: canon, ordem: ordemMax + 1 });
     }
-    g.forEach(function(c) {
-      if (c === catCanon) return;
-      _reatribuirCategoria(c.nome, canon);
-      D.categorias = D.categorias.filter(function(x) { return x.id !== c.id; });
-      removidas++;
+    g.forEach(function(nome) {
+      if (nome === canon) return;
+      _reatribuirCategoria(nome, canon);
+      D.categorias = D.categorias.filter(function(c) { return c.nome !== nome; });
+      mudou++;
     });
   });
 
   _salvarTudoQueUsaCategoria();
-  alert(removidas + ' categoria(s) duplicada(s) unificada(s).');
+  alert(mudou + ' grafia(s) de categoria unificada(s).');
   rCategoriasLista();
   _atualizarFiltrosDeCategoria();
 }
