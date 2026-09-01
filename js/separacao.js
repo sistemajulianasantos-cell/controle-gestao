@@ -125,9 +125,25 @@ function _sepEntradaCardapio(itensCardapio, nome) {
   return achou;
 }
 
-// Arredonda a quantidade de cada item pro múltiplo mais próximo de
-// `insumo.multiploSeparacao` (item que sai em caixa fechada — água, copo,
-// cerveja). Nunca abaixo de 1 caixa se precisa de alguma unidade. Não mexe
+// Tamanho da caixa/fardo de um item, quando ele é comprado em embalagem
+// fechada (unidade CX/FARDO/PCT) e a "Qtd por embalagem" > 1. 0 = sai avulso.
+var _SEP_UNIDS_CAIXA = ['CX', 'FARDO', 'PCT'];
+function _sepTamCaixa(nome) {
+  var insumo = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(nome) : null;
+  if (!insumo || _SEP_UNIDS_CAIXA.indexOf((insumo.unidadeCompra || '').toUpperCase()) === -1) return 0;
+  var m = parseFloat(insumo.tamanhoEmbalagem) || 0;
+  return m > 1 ? m : 0;
+}
+
+// Arredonda uma quantidade pro múltiplo MAIS PRÓXIMO do tamanho da caixa
+// (mínimo 1 caixa se precisa de alguma unidade). Sem caixa, devolve igual.
+function _sepArredondaCaixa(nome, qtd) {
+  var m = _sepTamCaixa(nome);
+  if (!m || !(qtd > 0)) return qtd;
+  return Math.max(m, Math.round(qtd / m) * m);
+}
+
+// Aplica o arredondamento por caixa em todos os itens já montados. Não mexe
 // em EQUIPE nem em item travado (acessório que segue outro).
 function _sepArredondarPorCaixa(todosItens) {
   if (!todosItens) return;
@@ -135,10 +151,9 @@ function _sepArredondarPorCaixa(todosItens) {
     if (cat === 'EQUIPE') return;
     (todosItens[cat] || []).forEach(function(it) {
       if (it.travado) return;
-      var insumo = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(it.item) : null;
-      var m = insumo ? (parseFloat(insumo.multiploSeparacao) || 0) : 0;
-      if (m > 1 && it.qtd > 0) {
-        it.qtd = Math.max(m, Math.round(it.qtd / m) * m);
+      var m = _sepTamCaixa(it.item);
+      if (m && it.qtd > 0) {
+        it.qtd = _sepArredondaCaixa(it.item, it.qtd);
         it.multCaixa = m;
       }
     });
@@ -314,7 +329,7 @@ function sepCarregarProducao(prodId) {
     // num evento que não usa nenhum coquetel com esse ingrediente (08-26).
     if (r.soSeCardapio && !itensDoCardapio) return;
     if (!todosItens[r.cat]) todosItens[r.cat] = [];
-    var qtd = calcQtdItem(r, conv, bartenders, equipeTotal, cargoCounts);
+    var qtd = calcQtdItem(r, conv, bartenders, equipeTotal, cargoCounts, { semArredondarEmbalagem: true });
     todosItens[r.cat].push({
       item: r.item, qtd: qtd,
       doCardapio: !!itensDoCardapio,
@@ -620,7 +635,7 @@ function sepCarregarProducao(prodId) {
       '</div>';
     regrasOpcionais.forEach(function(r) {
       var marcado = opcOn.indexOf(r.id) !== -1;
-      var qtdOpc = calcQtdItem(r, conv, bartenders, equipeTotal, cargoCounts);
+      var qtdOpc = _sepArredondaCaixa(r.item, calcQtdItem(r, conv, bartenders, equipeTotal, cargoCounts, { semArredondarEmbalagem: true }));
       var salvoOpc = qtdSalva(r.cat, r.item);
       if (marcado && salvoOpc != null) qtdOpc = salvoOpc;
       html += '<div style="display:grid;grid-template-columns:1fr 100px;gap:8px;align-items:center;padding:5px 14px;border-bottom:1px solid var(--border)">' +

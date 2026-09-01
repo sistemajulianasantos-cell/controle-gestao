@@ -289,7 +289,8 @@ function rFormInsumo(id) {
             }).join('') +
           '</select></div>' +
         '<div><label class="lbl">Qtd por embalagem (caixa/fardo)</label>' +
-          '<input class="inp" id="cad-embalagem" type="number" min="1" value="' + (i && i.tamanhoEmbalagem ? i.tamanhoEmbalagem : 1) + '"></div>' +
+          '<input class="inp" id="cad-embalagem" type="number" min="1" value="' + (i && i.tamanhoEmbalagem ? i.tamanhoEmbalagem : 1) + '">' +
+          '<div style="font-size:10px;color:var(--text3);margin-top:2px">Unidades por caixa (ex: água 12). Com a unidade de compra em CX/FARDO/PCT e este número &gt; 1, a Folha de Separação arredonda a quantidade pro múltiplo mais próximo, pra não sair fração de caixa do estoque.</div></div>' +
       '</div>' +
 
       '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">Foto</div>' +
@@ -316,9 +317,6 @@ function rFormInsumo(id) {
         '<div><label class="lbl">Quantidade mínima em estoque</label>' +
           '<input class="inp" id="cad-estoque-minimo" type="number" min="0" value="' + (i && i.estoqueMinimo ? i.estoqueMinimo : 0) + '" placeholder="0">' +
           '<div style="font-size:10px;color:var(--text3);margin-top:2px">Nunca deixar o estoque cair abaixo disso. 0 = sem mínimo.</div></div>' +
-        '<div><label class="lbl">Unidades por caixa (saída fechada)</label>' +
-          '<input class="inp" id="cad-multiplo-sep" type="number" min="0" step="1" value="' + (i && i.multiploSeparacao ? i.multiploSeparacao : '') + '" placeholder="ex: 12">' +
-          '<div style="font-size:10px;color:var(--text3);margin-top:2px">Quantas unidades vêm numa caixa/fardo (água = 12, cerveja = 12…). Na <strong>Folha de Separação</strong> a quantidade arredonda pro múltiplo mais próximo (12, 24, 36…), pra não sair fração de caixa do estoque. Vazio ou 0 = sai avulso.</div></div>' +
       '</div>' +
 
       '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">Custo e Preço</div>' +
@@ -429,7 +427,6 @@ function salvarInsumo() {
     categoria: categoriaSel,
     unidadeCompra: document.getElementById('cad-unidade')?.value || 'UN',
     tamanhoEmbalagem: parseInt(document.getElementById('cad-embalagem')?.value) || 1,
-    multiploSeparacao: parseInt(document.getElementById('cad-multiplo-sep')?.value) || 0,
     classificacaoProducao: classProdEl ? classProdEl.value : 'materia_prima',
     estoqueMinimo: parseFloat(document.getElementById('cad-estoque-minimo')?.value) || 0,
     custoReposicao: existente ? existente.custoReposicao : 0,

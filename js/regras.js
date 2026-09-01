@@ -362,7 +362,11 @@ function kitBaseInsumosPendentes() {
 // serem fracionáveis (compra-se exatamente a quantidade calculada).
 var UNIDADES_EMBALAGEM_FECHADA = ['CX', 'FARDO', 'PCT'];
 
-function calcQtdItem(regra, conv, bartenders, equipeTotal, cargoCounts) {
+// opts.semArredondarEmbalagem = true: pula o fecha-caixa por unidade de
+// compra (a Folha de Separação faz o próprio arredondamento, pro múltiplo
+// MAIS PRÓXIMO, em _sepArredondarPorCaixa).
+function calcQtdItem(regra, conv, bartenders, equipeTotal, cargoCounts, opts) {
+  opts = opts || {};
   var ef = _regraBaseEfetiva(regra);
   var v = ef.valor || 1;
   var ref = ef.ref || 1;
@@ -389,10 +393,12 @@ function calcQtdItem(regra, conv, bartenders, equipeTotal, cargoCounts) {
   // Casa com o Cadastro de Insumos pelo nome (mesmo casamento já usado no
   // Orçamento/Ref.Consumo) — se a unidade de compra for embalagem fechada,
   // fecha a quantidade no múltiplo do tamanho da embalagem.
-  var insumo = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(regra.item) : null;
-  if (insumo && UNIDADES_EMBALAGEM_FECHADA.indexOf(insumo.unidadeCompra) !== -1) {
-    var emb = parseFloat(insumo.tamanhoEmbalagem) || 1;
-    if (emb > 1) qtd = Math.ceil(qtd / emb) * emb;
+  if (!opts.semArredondarEmbalagem) {
+    var insumo = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(regra.item) : null;
+    if (insumo && UNIDADES_EMBALAGEM_FECHADA.indexOf(insumo.unidadeCompra) !== -1) {
+      var emb = parseFloat(insumo.tamanhoEmbalagem) || 1;
+      if (emb > 1) qtd = Math.ceil(qtd / emb) * emb;
+    }
   }
   return qtd;
 }
