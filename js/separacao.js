@@ -295,13 +295,33 @@ function sepCarregarProducao(prodId) {
   var cargoCounts = equipe.length ? _sepCargoCounts(equipe) : null;
 
   // Se já existe uma folha gerada pra este evento, editar reabre essa mesma
-  // tela (não uma tela separada só de leitura) — os valores salvos por ela
-  // (quantidades ajustadas manualmente) têm prioridade sobre o cálculo
-  // automático, via qtdSalva() abaixo.
+  // tela (não uma tela separada só de leitura). A FOLHA GERADA É A FONTE DA
+  // VERDADE: toda quantidade já salva tem prioridade sobre o cálculo — mudar
+  // Cálculos, Cadastro de Insumos ou tamanho de embalagem DEPOIS não altera
+  // o que já foi salvo. Só item que nunca esteve na folha entra calculado.
   var sepExistente = (D.separacoes||[]).find(function(s){return s.producaoId===prodId;});
+
+  // Índice das quantidades salvas por nome de item normalizado — usado como
+  // fallback quando a categoria do insumo mudou no Cadastro depois de a
+  // folha ter sido gerada (aí o par cat+item não bate mais, mas o nome sim).
+  var _sepSalvoPorNome = {};
+  if (sepExistente && sepExistente.itens) {
+    Object.keys(sepExistente.itens).forEach(function(c) {
+      if (c === 'EQUIPE') return;
+      Object.keys(sepExistente.itens[c]).forEach(function(n) {
+        var v = sepExistente.itens[c][n];
+        if (v != null) _sepSalvoPorNome[_sepNormNome(n)] = v;
+      });
+    });
+  }
   function qtdSalva(cat, item) {
-    if (sepExistente && sepExistente.itens && sepExistente.itens[cat] && sepExistente.itens[cat][item] != null) {
+    if (!sepExistente) return null;
+    if (sepExistente.itens && sepExistente.itens[cat] && sepExistente.itens[cat][item] != null) {
       return sepExistente.itens[cat][item];
+    }
+    if (cat !== 'EQUIPE') {
+      var byName = _sepSalvoPorNome[_sepNormNome(item)];
+      if (byName != null) return byName;
     }
     return null;
   }
@@ -451,8 +471,10 @@ function sepCarregarProducao(prodId) {
   if (typeof aplicarAssociacoesSeparacao === 'function') aplicarAssociacoesSeparacao(todosItens);
 
   // Itens que saem em caixa fechada — arredonda pro múltiplo mais próximo
-  // (Cadastro de Insumos → "Qtd por embalagem"). Só na folha.
-  _sepArredondarPorCaixa(todosItens);
+  // (Cadastro de Insumos → "Qtd por embalagem"). Só na folha NOVA: numa
+  // folha já gerada, mudar o tamanho da embalagem no Cadastro depois não
+  // pode alterar (nem re-arredondar) a quantidade que já foi salva.
+  if (!sepExistente) _sepArredondarPorCaixa(todosItens);
 
   // Troca de bebida/destilado por evento — aplicada por último: a linha já
   // tem a quantidade calculada (pela regra do item ORIGINAL), aqui só muda
@@ -469,6 +491,12 @@ function sepCarregarProducao(prodId) {
     '<span style="color:var(--text3)">' + conv + ' convidados · ' + (p.local||'—') + '</span><br>' +
     '<span style="color:var(--text3)">Equipe: ' + equipeHtml + '</span>' +
   '</div>';
+
+  if (sepExistente) {
+    html += '<div style="background:var(--bg3);border:1px solid var(--border2);border-left:3px solid var(--blue-dim);border-radius:var(--radius);padding:8px 12px;margin-bottom:14px;font-size:11px;color:var(--text3)">' +
+      'Folha já gerada. As quantidades são as que ficaram salvas — mudança posterior em Cálculos, Cadastro de Insumos ou embalagem não altera elas. Ajuste à mão o que precisar e clique em <strong>Gerar Folha</strong> pra salvar.' +
+    '</div>';
+  }
 
   html += '<div style="display:grid;gap:16px">';
 
