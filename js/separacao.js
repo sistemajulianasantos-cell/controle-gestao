@@ -80,15 +80,20 @@ function catAtualFichaItem(item) {
   return (typeof categoriaAtualDoInsumo === 'function') ? categoriaAtualDoInsumo(item.nome, item.cat) : item.cat;
 }
 
-// Casa dois nomes de item: iguais, o mesmo insumo no Cadastro (apelido / nome
-// renomeado), ou um nome contido no outro como pedaço inteiro (ex: a ficha
-// tem "ESPUMANTE LE BLANC" e o insumo hoje é "ESPUMANTE LE BLANC - 660ML").
-// Usado pra cruzar regra de Cálculo × item de ficha sem depender de a
-// categoria — nem o texto exato — baterem.
+// Normaliza nome de item pra comparação: sem acento, sem caixa, espaço único.
+function _sepNormNome(s) {
+  return (s || '').normalize('NFD').replace(/\p{Mn}/gu, '').trim().toUpperCase().replace(/\s+/g, ' ');
+}
+
+// Casa dois nomes de item: iguais (ignorando acento/caixa), o mesmo insumo no
+// Cadastro (apelido / nome renomeado), ou um nome contido no outro como
+// pedaço inteiro (ex: a ficha tem "ESPUMANTE LE BLANC" e o insumo hoje é
+// "ESPUMANTE LE BLANC - 660ML"). Usado pra cruzar regra de Cálculo × item de
+// ficha sem depender de a categoria — nem o texto exato — baterem.
 function _sepMesmoItem(a, b) {
-  var A = (a || '').trim().toUpperCase(), B = (b || '').trim().toUpperCase();
+  var A = _sepNormNome(a), B = _sepNormNome(b);
   if (!A || !B) return false;
-  if (A === B) return true;
+  if (A === B) return true;   // ignora acento: "LIMÃO DESIDRATADO" == "LIMAO DESIDRATADO"
 
   var ia = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(a) : null;
   var ib = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(b) : null;
@@ -465,7 +470,16 @@ function sepCarregarProducao(prodId) {
         '<span style="font-size:12px;font-weight:600;color:var(--green)">' + coq.nome + '</span>' +
       '</div>';
 
-      var itensCoquetel = coq.ficha.itens || [];
+      // Dedupe defensivo: ficha com o mesmo item gravado 2x (grafia/acento
+      // ou categoria diferente — ex: "LIMÃO DESIDRATADO" e "LIMAO
+      // DESIDRATADO") aparecia duas vezes na folha.
+      var _vistosCoq = {};
+      var itensCoquetel = (coq.ficha.itens || []).filter(function(item) {
+        var kk = _sepNormNome(item.nome);
+        if (!kk || _vistosCoq[kk]) return false;
+        _vistosCoq[kk] = 1;
+        return true;
+      });
       if (itensCoquetel.length) {
         html += '<div style="padding:6px 0">';
         itensCoquetel.forEach(function(item) {

@@ -705,9 +705,12 @@ function rFormFicha(fichaExistente) {
   // Insumos (insumo excluído/renomeado); quem só mudou de categoria já
   // aparece marcado corretamente na categoria nova, acima.
   var itensFicha = getItensFicha();
+  var _normNm = function(s){ return (s || '').normalize('NFD').replace(/\p{Mn}/gu, '').trim().toUpperCase().replace(/\s+/g, ' '); };
   var todosNomesAtuais = new Set();
-  Object.values(itensFicha).forEach(function(lista){ lista.forEach(function(nome){ todosNomesAtuais.add(nome); }); });
-  var itensExtras = fichaExistente ? (fichaExistente.itens||[]).filter(function(i){ return !todosNomesAtuais.has(i.nome); }) : [];
+  Object.values(itensFicha).forEach(function(lista){ lista.forEach(function(nome){ todosNomesAtuais.add(_normNm(nome)); }); });
+  // "Extra" só quem não tem correspondente na lista atual nem por grafia
+  // diferente (acento/caixa) — senão o mesmo item aparecia 2x no form.
+  var itensExtras = fichaExistente ? (fichaExistente.itens||[]).filter(function(i){ return !todosNomesAtuais.has(_normNm(i.nome)); }) : [];
 
   var html = '<div class="sec"><div class="sec-head">' +
     '<span class="sec-title">' + (fichaExistente ? '✏️ Editar Ficha' : '+ Nova Ficha de Coquetel') + '</span>' +
@@ -985,12 +988,17 @@ function salvarFicha(idExistente) {
   var itens = [];
   var itensVistos = new Set();
   var CATS_FORA = (typeof CATS_FORA_FICHA_TECNICA !== 'undefined') ? CATS_FORA_FICHA_TECNICA : ['MATERIAL','DESCARTÁVEIS','KIT BARTENDER','EQUIPE','COPOS E TAÇAS'];
+  function _normNomeItem(s) {
+    return (s || '').normalize('NFD').replace(/\p{Mn}/gu, '').trim().toUpperCase().replace(/\s+/g, ' ');
+  }
   function addItem(cat, nomeItem) {
-    var key = cat + '|' + nomeItem;
-    if (itensVistos.has(key)) return; // evita item duplicado na mesma ficha
-    itensVistos.add(key);
+    // Dedupe pelo nome normalizado (sem acento/caixa) — o mesmo ingrediente
+    // não pode entrar 2x na ficha só por diferença de grafia ou categoria.
+    var kNorm = _normNomeItem(nomeItem);
+    if (!kNorm || itensVistos.has(kNorm)) return;
+    itensVistos.add(kNorm);
     var it = { cat: cat, nome: nomeItem };
-    var m = medidas[key];
+    var m = medidas[cat + '|' + nomeItem];
     if (m) {
       if (m.qtd != null && m.qtd !== '' && !isNaN(parseFloat(m.qtd))) it.qtd = parseFloat(m.qtd);
       if (m.un && m.un !== '—') it.un = m.un;
