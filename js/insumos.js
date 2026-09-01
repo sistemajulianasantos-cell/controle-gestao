@@ -316,9 +316,9 @@ function rFormInsumo(id) {
         '<div><label class="lbl">Quantidade mínima em estoque</label>' +
           '<input class="inp" id="cad-estoque-minimo" type="number" min="0" value="' + (i && i.estoqueMinimo ? i.estoqueMinimo : 0) + '" placeholder="0">' +
           '<div style="font-size:10px;color:var(--text3);margin-top:2px">Nunca deixar o estoque cair abaixo disso. 0 = sem mínimo.</div></div>' +
-        '<div><label class="lbl">Sai do estoque em múltiplos de</label>' +
+        '<div><label class="lbl">Unidades por caixa (saída fechada)</label>' +
           '<input class="inp" id="cad-multiplo-sep" type="number" min="0" step="1" value="' + (i && i.multiploSeparacao ? i.multiploSeparacao : '') + '" placeholder="ex: 12">' +
-          '<div style="font-size:10px;color:var(--text3);margin-top:2px">Item que sai em caixa fechada (água, copo, cerveja). A Folha de Separação arredonda a quantidade pro múltiplo mais próximo desse número. Vazio ou 0 = sai avulso.</div></div>' +
+          '<div style="font-size:10px;color:var(--text3);margin-top:2px">Quantas unidades vêm numa caixa/fardo (água = 12, cerveja = 12…). Na <strong>Folha de Separação</strong> a quantidade arredonda pro múltiplo mais próximo (12, 24, 36…), pra não sair fração de caixa do estoque. Vazio ou 0 = sai avulso.</div></div>' +
       '</div>' +
 
       '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">Custo e Preço</div>' +
