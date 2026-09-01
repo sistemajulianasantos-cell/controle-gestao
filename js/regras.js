@@ -1200,20 +1200,17 @@ function rRegrasKitBase(containerId, contexto) {
 
   // Adicionar item — sempre escolhido da Biblioteca de Itens / Cadastro de
   // Insumos, nunca digitado do zero (nome digitado diferente = regra que não
-  // casa com nada e some silenciosamente).
-  var biblioteca = getBiblioteca();
+  // casa com nada e some silenciosamente). Só o item — a categoria vem
+  // sozinha do Cadastro de Insumos, não é escolhida aqui (escolher categoria
+  // à parte gerava regra numa categoria diferente da do insumo, "divergência").
   html += '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-top:8px">' +
     '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">+ Adicionar item</div>' +
     '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">' +
-      '<div style="flex:1;min-width:160px"><label class="lbl">Categoria</label>' +
-        '<select id="rk-cat-' + contexto + '" class="inp" onchange="_rkAtualizarItens()" style="width:100%">' +
-          Object.keys(biblioteca).sort().map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('') +
-        '</select></div>' +
-      '<div style="flex:2;min-width:200px"><label class="lbl">Item</label>' +
-        '<select id="rk-item-' + contexto + '" class="inp" style="width:100%"></select></div>' +
+      '<div style="flex:1;min-width:240px"><label class="lbl">Item</label>' +
+        '<select id="rk-item-' + contexto + '" class="inp" style="width:100%">' + _rkOpcoesItem() + '</select></div>' +
       '<button class="btn" onclick="regraKitAdd()" style="background:var(--blue);white-space:nowrap">+ Adicionar</button>' +
     '</div>' +
-    '<div style="font-size:10px;color:var(--text3);margin-top:6px">Item novo? <a href="#" onclick="go(\'cadastro\');return false" style="color:var(--blue)">Cadastre no Cadastro de Insumos</a> primeiro.</div>' +
+    '<div style="font-size:10px;color:var(--text3);margin-top:6px">A categoria vem do Cadastro de Insumos. Item novo? <a href="#" onclick="go(\'cadastro\');return false" style="color:var(--blue)">Cadastre no Cadastro de Insumos</a> primeiro.</div>' +
   '</div>';
 
   html += '<div style="margin:8px 0 20px;display:flex;gap:8px">' +
@@ -1223,8 +1220,25 @@ function rRegrasKitBase(containerId, contexto) {
 
   html += '</div>';
   cont.innerHTML = html;
-  _rkAtualizarItens();
   _rkAplicarBusca();
+}
+
+// <option> agrupada por categoria pro select de "+ Adicionar item" — só
+// itens que ainda não têm regra. Categoria não é escolhida à parte: sai da
+// própria Biblioteca de Itens (Cadastro de Insumos).
+function _rkOpcoesItem() {
+  var biblioteca = getBiblioteca();
+  var jaTem = {};
+  getRegrasItens().forEach(function(r) { jaTem[(r.item || '').toUpperCase()] = true; });
+  var html = '';
+  Object.keys(biblioteca).sort().forEach(function(cat) {
+    var disp = (biblioteca[cat] || []).filter(function(item) { return !jaTem[item.toUpperCase()]; });
+    if (!disp.length) return;
+    html += '<optgroup label="' + cat.replace(/"/g, '&quot;') + '">' +
+      disp.map(function(item) { return '<option value="' + item.replace(/"/g, '&quot;') + '">' + item + '</option>'; }).join('') +
+    '</optgroup>';
+  });
+  return html || '<option value="">(todo item já tem regra)</option>';
 }
 
 // Filtro da barra de busca da tabela de Cálculo. Guarda o termo em
@@ -1264,20 +1278,6 @@ function _cargosDisponiveis() {
 function _rkRerender() {
   var c = window._rkCtx;
   if (c) rRegrasKitBase(c.containerId, c.contexto);
-}
-
-function _rkAtualizarItens() {
-  var ctx = (window._rkCtx && window._rkCtx.contexto) || 'proporcoes';
-  var cat = document.getElementById('rk-cat-' + ctx)?.value;
-  var sel = document.getElementById('rk-item-' + ctx);
-  if (!cat || !sel) return;
-  var biblioteca = getBiblioteca();
-  var jaTem = {};
-  getRegrasItens().forEach(function(r) { jaTem[r.cat + '|' + r.item] = true; });
-  var disp = (biblioteca[cat] || []).filter(function(item) { return !jaTem[cat + '|' + item]; });
-  sel.innerHTML = disp.length
-    ? disp.map(function(item){ return '<option value="'+item+'">'+item+'</option>'; }).join('')
-    : '<option value="">(todos os itens desta categoria já têm regra)</option>';
 }
 
 function regraKitSet(id, campo, valor) {
@@ -1338,10 +1338,13 @@ function regraKitExcluir(id) {
 function regraKitAdd() {
   if (typeof migrarRegrasBaseCalculo === 'function') migrarRegrasBaseCalculo();
   var ctx = (window._rkCtx && window._rkCtx.contexto) || 'proporcoes';
-  var cat = document.getElementById('rk-cat-' + ctx)?.value;
   var item = document.getElementById('rk-item-' + ctx)?.value;
-  if (!cat || !item) { alert('Escolha uma categoria e um item.'); return; }
-  if (D.regrasItens.some(function(r){ return r.cat === cat && r.item === item; })) {
+  if (!item) { alert('Escolha um item.'); return; }
+  // Categoria não é escolhida aqui — vem sempre do Cadastro de Insumos, pra
+  // não nascer regra com categoria diferente da do próprio insumo.
+  var cat = (typeof categoriaAtualDoInsumo === 'function') ? categoriaAtualDoInsumo(item, '') : '';
+  if (!cat) { alert('Esse item não tem categoria no Cadastro de Insumos — cadastre a categoria dele lá primeiro.'); return; }
+  if (D.regrasItens.some(function(r){ return (r.item || '').toUpperCase() === item.toUpperCase(); })) {
     alert('Esse item já tem uma regra cadastrada.');
     return;
   }
@@ -1372,7 +1375,6 @@ function atualizarRegra(idx, campo, valor) {
   if (D.regrasItens[idx]) D.regrasItens[idx][campo] = valor;
 }
 function adicionarItemRegra() { regraKitAdd(); }
-function _rpAtualizarItensDisponiveis() { _rkAtualizarItens(); }
 
 // ── Preços do Orçamento (Local, Condicional, Insumos, Perda, Seguro, Vasilhames) ──
 // Estes valores alimentam os itens "auto" da Calculadora de Orçamento (orcCalc.js).

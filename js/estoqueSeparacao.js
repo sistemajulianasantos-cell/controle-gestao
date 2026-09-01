@@ -291,21 +291,23 @@ function _compSepBlocoCategoria(lista, caixa) {
     '<div style="font-size:11px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Categoria diferente — ' + lista.length + '</div>';
   if (!lista.length) return cab + '<div style="font-size:11px;color:var(--text3)">nenhum</div></div>';
 
+  // Só categorias JÁ cadastradas aqui entram no select — nunca cria
+  // categoria nova a partir do nome do Sistema Separação (foi o que gerou um
+  // monte de categoria duplicada/divergente da primeira versão desta tela).
   var cats = (typeof getCategorias === 'function') ? getCategorias().slice() : [];
   function opcoes(la, atual) {
     var laU = (la || '').trim().toUpperCase();
     var temLa = cats.some(function(c) { return c.toUpperCase() === laU; });
     var out = '';
-    if (laU && !temLa) out += '<option value="' + _fte(la) + '" selected>' + _fte(la) + '  (criar categoria)</option>';
     cats.forEach(function(c) {
-      var sel = temLa && c.toUpperCase() === laU;
+      var sel = temLa ? (c.toUpperCase() === laU) : (c === atual);
       out += '<option value="' + _fte(c) + '"' + (sel ? ' selected' : '') + '>' + _fte(c) + '</option>';
     });
     return out;
   }
 
   return cab +
-    '<div style="font-size:10px;color:var(--text3);margin-bottom:6px">A categoria vem pré-selecionada com a do Sistema Separação. Marque as linhas que quer mudar e clique em aplicar — muda só a categoria do insumo <strong>aqui</strong> (categoria nova é criada). Lembre: os dois sistemas agrupam diferente, nem toda diferença precisa ser igualada.</div>' +
+    '<div style="font-size:10px;color:var(--text3);margin-bottom:6px">O select só lista categorias já cadastradas aqui (nunca cria uma nova) — vem pré-selecionado com a que bate com o Sistema Separação, quando existe; senão fica na atual. Marque as linhas que quer mudar e clique em aplicar. Lembre: os dois sistemas agrupam diferente, nem toda diferença precisa ser igualada.</div>' +
     '<div style="display:grid;gap:4px">' +
     lista.map(function(x, idx) {
       return '<div style="' + caixa + ';display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
@@ -342,26 +344,18 @@ function _compSepPadronizarCategorias() {
   }).join('\n');
   if (!confirm('Mudar a categoria de ' + mudancas.length + ' insumo(s):\n\n' + resumo + '\n\nContinuar?')) return;
 
-  var n = 0, catsNovas = 0;
-  var atuais = (typeof getCategorias === 'function') ? getCategorias().map(function(c){ return c.toUpperCase(); }) : [];
+  // O select só oferece categoria já cadastrada (ver opcoes() acima) — não
+  // cria categoria nova aqui.
+  var n = 0;
   mudancas.forEach(function(m) {
     var ins = (D.insumos || []).find(function(i) { return i.id === m.id; });
     if (!ins || (ins.categoria || '').toUpperCase() === m.cat) return;
-    if (atuais.indexOf(m.cat) === -1) {
-      if (!D.categorias) D.categorias = [];
-      var ordemMax = D.categorias.reduce(function(mx, c) { return Math.max(mx, c.ordem || 0); }, 0);
-      D.categorias.push({ id: 'CAT' + Date.now() + Math.random().toString(36).slice(2, 6), nome: m.cat, ordem: ordemMax + 1 });
-      atuais.push(m.cat);
-      catsNovas++;
-    }
     ins.categoria = m.cat;
     n++;
   });
-  if (catsNovas) sv('categorias');
   if (n) sv('insumos');
-  alert(n + ' insumo(s) recategorizado(s)' + (catsNovas ? ' · ' + catsNovas + ' categoria(s) nova(s) criada(s)' : '') + '.');
+  alert(n + ' insumo(s) recategorizado(s).');
   if (typeof rCadastroInsumos === 'function') rCadastroInsumos();
-  if (typeof _atualizarFiltrosDeCategoria === 'function') _atualizarFiltrosDeCategoria();
   compararCadastrosSeparacao();
 }
 
