@@ -359,6 +359,8 @@ function salvarInsumo() {
 
   if (!D.insumos) D.insumos = [];
   var existente = _insumoEditandoId ? buscarInsumoPorId(_insumoEditandoId) : null;
+  var nomeAntigo = existente ? (existente.nome || '').trim().toUpperCase() : '';
+  var renomeou = !!existente && nomeAntigo && nomeAntigo !== nome;
 
   var classProdEl = document.querySelector('input[name="cad-classprod"]:checked');
 
@@ -381,6 +383,12 @@ function salvarInsumo() {
     ultimoFornecedor: existente ? existente.ultimoFornecedor : '',
   };
 
+  // Renomeou um insumo já existente: guarda o nome antigo como apelido (assim
+  // tudo que casa por nome — entradas, preços, contagens, festas passadas —
+  // continua achando) e propaga o nome novo pras telas que gravam o nome como
+  // texto puro (regras de cálculo do Kit Base, fichas de coquetel, associações).
+  if (renomeou && insumo.aliases.indexOf(nomeAntigo) === -1) insumo.aliases.push(nomeAntigo);
+
   if (existente) {
     var idx = D.insumos.findIndex(function(x) { return x.id === existente.id; });
     if (idx >= 0) D.insumos[idx] = insumo; else D.insumos.push(insumo);
@@ -389,8 +397,39 @@ function salvarInsumo() {
   }
 
   sv('insumos');
+  if (renomeou) _propagarRenomeInsumo(nomeAntigo, nome);
   alert('Insumo salvo!');
   setCadastroView('lista');
+}
+
+// Propaga a troca de nome de um insumo para as telas que guardam o nome como
+// string (não por ID — Fase 1). Só mexe em quem tem exatamente o nome antigo.
+function _propagarRenomeInsumo(de, para) {
+  de = (de || '').trim().toUpperCase();
+  para = (para || '').trim().toUpperCase();
+  if (!de || !para || de === para) return;
+
+  var mudouRegras = false;
+  (D.regrasItens || []).forEach(function(r) {
+    if ((r.item || '').toUpperCase() === de) { r.item = para; mudouRegras = true; }
+    if ((r.principal || '').toUpperCase() === de) { r.principal = para; mudouRegras = true; }
+  });
+  if (mudouRegras) sv('regrasItens');
+
+  var mudouFichas = false;
+  (D.fichas || []).forEach(function(f) {
+    (f.itens || []).forEach(function(it) {
+      if ((it.nome || '').toUpperCase() === de) { it.nome = para; mudouFichas = true; }
+    });
+  });
+  if (mudouFichas) sv('fichas');
+
+  var mudouAssoc = false;
+  (D.associacoes || []).forEach(function(a) {
+    if ((a.acessorio || '').toUpperCase() === de) { a.acessorio = para; mudouAssoc = true; }
+    if ((a.principal || '').toUpperCase() === de) { a.principal = para; mudouAssoc = true; }
+  });
+  if (mudouAssoc) sv('associacoes');
 }
 
 function editarInsumo(id) {

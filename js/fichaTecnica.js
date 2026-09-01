@@ -37,7 +37,7 @@ function rCoposBiblioteca() {
   var lista = (D.copos || []).slice().sort(function(a, b) { return (a.nome || '').localeCompare(b.nome || ''); });
 
   var html = '<div style="font-size:11px;color:var(--text3);margin-bottom:12px">' +
-    'Cadastre cada copo/taça uma vez com a foto. Nas Fichas de Coquetéis você escolhe o copo desta lista, e na Folha de Separação dá pra trocar o copo só de um evento.' +
+    'Cadastre cada copo/taça uma vez. Clique no quadrado da foto (ou no botão <strong>📷 Foto</strong>) de cada copo pra enviar a imagem que sai na Ficha Técnica. Nas Fichas de Coquetéis você escolhe o copo desta lista; na Folha de Separação dá pra trocar o copo só de um evento.' +
   '</div>';
 
   html += '<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">' +
@@ -46,14 +46,19 @@ function rCoposBiblioteca() {
   '</div>';
 
   html += lista.length ? ('<div style="display:grid;gap:8px">' + lista.map(function(c) {
+    var nomeEsc = (c.nome || '').replace(/"/g, '&quot;');
     return '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;display:flex;align-items:center;gap:12px">' +
-      '<img id="copo-thumb-' + c.id + '" src="" alt="" style="width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--border2);background:var(--bg2)">' +
-      '<input class="inp" type="text" value="' + (c.nome || '').replace(/"/g, '&quot;') + '" onchange="renomearCopo(\'' + c.id + '\',this.value)" style="flex:1;font-size:12px">' +
-      '<label class="btn-sm" style="background:var(--bg2);cursor:pointer">📷 Foto' +
+      '<label style="position:relative;flex:0 0 auto;cursor:pointer" title="Clique pra enviar ou trocar a foto deste copo">' +
+        '<img id="copo-thumb-' + c.id + '" src="" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--border2);background:var(--bg2);display:block">' +
+        '<span id="copo-thumb-empty-' + c.id + '" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--text3);text-align:center;line-height:1.15;pointer-events:none">sem<br>foto</span>' +
+        '<input type="file" accept="image/*" onchange="copoSelecionarFoto(this,\'' + c.id + '\')" style="display:none">' +
+      '</label>' +
+      '<input class="inp" type="text" value="' + nomeEsc + '" onchange="renomearCopo(\'' + c.id + '\',this.value)" style="flex:1;font-size:12px">' +
+      '<label class="btn-sm" style="background:var(--bg2);cursor:pointer;white-space:nowrap">📷 Foto' +
         '<input type="file" accept="image/*" onchange="copoSelecionarFoto(this,\'' + c.id + '\')" style="display:none"></label>' +
       '<button class="btn-sm btn-red" onclick="excluirCopo(\'' + c.id + '\')">×</button>' +
     '</div>';
-  }).join('') + '</div>') : '<div style="font-size:12px;color:var(--text3)">Nenhum copo cadastrado ainda.</div>';
+  }).join('') + '</div>') : '<div style="font-size:12px;color:var(--text3)">Nenhum copo cadastrado ainda — adicione o primeiro no campo acima.</div>';
 
   cont.innerHTML = html;
 
@@ -62,7 +67,9 @@ function rCoposBiblioteca() {
     if (typeof window.buscarCopoFoto !== 'function') return;
     window.buscarCopoFoto(c.id).then(function(b64) {
       var img = document.getElementById('copo-thumb-' + c.id);
+      var vazio = document.getElementById('copo-thumb-empty-' + c.id);
       if (img && b64) img.src = b64;
+      if (vazio) vazio.style.display = b64 ? 'none' : 'flex';
     });
   });
 }
@@ -118,6 +125,8 @@ function copoSelecionarFoto(inputEl, copoId) {
         window.salvarCopoFoto(copoId, b64).then(function() {
           var t = document.getElementById('copo-thumb-' + copoId);
           if (t) t.src = b64;
+          var vazio = document.getElementById('copo-thumb-empty-' + copoId);
+          if (vazio) vazio.style.display = 'none';
         });
       }
     };
@@ -129,20 +138,22 @@ function copoSelecionarFoto(inputEl, copoId) {
 
 // ── Geração da Ficha Técnica ──────────────────────────────────────────────
 
-// Linhas de ingrediente: "50ML de APEROL" (sem medida = só o nome).
+// Linhas de ingrediente: { med: "50 ML", nome: "APEROL" } (sem medida = med '').
 function _ftLinhasIngredientes(ficha) {
   return (ficha.itens || []).map(function(i) {
     var med = '';
     if (i.qtd != null && i.qtd !== '' && !isNaN(parseFloat(i.qtd))) {
       var un = (i.un && i.un !== '—') ? i.un : '';
-      med = parseFloat(i.qtd) + (un ? un : '') + ' de ';
+      med = parseFloat(i.qtd) + (un ? ' ' + un : '');
     }
-    return med + i.nome;
+    return { med: med, nome: i.nome };
   });
 }
 
 function _ftCardHtml(ficha, copoNome, fotoB64) {
-  var ingr = _ftLinhasIngredientes(ficha).map(function(l) { return '<div>' + _ftEsc(l) + '</div>'; }).join('');
+  var ingr = _ftLinhasIngredientes(ficha).map(function(l) {
+    return '<div>' + (l.med ? '<strong>' + _ftEsc(l.med) + '</strong> — ' : '') + _ftEsc(l.nome) + '</div>';
+  }).join('');
   var fotoHtml = fotoB64
     ? '<img src="' + fotoB64 + '" style="width:120px;height:150px;object-fit:contain">'
     : '<div style="width:120px;height:150px;border:1px dashed #ccc;display:flex;align-items:center;justify-content:center;color:#bbb;font-size:9px">sem foto</div>';

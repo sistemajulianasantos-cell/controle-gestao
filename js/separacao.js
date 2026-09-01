@@ -197,6 +197,15 @@ function sepCarregarProducao(prodId) {
   // Calcular todos os itens
   var todosItens = {}; // cat -> [item]
   regras.forEach(function(r) {
+    // Itens opcionais não entram sozinhos — só quando ela marca, na seção
+    // "Opcionais" abaixo, que o cliente incluiu neste evento.
+    if (r.opcional) return;
+    // "Segue outro item": a linha é criada só por aplicarAssociacoesSeparacao,
+    // e só quando o item principal está de fato no evento. Sem esse return, o
+    // acessório caía direto no Kit Base com a quantidade mínima, mesmo sem o
+    // principal (ex: bico da angostura aparecendo sem nenhum coquetel usar
+    // angostura).
+    if (r.base === 'associado') return;
     var itensDoCardapio = itensCardapio[r.cat] && itensCardapio[r.cat][r.item];
     var coquetelDoItem = itensDoCardapio ? itensCardapio[r.cat][r.item].coqueteis : [];
     // "Só se cardápio" precisa valer de verdade: antes, um item com mínimo >
@@ -485,6 +494,40 @@ function sepCarregarProducao(prodId) {
 
   html += '</div></div>'; // fim kit base
 
+  // ══════════════════════════════════════════════════════
+  // SEÇÃO 4 — OPCIONAIS (só entram se o cliente pediu)
+  // ══════════════════════════════════════════════════════
+  var regrasOpcionais = regras.filter(function(r){ return r.opcional; });
+  if (regrasOpcionais.length) {
+    if (!window._sepOpcionaisMap) window._sepOpcionaisMap = {};
+    if (!window._sepOpcionaisMap[prodId]) {
+      window._sepOpcionaisMap[prodId] = (sepExistente && sepExistente.opcionais) ? sepExistente.opcionais.slice() : [];
+    }
+    var opcOn = window._sepOpcionaisMap[prodId];
+    html += '<div style="background:var(--bg2);border:2px dashed var(--border2);border-radius:var(--radius-lg);overflow:hidden">' +
+      '<div style="padding:10px 14px;background:var(--bg3);border-bottom:1px solid var(--border2)">' +
+        '<span style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.8px">➕ Opcionais</span>' +
+        '<span style="font-size:11px;color:var(--text3);margin-left:8px">Marque o que o cliente incluiu neste evento — só o que estiver marcado entra na folha</span>' +
+      '</div>';
+    regrasOpcionais.forEach(function(r) {
+      var marcado = opcOn.indexOf(r.id) !== -1;
+      var qtdOpc = calcQtdItem(r, conv, bartenders, equipeTotal, cargoCounts);
+      var salvoOpc = qtdSalva(r.cat, r.item);
+      if (marcado && salvoOpc != null) qtdOpc = salvoOpc;
+      html += '<div style="display:grid;grid-template-columns:1fr 100px;gap:8px;align-items:center;padding:5px 14px;border-bottom:1px solid var(--border)">' +
+        '<label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);cursor:pointer">' +
+          '<input type="checkbox" ' + (marcado?'checked':'') + ' onchange="sepToggleOpcional(\'' + prodId + '\',\'' + r.id + '\',this.checked)"> ' +
+          r.item + ' <span style="font-size:10px;color:var(--text3)">' + r.cat + '</span>' +
+        '</label>' +
+        (marcado
+          ? '<input type="number" value="' + qtdOpc + '" min="0" data-item="' + r.item.replace(/"/g,'') + '" data-cat="' + r.cat.replace(/"/g,'') + '" ' +
+            'style="font-size:12px;font-weight:600;padding:4px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:center;font-family:var(--mono)">'
+          : '<span style="font-size:11px;color:var(--text3);text-align:center">—</span>') +
+      '</div>';
+    });
+    html += '</div>';
+  }
+
   // Coquetéis (campo oculto para impressão) — vem dos coquetéis marcados
   // acima, não mais do texto bruto do cardápio.
   var textoCoqueteis = coqueteisCardapio.map(function(c){ return c.nome; }).join('\n');
@@ -531,6 +574,16 @@ function sepToggleCoquetel(prodId, fichaId, marcado) {
   var lst = window._sepCoqueteisMap[prodId];
   var idx = lst.indexOf(fichaId);
   if (marcado && idx === -1) lst.push(fichaId);
+  if (!marcado && idx !== -1) lst.splice(idx, 1);
+  sepCarregarProducao(prodId);
+}
+
+function sepToggleOpcional(prodId, regraId, marcado) {
+  if (!window._sepOpcionaisMap) window._sepOpcionaisMap = {};
+  if (!window._sepOpcionaisMap[prodId]) window._sepOpcionaisMap[prodId] = [];
+  var lst = window._sepOpcionaisMap[prodId];
+  var idx = lst.indexOf(regraId);
+  if (marcado && idx === -1) lst.push(regraId);
   if (!marcado && idx !== -1) lst.splice(idx, 1);
   sepCarregarProducao(prodId);
 }
@@ -615,6 +668,7 @@ function salvarSeparacao() {
     fornecedores: fornecedoresFinais,
     coqueteis: document.getElementById('sep-coqueteis')?.value||'',
     coqueteisIds: (window._sepCoqueteisMap && window._sepCoqueteisMap[prodId]) ? window._sepCoqueteisMap[prodId].slice() : [],
+    opcionais: (window._sepOpcionaisMap && window._sepOpcionaisMap[prodId]) ? window._sepOpcionaisMap[prodId].slice() : [],
     coposOverride: coposOverride,
     criadoEm: new Date().toISOString()
   };

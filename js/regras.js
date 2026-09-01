@@ -264,6 +264,7 @@ function migrarRegrasBaseCalculo() {
       mudou = true;
     }
     if (r.autoOrcamento == null) { r.autoOrcamento = false; mudou = true; }
+    if (r.opcional == null) { r.opcional = false; mudou = true; }
   });
 
   // Dobra a antiga tela "Associações" (D.associacoes) dentro desta tabela —
@@ -624,16 +625,23 @@ function rFichas() {
     '<input class="inp" id="fichas-busca" type="text" placeholder="Buscar coquetel..." oninput="filtrarFichas(this.value)" style="width:100%;max-width:320px;margin-bottom:12px">';
   html += fichas.map(function(f) {
     var porCat = {};
+    var temMedida = false;
     (f.itens||[]).forEach(function(i) {
       var cat = categoriaAtualDoInsumo(i.nome, i.cat);
       if(!porCat[cat]) porCat[cat]=[];
-      porCat[cat].push(i.nome);
+      var temQtd = i.qtd != null && i.qtd !== '' && !isNaN(parseFloat(i.qtd));
+      if (temQtd) temMedida = true;
+      porCat[cat].push(temQtd
+        ? i.nome + ' <strong style="color:var(--text2)">' + parseFloat(i.qtd) + (i.un && i.un !== '—' ? ' ' + i.un : '') + '</strong>'
+        : i.nome);
     });
+    var faltaMedida = (f.itens||[]).length && !temMedida;
     var busca = (f.nome + ' ' + (f.variantes||'')).toLowerCase();
     return '<div class="ficha-card sec" data-busca="' + busca.replace(/"/g,'&quot;') + '" style="margin-bottom:10px">' +
       '<div class="sec-head" style="display:flex;align-items:center;gap:10px">' +
         '<span class="sec-title">🍹 ' + f.nome + '</span>' +
         (f.variantes ? '<span style="color:var(--text3);font-size:11px">' + f.variantes + '</span>' : '') +
+        (faltaMedida ? '<span style="color:var(--amber);font-size:10px" title="Nenhum ingrediente tem medida — edite a ficha e preencha as quantidades">sem medidas</span>' : '') +
         '<div style="margin-left:auto;display:flex;gap:6px">' +
           '<button class="btn-sm" style="background:#6C63FF" onclick="imprimirFichaTecnicaCoquetel(\'' + f.id + '\')">🖨️ Ficha Técnica</button>' +
           '<button class="btn-sm" style="background:var(--blue)" onclick="editarFicha(\'' + f.id + '\')">✏️ Editar</button>' +
@@ -754,8 +762,9 @@ function rFormFicha(fichaExistente) {
         '</div>' +
       '</div>'
     : '') +
-    '<div style="margin-top:18px">' +
-      '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Medidas dos ingredientes (pra ficha técnica)</div>' +
+    '<div style="margin-top:18px;background:var(--blue-bg);border:1px solid var(--blue-dim);border-radius:var(--radius);padding:12px 14px">' +
+      '<div style="font-size:12px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Quantidade de cada ingrediente</div>' +
+      '<div style="font-size:11px;color:var(--text3);margin-bottom:10px">É isto que sai na <strong>Ficha Técnica</strong> dos bartenders — ex.: <strong>50 ML de Aperol</strong>, <strong>120 ML de Espumante</strong>. Cada ingrediente marcado acima aparece aqui; deixe em branco o que não tem medida (copo, guarnição).</div>' +
       '<div id="fc-medidas"></div>' +
     '</div>' +
     '<div style="display:flex;gap:8px;margin-top:16px">' +
@@ -998,27 +1007,43 @@ function rRegrasKitBase(containerId, contexto) {
   var _bib = getBiblioteca();
   Object.keys(_bib).sort().forEach(function(c) { (_bib[c] || []).forEach(function(it) { _bibFlat.push(it); }); });
 
+  // Todos os nomes de insumo cadastrados — usados pra "revincular" uma regra
+  // cujo item foi renomeado no Cadastro de Insumos.
+  var _insumosParaRevincular = (typeof getInsumos === 'function' ? getInsumos() : [])
+    .map(function(i){ return i.nome; }).filter(Boolean)
+    .sort(function(a, b){ return a.localeCompare(b); });
+
   var html = '<div>' +
     '<div style="font-size:12px;color:var(--text3);margin-bottom:14px">Cada item é escolhido do Cadastro de Insumos e tem uma base de cálculo. As quantidades são geradas automaticamente na Folha de Separação.<br>' +
-    '<span style="color:var(--text3)">Fixo = sempre a mesma quantidade por evento · Por convidado / equipe / cargo = quantidade a cada X pessoas · Segue outro item = a quantidade vem de outro item (ex: bico de angostura segue angostura).</span></div>';
+    '<span style="color:var(--text3)">Fixo = sempre a mesma quantidade por evento · Por convidado / equipe / cargo = quantidade a cada X pessoas · Segue outro item = a quantidade vem de outro item (ex: bico de angostura segue angostura).</span></div>' +
+    '<input class="inp" id="rk-busca" type="text" placeholder="Buscar item..." value="' + (window._rkBusca || '').replace(/"/g, '&quot;') + '" oninput="_rkFiltrarBusca(this.value)" style="width:100%;max-width:320px;margin-bottom:14px">' +
+    '<div id="rk-busca-vazio" style="display:none;font-size:12px;color:var(--text3);margin-bottom:14px">Nenhum item encontrado.</div>';
 
   Object.keys(porCat).forEach(function(cat) {
     var itens = porCat[cat];
-    html += '<div style="margin-bottom:16px">' +
+    html += '<div class="rk-cat-block" style="margin-bottom:16px">' +
       '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;border-bottom:2px solid var(--border2);padding-bottom:4px;margin-bottom:8px">' + cat + '</div>' +
       '<div style="display:grid;gap:6px">';
 
     itens.forEach(function(r) {
       var ef = _regraBaseEfetiva(r);
       var insumoDaRegra = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(r.item) : null;
+      var semInsumo = !insumoDaRegra;              // nome não bate com nenhum insumo (renomeado/excluído)
       var pendente = !insumoDaRegra || !insumoDaRegra.categoria;
-      var cols = mostrarAuto ? 'minmax(120px,1fr) 118px 60px 108px 58px 66px 74px 40px' : 'minmax(120px,1fr) 118px 60px 108px 58px 66px 40px';
+      var cols = mostrarAuto ? 'minmax(120px,1fr) 118px 60px 108px 58px 66px 74px 66px 40px' : 'minmax(120px,1fr) 118px 60px 108px 58px 66px 66px 40px';
 
-      html += '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;font-size:11px">' +
+      html += '<div class="rk-row" data-rk-busca="' + (r.item + ' ' + cat).toLowerCase().replace(/"/g, '&quot;') + '" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;font-size:11px">' +
         '<div style="display:grid;grid-template-columns:' + cols + ';gap:8px;align-items:end">' +
 
         '<div><span style="color:var(--text);font-weight:500">' + r.item + '</span>' +
-          (pendente ? '<div style="font-size:9px;color:var(--amber);margin-top:2px">⚠️ falta categoria no Cadastro de Insumos</div>' : '') +
+          (semInsumo
+            ? '<div style="font-size:9px;color:var(--amber);margin-top:2px">⚠️ esse nome não existe mais no Cadastro de Insumos (renomeado?). Revincular:' +
+                '<select onchange="regraKitRevincular(\'' + r.id + '\',this.value)" style="display:block;margin-top:3px;width:100%;font-size:10px;padding:2px 4px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">' +
+                  '<option value="">— escolher insumo —</option>' +
+                  _insumosParaRevincular.map(function(n){ return '<option value="' + n.replace(/"/g,'&quot;') + '">' + n + '</option>'; }).join('') +
+                '</select>' +
+              '</div>'
+            : (pendente ? '<div style="font-size:9px;color:var(--amber);margin-top:2px">⚠️ falta categoria no Cadastro de Insumos</div>' : '')) +
         '</div>' +
 
         '<div><div style="font-size:9px;color:var(--text3);margin-bottom:2px">BASE</div>' +
@@ -1046,6 +1071,10 @@ function rRegrasKitBase(containerId, contexto) {
         (mostrarAuto ? '<div style="text-align:center" title="Gera automaticamente em todo orçamento, mesmo sem ficha de coquetel"><div style="font-size:9px;color:var(--text3);margin-bottom:2px">AUTO ORÇ.</div>' +
           '<input type="checkbox" ' + (r.autoOrcamento?'checked':'') + ' onchange="regraKitSet(\'' + r.id + '\',\'autoOrcamento\',this.checked)" style="cursor:pointer">' +
         '</div>' : '') +
+
+        '<div style="text-align:center" title="Não entra sozinho na folha — só quando você marcar na Folha de Separação que o cliente incluiu (ex: shots, gelo translúcido)"><div style="font-size:9px;color:var(--text3);margin-bottom:2px">OPCIONAL</div>' +
+          '<input type="checkbox" ' + (r.opcional?'checked':'') + ' onchange="regraKitSet(\'' + r.id + '\',\'opcional\',this.checked)" style="cursor:pointer">' +
+        '</div>' +
 
         '<div style="text-align:center"><button class="btn-sm btn-red" onclick="regraKitExcluir(\'' + r.id + '\')" style="padding:2px 6px">×</button></div>' +
 
@@ -1105,6 +1134,35 @@ function rRegrasKitBase(containerId, contexto) {
   html += '</div>';
   cont.innerHTML = html;
   _rkAtualizarItens();
+  _rkAplicarBusca();
+}
+
+// Filtro da barra de busca da tabela de Cálculo. Guarda o termo em
+// window._rkBusca pra sobreviver aos re-renders (toda mudança de base/cargo
+// redesenha a tabela inteira via _rkRerender).
+function _rkFiltrarBusca(v) {
+  window._rkBusca = v || '';
+  _rkAplicarBusca();
+}
+
+function _rkAplicarBusca() {
+  var raiz = (window._rkCtx && document.getElementById(window._rkCtx.containerId)) || document;
+  var termo = (window._rkBusca || '').trim().toLowerCase();
+  var achou = 0;
+  raiz.querySelectorAll('.rk-row').forEach(function(row) {
+    var ok = !termo || (row.dataset.rkBusca || '').indexOf(termo) !== -1;
+    row.style.display = ok ? '' : 'none';
+    if (ok) achou++;
+  });
+  // Esconde blocos de categoria que ficaram sem nenhuma linha visível
+  raiz.querySelectorAll('.rk-cat-block').forEach(function(bloco) {
+    var algum = Array.prototype.some.call(bloco.querySelectorAll('.rk-row'), function(r) {
+      return r.style.display !== 'none';
+    });
+    bloco.style.display = algum ? '' : 'none';
+  });
+  var vazio = raiz.querySelector('#rk-busca-vazio');
+  if (vazio) vazio.style.display = (termo && achou === 0) ? '' : 'none';
 }
 
 function _cargosDisponiveis() {
@@ -1136,7 +1194,7 @@ function regraKitSet(id, campo, valor) {
   if (typeof migrarRegrasBaseCalculo === 'function') migrarRegrasBaseCalculo();
   var r = _regraKitPorId(id);
   if (!r) return;
-  if (campo === 'soSeCardapio' || campo === 'autoOrcamento') {
+  if (campo === 'soSeCardapio' || campo === 'autoOrcamento' || campo === 'opcional') {
     r[campo] = !!valor;
   } else if (campo === 'principal') {
     r.principal = valor;
@@ -1154,6 +1212,19 @@ function regraKitSet(id, campo, valor) {
   // `tipo` (legado, lido pelo Orçamento) acompanha a base nova.
   r.tipo = ({ fixo: 'fixo', convidado: 'convidado', equipe: 'equipe', cargo: 'bartender', associado: 'fixo' })[r.base || 'fixo'];
   if (campo === 'base' || campo === 'principal') _rkRerender();
+}
+
+// Reaponta uma regra cujo item foi renomeado/excluído no Cadastro de Insumos
+// para um insumo existente, trazendo junto a categoria atual dele.
+function regraKitRevincular(id, novoNome) {
+  if (!novoNome) return;
+  var r = _regraKitPorId(id);
+  if (!r) return;
+  var insumo = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(novoNome) : null;
+  r.item = insumo ? insumo.nome : novoNome;
+  if (insumo && insumo.categoria) r.cat = insumo.categoria;
+  sv('regrasItens');
+  _rkRerender();
 }
 
 function regraKitToggleCargo(id, cargoKey, checked) {
@@ -1187,7 +1258,7 @@ function regraKitAdd() {
   D.regrasItens.push({
     id: _gerarId('RG'), item: item, cat: cat,
     base: 'fixo', tipo: 'fixo', valor: 1, ref: 1, cargos: [],
-    min: 1, soSeCardapio: false, autoOrcamento: false,
+    min: 1, soSeCardapio: false, autoOrcamento: false, opcional: false,
   });
   sv('regrasItens');
   _rkRerender();
