@@ -183,7 +183,7 @@ async function compararCadastrosSeparacao() {
     chavesCasadas[k] = true;
     var s = sep[k];
     if (s.nome && _normCompara(s.nome) !== _normCompara(i.nome)) {
-      difNome.push({ aqui: i.nome, la: s.nome });
+      difNome.push({ id: i.id, aqui: i.nome, la: s.nome });
     }
     if (s.grupo && i.categoria && _normCompara(s.grupo) !== _normCompara(i.categoria)) {
       difCat.push({ nome: i.nome, aqui: i.categoria, la: s.grupo });
@@ -229,9 +229,7 @@ function _compSepRenderHtml(d) {
       d.nInsumos + ' insumos aqui · ' + d.nSep + ' itens no Sistema Separação · ' + d.nCasados + ' casaram por nome</div>' +
     '<div style="font-size:10px;color:var(--text3);font-style:italic;margin-bottom:4px">Categoria: os dois sistemas agrupam de formas diferentes (aqui = tipo de produto; lá = setor/grupo de separação), então diferença aqui pode ser normal.</div>' +
 
-    bloco('Nome diferente (mesmo item)', 'var(--amber)', d.difNome, function(x) {
-      return '<div style="' + caixa + '"><strong>' + _fte(x.aqui) + '</strong><span style="color:var(--text3)"> (aqui)</span> &nbsp;≠&nbsp; <strong>' + _fte(x.la) + '</strong><span style="color:var(--text3)"> (Separação)</span></div>';
-    }) +
+    _compSepBlocoNome(d.difNome, caixa) +
     bloco('Categoria diferente', 'var(--amber)', d.difCat, function(x) {
       return '<div style="' + caixa + '"><strong>' + _fte(x.nome) + '</strong>: ' + _fte(x.aqui) + '<span style="color:var(--text3)"> (aqui)</span> &nbsp;≠&nbsp; ' + _fte(x.la) + '<span style="color:var(--text3)"> (Separação)</span></div>';
     }) +
@@ -252,6 +250,66 @@ function _compSepRenderHtml(d) {
 
 function _fte(s) {
   return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Bloco "Nome diferente" com seleção por linha — ela marca quais padronizar
+// e ajusta o nome final (pré-preenchido com o do Sistema Separação).
+function _compSepBlocoNome(lista, caixa) {
+  var cabecalho = '<div style="margin-top:12px">' +
+    '<div style="font-size:11px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Nome diferente (mesmo item) — ' + lista.length + '</div>';
+  if (!lista.length) return cabecalho + '<div style="font-size:11px;color:var(--text3)">nenhum</div></div>';
+
+  return cabecalho +
+    '<div style="font-size:10px;color:var(--text3);margin-bottom:6px">Marque as linhas que quer padronizar e ajuste o nome final (vem preenchido com o do Sistema Separação — apague o "CONSIGNADO"/"(RESERVA)" se não fizer parte do nome). "Padronizar" renomeia o insumo <strong>aqui</strong>: o nome antigo vira apelido e as fichas/regras acompanham. O Sistema Separação não é alterado.</div>' +
+    '<div style="display:grid;gap:4px">' +
+    lista.map(function(x, idx) {
+      var alvo = _fte(x.la).replace(/"/g, '&quot;');
+      return '<div style="' + caixa + ';display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+        '<input type="checkbox" class="comp-nome-chk" data-id="' + _fte(x.id) + '" data-idx="' + idx + '" style="cursor:pointer">' +
+        '<span style="color:var(--text3);text-decoration:line-through">' + _fte(x.aqui) + '</span>' +
+        '<span style="color:var(--text3)">→</span>' +
+        '<input class="inp comp-nome-alvo" data-idx="' + idx + '" type="text" value="' + alvo + '" style="flex:1;min-width:220px;font-size:11px;padding:3px 6px;text-transform:uppercase">' +
+      '</div>';
+    }).join('') +
+    '</div>' +
+    '<div style="margin-top:8px"><button class="btn-sm" style="background:var(--green)" onclick="_compSepPadronizarNomes()">Padronizar os marcados</button></div>' +
+  '</div>';
+}
+
+function _compSepPadronizarNomes() {
+  var cont = document.getElementById('cad-comparacao-sep');
+  if (!cont) return;
+  var mudancas = [];
+  cont.querySelectorAll('.comp-nome-chk:checked').forEach(function(chk) {
+    var alvo = cont.querySelector('.comp-nome-alvo[data-idx="' + chk.dataset.idx + '"]');
+    var nomeNovo = ((alvo && alvo.value) || '').trim().toUpperCase();
+    if (chk.dataset.id && nomeNovo) mudancas.push({ id: chk.dataset.id, nomeNovo: nomeNovo });
+  });
+  if (!mudancas.length) { alert('Marque pelo menos uma linha.'); return; }
+
+  var resumo = mudancas.map(function(m) {
+    var ins = (D.insumos || []).find(function(i) { return i.id === m.id; });
+    return '• ' + ((ins && ins.nome) || '?') + '  →  ' + m.nomeNovo;
+  }).join('\n');
+  if (!confirm('Renomear ' + mudancas.length + ' insumo(s):\n\n' + resumo +
+    '\n\nO nome antigo vira apelido. Fichas e regras acompanham. Continuar?')) return;
+
+  var n = 0;
+  mudancas.forEach(function(m) {
+    var ins = (D.insumos || []).find(function(i) { return i.id === m.id; });
+    if (!ins) return;
+    var antigo = (ins.nome || '').trim().toUpperCase();
+    if (!antigo || antigo === m.nomeNovo) return;
+    if (!ins.aliases) ins.aliases = [];
+    if (ins.aliases.indexOf(antigo) === -1) ins.aliases.push(antigo);
+    ins.nome = m.nomeNovo;
+    if (typeof _propagarRenomeInsumo === 'function') _propagarRenomeInsumo(antigo, m.nomeNovo);
+    n++;
+  });
+  if (n) sv('insumos');
+  alert(n + ' insumo(s) renomeado(s). O nome antigo ficou como apelido.');
+  if (typeof rCadastroInsumos === 'function') rCadastroInsumos();
+  compararCadastrosSeparacao();
 }
 
 function _compSepCopiar() {
