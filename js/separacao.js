@@ -130,13 +130,24 @@ function _sepEntradaCardapio(itensCardapio, nome) {
   return achou;
 }
 
-// Tamanho da caixa/fardo de um item, quando ele é comprado em embalagem
-// fechada (unidade CX/FARDO/PCT) e a "Qtd por embalagem" > 1. 0 = sai avulso.
-var _SEP_UNIDS_CAIXA = ['CX', 'FARDO', 'PCT'];
+// Acha o insumo de um item da folha por nome — tolerante a acento/caixa e
+// apelido (o nome na regra/ficha pode não bater exato com o do Cadastro).
+function _sepInsumoDoItem(nome) {
+  var ins = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(nome) : null;
+  if (ins) return ins;
+  var k = _sepNormNome(nome);
+  if (!k) return null;
+  return (D.insumos || []).find(function(i) {
+    if (_sepNormNome(i.nome) === k) return true;
+    return (i.aliases || []).some(function(a) { return _sepNormNome(a) === k; });
+  }) || null;
+}
+
+// Tamanho da caixa/fardo de um item — a "Qtd por embalagem (caixa/fardo)" do
+// Cadastro de Insumos. > 1 = sai em caixa fechada; 0/1 = sai avulso.
 function _sepTamCaixa(nome) {
-  var insumo = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(nome) : null;
-  if (!insumo || _SEP_UNIDS_CAIXA.indexOf((insumo.unidadeCompra || '').toUpperCase()) === -1) return 0;
-  var m = parseFloat(insumo.tamanhoEmbalagem) || 0;
+  var insumo = _sepInsumoDoItem(nome);
+  var m = insumo ? (parseFloat(insumo.tamanhoEmbalagem) || 0) : 0;
   return m > 1 ? m : 0;
 }
 
