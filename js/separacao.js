@@ -176,6 +176,40 @@ function _sepArredondarPorCaixa(todosItens) {
   });
 }
 
+// Troca a IDENTIDADE de uma linha já calculada (de → para), preservando
+// tudo que já foi calculado (qtd, coquetéis, badges). Se já existe uma linha
+// com o nome novo (outro coquetel deste evento já usa essa marca), soma nela
+// em vez de duplicar.
+function _sepRenomeiaLinha(todosItens, de, para) {
+  if (!todosItens || !de || !para || _sepNormNome(de) === _sepNormNome(para)) return;
+  var origem = _sepLinhaMontada(todosItens, de);
+  if (!origem) return;
+  var destino = _sepLinhaMontada(todosItens, para);
+  if (destino && destino !== origem) {
+    destino.qtd = (destino.qtd || 0) + (origem.qtd || 0);
+    (origem.coqueteis || []).forEach(function(c) { if (destino.coqueteis.indexOf(c) === -1) destino.coqueteis.push(c); });
+    if (origem.doCardapio) destino.doCardapio = true;
+    Object.keys(todosItens).forEach(function(c) {
+      todosItens[c] = (todosItens[c] || []).filter(function(x) { return x !== origem; });
+    });
+  } else {
+    origem.item = para;
+  }
+}
+
+// Aplica as trocas de bebida/destilado do evento (window._sepBebidasOverrideMap)
+// nas linhas já calculadas. Roda por último — a quantidade vem da regra do
+// item original, só o rótulo muda pro item escolhido no evento.
+function _sepAplicarBebidasOverride(todosItens, bebOv) {
+  if (!todosItens || !bebOv) return;
+  Object.keys(bebOv).forEach(function(k) {
+    var novoNome = bebOv[k];
+    if (!novoNome) return;
+    var origNorm = k.slice(k.indexOf('|') + 1);
+    _sepRenomeiaLinha(todosItens, origNorm, novoNome);
+  });
+}
+
 // Linha já montada em todosItens pra um nome, em qualquer categoria.
 function _sepLinhaMontada(todosItens, nome) {
   var achou = null;
@@ -291,8 +325,30 @@ function sepCarregarProducao(prodId) {
     .filter(Boolean)
     .map(function(ficha){ return { nome: ficha.nome, ficha: ficha }; });
 
+  // Bebidas/destilados da ficha trocados só pra este evento (cliente pediu
+  // outra marca) — mesmo padrão do override de copo, mas por par
+  // ficha+ingrediente (uma ficha pode ter mais de uma bebida alcoólica). A
+  // troca é aplicada DEPOIS de calcular tudo (_sepAplicarBebidasOverride,
+  // mais abaixo) — assim a quantidade calculada pro item original (regra de
+  // proporção etc.) é preservada, só a identidade/rótulo da linha muda.
+  // itensEfetivos (nome já trocado) serve só pra exibição por coquetel
+  // (SEÇÃO 1), pra mostrar/consultar a linha pelo nome que já foi trocado.
+  if (!window._sepBebidasOverrideMap) window._sepBebidasOverrideMap = {};
+  if (!window._sepBebidasOverrideMap[prodId]) {
+    window._sepBebidasOverrideMap[prodId] = Object.assign({}, (sepExistente && sepExistente.bebidasOverride) || {});
+  }
+  var _bebOv = window._sepBebidasOverrideMap[prodId];
+  coqueteisCardapio.forEach(function(coq) {
+    coq.itensEfetivos = (coq.ficha.itens || []).map(function(item) {
+      var novoNome = _bebOv[coq.ficha.id + '|' + _sepNormNome(item.nome)];
+      return novoNome ? Object.assign({}, item, { nome: novoNome }) : item;
+    });
+  });
+
   // Monta itensCardapio (cat -> item -> {count, coqueteis}) direto das
-  // fichas selecionadas, sem depender de casamento de texto.
+  // fichas selecionadas, sem depender de casamento de texto. Usa o nome
+  // ORIGINAL (não o trocado) — a troca de bebida entra só depois de tudo
+  // calculado, pra herdar a quantidade da regra do item original.
   var itensCardapio = {};
   coqueteisCardapio.forEach(function(coq) {
     var vistos = new Set();
@@ -392,8 +448,13 @@ function sepCarregarProducao(prodId) {
   if (typeof aplicarAssociacoesSeparacao === 'function') aplicarAssociacoesSeparacao(todosItens);
 
   // Itens que saem em caixa fechada — arredonda pro múltiplo mais próximo
-  // (Cadastro de Insumos → "Sai do estoque em múltiplos de"). Só na folha.
+  // (Cadastro de Insumos → "Qtd por embalagem"). Só na folha.
   _sepArredondarPorCaixa(todosItens);
+
+  // Troca de bebida/destilado por evento — aplicada por último: a linha já
+  // tem a quantidade calculada (pela regra do item ORIGINAL), aqui só muda
+  // a identidade/rótulo dela pro item escolhido no evento.
+  _sepAplicarBebidasOverride(todosItens, _bebOv);
 
   var equipeHtml = equipe.length
     ? equipe.map(function(e){return '<span style="margin-right:10px">'+e.qtd+' '+e.cargo+'</span>';}).join('')
@@ -463,6 +524,42 @@ function sepCarregarProducao(prodId) {
     '</div>';
   }
 
+  // ── Bebidas da Ficha Técnica (troca de destilado por evento) ───────────
+  // Mesmo padrão dos copos, mas por par ficha+ingrediente — uma ficha pode
+  // ter mais de uma bebida alcoólica (ex: Negroni: gin + campari + vermute).
+  var _linhasBebidas = [];
+  coqueteisCardapio.forEach(function(coq) {
+    (coq.ficha.itens || []).forEach(function(item) {
+      if (_sepNormNome(catAtualFichaItem(item)) !== _sepNormNome('BEBIDAS ALCOÓLICAS')) return;
+      _linhasBebidas.push({ coq: coq, item: item });
+    });
+  });
+  if (_linhasBebidas.length) {
+    var _alcoolicos = (D.insumos || [])
+      .filter(function(i) { return _sepNormNome(i.categoria) === _sepNormNome('BEBIDAS ALCOÓLICAS'); })
+      .map(function(i) { return i.nome; })
+      .sort(function(a, b) { return a.localeCompare(b, 'pt-BR'); });
+    html += '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden">' +
+      '<div style="padding:10px 14px;background:var(--bg3);border-bottom:1px solid var(--border)">' +
+        '<span style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.8px">Bebidas da Ficha Técnica</span>' +
+        '<span style="font-size:11px;color:var(--text3);margin-left:8px">Vem o destilado padrão de cada ficha — troque aqui se o cliente pediu outra marca. Vale só pra este evento.</span>' +
+      '</div>' +
+      '<div style="padding:8px 14px;display:grid;gap:6px">' +
+      _linhasBebidas.map(function(l) {
+        var k = l.coq.ficha.id + '|' + _sepNormNome(l.item.nome);
+        var atual = _bebOv[k] || '';
+        return '<div style="display:grid;grid-template-columns:1fr 220px;gap:8px;align-items:center">' +
+          '<span style="font-size:12px;color:var(--text)">' + l.coq.nome + ' <span style="font-size:10px;color:var(--text3)">(padrão: ' + l.item.nome + ')</span></span>' +
+          '<select data-beb-override="' + k.replace(/"/g, '&quot;') + '" onchange="sepSetBebidaOverride(\'' + prodId + '\',\'' + l.coq.ficha.id + '\',\'' + l.item.nome.replace(/'/g, "\\'") + '\',this.value)" style="font-size:11px;padding:4px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">' +
+            '<option value="">— destilado padrão da ficha —</option>' +
+            _alcoolicos.map(function(n) { var ne = n.replace(/"/g, '&quot;'); return '<option value="' + ne + '"' + (atual === n ? ' selected' : '') + '>' + n + '</option>'; }).join('') +
+          '</select>' +
+        '</div>';
+      }).join('') +
+      '</div>' +
+    '</div>';
+  }
+
   // ══════════════════════════════════════════════════════
   // SEÇÃO 1 — COQUETÉIS
   // ══════════════════════════════════════════════════════
@@ -485,7 +582,7 @@ function sepCarregarProducao(prodId) {
       // ou categoria diferente — ex: "LIMÃO DESIDRATADO" e "LIMAO
       // DESIDRATADO") aparecia duas vezes na folha.
       var _vistosCoq = {};
-      var itensCoquetel = (coq.ficha.itens || []).filter(function(item) {
+      var itensCoquetel = (coq.itensEfetivos || []).filter(function(item) {
         var kk = _sepNormNome(item.nome);
         if (!kk || _vistosCoq[kk]) return false;
         _vistosCoq[kk] = 1;
@@ -573,7 +670,10 @@ function sepCarregarProducao(prodId) {
     if (!todos || !todos.length) return;
     var itens = catsKitBaseComCardapio.indexOf(cat) !== -1 ? todos.filter(function(it){ return it.doCardapio; }) : todos;
     if (!itens.length) return;
-    var isAlcoolica = cat === 'BEBIDAS ALCOÓLICAS';
+    // Comparação tolerante a acento/caixa — categoria duplicada (ex:
+    // "BEBIDAS ALCOOLICAS" sem acento) fazia o seletor de fornecedor sumir
+    // só nessas linhas, mesmo sendo bebida alcoólica de verdade.
+    var isAlcoolica = _sepNormNome(cat) === _sepNormNome('BEBIDAS ALCOÓLICAS');
     var cols = isAlcoolica ? '1fr 130px 100px' : '1fr 100px';
     html += '<div style="border-bottom:1px solid var(--border)">' +
       '<div style="padding:6px 14px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;background:var(--bg3)">' + cat + '</div>';
@@ -717,6 +817,18 @@ function sepSetCopoOverride(prodId, fichaId, copoId) {
   else delete window._sepCoposOverrideMap[prodId][fichaId];
 }
 
+// Troca de bebida/destilado de uma ficha, só pra este evento. Chave por
+// ficha+ingrediente normalizado (uma ficha pode ter mais de uma bebida
+// alcoólica). Redesenha a tela pra recalcular tudo com o item trocado.
+function sepSetBebidaOverride(prodId, fichaId, itemNomeOriginal, novoNome) {
+  if (!window._sepBebidasOverrideMap) window._sepBebidasOverrideMap = {};
+  if (!window._sepBebidasOverrideMap[prodId]) window._sepBebidasOverrideMap[prodId] = {};
+  var k = fichaId + '|' + _sepNormNome(itemNomeOriginal);
+  if (novoNome) window._sepBebidasOverrideMap[prodId][k] = novoNome;
+  else delete window._sepBebidasOverrideMap[prodId][k];
+  sepCarregarProducao(prodId);
+}
+
 function sepToggleCoquetel(prodId, fichaId, marcado) {
   if (!window._sepCoqueteisMap) window._sepCoqueteisMap = {};
   if (!window._sepCoqueteisMap[prodId]) window._sepCoqueteisMap[prodId] = [];
@@ -799,6 +911,13 @@ function salvarSeparacao() {
     else delete coposOverride[sel.dataset.copoOverride];
   });
 
+  // Troca de bebida/destilado por evento — idem.
+  var bebidasOverride = Object.assign({}, (window._sepBebidasOverrideMap && window._sepBebidasOverrideMap[prodId]) || {});
+  document.querySelectorAll('[data-beb-override]').forEach(function(sel) {
+    if (sel.value) bebidasOverride[sel.dataset.bebOverride] = sel.value;
+    else delete bebidasOverride[sel.dataset.bebOverride];
+  });
+
   var sep = {
     id: 'SEP'+Date.now(),
     producaoId: prodId,
@@ -819,6 +938,7 @@ function salvarSeparacao() {
     coqueteisIds: (window._sepCoqueteisMap && window._sepCoqueteisMap[prodId]) ? window._sepCoqueteisMap[prodId].slice() : [],
     opcionais: (window._sepOpcionaisMap && window._sepOpcionaisMap[prodId]) ? window._sepOpcionaisMap[prodId].slice() : [],
     coposOverride: coposOverride,
+    bebidasOverride: bebidasOverride,
     criadoEm: new Date().toISOString()
   };
 

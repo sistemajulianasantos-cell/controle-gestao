@@ -223,12 +223,27 @@ function _ftCopoNomeEfetivo(ficha, coposOverride) {
   return nomeCopoDaFicha(ficha);
 }
 
+// Ficha com os itens já trocados pela bebida/destilado escolhido só pra este
+// evento (Folha de Separação → "Bebidas da Ficha Técnica") — o impresso pros
+// bartenders precisa mostrar a marca certa, não a padrão da ficha.
+function _ftFichaComBebidasEfetivas(ficha, bebidasOverride) {
+  if (!bebidasOverride || !Object.keys(bebidasOverride).length) return ficha;
+  var norm = (typeof _sepNormNome === 'function') ? _sepNormNome : function(s) { return (s || '').trim().toUpperCase(); };
+  var itensNovos = (ficha.itens || []).map(function(it) {
+    var novoNome = bebidasOverride[ficha.id + '|' + norm(it.nome)];
+    return novoNome ? Object.assign({}, it, { nome: novoNome }) : it;
+  });
+  return Object.assign({}, ficha, { itens: itensNovos });
+}
+
 // Gera a Ficha Técnica de uma Folha de Separação (todos os coquetéis dela).
 function imprimirFichaTecnica(sepId) {
   var s = (D.separacoes || []).find(function(x) { return x.id === sepId; });
   if (!s) return;
   var ids = s.coqueteisIds || [];
-  var fichas = ids.map(function(id) { return (D.fichas || []).find(function(f) { return f.id === id; }); }).filter(Boolean);
+  var fichas = (ids.map(function(id) { return (D.fichas || []).find(function(f) { return f.id === id; }); })
+    .filter(Boolean))
+    .map(function(f) { return _ftFichaComBebidasEfetivas(f, s.bebidasOverride); });
   if (!fichas.length) { alert('Esta folha não tem coquetéis marcados — abra a folha e marque os coquetéis do evento.'); return; }
 
   var w = window.open('', '_blank'); // síncrono: evita bloqueio de pop-up
