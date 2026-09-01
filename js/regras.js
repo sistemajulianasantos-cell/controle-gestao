@@ -627,17 +627,22 @@ function rFichas() {
     '<input class="inp" id="fichas-busca" type="text" placeholder="Buscar coquetel..." oninput="filtrarFichas(this.value)" style="width:100%;max-width:320px;margin-bottom:12px">';
   html += fichas.map(function(f) {
     var porCat = {};
-    var temMedida = false;
+    var temMedida = false, temIngrediente = false;
+    var _ehIngr = (typeof _ftItemEhIngrediente === 'function') ? _ftItemEhIngrediente : function(){ return true; };
     (f.itens||[]).forEach(function(i) {
       var cat = categoriaAtualDoInsumo(i.nome, i.cat);
       if(!porCat[cat]) porCat[cat]=[];
+      var ingr = _ehIngr(i);
+      if (ingr) temIngrediente = true;
       var temQtd = i.qtd != null && i.qtd !== '' && !isNaN(parseFloat(i.qtd));
-      if (temQtd) temMedida = true;
-      porCat[cat].push(temQtd
-        ? i.nome + ' <strong style="color:var(--text2)">' + parseFloat(i.qtd) + (i.un && i.un !== '—' ? ' ' + i.un : '') + '</strong>'
-        : i.nome);
+      if (temQtd && ingr) temMedida = true;
+      porCat[cat].push(
+        (ingr ? '' : '<span style="opacity:.55">') +
+        i.nome +
+        (temQtd ? ' <strong style="color:var(--text2)">' + parseFloat(i.qtd) + (i.un && i.un !== '—' ? ' ' + i.un : '') + '</strong>' : '') +
+        (ingr ? '' : ' <span style="font-size:9px">(só separação)</span></span>'));
     });
-    var faltaMedida = (f.itens||[]).length && !temMedida;
+    var faltaMedida = temIngrediente && !temMedida;
     var busca = (f.nome + ' ' + (f.variantes||'')).toLowerCase();
     return '<div class="ficha-card sec" data-busca="' + busca.replace(/"/g,'&quot;') + '" style="margin-bottom:10px">' +
       '<div class="sec-head" style="display:flex;align-items:center;gap:10px">' +
@@ -676,7 +681,7 @@ function rFormFicha(fichaExistente) {
   // ficha; _fcSyncMedidas() mantém isso em dia conforme ela marca/desmarca.
   window._fcMedidas = {};
   (f.itens||[]).forEach(function(i){
-    window._fcMedidas[categoriaAtualDoInsumo(i.nome, i.cat) + '|' + i.nome] = { qtd: i.qtd, un: i.un };
+    window._fcMedidas[categoriaAtualDoInsumo(i.nome, i.cat) + '|' + i.nome] = { qtd: i.qtd, un: i.un, foraFT: i.foraFT };
   });
 
   var _copos = (typeof getCopos === 'function') ? getCopos().slice().sort(function(a,b){return (a.nome||'').localeCompare(b.nome||'');}) : [];
@@ -812,7 +817,8 @@ function _fcSyncMedidas() {
     var k = row.dataset.medKey;
     var q = row.querySelector('.med-qtd');
     var u = row.querySelector('.med-un');
-    window._fcMedidas[k] = { qtd: q ? q.value : '', un: u ? u.value : '' };
+    var f = row.querySelector('.med-fora');
+    window._fcMedidas[k] = { qtd: q ? q.value : '', un: u ? u.value : '', foraFT: f ? f.checked : undefined };
   });
 
   // 2) lista dos ingredientes marcados agora (checkbox + customizados)
@@ -829,13 +835,20 @@ function _fcSyncMedidas() {
     return;
   }
   var UNS = (typeof UNIDADES_INGREDIENTE !== 'undefined') ? UNIDADES_INGREDIENTE : ['ML','GR','UN','DASH','GTS','BSP','—'];
-  cont.innerHTML = sel.map(function(x) {
+  var CATS_FORA = (typeof CATS_FORA_FICHA_TECNICA !== 'undefined') ? CATS_FORA_FICHA_TECNICA : ['MATERIAL','DESCARTÁVEIS','KIT BARTENDER','EQUIPE','COPOS E TAÇAS'];
+  cont.innerHTML =
+    '<div style="font-size:10px;color:var(--text3);margin-bottom:6px">Marque <strong>"fora da ficha"</strong> pro que é acessório/associação e não é ingrediente do drink (ex: garrafa vazia, bico) — não sai na Ficha Técnica.</div>' +
+    sel.map(function(x) {
     var k = x.cat + '|' + x.nome;
     var m = window._fcMedidas[k] || {};
-    return '<div data-med-key="' + k.replace(/"/g,'&quot;') + '" style="display:grid;grid-template-columns:1fr 80px 90px;gap:8px;align-items:center;padding:4px 0;border-bottom:1px solid var(--border)">' +
-      '<span style="font-size:12px;color:var(--text2)">' + x.nome + ' <span style="font-size:9px;color:var(--text3)">' + x.cat + '</span></span>' +
-      '<input class="inp med-qtd" type="number" min="0" step="any" value="' + (m.qtd != null ? m.qtd : '') + '" placeholder="qtd" style="font-size:12px;text-align:center">' +
-      '<select class="inp med-un" style="font-size:12px">' + UNS.map(function(u){ return '<option' + (m.un === u ? ' selected' : '') + '>' + u + '</option>'; }).join('') + '</select>' +
+    var foraPadrao = CATS_FORA.indexOf((x.cat || '').toUpperCase()) !== -1;
+    var fora = (m.foraFT != null) ? !!m.foraFT : foraPadrao;
+    return '<div data-med-key="' + k.replace(/"/g,'&quot;') + '" style="display:grid;grid-template-columns:1fr 90px 70px 78px;gap:8px;align-items:center;padding:4px 0;border-bottom:1px solid var(--border)">' +
+      '<span style="font-size:12px;color:' + (fora ? 'var(--text3)' : 'var(--text2)') + '">' + x.nome + ' <span style="font-size:9px;color:var(--text3)">' + x.cat + '</span></span>' +
+      '<label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text3);cursor:pointer">' +
+        '<input type="checkbox" class="med-fora" ' + (fora ? 'checked' : '') + ' onchange="_fcSyncMedidas()"> fora da ficha</label>' +
+      '<input class="inp med-qtd" type="number" min="0" step="any" value="' + (m.qtd != null ? m.qtd : '') + '" placeholder="qtd" ' + (fora ? 'disabled' : '') + ' style="font-size:12px;text-align:center' + (fora ? ';opacity:.4' : '') + '">' +
+      '<select class="inp med-un" ' + (fora ? 'disabled' : '') + ' style="font-size:12px' + (fora ? ';opacity:.4' : '') + '">' + UNS.map(function(u){ return '<option' + (m.un === u ? ' selected' : '') + '>' + u + '</option>'; }).join('') + '</select>' +
     '</div>';
   }).join('');
 }
@@ -965,6 +978,7 @@ function salvarFicha(idExistente) {
   var medidas = window._fcMedidas || {};
   var itens = [];
   var itensVistos = new Set();
+  var CATS_FORA = (typeof CATS_FORA_FICHA_TECNICA !== 'undefined') ? CATS_FORA_FICHA_TECNICA : ['MATERIAL','DESCARTÁVEIS','KIT BARTENDER','EQUIPE','COPOS E TAÇAS'];
   function addItem(cat, nomeItem) {
     var key = cat + '|' + nomeItem;
     if (itensVistos.has(key)) return; // evita item duplicado na mesma ficha
@@ -975,6 +989,10 @@ function salvarFicha(idExistente) {
       if (m.qtd != null && m.qtd !== '' && !isNaN(parseFloat(m.qtd))) it.qtd = parseFloat(m.qtd);
       if (m.un && m.un !== '—') it.un = m.un;
     }
+    // foraFT: fora da Ficha Técnica (acessório/associação). Explícito se ela
+    // mexeu no checkbox "na receita"; senão, padrão pela categoria.
+    var foraFT = (m && m.foraFT != null) ? m.foraFT : (CATS_FORA.indexOf((cat || '').toUpperCase()) !== -1);
+    if (foraFT) it.foraFT = true;
     itens.push(it);
   }
   // Inclui tanto os checkboxes da lista padrão (#fc-itens-container) quanto os

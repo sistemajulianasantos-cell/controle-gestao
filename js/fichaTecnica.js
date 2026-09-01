@@ -13,6 +13,17 @@
 var METODOS_PREPARO = ['BATIDO', 'MEXIDO', 'MONTADO', 'DIRETO', 'DRY SHAKE'];
 var UNIDADES_INGREDIENTE = ['ML', 'GR', 'UN', 'DASH', 'GTS', 'BSP', '—'];
 var CAT_COPOS = 'COPOS E TAÇAS';
+// Categorias que, por padrão, NÃO são ingrediente — não saem na lista da
+// Ficha Técnica (copo aparece na linha "SERVIÇO"; material/associação não
+// aparece). A ficha pode marcar item a item ("na receita") pra sobrepor.
+var CATS_FORA_FICHA_TECNICA = ['MATERIAL', 'DESCARTÁVEIS', 'KIT BARTENDER', 'EQUIPE', 'COPOS E TAÇAS'];
+
+function _ftItemEhIngrediente(i) {
+  if (i.foraFT === true) return false;
+  if (i.foraFT === false) return true;
+  var cat = (typeof categoriaAtualDoInsumo === 'function') ? categoriaAtualDoInsumo(i.nome, i.cat) : i.cat;
+  return CATS_FORA_FICHA_TECNICA.indexOf((cat || '').toUpperCase()) === -1;
+}
 
 // Lista de copos = insumos da categoria COPOS E TAÇAS, no formato { id, nome }
 // que o resto do código espera. Copos antigos de D.copos que ainda não têm
@@ -137,8 +148,9 @@ function copoSelecionarFoto(inputEl, id, legado) {
 // ── Geração da Ficha Técnica ──────────────────────────────────────────────
 
 // Linhas de ingrediente: { med: "50 ML", nome: "APEROL" } (sem medida = med '').
+// Só itens que são de fato ingrediente (ver _ftItemEhIngrediente).
 function _ftLinhasIngredientes(ficha) {
-  return (ficha.itens || []).map(function(i) {
+  return (ficha.itens || []).filter(_ftItemEhIngrediente).map(function(i) {
     var med = '';
     if (i.qtd != null && i.qtd !== '' && !isNaN(parseFloat(i.qtd))) {
       var un = (i.un && i.un !== '—') ? i.un : '';
