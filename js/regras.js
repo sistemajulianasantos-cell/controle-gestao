@@ -357,6 +357,26 @@ function kitBaseInsumosPendentes() {
   return (D.insumos || []).filter(function(i) { return i.origemAuto && !i.categoria; });
 }
 
+// Corrige r.cat de cada regra pra bater com a categoria ATUAL do insumo no
+// Cadastro de Insumos. regraKitAdd() só copia a categoria uma vez, no
+// momento em que a regra é criada — se ela depois reclassifica o insumo
+// (ex: SODA GINGER ALE de MIX ARTESANAL pra SODAS E ESPUMAS), a regra ficava
+// "presa" na categoria antiga: aparecia agrupada errado em Separação →
+// Cálculos, e a Folha de Separação usava essa categoria desatualizada.
+// Roda toda vez que a tela abre (idempotente, silenciosa) — mesmo padrão de
+// migrarInsumosDoKitBase acima.
+function sincronizarCategoriasRegras() {
+  if (!D.regrasItens || !D.regrasItens.length) return 0;
+  var mudou = 0;
+  D.regrasItens.forEach(function(r) {
+    if (!r.item || typeof categoriaAtualDoInsumo !== 'function') return;
+    var catAtual = categoriaAtualDoInsumo(r.item, r.cat);
+    if (catAtual && catAtual !== r.cat) { r.cat = catAtual; mudou++; }
+  });
+  if (mudou) sv('regrasItens');
+  return mudou;
+}
+
 // Unidades de compra vendidas em embalagem fechada — arredondar pra cima até
 // o próximo múltiplo do tamanho da embalagem. UN/KG/LT/ML ficam de fora por
 // serem fracionáveis (compra-se exatamente a quantidade calculada).
@@ -1075,6 +1095,7 @@ function rRegrasKitBase(containerId, contexto) {
   if (!cont) return;
   migrarRegrasBaseCalculo();
   migrarInsumosDoKitBase();
+  sincronizarCategoriasRegras();
   window._rkCtx = { containerId: containerId, contexto: contexto };
 
   var mostrarAuto = true; // coluna "Auto Orçamento" — antes só na aba Proporções, que saiu

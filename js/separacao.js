@@ -5,6 +5,7 @@ function initSeparacao() {
   if (!D.sepCalculos) D.sepCalculos = [];
   if (typeof migrarRegrasBaseCalculo === 'function') migrarRegrasBaseCalculo();
   if (typeof migrarInsumosDoKitBase === 'function') migrarInsumosDoKitBase();
+  if (typeof sincronizarCategoriasRegras === 'function') sincronizarCategoriasRegras();
   setSepView('lista');
 }
 
