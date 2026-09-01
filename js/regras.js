@@ -709,12 +709,12 @@ function rFormFicha(fichaExistente) {
         '<input class="inp" id="fc-variantes" type="text" placeholder="Ex: FITZ, FITZGERAL" value="' + (f.variantes||'') + '">' +
         '<div style="font-size:10px;color:var(--text3);margin-top:2px">Nomes alternativos separados por vírgula</div></div>' +
       '<div><label class="lbl">Copo / Serviço</label>' +
-        '<select class="inp" id="fc-copo-id">' +
+        '<select class="inp" id="fc-copo-id" data-copo-anterior="' + _copoAtual.replace(/"/g,'&quot;') + '" onchange="_fcCopoMudou(this)">' +
           '<option value="">— sem copo definido —</option>' +
           _copos.map(function(c){ var n = (c.nome||'').replace(/"/g,'&quot;'); return '<option value="'+n+'"'+(_copoAtual===c.nome?' selected':'')+'>'+c.nome+'</option>'; }).join('') +
           ((_copoAtual && !_copos.some(function(c){ return c.nome === _copoAtual; })) ? '<option value="'+_copoAtual.replace(/"/g,'&quot;')+'" selected>'+_copoAtual+' (fora da lista)</option>' : '') +
         '</select>' +
-        '<div style="font-size:10px;color:var(--text3);margin-top:2px">Vem da categoria "COPOS E TAÇAS" do Cadastro de Insumos · <a href="#" onclick="setRegrasView(\'copos\');return false" style="color:var(--blue)">fotos dos copos</a></div></div>' +
+        '<div style="font-size:10px;color:var(--text3);margin-top:2px">O copo escolhido aqui já entra na ficha — não precisa marcar de novo lá embaixo. Vem da categoria "COPOS E TAÇAS" do Cadastro de Insumos · <a href="#" onclick="setRegrasView(\'copos\');return false" style="color:var(--blue)">fotos dos copos</a></div></div>' +
       '<div><label class="lbl">Método de preparo</label>' +
         '<input class="inp" id="fc-metodo" list="fc-metodo-lista" type="text" placeholder="Ex: BATIDO" value="' + (f.metodo||'').replace(/"/g,'&quot;') + '" style="text-transform:uppercase">' +
         '<datalist id="fc-metodo-lista">' + _metodos.map(function(m){ return '<option value="'+m+'">'; }).join('') + '</datalist></div>' +
@@ -792,6 +792,9 @@ function rFormFicha(fichaExistente) {
 
   // A foto agora fica na Biblioteca de Copos (js/fichaTecnica.js), não mais
   // por ficha — a ficha só aponta pra um copo (fc-copo-id).
+  // O copo escolhido no select já conta como item da ficha — marca o
+  // checkbox correspondente pra ela não precisar marcar de novo.
+  _fcMarcarCheckboxCopo((document.getElementById('fc-copo-id') || {}).value || '', '');
   if (typeof _fcSyncMedidas === 'function') _fcSyncMedidas();
   // Começa mostrando só os itens já marcados (esconde a lista gigante).
   if (typeof filtrarItensFicha === 'function') filtrarItensFicha('');
@@ -835,6 +838,29 @@ function _fcSyncMedidas() {
       '<select class="inp med-un" style="font-size:12px">' + UNS.map(function(u){ return '<option' + (m.un === u ? ' selected' : '') + '>' + u + '</option>'; }).join('') + '</select>' +
     '</div>';
   }).join('');
+}
+
+// Marca no checklist o copo `novo` e desmarca o `anterior` — mantém o
+// checkbox em sincronia com o select "Copo / Serviço" pra ela escolher o
+// copo num lugar só.
+function _fcMarcarCheckboxCopo(novo, anterior) {
+  var cont = document.getElementById('fc-itens-container');
+  if (!cont) return;
+  var N = (novo || '').trim().toUpperCase(), A = (anterior || '').trim().toUpperCase();
+  cont.querySelectorAll('input[type="checkbox"][data-nome]').forEach(function(cb) {
+    var nome = (cb.dataset.nome || '').trim().toUpperCase();
+    if (A && nome === A && nome !== N) cb.checked = false;
+    if (N && nome === N) cb.checked = true;
+  });
+}
+
+function _fcCopoMudou(sel) {
+  var anterior = sel.dataset.copoAnterior || '';
+  var novo = sel.value || '';
+  _fcMarcarCheckboxCopo(novo, anterior);
+  sel.dataset.copoAnterior = novo;
+  if (typeof _fcSyncMedidas === 'function') _fcSyncMedidas();
+  if (typeof filtrarItensFicha === 'function') filtrarItensFicha((document.getElementById('fc-item-busca') || {}).value || '');
 }
 
 // Sem busca: mostra só os itens já marcados (a lista completa de insumos é
@@ -960,6 +986,13 @@ function salvarFicha(idExistente) {
     if (cb.dataset.nome) addItem(cb.dataset.cat, cb.dataset.nome);
   });
   (window._customItens||[]).forEach(function(i){ addItem(i.cat, i.nome); });
+  // O copo do select "Copo / Serviço" sempre entra como item da ficha (assim
+  // ela escolhe o copo num lugar só) — mesmo que o checkbox dele não exista
+  // na lista (copo sem categoria / fora de COPOS E TAÇAS).
+  if (copoNome && !itens.some(function(it){ return (it.nome||'').toUpperCase() === copoNome.toUpperCase(); })) {
+    var _catCopo = (typeof categoriaAtualDoInsumo === 'function') ? categoriaAtualDoInsumo(copoNome, 'COPOS E TAÇAS') : 'COPOS E TAÇAS';
+    addItem(_catCopo, copoNome);
+  }
   if (!D.fichas) D.fichas = [];
   var idFicha = idExistente || _gerarId('FIC');
   var ficha = {
