@@ -56,11 +56,13 @@ function rSepNova() {
   var cont = document.getElementById('sep-nova-body');
   if (!cont) return;
   var hoje = _sepHojeStr();
-  // Só eventos de hoje em diante (ou sem data) — evento passado não precisa
-  // de folha nova. Editar uma folha antiga ainda funciona (editarSeparacao
-  // injeta a opção).
+  // Só eventos de hoje em diante (ou sem data) que ainda NÃO têm folha —
+  // evento passado não precisa de folha nova, e evento que já tem folha se
+  // edita pela aba Folhas (não se cria de novo). Editar sempre funciona:
+  // editarSeparacao injeta a opção que não estiver na lista.
   var producoes = (D.producoes||[])
     .filter(function(p){ return !p.data || p.data >= hoje; })
+    .filter(function(p){ return !(D.separacoes||[]).some(function(s){ return s.producaoId === p.id; }); })
     .sort(function(a,b){ return (a.data||'').localeCompare(b.data||''); });
   var opts = producoes.map(function(p){
     return '<option value="' + p.id + '">' + (p.evento||p.cliente||'—') + ' · ' + (fd(p.data)||'') + '</option>';
@@ -70,7 +72,7 @@ function rSepNova() {
     '<select id="sep-prod-sel" class="inp" onchange="sepCarregarProducao(this.value)" style="width:100%;max-width:480px">' +
       '<option value="">— Selecione o evento —</option>' + opts +
     '</select>' +
-    '<div style="font-size:10px;color:var(--text3);margin-top:4px">Mostra só eventos de hoje em diante.</div>' +
+    '<div style="font-size:10px;color:var(--text3);margin-top:4px">Mostra só eventos de hoje em diante que ainda não têm folha. Pra ver ou editar uma folha já criada, use a aba <strong>Folhas</strong>.</div>' +
     '<div id="sep-form-campos" style="display:none;margin-top:16px"></div>' +
   '</div>';
 }
@@ -963,14 +965,17 @@ function editarSeparacao(id) {
   setTimeout(function(){
     var sel = document.getElementById('sep-prod-sel');
     if (sel) {
-      // rSepNova só lista eventos futuros — se esta folha é de um evento
-      // passado, injeta a opção pra ela conseguir abrir/editar.
+      // rSepNova só lista eventos futuros que ainda não têm folha — se esta
+      // folha é de um evento passado, ou de um evento que já tem folha,
+      // injeta a opção pra ela conseguir abrir/editar.
       var temOpcao = Array.prototype.some.call(sel.options, function(o){ return o.value === s.producaoId; });
       if (s.producaoId && !temOpcao) {
         var p = (D.producoes||[]).find(function(x){ return x.id === s.producaoId; });
+        var pdata = (p && p.data) || s.data;
         var op = document.createElement('option');
         op.value = s.producaoId;
-        op.textContent = ((p && (p.evento||p.cliente)) || s.evento || '—') + ' · ' + ((typeof fd === 'function' && fd((p && p.data) || s.data)) || '') + ' (passado)';
+        op.textContent = ((p && (p.evento||p.cliente)) || s.evento || '—') + ' · ' + ((typeof fd === 'function' && fd(pdata)) || '') +
+          (pdata && pdata < _sepHojeStr() ? ' (passado)' : '');
         sel.appendChild(op);
       }
       sel.value = s.producaoId;
