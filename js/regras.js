@@ -368,9 +368,7 @@ function calcQtdItem(regra, conv, bartenders, equipeTotal, cargoCounts) {
   var ref = ef.ref || 1;
   var min = parseFloat(regra.min) || 0;
   var qtd = min;
-  if (ef.base === 'fixo') {
-    qtd = Math.max(min, v);
-  } else if (ef.base === 'convidado') {
+  if (ef.base === 'convidado') {
     qtd = Math.max(min, Math.ceil(v * (conv || 0) / ref));
   } else if (ef.base === 'equipe') {
     qtd = Math.max(min, Math.ceil(v * (equipeTotal || 0) / ref));
@@ -381,6 +379,10 @@ function calcQtdItem(regra, conv, bartenders, equipeTotal, cargoCounts) {
     // A quantidade real depende de outro item — resolvida na Folha de
     // Separação (aplicarAssociacoesSeparacao). Aqui só o mínimo.
     qtd = min;
+  } else {
+    // 'fixo' e qualquer base não reconhecida (dado antigo/estranho) — sem
+    // este fallback, base fora da lista caía direto em qtd = min = 0.
+    qtd = Math.max(min, v);
   }
   qtd = Math.ceil(qtd);
 

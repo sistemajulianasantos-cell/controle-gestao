@@ -68,16 +68,33 @@ function catAtualFichaItem(item) {
   return (typeof categoriaAtualDoInsumo === 'function') ? categoriaAtualDoInsumo(item.nome, item.cat) : item.cat;
 }
 
-// Casa dois nomes de item: iguais, ou o mesmo insumo no Cadastro (resolve
-// apelido / nome renomeado). Usado pra cruzar regra de Cálculo × item de
-// ficha sem depender de a categoria bater exatamente.
+// Casa dois nomes de item: iguais, o mesmo insumo no Cadastro (apelido / nome
+// renomeado), ou um nome contido no outro como pedaço inteiro (ex: a ficha
+// tem "ESPUMANTE LE BLANC" e o insumo hoje é "ESPUMANTE LE BLANC - 660ML").
+// Usado pra cruzar regra de Cálculo × item de ficha sem depender de a
+// categoria — nem o texto exato — baterem.
 function _sepMesmoItem(a, b) {
   var A = (a || '').trim().toUpperCase(), B = (b || '').trim().toUpperCase();
   if (!A || !B) return false;
   if (A === B) return true;
-  if (typeof buscarInsumoPorNome === 'function') {
-    var ia = buscarInsumoPorNome(a), ib = buscarInsumoPorNome(b);
-    if (ia && ib && ia.id === ib.id) return true;
+
+  var ia = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(a) : null;
+  var ib = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(b) : null;
+  if (ia && ib) return ia.id === ib.id;   // ambos conhecidos: decide pelo id
+
+  // No máximo um dos dois é insumo conhecido: aceita se um nome contém o
+  // outro inteiro, com fronteira de espaço/traço/parêntese (evita casar
+  // "GIN" com tudo — por isso o mínimo de 8 caracteres).
+  var curto = A.length <= B.length ? A : B;
+  var longo = A.length <= B.length ? B : A;
+  if (curto.length >= 8) {
+    var p = longo.indexOf(curto);
+    if (p !== -1) {
+      var antesOk = p === 0 || /[\s\-–—(]/.test(longo.charAt(p - 1));
+      var fim = p + curto.length;
+      var depoisOk = fim === longo.length || /[\s\-–—)]/.test(longo.charAt(fim));
+      if (antesOk && depoisOk) return true;
+    }
   }
   return false;
 }
