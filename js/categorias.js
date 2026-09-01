@@ -89,7 +89,19 @@ function rCategoriasLista() {
     '</div>';
   }).join('') : '<div style="text-align:center;color:var(--text3);padding:24px;font-size:13px">Nenhuma categoria cadastrada.</div>';
 
+  var dups = _gruposCategoriasDuplicadas();
+  var bannerDup = dups.length
+    ? '<div style="background:var(--amber-bg);border:1px solid var(--amber-dim);border-radius:var(--radius);padding:10px 14px;margin-bottom:12px">' +
+        '<div style="font-size:11px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">' + dups.length + ' categoria(s) duplicada(s)</div>' +
+        '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">Mesma categoria escrita de formas diferentes (acento, maiúscula, espaço): ' +
+          dups.map(function(g){ return g.map(function(c){ return '"' + c.nome + '"'; }).join(' = '); }).join(' · ') +
+        '</div>' +
+        '<button class="btn-sm" style="background:var(--amber);color:#1a1400;font-weight:700" onclick="unificarCategoriasDuplicadas()">Unificar automaticamente</button>' +
+      '</div>'
+    : '';
+
   cont.innerHTML =
+    bannerDup +
     '<div style="font-size:11px;color:var(--text3);margin-bottom:12px">Use as setas ▲▼ pra definir a ordem em que as categorias aparecem no Cardápio e na Calculadora do orçamento.</div>' +
     '<div style="display:flex;gap:8px;margin-bottom:12px">' +
       '<input class="inp" id="ctg-nome" type="text" placeholder="Nome da nova categoria" style="flex:1" onkeydown="if(event.key===\'Enter\')adicionarCategoria()">' +
@@ -118,6 +130,10 @@ function adicionarCategoria() {
     alert('Essa categoria já existe.');
     return;
   }
+  var parecida = D.categorias.find(function(c) { return _normCat(c.nome) === _normCat(nome); });
+  if (parecida && !confirm('Já existe "' + parecida.nome + '", que é praticamente a mesma coisa. Criar "' + nome + '" mesmo assim (vai virar duplicada)?')) {
+    return;
+  }
   var ordemMax = D.categorias.reduce(function(m, c) { return Math.max(m, c.ordem || 0); }, 0);
   D.categorias.push({ id: 'CAT' + Date.now() + Math.random().toString(36).slice(2, 6), nome: nome, ordem: ordemMax + 1 });
   sv('categorias');
@@ -131,17 +147,139 @@ function renomearCategoria(id, novoNomeRaw) {
   if (!novoNome) { alert('O nome não pode ficar vazio.'); rCategoriasLista(); return; }
   var cat = buscarCategoriaPorId(id);
   if (!cat) return;
-  if (D.categorias.some(function(c) { return c.id !== id && (c.nome || '').toUpperCase() === novoNome; })) {
-    alert('Já existe uma categoria com esse nome.');
+  if (cat.nome === novoNome) return;
+
+  var jaExiste = D.categorias.find(function(c) { return c.id !== id && (c.nome || '').toUpperCase() === novoNome; });
+  if (jaExiste) {
+    if (!confirm('Já existe a categoria "' + jaExiste.nome + '". Juntar "' + cat.nome + '" nela? Os insumos, fichas e regras de "' + cat.nome + '" passam pra "' + jaExiste.nome + '".')) {
+      rCategoriasLista();
+      return;
+    }
+    _reatribuirCategoria(cat.nome, jaExiste.nome);
+    D.categorias = D.categorias.filter(function(c) { return c.id !== id; });
+    _salvarTudoQueUsaCategoria();
     rCategoriasLista();
+    _atualizarFiltrosDeCategoria();
     return;
   }
-  var nomeAntigo = cat.nome;
+
+  _reatribuirCategoria(cat.nome, novoNome);
   cat.nome = novoNome;
-  // Atualiza os insumos que usavam o nome antigo, pra não ficarem órfãos.
-  (D.insumos || []).forEach(function(i) { if (i.categoria === nomeAntigo) i.categoria = novoNome; });
+  _salvarTudoQueUsaCategoria();
+  rCategoriasLista();
+  _atualizarFiltrosDeCategoria();
+}
+
+// ── Unificar categorias escritas de formas diferentes ─────────────────────
+// "BEBIDAS ALCOÓLICAS" / "BEBIDAS ALCOOLICAS" / "bebidas alcoolicas" viram uma
+// só. Detecta por chave normalizada (sem acento, sem caixa, sem pontuação,
+// sem conectivo "E/DE/DA/DO").
+var _CONECTIVOS_CAT = ['E', 'DE', 'DA', 'DO', 'DAS', 'DOS'];
+
+function _normCat(s) {
+  var base = (s || '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, ' ')
+    .trim();
+  return base.split(/\s+/).filter(function(t) {
+    return t && _CONECTIVOS_CAT.indexOf(t) === -1;
+  }).join(' ');
+}
+
+function _contaAcentos(s) {
+  var m = (s || '').normalize('NFD').match(/[̀-ͯ]/g);
+  return m ? m.length : 0;
+}
+
+// Grupos de categorias que são "a mesma" a menos de acento/caixa/pontuação.
+function _gruposCategoriasDuplicadas() {
+  var porChave = {};
+  (D.categorias || []).forEach(function(c) {
+    var k = _normCat(c.nome);
+    if (!k) return;
+    (porChave[k] = porChave[k] || []).push(c);
+  });
+  return Object.keys(porChave).map(function(k) { return porChave[k]; }).filter(function(g) { return g.length > 1; });
+}
+
+// Nome oficial de um grupo: grafia do padrão (CATEGORIAS_INSUMO_PADRAO) se
+// houver; senão a mais acentuada; senão a mais usada; senão a mais longa.
+function _canonicaDoGrupo(grupo) {
+  var chave = _normCat(grupo[0].nome);
+  var padrao = CATEGORIAS_INSUMO_PADRAO.find(function(p) { return _normCat(p) === chave; });
+  if (padrao) return padrao;
+  return grupo.slice().sort(function(a, b) {
+    var ac = _contaAcentos(b.nome) - _contaAcentos(a.nome);
+    if (ac) return ac;
+    var us = _categoriaEmUso(b.nome) - _categoriaEmUso(a.nome);
+    if (us) return us;
+    return (b.nome || '').length - (a.nome || '').length;
+  })[0].nome;
+}
+
+// Move tudo que referencia a categoria `de` (por nome) pra `para`.
+function _reatribuirCategoria(de, para) {
+  if (!de || !para || de === para) return;
+  var deU = (de || '').toUpperCase();
+  (D.insumos || []).forEach(function(i) { if ((i.categoria || '').toUpperCase() === deU) i.categoria = para; });
+  (D.produtos || []).forEach(function(p) { if ((p.categoria || '').toUpperCase() === deU) p.categoria = para; });
+  (D.fichas || []).forEach(function(f) {
+    (f.itens || []).forEach(function(it) { if ((it.cat || '').toUpperCase() === deU) it.cat = para; });
+  });
+  (D.regrasItens || []).forEach(function(r) { if ((r.cat || '').toUpperCase() === deU) r.cat = para; });
+  if (D.bibliotecaItens) {
+    Object.keys(D.bibliotecaItens).forEach(function(k) {
+      if (k.toUpperCase() === deU && k !== para) {
+        D.bibliotecaItens[para] = (D.bibliotecaItens[para] || []).concat(D.bibliotecaItens[k] || []);
+        delete D.bibliotecaItens[k];
+      }
+    });
+  }
+}
+
+function _salvarTudoQueUsaCategoria() {
   sv('categorias');
   if (D.insumos) sv('insumos');
+  if (D.produtos) sv('produtos');
+  if (D.fichas) sv('fichas');
+  if (D.regrasItens) sv('regrasItens');
+  if (D.bibliotecaItens) sv('bibliotecaItens');
+}
+
+function unificarCategoriasDuplicadas() {
+  var grupos = _gruposCategoriasDuplicadas();
+  if (!grupos.length) { alert('Nenhuma categoria duplicada encontrada.'); return; }
+
+  var resumo = grupos.map(function(g) {
+    var canon = _canonicaDoGrupo(g);
+    var outras = g.map(function(c) { return c.nome; }).filter(function(n) { return n !== canon; });
+    return '• ' + outras.map(function(n){ return '"' + n + '"'; }).join(' + ') + '  →  "' + canon + '"';
+  }).join('\n');
+
+  if (!confirm('Unificar ' + grupos.length + ' grupo(s) de categoria duplicada:\n\n' + resumo +
+    '\n\nOs insumos, fichas e regras que usavam as versões duplicadas passam a usar a versão oficial. Orçamentos já fechados não são alterados. Continuar?')) return;
+
+  var removidas = 0;
+  grupos.forEach(function(g) {
+    var canon = _canonicaDoGrupo(g);
+    var catCanon = D.categorias.find(function(c) { return c.nome === canon; });
+    if (!catCanon) {
+      // Nenhuma do grupo tem exatamente a grafia oficial — adota a 1ª e
+      // reaponta os itens dela também.
+      catCanon = g[0];
+      if (catCanon.nome !== canon) { _reatribuirCategoria(catCanon.nome, canon); catCanon.nome = canon; }
+    }
+    g.forEach(function(c) {
+      if (c === catCanon) return;
+      _reatribuirCategoria(c.nome, canon);
+      D.categorias = D.categorias.filter(function(x) { return x.id !== c.id; });
+      removidas++;
+    });
+  });
+
+  _salvarTudoQueUsaCategoria();
+  alert(removidas + ' categoria(s) duplicada(s) unificada(s).');
   rCategoriasLista();
   _atualizarFiltrosDeCategoria();
 }
