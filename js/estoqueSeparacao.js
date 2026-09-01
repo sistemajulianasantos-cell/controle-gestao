@@ -116,6 +116,185 @@ function _rEstoqueSeparacaoStatus() {
 // arquivo, window.separacaoAuthReady ainda nem existiria. Só tenta a
 // reconexão automática uma vez por sessão de página; depois disso, quem
 // atualiza é o botão "🔄 Atualizar".
+// ─── VARREDURA: comparar Cadastro de Insumos (aqui) × Sistema Separação ────
+// Só leitura dos dois lados. Cruza por nome normalizado (mesma chave usada
+// pra puxar o estoque) e lista onde nome / categoria / unidade divergem, além
+// do que existe só de um lado. Não altera nada em nenhum dos dois sistemas.
+
+// Normalização "de comparação" — mantém o nome inteiro (só tira acento/caixa/
+// espaço duplo), diferente de _normalizarChaveEstoqueSep que é pra casar.
+function _normCompara(s) {
+  return (s || '')
+    .normalize('NFD').replace(/\p{Mn}/gu, '')
+    .toUpperCase().trim()
+    .replace(/\s+/g, ' ');
+}
+
+async function compararCadastrosSeparacao() {
+  var cont = document.getElementById('cad-comparacao-sep');
+  if (!cont) return;
+
+  var logado = typeof window.separacaoLogado === 'function' && window.separacaoLogado();
+  if (!logado) {
+    cont.innerHTML = '<div style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);padding:12px 14px;font-size:12px;color:var(--text3)">' +
+      'Conecte o estoque do Sistema Separação primeiro (botão logo acima) e clique em "Comparar" de novo.</div>';
+    return;
+  }
+
+  cont.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:10px 4px">Lendo os dois cadastros…</div>';
+
+  var estoque = (typeof window.buscarEstoqueSeparacao === 'function') ? await window.buscarEstoqueSeparacao() : null;
+  var itemCfg = (typeof window.buscarItemConfigSeparacao === 'function') ? await window.buscarItemConfigSeparacao() : null;
+  if (!estoque && !itemCfg) {
+    cont.innerHTML = '<div style="background:rgba(240,90,90,.08);border:1px solid rgba(240,90,90,.35);border-radius:var(--radius);padding:12px 14px;font-size:12px;color:var(--red)">' +
+      'Não consegui ler os dados do Sistema Separação. Tente reconectar (botão "🔄 Atualizar" acima).</div>';
+    return;
+  }
+
+  // Lado Separação: chave normalizada → { nome, unidade, grupo }
+  var sep = {};
+  (itemCfg || []).forEach(function(ic) {
+    var k = _normalizarChaveEstoqueSep(ic.nomeKey || ic.nome);
+    if (!k) return;
+    if (!sep[k]) sep[k] = {};
+    if (ic.nome && !sep[k].nome) sep[k].nome = ic.nome;
+    if (ic.grupo) sep[k].grupo = ic.grupo;
+  });
+  (estoque || []).forEach(function(e) {
+    var k = _normalizarChaveEstoqueSep(e.nomeKey || e.nome);
+    if (!k) return;
+    if (!sep[k]) sep[k] = {};
+    if (e.nome && !sep[k].nome) sep[k].nome = e.nome;
+    if (e.unidade) sep[k].unidade = e.unidade;
+  });
+
+  var insumos = (D.insumos || []);
+  var difNome = [], difCat = [], difUnid = [], soAqui = [];
+  var chavesCasadas = {};
+
+  insumos.forEach(function(i) {
+    var candidatos = [i.nome].concat(i.aliases || []);
+    var k = null;
+    for (var c = 0; c < candidatos.length; c++) {
+      var kk = _normalizarChaveEstoqueSep(candidatos[c]);
+      if (kk && sep[kk]) { k = kk; break; }
+    }
+    if (!k) { soAqui.push(i.nome); return; }
+    chavesCasadas[k] = true;
+    var s = sep[k];
+    if (s.nome && _normCompara(s.nome) !== _normCompara(i.nome)) {
+      difNome.push({ aqui: i.nome, la: s.nome });
+    }
+    if (s.grupo && i.categoria && _normCompara(s.grupo) !== _normCompara(i.categoria)) {
+      difCat.push({ nome: i.nome, aqui: i.categoria, la: s.grupo });
+    }
+    if (s.unidade && i.unidadeCompra && _normCompara(s.unidade) !== _normCompara(i.unidadeCompra)) {
+      difUnid.push({ nome: i.nome, aqui: i.unidadeCompra, la: s.unidade });
+    }
+  });
+
+  var soLa = Object.keys(sep).filter(function(k){ return !chavesCasadas[k]; })
+    .map(function(k){ return sep[k].nome || k; })
+    .sort(function(a, b){ return a.localeCompare(b); });
+
+  cont.innerHTML = _compSepRenderHtml({
+    nInsumos: insumos.length,
+    nSep: Object.keys(sep).length,
+    nCasados: Object.keys(chavesCasadas).length,
+    difNome: difNome, difCat: difCat, difUnid: difUnid, soAqui: soAqui.sort(), soLa: soLa,
+  });
+}
+
+function _compSepRenderHtml(d) {
+  function bloco(titulo, cor, itens, linhaFn) {
+    return '<div style="margin-top:12px">' +
+      '<div style="font-size:11px;font-weight:700;color:' + cor + ';text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">' +
+        titulo + ' — ' + itens.length + '</div>' +
+      (itens.length
+        ? '<div style="display:grid;gap:4px">' + itens.map(linhaFn).join('') + '</div>'
+        : '<div style="font-size:11px;color:var(--text3)">nenhum</div>') +
+    '</div>';
+  }
+  var caixa = 'background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:5px 9px;font-size:11px';
+
+  var html = '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px">' +
+      '<div style="font-size:12px;font-weight:700;color:var(--text2)">Comparação — Cadastro de Insumos (aqui) × Sistema Separação</div>' +
+      '<div style="display:flex;gap:6px">' +
+        '<button class="btn-sm" style="background:var(--bg3)" onclick="_compSepCopiar()">Copiar como texto</button>' +
+        '<button class="btn-sm" style="background:var(--bg3)" onclick="document.getElementById(\'cad-comparacao-sep\').innerHTML=\'\'">Fechar</button>' +
+      '</div>' +
+    '</div>' +
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:4px">' +
+      d.nInsumos + ' insumos aqui · ' + d.nSep + ' itens no Sistema Separação · ' + d.nCasados + ' casaram por nome</div>' +
+    '<div style="font-size:10px;color:var(--text3);font-style:italic;margin-bottom:4px">Categoria: os dois sistemas agrupam de formas diferentes (aqui = tipo de produto; lá = setor/grupo de separação), então diferença aqui pode ser normal.</div>' +
+
+    bloco('Nome diferente (mesmo item)', 'var(--amber)', d.difNome, function(x) {
+      return '<div style="' + caixa + '"><strong>' + _fte(x.aqui) + '</strong><span style="color:var(--text3)"> (aqui)</span> &nbsp;≠&nbsp; <strong>' + _fte(x.la) + '</strong><span style="color:var(--text3)"> (Separação)</span></div>';
+    }) +
+    bloco('Categoria diferente', 'var(--amber)', d.difCat, function(x) {
+      return '<div style="' + caixa + '"><strong>' + _fte(x.nome) + '</strong>: ' + _fte(x.aqui) + '<span style="color:var(--text3)"> (aqui)</span> &nbsp;≠&nbsp; ' + _fte(x.la) + '<span style="color:var(--text3)"> (Separação)</span></div>';
+    }) +
+    bloco('Unidade diferente', 'var(--amber)', d.difUnid, function(x) {
+      return '<div style="' + caixa + '"><strong>' + _fte(x.nome) + '</strong>: ' + _fte(x.aqui) + '<span style="color:var(--text3)"> (aqui)</span> &nbsp;≠&nbsp; ' + _fte(x.la) + '<span style="color:var(--text3)"> (Separação)</span></div>';
+    }) +
+    bloco('Só no Cadastro de Insumos (não achado na Separação)', 'var(--text3)', d.soAqui, function(n) {
+      return '<div style="' + caixa + '">' + _fte(n) + '</div>';
+    }) +
+    bloco('Só no Sistema Separação (não achado aqui)', 'var(--text3)', d.soLa, function(n) {
+      return '<div style="' + caixa + '">' + _fte(n) + '</div>';
+    }) +
+  '</div>';
+
+  window._compSepUltimo = d; // pro botão "copiar"
+  return html;
+}
+
+function _fte(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function _compSepCopiar() {
+  var d = window._compSepUltimo;
+  if (!d) return;
+  var L = [];
+  L.push('COMPARAÇÃO — Cadastro de Insumos (aqui) × Sistema Separação');
+  L.push(d.nInsumos + ' insumos aqui · ' + d.nSep + ' itens na Separação · ' + d.nCasados + ' casaram');
+  L.push('');
+  L.push('== NOME DIFERENTE (' + d.difNome.length + ') ==');
+  d.difNome.forEach(function(x){ L.push('  "' + x.aqui + '" (aqui)  !=  "' + x.la + '" (Separação)'); });
+  L.push('');
+  L.push('== CATEGORIA DIFERENTE (' + d.difCat.length + ') ==');
+  d.difCat.forEach(function(x){ L.push('  ' + x.nome + ':  ' + x.aqui + ' (aqui)  !=  ' + x.la + ' (Separação)'); });
+  L.push('');
+  L.push('== UNIDADE DIFERENTE (' + d.difUnid.length + ') ==');
+  d.difUnid.forEach(function(x){ L.push('  ' + x.nome + ':  ' + x.aqui + ' (aqui)  !=  ' + x.la + ' (Separação)'); });
+  L.push('');
+  L.push('== SÓ NO CADASTRO DE INSUMOS (' + d.soAqui.length + ') ==');
+  d.soAqui.forEach(function(n){ L.push('  ' + n); });
+  L.push('');
+  L.push('== SÓ NO SISTEMA SEPARAÇÃO (' + d.soLa.length + ') ==');
+  d.soLa.forEach(function(n){ L.push('  ' + n); });
+  var txt = L.join('\n');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt).then(function(){ alert('Comparação copiada — cole onde quiser.'); },
+      function(){ _compSepFallbackCopiar(txt); });
+  } else {
+    _compSepFallbackCopiar(txt);
+  }
+}
+
+function _compSepFallbackCopiar(txt) {
+  var ta = document.createElement('textarea');
+  ta.value = txt;
+  ta.style.cssText = 'position:fixed;left:-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); alert('Comparação copiada.'); }
+  catch (e) { alert('Não consegui copiar automático — o texto está no console (F12).'); console.log(txt); }
+  document.body.removeChild(ta);
+}
+
 var _estoqueSeparacaoAutoTentado = false;
 function _tentarAutoConectarEstoqueSeparacao() {
   if (_estoqueSeparacaoAutoTentado) { _rEstoqueSeparacaoStatus(); return; }
