@@ -196,7 +196,7 @@ function _ftEscreverDocumento(w, tituloCabecalho, subtitulo, cardsHtml, tituloAb
     '.ft-head{font-weight:bold;font-size:12px;margin-bottom:2px}' +
     '.ft-sub{font-size:10px;color:#555;margin-bottom:2px}' +
     '.ft-band{background:#eee;text-align:center;font-style:italic;font-weight:bold;font-size:11px;padding:3px;margin:8px 0 12px;border-top:1px solid #999;border-bottom:1px solid #999}' +
-    '.ft-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:10px;align-items:start}' +
+    '.ft-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:10px;align-items:stretch}' +
     '.ft-card{border:1px solid #ddd;break-inside:avoid;page-break-inside:avoid}' +
     '.ft-title{background:#111;color:#fff;font-weight:bold;font-size:11px;padding:4px 8px;display:flex;justify-content:space-between}' +
     '.ft-body{display:flex;gap:10px;padding:8px}' +
