@@ -720,8 +720,10 @@ function rFormFicha(fichaExistente) {
       '<div style="grid-column:1/-1"><label class="lbl">Finalização</label>' +
         '<textarea class="inp" id="fc-finalizacao" rows="1" style="width:100%;resize:vertical" placeholder="Ex: Finalizar com casca de limão siciliano aromatizada.">' + (f.finalizacao||'') + '</textarea></div>' +
     '</div>' +
-    '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Marque os itens que este coquetel precisa</div>' +
-    '<input class="inp" id="fc-item-busca" type="text" placeholder="Buscar item..." oninput="filtrarItensFicha(this.value)" style="width:100%;max-width:320px;margin-bottom:10px">' +
+    '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Marque os itens que este coquetel precisa</div>' +
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">Só os itens já marcados ficam à vista. Pra adicionar outro, busque pelo nome abaixo.</div>' +
+    '<input class="inp" id="fc-item-busca" type="text" placeholder="Buscar item..." oninput="filtrarItensFicha(this.value)" style="width:100%;max-width:320px;margin-bottom:8px">' +
+    '<div id="fc-itens-dica" style="font-size:11px;color:var(--text3);margin-bottom:8px;display:none"></div>' +
     '<div id="fc-itens-container">';
 
   Object.entries(getItensFicha()).forEach(function(entry) {
@@ -732,7 +734,7 @@ function rFormFicha(fichaExistente) {
       itens.map(function(item) {
         var checked = itensIds.has(cat+'|'+item) ? 'checked' : '';
         return '<label class="fc-item-label" data-busca="' + item.toLowerCase() + '" style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;background:var(--bg3);padding:3px 8px;border-radius:var(--radius);border:1px solid var(--border)">' +
-          '<input type="checkbox" data-cat="' + cat + '" data-nome="' + item + '" ' + checked + ' onchange="_fcSyncMedidas()" style="cursor:pointer"> ' + item + '</label>';
+          '<input type="checkbox" data-cat="' + cat + '" data-nome="' + item + '" ' + checked + ' onchange="_fcSyncMedidas();filtrarItensFicha((document.getElementById(\'fc-item-busca\')||{}).value||\'\')" style="cursor:pointer"> ' + item + '</label>';
       }).join('') +
       '</div></div>';
   });
@@ -786,6 +788,8 @@ function rFormFicha(fichaExistente) {
   // A foto agora fica na Biblioteca de Copos (js/fichaTecnica.js), não mais
   // por ficha — a ficha só aponta pra um copo (fc-copo-id).
   if (typeof _fcSyncMedidas === 'function') _fcSyncMedidas();
+  // Começa mostrando só os itens já marcados (esconde a lista gigante).
+  if (typeof filtrarItensFicha === 'function') filtrarItensFicha('');
 }
 
 // Reconstrói a lista de medidas (#fc-medidas) a partir dos ingredientes
@@ -828,17 +832,34 @@ function _fcSyncMedidas() {
   }).join('');
 }
 
+// Sem busca: mostra só os itens já marcados (a lista completa de insumos é
+// enorme e atrapalha). Com busca: mostra os que casam com o termo, marcados
+// ou não, pra ela poder incluir.
 function filtrarItensFicha(v) {
   var termo = (v||'').trim().toLowerCase();
+  var totalVisivel = 0, totalMarcados = 0;
   document.querySelectorAll('#fc-itens-container .fc-cat-block').forEach(function(bloco) {
     var algumVisivel = false;
     bloco.querySelectorAll('.fc-item-label').forEach(function(label) {
-      var visivel = !termo || label.dataset.busca.indexOf(termo) !== -1;
+      var cb = label.querySelector('input[type="checkbox"]');
+      var marcado = !!(cb && cb.checked);
+      if (marcado) totalMarcados++;
+      var casa = !!termo && label.dataset.busca.indexOf(termo) !== -1;
+      var visivel = termo ? casa : marcado;
       label.style.display = visivel ? '' : 'none';
-      if (visivel) algumVisivel = true;
+      if (visivel) { algumVisivel = true; totalVisivel++; }
     });
     bloco.style.display = algumVisivel ? '' : 'none';
   });
+
+  var dica = document.getElementById('fc-itens-dica');
+  if (dica) {
+    var msg = '';
+    if (termo && totalVisivel === 0) msg = 'Nenhum item encontrado. Se não estiver no Cadastro de Insumos, use "Item personalizado" abaixo.';
+    else if (!termo && totalMarcados === 0) msg = 'Nenhum item marcado ainda — busque pelo nome acima para adicionar.';
+    dica.textContent = msg;
+    dica.style.display = msg ? '' : 'none';
+  }
 }
 
 if (!window._customItens) window._customItens = [];
