@@ -714,39 +714,41 @@ function _despEsconderCloneHint() {
   if (h) { h.style.display = 'none'; h.textContent = ''; }
 }
 
-// Clona uma despesa: abre a tela "Lançar" já preenchida com uma cópia.
-// A despesa original NÃO é alterada nem excluída — ao salvar, é criada uma nova.
+// Clona uma despesa: cria IMEDIATAMENTE um lançamento novo (cópia), com id próprio,
+// e abre o modal de edição já nesse novo lançamento. A despesa original nunca é tocada.
 function clonarDespesa(id) {
-  const d = (D.despesas||[]).find(x=>x.id===id);
-  if (!d) return;
+  const orig = (D.despesas||[]).find(x=>x.id===id);
+  if (!orig) return;
+
+  let formaClone = orig.forma || _detectarFormaDespesa(orig) || '';
+  if (formaClone === 'pix_manual' || formaClone === 'pix_nota') formaClone = 'pix'; // selects só têm "pix"
+
+  const nova = {
+    id:              _gerarId('DESP'),
+    data:            new Date().toISOString().slice(0,10),
+    categoria:       orig.categoria || '',
+    forma:           formaClone,
+    fornecedor:      orig.fornecedor || '',
+    descricao:       _descricaoSemPrefixo(orig),
+    valor:           orig.valor || 0,
+    obs:             orig.obs || '',
+    numeroNF:        '',
+    dataVencimento:  '',
+    dataPagamento:   '',
+    status:          'pendente',
+    clonadaDe:       orig.id,
+  };
+
+  if (!D.despesas) D.despesas = [];
+  D.despesas.push(nova);
+  sv('despesas');
+
   const sv2 = document.getElementById('desp-sub-view');
-  if (sv2) sv2.value = 'lancar';
+  if (sv2) sv2.value = 'lista';
   rDespesas();
-  _populateCategoriasSelects();
-  _populateFornecedoresDespesas();
-  const set = (elId, val) => { const el = document.getElementById(elId); if (el) el.value = val; };
-  set('desp-form-data', new Date().toISOString().slice(0,10));
-  set('desp-form-nf', '');
-  set('desp-form-vencimento', '');
-  set('desp-form-cat', d.categoria || '');
-  set('desp-form-forn', d.fornecedor || '');
-  let formaClone = d.forma || _detectarFormaDespesa(d) || '';
-  if (formaClone === 'pix_manual' || formaClone === 'pix_nota') formaClone = 'pix'; // form só tem "pix"
-  set('desp-form-forma', formaClone);
-  set('desp-form-desc', _descricaoSemPrefixo(d));
-  set('desp-form-valor', d.valor || '');
-  set('desp-form-pagamento', '');
-  set('desp-form-obs', d.obs || '');
-  _despPixInfo(d.fornecedor || '', 'desp-form-pix-box');
-  const h = document.getElementById('desp-form-clone-hint');
-  if (h) {
-    h.style.display = 'block';
-    h.textContent = `Clonando de: ${d.fornecedor || _descricaoSemPrefixo(d) || 'despesa'} · ${fR(d.valor||0)}`
-      + (d.data ? ` (${fd(d.data)})` : '')
-      + '. Ajuste data, valor e o que mais precisar, depois clique em Salvar. A despesa original continua como está.';
-  }
-  const valEl = document.getElementById('desp-form-valor');
-  if (valEl) { valEl.focus(); valEl.select?.(); }
+
+  abrirEditDespesa(nova.id);
+  alert2('Cópia criada. Ajuste os dados e salve — a despesa original continua intacta.', 'success');
 }
 
 function excluirDespesa(id) {
