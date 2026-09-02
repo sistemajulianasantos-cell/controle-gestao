@@ -726,17 +726,18 @@ function clonarDespesa(id) {
   let formaClone = orig.forma || _detectarFormaDespesa(orig) || '';
   if (formaClone === 'pix_manual' || formaClone === 'pix_nota') formaClone = 'pix'; // selects só têm "pix"
 
+  // Cópia fiel: mantém todos os dados; só zera o pagamento (a cópia nasce em aberto).
   const nova = {
     id:              _gerarId('DESP'),
-    data:            new Date().toISOString().slice(0,10),
+    data:            orig.data || new Date().toISOString().slice(0,10),
     categoria:       orig.categoria || '',
     forma:           formaClone,
-    fornecedor:      orig.fornecedor || '',
+    fornecedor:      orig.fornecedor || _descricaoSemPrefixo(orig) || '',
     descricao:       _descricaoSemPrefixo(orig),
     valor:           orig.valor || 0,
     obs:             orig.obs || '',
-    numeroNF:        '',
-    dataVencimento:  '',
+    numeroNF:        orig.numeroNF || '',
+    dataVencimento:  orig.dataVencimento || '',
     dataPagamento:   '',
     status:          'pendente',
     clonadaDe:       orig.id,
@@ -977,16 +978,30 @@ function importarDespesasPDF(input) {
 
 // ─── EDITAR DESPESA ───────────────────────────────────────────────────────────
 
+// Garante que `val` exista como <option> no select, senão o campo abre em branco.
+function _despGarantirOpcao(selectId, val) {
+  if (!val) return;
+  const el = document.getElementById(selectId);
+  if (!el) return;
+  if (![...el.options].some(o => o.value === val)) {
+    el.insertAdjacentHTML('beforeend', `<option value="${String(val).replace(/"/g,'&quot;')}">${val}</option>`);
+  }
+}
+
 function abrirEditDespesa(id) {
   const d = (D.despesas||[]).find(x=>x.id===id);
   if (!d) return;
   _populateCategoriasSelects();
   _populateFornecedoresDespesas();
+  let formaEdit = d.forma || _detectarFormaDespesa(d) || '';
+  if (formaEdit === 'pix_manual' || formaEdit === 'pix_nota') formaEdit = 'pix';
+  _despGarantirOpcao('desp-edit-cat', d.categoria);
+  _despGarantirOpcao('desp-edit-forn', d.fornecedor);
   document.getElementById('desp-edit-id').value         = id;
   document.getElementById('desp-edit-data').value       = d.data || '';
   document.getElementById('desp-edit-nf').value         = d.numeroNF || '';
   document.getElementById('desp-edit-cat').value        = d.categoria || '';
-  document.getElementById('desp-edit-forma').value      = d.forma || _detectarFormaDespesa(d);
+  document.getElementById('desp-edit-forma').value      = formaEdit;
   document.getElementById('desp-edit-forn').value       = d.fornecedor || '';
   document.getElementById('desp-edit-desc').value       = _descricaoSemPrefixo(d);
   document.getElementById('desp-edit-valor').value      = d.valor || '';
