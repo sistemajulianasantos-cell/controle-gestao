@@ -1574,7 +1574,7 @@
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="sort-btn active" data-desp-tab="kpi" onclick="despSetView('kpi')">📊 Dashboard</button>
-          <button class="sort-btn" data-desp-tab="lancar" onclick="despSetView('lancar')">➕ Lançar</button>
+          <button class="sort-btn" data-desp-tab="lancar" onclick="_despEsconderCloneHint();despSetView('lancar')">➕ Lançar</button>
           <button class="sort-btn" data-desp-tab="lista" onclick="despSetView('lista')">📋 Despesas</button>
           <button class="sort-btn" data-desp-tab="importar" onclick="despSetView('importar')">📥 Importar CSV</button>
           <button class="sort-btn" data-desp-tab="categorias" onclick="despSetView('categorias')">🏷️ Categorias</button>
@@ -1588,6 +1588,7 @@
       <div id="desp-view-lancar" style="display:none">
         <div class="sec">
           <div class="sec-head"><span class="sec-title">💸 Nova Despesa</span></div>
+          <div id="desp-form-clone-hint" style="display:none;margin:12px 16px 0;padding:8px 12px;background:#1D2E45;border:1px solid #4F8EF740;border-radius:6px;font-size:12px;color:#9FC3F7"></div>
           <div style="padding:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px">
             <div>
               <label class="lbl">Data de Entrada *</label>
@@ -1614,13 +1615,14 @@
             <div>
               <label class="lbl">Fornecedor *</label>
               <div style="display:flex;gap:4px">
-                <select id="desp-form-forn" class="inp" style="flex:1;min-width:0" onfocus="_populateFornecedoresDespesas()" onchange="_autoFillCatFromForn(this.value,'desp-form-cat')">
+                <select id="desp-form-forn" class="inp" style="flex:1;min-width:0" onfocus="_populateFornecedoresDespesas()" onchange="_autoFillCatFromForn(this.value,'desp-form-cat');_despPixInfo(this.value,'desp-form-pix-box')">
                   <option value="">Selecione...</option>
                 </select>
                 <button type="button" class="btn-sm" onclick="_despAddFornecedor('desp-form-forn','desp-form-cat')"
                   style="background:#1D2E45;border:1px solid #4F8EF740;color:#4F8EF7;font-size:16px;padding:0 10px;flex-shrink:0;border-radius:6px" title="Novo fornecedor">+</button>
               </div>
             </div>
+            <div id="desp-form-pix-box" style="display:none;grid-column:1/-1"></div>
             <div>
               <label class="lbl">Forma de Pagamento</label>
               <select id="desp-form-forma" class="inp">
@@ -2375,7 +2377,7 @@
 <script src="js/producao.js?v=20260610z"></script>
 <script src="js/financeiro.js?v=20260804d"></script>
 <script src="js/fechamento.js?v=20260713b"></script>
-<script src="js/despesas.js?v=20260819j"></script>
+<script src="js/despesas.js?v=20260902a"></script>
 <script src="js/producao2.js?v=20260610z"></script>
 <script src="js/produtos.js?v=20260610z"></script>
 <script src="js/categorias.js?v=20260901c"></script>
@@ -3167,13 +3169,14 @@ document.head.appendChild(styleExtra);
       <div style="grid-column:span 2">
         <label class="lbl">Fornecedor *</label>
         <div style="display:flex;gap:4px">
-          <select id="desp-edit-forn" class="inp" style="flex:1;min-width:0;box-sizing:border-box" onfocus="_populateFornecedoresDespesas()" onchange="_autoFillCatFromForn(this.value,'desp-edit-cat')">
+          <select id="desp-edit-forn" class="inp" style="flex:1;min-width:0;box-sizing:border-box" onfocus="_populateFornecedoresDespesas()" onchange="_autoFillCatFromForn(this.value,'desp-edit-cat');_despPixInfo(this.value,'desp-edit-pix-box')">
             <option value="">Selecione...</option>
           </select>
           <button type="button" class="btn-sm" onclick="_despAddFornecedor('desp-edit-forn','desp-edit-cat')"
             style="background:#1D2E45;border:1px solid #4F8EF740;color:#4F8EF7;font-size:16px;padding:0 10px;flex-shrink:0;border-radius:6px" title="Novo fornecedor">+</button>
         </div>
       </div>
+      <div id="desp-edit-pix-box" style="display:none;grid-column:span 2"></div>
       <div style="grid-column:span 2">
         <label class="lbl">Descrição</label>
         <input id="desp-edit-desc" class="inp" type="text" style="width:100%;box-sizing:border-box">

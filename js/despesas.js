@@ -113,6 +113,56 @@ function _autoFillCatFromForn(val, catId) {
   if(forn && forn.categoria){ el.value=forn.categoria; }
 }
 
+// ─── CHAVE PIX SALVA POR FORNECEDOR ──────────────────────────────────────────
+// A chave PIX fica salva no cadastro do fornecedor (D.fornecedores[].pix) e é
+// mostrada automaticamente aqui. Basta salvar uma vez; nas próximas semanas ela
+// já aparece pronta para copiar, sem precisar digitar de novo.
+function _despPixInfo(nome, boxId, forcarEdicao) {
+  const box = document.getElementById(boxId);
+  if (!box) return;
+  const forn = (D.fornecedores||[]).find(f=>f.nome===nome);
+  if (!nome || !forn) { box.style.display='none'; box.innerHTML=''; return; }
+  box.style.display='block';
+  const nomeEsc = forn.nome.replace(/'/g,"\\'").replace(/"/g,'&quot;');
+  if (forn.pix && !forcarEdicao) {
+    const pixEsc = forn.pix.replace(/'/g,"\\'");
+    box.innerHTML = `<div style="display:flex;align-items:center;gap:8px;background:#0A2E1A;border:1px solid #10B98140;border-radius:6px;padding:6px 10px;font-size:12px">
+        <span style="color:#8B91A8;flex-shrink:0">Chave PIX salva:</span>
+        <span style="color:#10B981;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${forn.pix}">${forn.pix}</span>
+        <button type="button" class="btn-sm" onclick="_copiarTexto('${pixEsc}',this)" style="background:#10B98120;border:1px solid #10B98140;color:#10B981;font-size:11px;padding:2px 8px;flex-shrink:0">Copiar</button>
+        <button type="button" class="btn-sm" onclick="_despEditarPixForn('${nomeEsc}','${boxId}')" style="background:none;border:none;color:#8B91A8;font-size:11px;padding:2px 4px;flex-shrink:0" title="Alterar chave">alterar</button>
+      </div>`;
+  } else {
+    box.innerHTML = `<div style="display:flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:6px 10px">
+        <input id="${boxId}-inp" class="inp" type="text" placeholder="Chave PIX de ${forn.nome} — salva no cadastro, não precisa digitar toda semana" style="flex:1;font-size:12px;padding:4px 8px"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();_despSalvarPixForn('${nomeEsc}','${boxId}')}">
+        <button type="button" class="btn-sm" onclick="_despSalvarPixForn('${nomeEsc}','${boxId}')" style="background:#0A2E1A;border:1px solid #10B98140;color:#10B981;font-size:11px;padding:3px 10px;flex-shrink:0">Salvar chave</button>
+      </div>`;
+  }
+}
+
+function _despEditarPixForn(nome, boxId) {
+  _despPixInfo(nome, boxId, true); // mostra o input sem apagar a chave atual em memória
+  const inp = document.getElementById(boxId+'-inp');
+  if (inp) {
+    const forn = (D.fornecedores||[]).find(f=>f.nome===nome);
+    inp.value = forn?.pix || '';
+    inp.focus();
+    inp.select();
+  }
+}
+
+function _despSalvarPixForn(nome, boxId) {
+  const val = document.getElementById(boxId+'-inp')?.value?.trim();
+  if (!val) { alert2('Digite a chave PIX.', 'error'); return; }
+  const forn = (D.fornecedores||[]).find(f=>f.nome===nome);
+  if (!forn) { alert2('Selecione um fornecedor primeiro.', 'error'); return; }
+  forn.pix = val;
+  sv('fornecedores');
+  alert2(`Chave PIX de ${nome} salva no cadastro. Nas próximas vezes já aparece pronta.`, 'success');
+  _despPixInfo(nome, boxId);
+}
+
 function _chaveDesp(data, descricao, valor) {
   return `${data}|${(descricao||'').trim().toLowerCase()}|${Math.round((valor||0)*100)}`;
 }
@@ -567,6 +617,7 @@ function rDespesasLista() {
       <td style="padding:8px 10px;white-space:nowrap">
         <div style="display:flex;gap:4px;align-items:center">
           ${status !== 'pago' ? `<button class="btn-sm" onclick="marcarDespesaPaga('${d.id}')" style="background:#0A2E1A;border:1px solid #10B98140;color:#10B981;font-size:11px;padding:2px 7px" title="Marcar como pago">✓ Pagar</button>` : ''}
+          <button class="btn-sm" onclick="clonarDespesa('${d.id}')" style="background:var(--bg3);border:1px solid var(--border2);font-size:11px;padding:2px 7px" title="Clonar: cria uma nova despesa a partir desta, sem alterar a original">Clonar</button>
           <button class="btn-sm" onclick="abrirEditDespesa('${d.id}')" style="background:var(--bg3);border:1px solid var(--border2)" title="Editar">✏️</button>
           <button class="btn-sm btn-red" onclick="excluirDespesa('${d.id}')" title="Excluir">✕</button>
         </div>
@@ -637,9 +688,51 @@ function salvarDespesa() {
   if (vencEl) vencEl.value = '';
   const pagEl = document.getElementById('desp-form-pagamento');
   if (pagEl) pagEl.value = '';
+  _despPixInfo('', 'desp-form-pix-box');
+  _despEsconderCloneHint();
 
   alert2('Despesa lançada com sucesso!');
   despSetView('lista');
+}
+
+function _despEsconderCloneHint() {
+  const h = document.getElementById('desp-form-clone-hint');
+  if (h) { h.style.display = 'none'; h.textContent = ''; }
+}
+
+// Clona uma despesa: abre a tela "Lançar" já preenchida com uma cópia.
+// A despesa original NÃO é alterada nem excluída — ao salvar, é criada uma nova.
+function clonarDespesa(id) {
+  const d = (D.despesas||[]).find(x=>x.id===id);
+  if (!d) return;
+  const sv2 = document.getElementById('desp-sub-view');
+  if (sv2) sv2.value = 'lancar';
+  rDespesas();
+  _populateCategoriasSelects();
+  _populateFornecedoresDespesas();
+  const set = (elId, val) => { const el = document.getElementById(elId); if (el) el.value = val; };
+  set('desp-form-data', new Date().toISOString().slice(0,10));
+  set('desp-form-nf', '');
+  set('desp-form-vencimento', '');
+  set('desp-form-cat', d.categoria || '');
+  set('desp-form-forn', d.fornecedor || '');
+  let formaClone = d.forma || _detectarFormaDespesa(d) || '';
+  if (formaClone === 'pix_manual' || formaClone === 'pix_nota') formaClone = 'pix'; // form só tem "pix"
+  set('desp-form-forma', formaClone);
+  set('desp-form-desc', _descricaoSemPrefixo(d));
+  set('desp-form-valor', d.valor || '');
+  set('desp-form-pagamento', '');
+  set('desp-form-obs', d.obs || '');
+  _despPixInfo(d.fornecedor || '', 'desp-form-pix-box');
+  const h = document.getElementById('desp-form-clone-hint');
+  if (h) {
+    h.style.display = 'block';
+    h.textContent = `Clonando de: ${d.fornecedor || _descricaoSemPrefixo(d) || 'despesa'} · ${fR(d.valor||0)}`
+      + (d.data ? ` (${fd(d.data)})` : '')
+      + '. Ajuste data, valor e o que mais precisar, depois clique em Salvar. A despesa original continua como está.';
+  }
+  const valEl = document.getElementById('desp-form-valor');
+  if (valEl) { valEl.focus(); valEl.select?.(); }
 }
 
 function excluirDespesa(id) {
@@ -881,6 +974,7 @@ function abrirEditDespesa(id) {
   document.getElementById('desp-edit-obs').value        = d.obs || '';
   document.getElementById('desp-edit-vencimento').value = d.dataVencimento || '';
   document.getElementById('desp-edit-pagamento').value  = d.dataPagamento || '';
+  _despPixInfo(d.fornecedor || '', 'desp-edit-pix-box');
   document.getElementById('m-edit-despesa').style.display = 'flex';
 }
 
