@@ -99,9 +99,11 @@ function _populateCategoriasSelects() {
 }
 
 function _populateFornecedoresDespesas() {
-  const opts = '<option value="">Nenhum</option>' + (D.fornecedores||[]).map(f=>`<option value="${f.nome}">${f.nome}</option>`).join('');
   ['desp-form-forn','desp-edit-forn'].forEach(id=>{
-    const el=document.getElementById(id); if(el) el.innerHTML=opts;
+    const el=document.getElementById(id); if(!el) return;
+    const val = el.value; // preserva a seleção atual ao recarregar as opções
+    el.innerHTML = '<option value="">Nenhum</option>' +
+      (D.fornecedores||[]).map(f=>`<option value="${f.nome}" ${f.nome===val?'selected':''}>${f.nome}</option>`).join('');
   });
 }
 
@@ -109,6 +111,7 @@ function _autoFillCatFromForn(val, catId) {
   const el=document.getElementById(catId); if(!el) return;
   el.disabled=false; // só sugere a categoria do fornecedor; nunca bloqueia edição
   if(!val) return;
+  if(el.value) return; // já tem categoria escolhida — nunca sobrescreve
   const forn=(D.fornecedores||[]).find(f=>f.nome===val);
   if(forn && forn.categoria){ el.value=forn.categoria; }
 }
