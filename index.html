@@ -1665,6 +1665,8 @@
         <div class="sec">
           <div class="sec-head" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
             <span class="sec-title">📋 Despesas Lançadas</span>
+            <input id="desp-busca" class="inp" type="search" placeholder="Buscar fornecedor, descrição, valor..."
+              style="width:250px;font-size:12px" oninput="rDespesasLista()">
             <select id="desp-cat-filtro" class="inp" style="width:170px" onchange="rDespesasLista()">
               <option value="">Todas as categorias</option>
               <option>Pessoal</option>
@@ -2377,7 +2379,7 @@
 <script src="js/producao.js?v=20260610z"></script>
 <script src="js/financeiro.js?v=20260804d"></script>
 <script src="js/fechamento.js?v=20260713b"></script>
-<script src="js/despesas.js?v=20260902a"></script>
+<script src="js/despesas.js?v=20260902b"></script>
 <script src="js/producao2.js?v=20260610z"></script>
 <script src="js/produtos.js?v=20260610z"></script>
 <script src="js/categorias.js?v=20260901c"></script>

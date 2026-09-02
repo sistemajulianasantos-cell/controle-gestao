@@ -541,6 +541,19 @@ function rDespesasLista() {
   const ordemLista  = document.getElementById('desp-lista-ordem')?.value || 'data_asc';
 
   const formaFiltro = document.getElementById('desp-forma-filtro')?.value || '';
+  const busca = (document.getElementById('desp-busca')?.value || '').trim().toLowerCase();
+  const buscaTermos = busca.split(/\s+/).filter(Boolean);
+  const _matchBusca = d => {
+    if (!buscaTermos.length) return true;
+    const alvo = [
+      d.fornecedor, d.descricao, d.categoria, d.obs, d.numeroNF,
+      _FORMAS_DESP[_detectarFormaDespesa(d)]?.label,
+      (d.valor || 0).toFixed(2),
+      (d.valor || 0).toFixed(2).replace('.', ','),
+      fd(d.data), fd(d.dataVencimento),
+    ].filter(Boolean).join(' ').toLowerCase();
+    return buscaTermos.every(t => alvo.includes(t));
+  };
 
   const _formaOrdem = { boleto: '1', dinheiro: '2', pix: '3', pix_manual: '4', pix_nota: '5',
                          cartao_credito: '6', cartao_debito: '7', transferencia: '8', cheque: '9', outros: 'z' };
@@ -568,6 +581,7 @@ function rDespesasLista() {
     if (catFiltro && d.categoria !== catFiltro) return false;
     if (statusFiltro && _statusDesp(d) !== statusFiltro) return false;
     if (formaFiltro && _detectarFormaDespesa(d) !== formaFiltro) return false;
+    if (!_matchBusca(d)) return false;
     return true;
   }).sort(_sortFns[ordemLista] || _sortFns.data_asc);
 
