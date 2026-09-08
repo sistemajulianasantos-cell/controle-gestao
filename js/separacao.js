@@ -511,13 +511,14 @@ function sepCarregarProducao(prodId) {
       '<a href="#" onclick="irParaCadastroFicha();return false" style="font-size:11px;color:var(--blue);margin-left:auto;white-space:nowrap">+ Cadastrar nova ficha</a>' +
     '</div>' +
     '<div style="padding:10px 14px">' +
-      '<input class="inp" id="sep-coq-busca" type="text" placeholder="Buscar coquetel..." oninput="filtrarCoqueteisSeparacao(this.value)" style="width:100%;max-width:280px;margin-bottom:10px">' +
+      '<input class="inp" id="sep-coq-busca" type="text" placeholder="Digite o nome do coquetel para buscar..." oninput="filtrarCoqueteisSeparacao(this.value)" style="width:100%;max-width:280px;margin-bottom:10px">' +
       '<div id="sep-coq-lista" style="display:flex;flex-wrap:wrap;gap:6px">' +
         (fichasOrdenadas.length ? fichasOrdenadas.map(function(f) {
           var marcado = coqueteisSelecionadosIds.indexOf(f.id) !== -1;
-          return '<label class="sep-coq-item" data-busca="' + f.nome.toLowerCase() + '" style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;background:' + (marcado?'var(--green-bg)':'var(--bg3)') + ';padding:4px 10px;border-radius:var(--radius);border:1px solid ' + (marcado?'var(--green-dim)':'var(--border)') + '">' +
+          return '<label class="sep-coq-item" data-busca="' + f.nome.toLowerCase() + '" data-marcado="' + (marcado?'1':'0') + '" style="display:' + (marcado?'flex':'none') + ';align-items:center;gap:5px;font-size:11px;cursor:pointer;background:' + (marcado?'var(--green-bg)':'var(--bg3)') + ';padding:4px 10px;border-radius:var(--radius);border:1px solid ' + (marcado?'var(--green-dim)':'var(--border)') + '">' +
             '<input type="checkbox" ' + (marcado?'checked':'') + ' data-fichaid="' + f.id + '" data-prodid="' + prodId + '" onchange="sepToggleCoquetel(this.dataset.prodid,this.dataset.fichaid,this.checked)"> ' + f.nome + '</label>';
         }).join('') : '<span style="font-size:11px;color:var(--text3)">Nenhuma ficha cadastrada ainda.</span>') +
+        '<span id="sep-coq-vazio" style="font-size:11px;color:var(--text3)">' + (coqueteisSelecionadosIds.length ? 'Digite acima para adicionar mais coquetéis.' : 'Nenhum coquetel marcado ainda — digite acima para buscar.') + '</span>' +
       '</div>' +
     '</div>' +
   '</div>';
@@ -974,8 +975,12 @@ function sepOpcionalRemoveItem(prodId, opcId, idx) {
 function filtrarCoqueteisSeparacao(v) {
   var termo = (v||'').trim().toLowerCase();
   document.querySelectorAll('#sep-coq-lista .sep-coq-item').forEach(function(label) {
-    label.style.display = (!termo || label.dataset.busca.indexOf(termo) !== -1) ? '' : 'none';
+    // Marcados ficam sempre visíveis; os demais só aparecem ao digitar e casar a busca.
+    var mostra = label.dataset.marcado === '1' || (!!termo && label.dataset.busca.indexOf(termo) !== -1);
+    label.style.display = mostra ? 'flex' : 'none';
   });
+  var vazio = document.getElementById('sep-coq-vazio');
+  if (vazio) vazio.style.display = termo ? 'none' : '';
 }
 
 function irParaCadastroFicha() {
