@@ -775,35 +775,75 @@ function sepCarregarProducao(prodId) {
   html += '</div></div>'; // fim kit base
 
   // ══════════════════════════════════════════════════════
-  // SEÇÃO 4 — OPCIONAIS (só entram se o cliente pediu)
+  // SEÇÃO 4 — OPCIONAIS (serviços que o cliente pode incluir)
   // ══════════════════════════════════════════════════════
-  var regrasOpcionais = regras.filter(function(r){ return r.opcional; });
-  if (regrasOpcionais.length) {
-    if (!window._sepOpcionaisMap) window._sepOpcionaisMap = {};
-    if (!window._sepOpcionaisMap[prodId]) {
-      window._sepOpcionaisMap[prodId] = (sepExistente && sepExistente.opcionais) ? sepExistente.opcionais.slice() : [];
-    }
+  // Cadastro em Regras e Cálculos → Opcionais (js/opcionais.js). Cada opcional
+  // traz uma lista de insumos; aqui ela marca os incluídos, ajusta as linhas
+  // por evento (adiciona/remove) e digita as quantidades à mão — não há
+  // cálculo automático. As quantidades seguem o fluxo normal de salvamento
+  // (inputs data-item/data-cat → sep.itens). A lista de linhas por evento fica
+  // em _sepOpcionalItensMap e é persistida em sep.opcionaisItens.
+  var opcionaisCad = (typeof getOpcionais === 'function') ? getOpcionais() : [];
+  if (!window._sepOpcionaisMap) window._sepOpcionaisMap = {};
+  if (!window._sepOpcionaisMap[prodId]) {
+    // Filtra ids que ainda casam com um opcional cadastrado — folha antiga
+    // guardava id de regra aqui (modelo antigo), não deve reaparecer marcado.
+    var _opcIdsCad = opcionaisCad.map(function(o){ return o.id; });
+    window._sepOpcionaisMap[prodId] = (sepExistente && sepExistente.opcionais)
+      ? sepExistente.opcionais.filter(function(id){ return _opcIdsCad.indexOf(id) !== -1; })
+      : [];
+  }
+  if (!window._sepOpcionalItensMap) window._sepOpcionalItensMap = {};
+  if (!window._sepOpcionalItensMap[prodId]) {
+    window._sepOpcionalItensMap[prodId] = (sepExistente && sepExistente.opcionaisItens)
+      ? JSON.parse(JSON.stringify(sepExistente.opcionaisItens)) : {};
+  }
+  if (opcionaisCad.length) {
     var opcOn = window._sepOpcionaisMap[prodId];
-    html += '<div style="background:var(--bg2);border:2px dashed var(--border2);border-radius:var(--radius-lg);overflow:hidden">' +
+    var opcItensMap = window._sepOpcionalItensMap[prodId];
+    var opcScratch = (window._sepQtdScratch && window._sepQtdScratch[prodId]) || {};
+    html += '<div id="sep-opcionais-box" style="background:var(--bg2);border:2px dashed var(--border2);border-radius:var(--radius-lg);overflow:hidden">' +
       '<div style="padding:10px 14px;background:var(--bg3);border-bottom:1px solid var(--border2)">' +
         '<span style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.8px">➕ Opcionais</span>' +
-        '<span style="font-size:11px;color:var(--text3);margin-left:8px">Marque o que o cliente incluiu neste evento — só o que estiver marcado entra na folha</span>' +
+        '<span style="font-size:11px;color:var(--text3);margin-left:8px">Marque o que o cliente incluiu — ajuste os itens e digite as quantidades</span>' +
       '</div>';
-    regrasOpcionais.forEach(function(r) {
-      var marcado = opcOn.indexOf(r.id) !== -1;
-      var qtdOpc = _sepArredondaCaixa(r.item, calcQtdItem(r, conv, bartenders, equipeTotal, cargoCounts, { semArredondarEmbalagem: true }));
-      var salvoOpc = qtdSalva(r.cat, r.item);
-      if (marcado && salvoOpc != null) qtdOpc = salvoOpc;
-      html += '<div style="display:grid;grid-template-columns:1fr 100px;gap:8px;align-items:center;padding:5px 14px;border-bottom:1px solid var(--border)">' +
-        '<label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);cursor:pointer">' +
-          '<input type="checkbox" ' + (marcado?'checked':'') + ' onchange="sepToggleOpcional(\'' + prodId + '\',\'' + r.id + '\',this.checked)"> ' +
-          r.item + ' <span style="font-size:10px;color:var(--text3)">' + r.cat + '</span>' +
-        '</label>' +
-        (marcado
-          ? '<input type="number" value="' + qtdOpc + '" min="0" data-item="' + r.item.replace(/"/g,'') + '" data-cat="' + r.cat.replace(/"/g,'') + '" ' +
-            'style="font-size:12px;font-weight:600;padding:4px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:center;font-family:var(--mono)">'
-          : '<span style="font-size:11px;color:var(--text3);text-align:center">—</span>') +
-      '</div>';
+    opcionaisCad.forEach(function(o) {
+      var marcado = opcOn.indexOf(o.id) !== -1;
+      html += '<div style="border-bottom:1px solid var(--border)">' +
+        '<label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--text);cursor:pointer;padding:8px 14px;background:var(--bg3)">' +
+          '<input type="checkbox" ' + (marcado ? 'checked' : '') + ' onchange="sepToggleOpcional(\'' + prodId + '\',\'' + o.id + '\',this.checked)"> ' +
+          (o.nome || 'Opcional') +
+        '</label>';
+      if (marcado) {
+        var linhas = opcItensMap[o.id] || [];
+        html += '<div style="padding:4px 0 8px">';
+        if (linhas.length) {
+          linhas.forEach(function(it, idx) {
+            var scrKey = it.cat + '||' + it.nome;
+            var salvoOpc = qtdSalva(it.cat, it.nome);
+            var val = (scrKey in opcScratch) ? opcScratch[scrKey] : (salvoOpc != null ? salvoOpc : '');
+            html += '<div style="display:grid;grid-template-columns:1fr 100px 30px;gap:8px;align-items:center;padding:4px 14px;border-bottom:1px solid var(--border)">' +
+              '<div style="font-size:12px;color:var(--text)">' +
+                '<span style="font-size:10px;color:var(--text3);margin-right:6px">' + it.cat + '</span>' + it.nome +
+              '</div>' +
+              '<input type="number" value="' + val + '" min="0" data-item="' + String(it.nome).replace(/"/g,'') + '" data-cat="' + String(it.cat).replace(/"/g,'') + '" ' +
+                'style="font-size:12px;font-weight:600;padding:4px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:center;font-family:var(--mono)">' +
+              '<button onclick="sepOpcionalRemoveItem(\'' + prodId + '\',\'' + o.id + '\',' + idx + ')" title="Remover linha" style="font-size:11px;background:none;border:1px solid var(--border2);color:var(--red);border-radius:4px;cursor:pointer;padding:3px 0">×</button>' +
+            '</div>';
+          });
+        } else {
+          html += '<div style="padding:4px 14px;font-size:11px;color:var(--text3)">Nenhum item — adicione abaixo.</div>';
+        }
+        html += '<div style="padding:6px 14px">' +
+          '<select onchange="if(this.value){sepOpcionalAddItem(\'' + prodId + '\',\'' + o.id + '\',this.value);this.value=\'\'}" ' +
+            'style="font-size:11px;padding:4px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);max-width:260px">' +
+            '<option value="">+ adicionar item…</option>' +
+            (typeof _opcOpcoesInsumo === 'function' ? _opcOpcoesInsumo(linhas.map(function(l){ return l.nome; })) : '') +
+          '</select>' +
+        '</div>';
+        html += '</div>';
+      }
+      html += '</div>';
     });
     html += '</div>';
   }
@@ -870,13 +910,64 @@ function sepToggleCoquetel(prodId, fichaId, marcado) {
   sepCarregarProducao(prodId);
 }
 
-function sepToggleOpcional(prodId, regraId, marcado) {
+// Categoria atual de um insumo do opcional (acompanha o Cadastro de Insumos);
+// cai em OUTROS se o insumo não tiver categoria — pra nunca gerar linha com
+// categoria vazia em sep.itens.
+function _sepOpcResolveCat(nome) {
+  var c = (typeof categoriaAtualDoInsumo === 'function') ? categoriaAtualDoInsumo(nome, '') : '';
+  return c || 'OUTROS';
+}
+
+// Guarda as quantidades já digitadas nas linhas de opcional antes de um
+// re-render (marcar outro opcional, adicionar/remover linha) — sem isso, o
+// número digitado e ainda não salvo se perde. Chave cat||item.
+function _sepHarvestOpcionalQtd(prodId) {
+  if (!window._sepQtdScratch) window._sepQtdScratch = {};
+  var m = window._sepQtdScratch[prodId] = window._sepQtdScratch[prodId] || {};
+  document.querySelectorAll('#sep-opcionais-box [data-item][data-cat]').forEach(function(inp) {
+    m[inp.dataset.cat + '||' + inp.dataset.item] = inp.value;
+  });
+}
+
+function sepToggleOpcional(prodId, opcId, marcado) {
   if (!window._sepOpcionaisMap) window._sepOpcionaisMap = {};
   if (!window._sepOpcionaisMap[prodId]) window._sepOpcionaisMap[prodId] = [];
+  if (!window._sepOpcionalItensMap) window._sepOpcionalItensMap = {};
+  if (!window._sepOpcionalItensMap[prodId]) window._sepOpcionalItensMap[prodId] = {};
+  _sepHarvestOpcionalQtd(prodId);
   var lst = window._sepOpcionaisMap[prodId];
-  var idx = lst.indexOf(regraId);
-  if (marcado && idx === -1) lst.push(regraId);
+  var idx = lst.indexOf(opcId);
+  if (marcado && idx === -1) {
+    lst.push(opcId);
+    // Primeira marcação: clona os itens do cadastro do opcional (resolvendo a
+    // categoria atual). Re-marcar depois preserva os ajustes já feitos.
+    if (!window._sepOpcionalItensMap[prodId][opcId]) {
+      var o = (typeof buscarOpcionalPorId === 'function') ? buscarOpcionalPorId(opcId) : null;
+      window._sepOpcionalItensMap[prodId][opcId] = ((o && o.itens) || []).map(function(it) {
+        return { nome: it.nome, cat: _sepOpcResolveCat(it.nome) };
+      });
+    }
+  }
   if (!marcado && idx !== -1) lst.splice(idx, 1);
+  sepCarregarProducao(prodId);
+}
+
+function sepOpcionalAddItem(prodId, opcId, nome) {
+  if (!nome) return;
+  if (!window._sepOpcionalItensMap) window._sepOpcionalItensMap = {};
+  if (!window._sepOpcionalItensMap[prodId]) window._sepOpcionalItensMap[prodId] = {};
+  _sepHarvestOpcionalQtd(prodId);
+  var arr = window._sepOpcionalItensMap[prodId][opcId] || (window._sepOpcionalItensMap[prodId][opcId] = []);
+  if (arr.some(function(it) { return _sepNormNome(it.nome) === _sepNormNome(nome); })) return;
+  arr.push({ nome: nome, cat: _sepOpcResolveCat(nome) });
+  sepCarregarProducao(prodId);
+}
+
+function sepOpcionalRemoveItem(prodId, opcId, idx) {
+  var arr = window._sepOpcionalItensMap && window._sepOpcionalItensMap[prodId] && window._sepOpcionalItensMap[prodId][opcId];
+  if (!arr) return;
+  _sepHarvestOpcionalQtd(prodId);
+  arr.splice(idx, 1);
   sepCarregarProducao(prodId);
 }
 
@@ -968,6 +1059,7 @@ function salvarSeparacao() {
     coqueteis: document.getElementById('sep-coqueteis')?.value||'',
     coqueteisIds: (window._sepCoqueteisMap && window._sepCoqueteisMap[prodId]) ? window._sepCoqueteisMap[prodId].slice() : [],
     opcionais: (window._sepOpcionaisMap && window._sepOpcionaisMap[prodId]) ? window._sepOpcionaisMap[prodId].slice() : [],
+    opcionaisItens: _sepColetarOpcionaisItens(prodId),
     coposOverride: coposOverride,
     bebidasOverride: bebidasOverride,
     criadoEm: new Date().toISOString()
@@ -982,8 +1074,21 @@ function salvarSeparacao() {
     D.separacoes.push(sep);
   }
   sv('separacoes');
+  if (window._sepQtdScratch) delete window._sepQtdScratch[prodId];
   alert('Folha de separação gerada!');
   setSepView('lista');
+}
+
+// Lista de linhas de insumo por opcional MARCADO neste evento — o que a folha
+// vai lembrar ao reabrir (as quantidades continuam em sep.itens).
+function _sepColetarOpcionaisItens(prodId) {
+  var marcados = (window._sepOpcionaisMap && window._sepOpcionaisMap[prodId]) || [];
+  var mapa = (window._sepOpcionalItensMap && window._sepOpcionalItensMap[prodId]) || {};
+  var out = {};
+  marcados.forEach(function(opcId) {
+    if (mapa[opcId]) out[opcId] = mapa[opcId].map(function(it) { return { nome: it.nome, cat: it.cat }; });
+  });
+  return out;
 }
 
 function editarSeparacao(id) {
@@ -1050,6 +1155,25 @@ function imprimirSeparacao(id) {
   var rodape = '';
   if (s.coqueteis) {
     rodape += '<div class="full"><div class="st">COQUETÉIS</div><div style="white-space:pre-wrap;font-size:10px;padding:2px 0;column-count:2;column-gap:14px">' + s.coqueteis + '</div></div>';
+  }
+
+  // Opcionais incluídos — bloco de referência (nomes, sem quantidade; os
+  // números saem nos grupos por categoria acima, igual ao bloco COQUETÉIS).
+  var opcIncluidos = (s.opcionais || [])
+    .map(function(opcId) {
+      var o = (typeof buscarOpcionalPorId === 'function') ? buscarOpcionalPorId(opcId) : null;
+      var itensSalvos = s.opcionaisItens && s.opcionaisItens[opcId];
+      // Folha antiga guardava id de regra em s.opcionais — sem opcional
+      // correspondente e sem opcionaisItens, ignora (não imprime bloco vazio).
+      if (!o && !itensSalvos) return null;
+      var itens = itensSalvos || (o && o.itens) || [];
+      var nomes = itens.map(function(it) { return it.nome; }).filter(Boolean);
+      var titulo = (o && o.nome) || 'Opcional';
+      return nomes.length ? ('<strong>' + titulo + ':</strong> ' + nomes.join(', ')) : ('<strong>' + titulo + '</strong>');
+    })
+    .filter(Boolean);
+  if (opcIncluidos.length) {
+    rodape += '<div class="full"><div class="st">OPCIONAIS</div><div style="font-size:10px;padding:2px 0;line-height:1.5">' + opcIncluidos.join('<br>') + '</div></div>';
   }
 
   w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Separação — '+s.evento+'</title>' +

@@ -1207,6 +1207,15 @@ function rOrcServicos(orc) {
           </div>`}
       <div style="padding:10px 14px;border-top:1px solid var(--border);background:var(--bg3);border-radius:0 0 var(--radius) var(--radius)">
         <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:8px">+ Adicionar serviço</div>
+        ${(typeof getOpcionais === 'function' && getOpcionais().length) ? `
+        <div style="margin-bottom:8px">
+          <label style="font-size:9px;color:var(--text3);display:block;margin-bottom:2px">Puxar de um opcional cadastrado (Regras e Cálculos → Opcionais)</label>
+          <select onchange="orcPreencherDeOpcional(this.value)"
+            style="width:100%;max-width:280px;font-size:11px;padding:5px 7px;background:var(--bg4);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius)">
+            <option value="">— escolher —</option>
+            ${getOpcionais().map(o => `<option value="${o.id}">${(o.nome||'').replace(/</g,'&lt;')}</option>`).join('')}
+          </select>
+        </div>` : ''}
         <div style="display:grid;grid-template-columns:1fr 80px 110px auto;gap:8px;align-items:flex-end">
           <div>
             <label style="font-size:9px;color:var(--text3);display:block;margin-bottom:2px">Nome do serviço</label>
@@ -1228,6 +1237,20 @@ function rOrcServicos(orc) {
         </div>
       </div>
     </div>`;
+}
+
+// Preenche o formulário "Adicionar serviço" a partir de um opcional cadastrado
+// (js/opcionais.js) — nome + preço de referência. Ela revisa e clica em
+// "+ Adicionar". Não altera o modelo de orc.servicos[].
+function orcPreencherDeOpcional(opcId) {
+  if (!opcId) return;
+  const o = (typeof buscarOpcionalPorId === 'function') ? buscarOpcionalPorId(opcId) : null;
+  if (!o) return;
+  const nomeEl  = document.getElementById('svc-nome');
+  const precoEl = document.getElementById('svc-preco');
+  if (nomeEl) nomeEl.value = o.nome || '';
+  const preco = (typeof precoOpcional === 'function') ? precoOpcional(o) : (o.precoPadrao || 0);
+  if (precoEl && preco) precoEl.value = preco;
 }
 
 function addServico(orcId) {

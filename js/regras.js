@@ -627,7 +627,7 @@ if (!D.produtos) D.produtos = [];
 function setRegrasView(v) {
   // Proporções e Associações saíram daqui (2026-08-28) — viraram a tabela
   // única de Cálculo em Separação → Cálculos.
-  ['fichas','nova-ficha','biblioteca','copos','precos'].forEach(function(x) {
+  ['fichas','nova-ficha','biblioteca','copos','opcionais','precos'].forEach(function(x) {
     var el = document.getElementById('regras-view-' + x);
     if (el) el.style.display = x === v ? '' : 'none';
     var btn = document.getElementById('regras-tab-' + x);
@@ -637,6 +637,7 @@ function setRegrasView(v) {
   if (v === 'nova-ficha') rFormFicha();
   if (v === 'biblioteca') rBiblioteca();
   if (v === 'copos') rCopos();
+  if (v === 'opcionais' && typeof rOpcionaisLista === 'function') rOpcionaisLista();
   if (v === 'precos') rPrecosOrcamento();
 }
 

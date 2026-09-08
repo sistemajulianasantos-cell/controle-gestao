@@ -1295,6 +1295,7 @@
         <button class="sort-btn active" id="regras-tab-fichas" onclick="setRegrasView('fichas')">🍹 Fichas</button>
         <button class="sort-btn" id="regras-tab-biblioteca" onclick="setRegrasView('biblioteca')">📦 Biblioteca de Itens</button>
         <button class="sort-btn" id="regras-tab-copos" onclick="setRegrasView('copos')">🥂 Copos</button>
+        <button class="sort-btn" id="regras-tab-opcionais" onclick="setRegrasView('opcionais')">Opcionais</button>
         <button class="sort-btn" id="regras-tab-precos" onclick="setRegrasView('precos')">💰 Preços do Orçamento</button>
       </div>
       <div id="regras-view-fichas">
@@ -1304,6 +1305,7 @@
       <div id="regras-view-nova-ficha" style="display:none"></div>
       <div id="regras-view-biblioteca" style="display:none"></div>
       <div id="regras-view-copos" style="display:none"></div>
+      <div id="regras-view-opcionais" style="display:none"></div>
       <div id="regras-view-precos" style="display:none"></div>
     </div>
 
@@ -2389,13 +2391,14 @@
 <script src="js/insumos.js?v=20260901e"></script>
 <script src="js/estoqueSeparacao.js?v=20260901d"></script>
 <script src="js/cargos.js?v=20260713b"></script>
-<script src="js/regras.js?v=20260901k"></script>
+<script src="js/regras.js?v=20260908a"></script>
+<script src="js/opcionais.js?v=20260908a"></script>
 <script src="js/associacoes.js?v=20260901a"></script>
 <script src="js/fichaTecnica.js?v=20260901f"></script>
-<script src="js/separacao.js?v=20260901n"></script>
+<script src="js/separacao.js?v=20260908a"></script>
 <script src="js/equipe.js?v=20260805e"></script>
 <script src="js/solicitacaoOrcamento.js?v=20260803f"></script>
-<script src="js/orcamento.js?v=20260805b"></script>
+<script src="js/orcamento.js?v=20260908a"></script>
 <script src="js/orcCalc.js?v=20260805a"></script>
 <script src="js/orcProposta.js?v=20260804a"></script>
 <script src="js/_refConsumoData.js?v=20260610z"></script>
@@ -2454,6 +2457,7 @@ window.svFirebase = async function(chave) {
     if(chave==='enderecos')      campo.enderecos      = D.enderecos;
     if(chave==='categorias')     campo.categorias     = D.categorias;
     if(chave==='servicos')       campo.servicos       = D.servicos;
+    if(chave==='opcionais')      campo.opcionais      = D.opcionais;
     if(chave==='tiposEvento')    campo.tiposEvento    = D.tiposEvento;
     if(chave==='categoriasServico') campo.categoriasServico = D.categoriasServico;
     if(chave==='historico')    campo.historico    = D.historico;
@@ -2751,6 +2755,7 @@ async function carregarDados() {
     D.categorias   = r.categorias   || [];
     D.tiposEvento  = r.tiposEvento  || [];
     D.servicos          = r.servicos          || [];
+    D.opcionais         = r.opcionais         || [];
     D.categoriasServico = r.categoriasServico || [];
     D.equipe           = r.equipe           || [];
     D.escalas          = r.escalas          || [];
