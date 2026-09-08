@@ -251,6 +251,37 @@ function _sepBadgeCaixa(it) {
     : '';
 }
 
+// Quebra a quantidade em unidade solta ("45") na leitura por caixa fechada
+// ("= 3 cx", "= 3 cx e 5 un" ou "= 5 un"), do mesmo jeito que a tela do
+// Sistema de Separação — fica mais fácil de conferir. Usa o tamanho da caixa
+// do Cadastro de Insumos ("Qtd por embalagem"). Sem caixa cadastrada = ''.
+function _sepConvCaixaTxt(nome, qtd) {
+  var m = _sepTamCaixa(nome);
+  var q = parseFloat(qtd);
+  if (!m || isNaN(q) || q <= 0) return '';
+  var caixas = Math.floor(q / m);
+  var soltas = Math.round((q - caixas * m) * 100) / 100;
+  var txt;
+  if (caixas === 0)      txt = soltas + ' un';
+  else if (soltas === 0) txt = caixas + ' cx';
+  else                   txt = caixas + ' cx e ' + soltas + ' un';
+  return '= ' + txt;
+}
+
+// Span da conversão em caixa, com o nome do item pra o listener de input
+// recalcular ao vivo quando ela ajusta a quantidade à mão.
+function _sepConvCaixaSpan(nome, qtd) {
+  return '<span class="sep-cxconv" data-cxnome="' + String(nome).replace(/"/g, '') + '" ' +
+    'style="font-size:10px;color:var(--text3);margin-left:6px">' + _sepConvCaixaTxt(nome, qtd) + '</span>';
+}
+
+function _sepSyncConvCaixa(inp) {
+  var grid = inp.closest && inp.closest('[style*="grid-template-columns"]');
+  if (!grid) return;
+  var span = grid.querySelector('.sep-cxconv');
+  if (span) span.textContent = _sepConvCaixaTxt(span.dataset.cxnome, inp.value);
+}
+
 // Recalcula, ao vivo, os acessórios quando a quantidade do principal muda na
 // tela (a Juliana pediu que o acessório acompanhe na hora). Roda 2x pra
 // cobrir uma associação que aponte pra outro acessório.
@@ -727,7 +758,7 @@ function sepCarregarProducao(prodId) {
         '</select>';
       }
       html += '<div style="display:grid;grid-template-columns:' + cols + ';gap:8px;align-items:center;padding:4px 14px;border-bottom:1px solid var(--border)">' +
-        '<div style="font-size:12px;color:var(--text)">' + it.item + badge + _sepBadgeAssoc(it) + _sepBadgeCaixa(it) +
+        '<div style="font-size:12px;color:var(--text)">' + it.item + badge + _sepBadgeAssoc(it) + _sepBadgeCaixa(it) + _sepConvCaixaSpan(it.item, qtdConf) +
           (it.obs ? '<span style="font-size:10px;color:var(--text3);margin-left:6px">' + it.obs + '</span>' : '') +
         '</div>' +
         fornHtml +
@@ -764,7 +795,7 @@ function sepCarregarProducao(prodId) {
       var salvoKit = qtdSalva(cat, it.item);
       if (salvoKit != null && !it.travado) qtdKit = salvoKit;
       html += '<div style="display:grid;grid-template-columns:1fr 100px;gap:8px;align-items:center;padding:4px 14px;border-bottom:1px solid var(--border)">' +
-        '<span style="font-size:12px;color:var(--text2)">' + it.item + _sepBadgeAssoc(it) + _sepBadgeCaixa(it) +
+        '<span style="font-size:12px;color:var(--text2)">' + it.item + _sepBadgeAssoc(it) + _sepBadgeCaixa(it) + _sepConvCaixaSpan(it.item, qtdKit) +
           (it.obs ? '<span style="font-size:10px;color:var(--text3);margin-left:6px">' + it.obs + '</span>' : '') +
         '</span>' +
         _sepQtdCell(it, cat.replace(/"/g,''), it.item.replace(/"/g,''), qtdKit, 'var(--text2)') +
@@ -875,7 +906,10 @@ function sepCarregarProducao(prodId) {
   if (!cont._assocListener) {
     cont._assocListener = true;
     cont.addEventListener('input', function(e) {
-      if (e.target && e.target.matches && e.target.matches('[data-item]')) _sepRecalcAssociacoes();
+      if (e.target && e.target.matches && e.target.matches('[data-item]')) {
+        _sepRecalcAssociacoes();
+        _sepSyncConvCaixa(e.target);
+      }
     });
   }
   _sepRecalcAssociacoes();
@@ -1144,7 +1178,8 @@ function imprimirSeparacao(id) {
           var nomeItem = e[0];
           var forn = fornMap[nomeItem];
           if (forn) nomeItem += ' <span style="color:#888;font-size:9px">(' + (FORN_LABEL[forn]||forn) + ')</span>';
-          return '<tr><td>'+nomeItem+'</td><td>'+e[1]+' UN</td><td></td><td></td></tr>';
+          var conv = _sepConvCaixaTxt(e[0], e[1]);
+          return '<tr><td>'+nomeItem+'</td><td>'+e[1]+' UN'+(conv?' <span style="color:#888;font-size:9px">'+conv+'</span>':'')+'</td><td></td><td></td></tr>';
         }).join('') +
         '</tbody></table></div>';
     });
