@@ -227,6 +227,8 @@ function _sepLinhaMontada(todosItens, nome) {
 // Célula de quantidade de um item na folha. Item normal = input editável.
 // Item travado (acessório de uma associação) = valor só-leitura que segue o
 // principal, com um input escondido pra ser salvo por salvarSeparacao().
+// `valor` chega SEMPRE em unidade solta. Item de caixa fechada é editado em
+// CAIXAS (com data-cxsize pra o salvarSeparacao converter de volta pra un).
 function _sepQtdCell(it, catAttr, itemAttr, valor, corTexto) {
   if (it.travado) {
     return '<div style="text-align:right" data-assoc-principal="' + (it.associadoA || '').replace(/"/g, '') + '" ' +
@@ -235,8 +237,12 @@ function _sepQtdCell(it, catAttr, itemAttr, valor, corTexto) {
       '<input type="hidden" data-item="' + itemAttr + '" data-cat="' + catAttr + '" value="' + valor + '">' +
     '</div>';
   }
-  return '<input type="number" value="' + valor + '" min="0" data-item="' + itemAttr + '" data-cat="' + catAttr + '" ' +
-    'style="font-size:12px;font-weight:600;padding:4px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:' + (corTexto || 'var(--text)') + ';text-align:center;font-family:var(--mono)">';
+  var m = _sepTamCaixa(it.item);
+  var emCaixa = m > 1;
+  var valMostrado = emCaixa ? _sepUnParaCaixa(valor, m) : valor;
+  return '<input type="number" value="' + valMostrado + '" min="0" step="1" data-item="' + itemAttr + '" data-cat="' + catAttr + '"' +
+    (emCaixa ? ' data-cxsize="' + m + '" title="Em caixas (cada caixa = ' + m + ' un)"' : '') +
+    ' style="font-size:12px;font-weight:600;padding:4px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:' + (corTexto || 'var(--text)') + ';text-align:center;font-family:var(--mono)">';
 }
 
 function _sepBadgeAssoc(it) {
@@ -245,41 +251,45 @@ function _sepBadgeAssoc(it) {
     : '';
 }
 
+// Badge com o tamanho da caixa do item (Cadastro de Insumos → "Qtd por
+// embalagem"). Aparece em TODO item que sai em caixa fechada, tenha ou não
+// quantidade calculada neste evento.
 function _sepBadgeCaixa(it) {
-  return it.multCaixa
-    ? '<span style="font-size:9px;background:var(--bg4);color:var(--text3);border:1px solid var(--border2);padding:1px 6px;border-radius:10px;margin-left:6px" title="Arredondado pro múltiplo de ' + it.multCaixa + ' (caixa fechada)">cx ' + it.multCaixa + '</span>'
+  var m = it.multCaixa || _sepTamCaixa(it.item);
+  return m > 1
+    ? '<span style="font-size:9px;background:var(--bg4);color:var(--text3);border:1px solid var(--border2);padding:1px 6px;border-radius:10px;margin-left:6px" title="Sai em caixa fechada de ' + m + ' un">cx ' + m + '</span>'
     : '';
 }
 
-// Quebra a quantidade em unidade solta ("45") na leitura por caixa fechada
-// ("= 3 cx", "= 3 cx e 5 un" ou "= 5 un"), do mesmo jeito que a tela do
-// Sistema de Separação — fica mais fácil de conferir. Usa o tamanho da caixa
-// do Cadastro de Insumos ("Qtd por embalagem"). Sem caixa cadastrada = ''.
-function _sepConvCaixaTxt(nome, qtd) {
+// Converte unidade solta -> nº de caixas pra MOSTRAR/EDITAR no campo. Item de
+// caixa fechada é preenchido em CAIXAS na folha (pedido da Juliana: "a
+// quantidade de cx que vamos levar"). Mantém decimal só se não fechar caixa.
+function _sepUnParaCaixa(un, m) {
+  var q = parseFloat(un) || 0;
+  if (!(m > 1) || q <= 0) return q;
+  var cx = q / m;
+  return Number.isInteger(cx) ? cx : Math.round(cx * 100) / 100;
+}
+
+// Leitura auxiliar em unidade solta ("= 45 un") ao lado do campo em caixas.
+// Recebe a quantidade em UNIDADE SOLTA. Vazio pra item que não é de caixa.
+function _sepUnReadoutSpan(nome, qtdUn) {
   var m = _sepTamCaixa(nome);
-  var q = parseFloat(qtd);
-  if (!m || isNaN(q) || q <= 0) return '';
-  var caixas = Math.floor(q / m);
-  var soltas = Math.round((q - caixas * m) * 100) / 100;
-  var txt;
-  if (caixas === 0)      txt = soltas + ' un';
-  else if (soltas === 0) txt = caixas + ' cx';
-  else                   txt = caixas + ' cx e ' + soltas + ' un';
-  return '= ' + txt;
+  if (!(m > 1)) return '';
+  var q = parseFloat(qtdUn) || 0;
+  return '<span class="sep-cxconv" data-cxsize="' + m + '" ' +
+    'style="font-size:10px;color:var(--text3);margin-left:6px">' + (q > 0 ? '= ' + Math.round(q) + ' un' : '') + '</span>';
 }
 
-// Span da conversão em caixa, com o nome do item pra o listener de input
-// recalcular ao vivo quando ela ajusta a quantidade à mão.
-function _sepConvCaixaSpan(nome, qtd) {
-  return '<span class="sep-cxconv" data-cxnome="' + String(nome).replace(/"/g, '') + '" ' +
-    'style="font-size:10px;color:var(--text3);margin-left:6px">' + _sepConvCaixaTxt(nome, qtd) + '</span>';
-}
-
+// Atualiza a leitura "= N un" ao vivo quando ela digita caixas no campo.
 function _sepSyncConvCaixa(inp) {
   var grid = inp.closest && inp.closest('[style*="grid-template-columns"]');
   if (!grid) return;
   var span = grid.querySelector('.sep-cxconv');
-  if (span) span.textContent = _sepConvCaixaTxt(span.dataset.cxnome, inp.value);
+  if (!span) return;
+  var size = parseFloat(inp.dataset.cxsize) || parseFloat(span.dataset.cxsize) || 0;
+  var cx = parseFloat(inp.value) || 0;
+  span.textContent = (size > 1 && cx > 0) ? ('= ' + Math.round(cx * size) + ' un') : '';
 }
 
 // Recalcula, ao vivo, os acessórios quando a quantidade do principal muda na
@@ -293,7 +303,9 @@ function _sepRecalcAssociacoes() {
     var achou = null;
     wrap.querySelectorAll('[data-item]').forEach(function(el) {
       if ((el.dataset.item || '').toUpperCase() === alvo) {
-        achou = parseFloat(el.value != null ? el.value : el.textContent) || 0;
+        var v = parseFloat(el.value != null ? el.value : el.textContent) || 0;
+        var size = parseFloat(el.dataset.cxsize) || 0;
+        achou = size > 1 ? v * size : v; // associação sempre calcula em unidade solta
       }
     });
     return achou;
@@ -690,7 +702,7 @@ function sepCarregarProducao(prodId) {
   html += '<div style="background:var(--bg2);border:2px solid var(--border2);border-radius:var(--radius-lg);overflow:hidden">' +
     '<div style="padding:10px 14px;background:var(--bg3);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:8px">' +
       '<span style="font-size:12px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.8px">📋 Conferência</span>' +
-      '<span style="font-size:11px;color:var(--text3)">Bebidas, gelo, copos, produção, equipe</span>' +
+      '<span style="font-size:11px;color:var(--text3)">Bebidas, gelo, copos, produção, equipe — item com <strong>cx</strong> é preenchido em CAIXAS (a leitura em unidades fica ao lado)</span>' +
     '</div>';
 
   // Equipe
@@ -758,7 +770,7 @@ function sepCarregarProducao(prodId) {
         '</select>';
       }
       html += '<div style="display:grid;grid-template-columns:' + cols + ';gap:8px;align-items:center;padding:4px 14px;border-bottom:1px solid var(--border)">' +
-        '<div style="font-size:12px;color:var(--text)">' + it.item + badge + _sepBadgeAssoc(it) + _sepBadgeCaixa(it) + _sepConvCaixaSpan(it.item, qtdConf) +
+        '<div style="font-size:12px;color:var(--text)">' + it.item + badge + _sepBadgeAssoc(it) + _sepBadgeCaixa(it) + _sepUnReadoutSpan(it.item, qtdConf) +
           (it.obs ? '<span style="font-size:10px;color:var(--text3);margin-left:6px">' + it.obs + '</span>' : '') +
         '</div>' +
         fornHtml +
@@ -795,7 +807,7 @@ function sepCarregarProducao(prodId) {
       var salvoKit = qtdSalva(cat, it.item);
       if (salvoKit != null && !it.travado) qtdKit = salvoKit;
       html += '<div style="display:grid;grid-template-columns:1fr 100px;gap:8px;align-items:center;padding:4px 14px;border-bottom:1px solid var(--border)">' +
-        '<span style="font-size:12px;color:var(--text2)">' + it.item + _sepBadgeAssoc(it) + _sepBadgeCaixa(it) + _sepConvCaixaSpan(it.item, qtdKit) +
+        '<span style="font-size:12px;color:var(--text2)">' + it.item + _sepBadgeAssoc(it) + _sepBadgeCaixa(it) + _sepUnReadoutSpan(it.item, qtdKit) +
           (it.obs ? '<span style="font-size:10px;color:var(--text3);margin-left:6px">' + it.obs + '</span>' : '') +
         '</span>' +
         _sepQtdCell(it, cat.replace(/"/g,''), it.item.replace(/"/g,''), qtdKit, 'var(--text2)') +
@@ -1050,7 +1062,12 @@ function salvarSeparacao() {
   document.querySelectorAll('[data-item][data-cat]').forEach(function(input) {
     var cat = input.dataset.cat;
     var item = input.dataset.item;
-    var qtd = parseInt(input.value)||0;
+    // Item de caixa fechada é editado em CAIXAS na tela — volta pra unidade
+    // solta aqui (é assim que sep.itens é lido pela Separação e pelo estoque).
+    var size = parseFloat(input.dataset.cxsize) || 0;
+    var qtd = size > 1
+      ? Math.round((parseFloat(input.value) || 0) * size)
+      : (parseInt(input.value) || 0);
     if (!itensFinais[cat]) itensFinais[cat] = {};
     itensFinais[cat][item] = qtd;
   });
@@ -1178,8 +1195,12 @@ function imprimirSeparacao(id) {
           var nomeItem = e[0];
           var forn = fornMap[nomeItem];
           if (forn) nomeItem += ' <span style="color:#888;font-size:9px">(' + (FORN_LABEL[forn]||forn) + ')</span>';
-          var conv = _sepConvCaixaTxt(e[0], e[1]);
-          return '<tr><td>'+nomeItem+'</td><td>'+e[1]+' UN'+(conv?' <span style="color:#888;font-size:9px">'+conv+'</span>':'')+'</td><td></td><td></td></tr>';
+          // Item de caixa fechada sai em CAIXAS, com a unidade solta entre parênteses.
+          var m = _sepTamCaixa(e[0]);
+          var qcell = (m > 1)
+            ? _sepUnParaCaixa(e[1], m) + ' CX <span style="color:#888;font-size:9px">(' + e[1] + ' un)</span>'
+            : e[1] + ' UN';
+          return '<tr><td>'+nomeItem+'</td><td>'+qcell+'</td><td></td><td></td></tr>';
         }).join('') +
         '</tbody></table></div>';
     });
