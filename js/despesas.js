@@ -544,6 +544,13 @@ function rDespesasLista() {
   const ordemLista  = document.getElementById('desp-lista-ordem')?.value || 'data_asc';
 
   const formaFiltro = document.getElementById('desp-forma-filtro')?.value || '';
+
+  // Período por data (mesma regra da impressão): se preenchido, substitui o filtro de Mês/Ano
+  const periodoDe  = document.getElementById('desp-print-de')?.value || '';
+  const periodoAte = document.getElementById('desp-print-ate')?.value || '';
+  const campoDataSel    = document.getElementById('desp-print-campo-data')?.value || 'venc';
+  const campoDataFiltro = campoDataSel === 'emissao' ? 'data' : 'dataVencimento';
+
   const busca = (document.getElementById('desp-busca')?.value || '').trim().toLowerCase();
   const buscaTermos = busca.split(/\s+/).filter(Boolean);
   const _matchBusca = d => {
@@ -578,9 +585,17 @@ function rDespesasLista() {
   };
 
   const lista = (D.despesas || []).filter(d => {
-    const ref = d.data || '';
-    if (ano && !ref.startsWith(ano)) return false;
-    if (mes && !ref.startsWith(`${ano}-${mes}`)) return false;
+    if (periodoDe || periodoAte) {
+      // Intervalo de datas preenchido: filtra pelo campo escolhido (vencimento ou emissão)
+      const ref = d[campoDataFiltro] || '';
+      if (!ref) return false;
+      if (periodoDe && ref < periodoDe) return false;
+      if (periodoAte && ref > periodoAte) return false;
+    } else {
+      const ref = d.data || '';
+      if (ano && !ref.startsWith(ano)) return false;
+      if (mes && !ref.startsWith(`${ano}-${mes}`)) return false;
+    }
     if (catFiltro && d.categoria !== catFiltro) return false;
     if (statusFiltro && _statusDesp(d) !== statusFiltro) return false;
     if (formaFiltro && _detectarFormaDespesa(d) !== formaFiltro) return false;
