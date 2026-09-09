@@ -21,6 +21,21 @@ function setSepView(v) {
   if (v==='calculos') rSepCalculos();
 }
 
+// Conta itens da folha do MESMO jeito que o Sistema Separação conta ao puxar
+// (toda linha cat→nome com quantidade > 0, equipe incluída). Serve pra ela
+// bater o número: folha aqui = "N itens" deve casar com o "Itens (N)" da festa
+// lá (lá pode ter MAIS se ela adicionou algo à mão, nunca menos se entrou tudo).
+function _sepContaItensFolha(s) {
+  var n = 0;
+  var itens = (s && s.itens) || {};
+  Object.keys(itens).forEach(function(cat) {
+    Object.keys(itens[cat] || {}).forEach(function(nome) {
+      if ((parseFloat(itens[cat][nome]) || 0) > 0) n++;
+    });
+  });
+  return n;
+}
+
 function rSeparacoes() {
   var cont = document.getElementById('sep-lista-body');
   if (!cont) return;
@@ -42,7 +57,7 @@ function rSeparacoes() {
           '<button class="btn-sm btn-red" onclick="excluirSeparacao(\'' + s.id + '\')">Excluir</button>' +
         '</div>' +
       '</div>' +
-      '<div style="padding:6px 16px;font-size:11px;color:var(--text3)">' + (s.local||'') + ' · Equipe: ' + (s.totalEquipe||'—') + ' · Bartenders: ' + (s.bartenders||'—') + '</div>' +
+      '<div style="padding:6px 16px;font-size:11px;color:var(--text3)">' + (s.local||'') + ' · Equipe: ' + (s.totalEquipe||'—') + ' · Bartenders: ' + (s.bartenders||'—') + ' · <strong>' + _sepContaItensFolha(s) + ' itens</strong></div>' +
     '</div>';
   }).join('');
 }
@@ -1255,7 +1270,7 @@ function imprimirSeparacao(id) {
     '</head><body>' +
     '<h2>FOLHA DE SEPARAÇÃO — ' + (s.evento||'').toUpperCase() + '</h2>' +
     '<div class="sub">Data: ' + dataFmt + ' | Local: ' + (s.local||'—') + ' | Horário: ' + (s.hrInicio||'—') + ' às ' + (s.hrFim||'—') + '<br>' +
-    'Convidados: ' + s.convidados + ' | Equipe: ' + s.totalEquipe + ' | Bartenders: ' + s.bartenders + '</div>' +
+    'Convidados: ' + s.convidados + ' | Equipe: ' + s.totalEquipe + ' | Bartenders: ' + s.bartenders + ' | Itens: ' + _sepContaItensFolha(s) + '</div>' +
     '<div class="cols">' + grupos + '</div>' +
     rodape +
     '<div class="full" style="margin-top:14px;font-size:10px;color:#888">Quebras no transporte: ___________________________________</div>' +
