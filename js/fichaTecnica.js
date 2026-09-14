@@ -119,30 +119,94 @@ function rCoposBiblioteca() {
 function copoSelecionarFoto(inputEl, id, legado) {
   var file = inputEl.files && inputEl.files[0];
   if (!file) return;
+  _cropAbrir(file, function(b64) {
+    return legado
+      ? (typeof window.salvarCopoFoto === 'function' ? window.salvarCopoFoto(id, b64) : Promise.resolve())
+      : (typeof window.salvarInsumoFoto === 'function' ? window.salvarInsumoFoto(id, b64) : Promise.resolve());
+  }, 'copo-thumb-' + id, 'copo-thumb-empty-' + id);
+  inputEl.value = '';
+}
+
+// ── Ajuste de enquadramento (recorte 4:5) ao enviar foto ────────────────────
+// Compartilhado entre foto de copo/insumo e foto de coquetel: cada foto tem
+// a bebida numa posição diferente, então um recorte automático por CSS
+// nunca acerta todo mundo — aqui ela mesma posiciona (2 sliders) antes de
+// salvar, e o recorte final já sai gravado dentro da própria imagem (canvas),
+// sempre na proporção 4:5 usada nos cards do Catálogo.
+var _CROP_SAIDA = { w: 560, h: 700 };
+var _cropEstado = null; // { img, salvar, thumbId, vazioId, posX, posY }
+
+function _cropAbrir(file, salvarFn, thumbId, vazioId) {
   var leitor = new FileReader();
   leitor.onload = function(e) {
     var img = new Image();
     img.onload = function() {
-      var sc = Math.min(400 / img.width, 400 / img.height, 1);
-      var cv = document.createElement('canvas');
-      cv.width = Math.round(img.width * sc);
-      cv.height = Math.round(img.height * sc);
-      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
-      var b64 = cv.toDataURL('image/jpeg', 0.82);
-      var salvar = legado
-        ? (typeof window.salvarCopoFoto === 'function' ? window.salvarCopoFoto(id, b64) : Promise.resolve())
-        : (typeof window.salvarInsumoFoto === 'function' ? window.salvarInsumoFoto(id, b64) : Promise.resolve());
-      salvar.then(function() {
-        var t = document.getElementById('copo-thumb-' + id);
-        if (t) t.src = b64;
-        var vazio = document.getElementById('copo-thumb-empty-' + id);
-        if (vazio) vazio.style.display = 'none';
-      });
+      _cropEstado = { img: img, salvar: salvarFn, thumbId: thumbId, vazioId: vazioId };
+      var imgEl = document.getElementById('crop-img');
+      var xEl = document.getElementById('crop-pos-x');
+      var yEl = document.getElementById('crop-pos-y');
+      if (imgEl) imgEl.src = e.target.result;
+      if (xEl) xEl.value = 50;
+      if (yEl) yEl.value = 50;
+      _cropAtualizarPosicao();
+      if (typeof openM === 'function') openM('mcropfoto');
     };
     img.src = e.target.result;
   };
   leitor.readAsDataURL(file);
-  inputEl.value = '';
+}
+
+function _cropAtualizarPosicao() {
+  if (!_cropEstado) return;
+  var xEl = document.getElementById('crop-pos-x');
+  var yEl = document.getElementById('crop-pos-y');
+  _cropEstado.posX = xEl ? parseFloat(xEl.value) : 50;
+  _cropEstado.posY = yEl ? parseFloat(yEl.value) : 50;
+  var imgEl = document.getElementById('crop-img');
+  if (imgEl) imgEl.style.objectPosition = _cropEstado.posX + '% ' + _cropEstado.posY + '%';
+}
+
+function _cropCancelar() {
+  _cropEstado = null;
+  if (typeof closeM === 'function') closeM('mcropfoto');
+}
+
+function _cropSalvar() {
+  if (!_cropEstado) return;
+  var img = _cropEstado.img;
+  var outW = _CROP_SAIDA.w, outH = _CROP_SAIDA.h;
+  var imgW = img.naturalWidth, imgH = img.naturalHeight;
+  var frameRatio = outW / outH;
+  var imgRatio = imgW / imgH;
+  var sx, sy, sW, sH;
+  if (imgRatio > frameRatio) {
+    // foto mais "larga" que o quadro — sobra nas laterais, desliza no X
+    sH = imgH;
+    sW = imgH * frameRatio;
+    sy = 0;
+    sx = (imgW - sW) * (_cropEstado.posX / 100);
+  } else {
+    // foto mais "alta" que o quadro — sobra em cima/embaixo, desliza no Y
+    sW = imgW;
+    sH = imgW / frameRatio;
+    sx = 0;
+    sy = (imgH - sH) * (_cropEstado.posY / 100);
+  }
+  var cv = document.createElement('canvas');
+  cv.width = outW; cv.height = outH;
+  cv.getContext('2d').drawImage(img, sx, sy, sW, sH, 0, 0, outW, outH);
+  var b64 = cv.toDataURL('image/jpeg', 0.85);
+
+  var estado = _cropEstado;
+  _cropEstado = null;
+  if (typeof closeM === 'function') closeM('mcropfoto');
+
+  estado.salvar(b64).then(function() {
+    var t = document.getElementById(estado.thumbId);
+    if (t) t.src = b64;
+    var vazio = document.getElementById(estado.vazioId);
+    if (vazio) vazio.style.display = 'none';
+  });
 }
 
 // ── Fotos dos Coquetéis (Catálogo) ──────────────────────────────────────────
@@ -192,26 +256,9 @@ function rFichasFotos() {
 function fichaSelecionarFoto(inputEl, fichaId) {
   var file = inputEl.files && inputEl.files[0];
   if (!file) return;
-  var leitor = new FileReader();
-  leitor.onload = function(e) {
-    var img = new Image();
-    img.onload = function() {
-      var sc = Math.min(700 / img.width, 700 / img.height, 1);
-      var cv = document.createElement('canvas');
-      cv.width = Math.round(img.width * sc);
-      cv.height = Math.round(img.height * sc);
-      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
-      var b64 = cv.toDataURL('image/jpeg', 0.85);
-      (typeof window.salvarFichaFoto === 'function' ? window.salvarFichaFoto(fichaId, b64) : Promise.resolve()).then(function() {
-        var t = document.getElementById('ficha-thumb-' + fichaId);
-        if (t) t.src = b64;
-        var vazio = document.getElementById('ficha-thumb-empty-' + fichaId);
-        if (vazio) vazio.style.display = 'none';
-      });
-    };
-    img.src = e.target.result;
-  };
-  leitor.readAsDataURL(file);
+  _cropAbrir(file, function(b64) {
+    return (typeof window.salvarFichaFoto === 'function') ? window.salvarFichaFoto(fichaId, b64) : Promise.resolve();
+  }, 'ficha-thumb-' + fichaId, 'ficha-thumb-empty-' + fichaId);
   inputEl.value = '';
 }
 
