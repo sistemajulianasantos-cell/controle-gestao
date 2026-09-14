@@ -23,6 +23,43 @@
 // Cardápio) — por enquanto só a tela de configuração em si.
 
 var _ocoTipoAtual = '';
+var _ocoAbaAtual  = 'quantidades'; // 'quantidades' | 'catalogo'
+
+function ocoSetAba(aba) {
+  _ocoAbaAtual = aba;
+  rOrcCalculos();
+}
+
+// Catálogo de referência: TODO insumo que aparece em QUALQUER Ficha de
+// Coquetel do sistema, com a lista de coquetéis onde ele aparece — não
+// filtrado pelos coquetéis associados ao Tipo de Evento atual (essa
+// filtragem só vale na aba "Quantidades"). Serve pra ela ver de cara tudo
+// que existe antes de decidir o que associar/preencher, em vez de garimpar
+// ficha por ficha.
+function _ocoTodosItensDeFichas() {
+  var porNome = {};
+  (D.fichas || []).forEach(function(f) {
+    (f.itens || []).forEach(function(it) {
+      var nome = (it.nome || '').trim();
+      if (!nome) return;
+      var chave = nome.toUpperCase();
+      if (!porNome[chave]) porNome[chave] = { nome: nome, cat: it.cat || 'OUTROS', fichas: [] };
+      if (porNome[chave].fichas.indexOf(f.nome) === -1) porNome[chave].fichas.push(f.nome);
+    });
+  });
+  return Object.keys(porNome).map(function(k) { return porNome[k]; })
+    .sort(function(a, b) { return a.nome.localeCompare(b.nome, 'pt-BR'); });
+}
+
+// "+" da aba Catálogo — adiciona direto no Tipo de Evento atual, sem passar
+// pelo select de "+ Adicionar item" (o nome/categoria já vêm da ficha).
+function ocoAdicionarItemDireto(nome, cat) {
+  var lista = _ocoRegras(_ocoTipoAtual);
+  if (lista.some(function(r) { return (r.item || '').toUpperCase() === nome.toUpperCase(); })) return;
+  lista.push({ id: _gerarId('OC'), item: nome, cat: cat || 'OUTROS', base: 'convidado', valor: 0, ref: 1, min: 0, cargos: [], principal: '' });
+  D.calculosOrcamento[_ocoTipoAtual] = lista;
+  rOrcCalculos();
+}
 
 function initOrcCalculos() {
   if (!D.calculosOrcamento) D.calculosOrcamento = {};
@@ -336,6 +373,48 @@ function rOrcCalculos() {
       '<button class="btn" style="background:var(--green);font-weight:700" onclick="ocoSalvar()">💾 Salvar</button>' +
     '</div>' +
   '</div>';
+
+  html += '<div style="display:flex;gap:6px;margin-bottom:14px">' +
+    '<button class="sort-btn ' + (_ocoAbaAtual === 'quantidades' ? 'active' : '') + '" onclick="ocoSetAba(\'quantidades\')">📊 Quantidades</button>' +
+    '<button class="sort-btn ' + (_ocoAbaAtual === 'catalogo' ? 'active' : '') + '" onclick="ocoSetAba(\'catalogo\')">📖 Catálogo de Insumos (todas as Fichas)</button>' +
+  '</div>';
+
+  if (_ocoAbaAtual === 'catalogo') {
+    var todosItens = _ocoTodosItensDeFichas();
+    var porCatCatalogo = {};
+    todosItens.forEach(function(it) { (porCatCatalogo[it.cat] = porCatCatalogo[it.cat] || []).push(it); });
+    var ordemCatsCatalogo = (typeof getCategorias === 'function' ? getCategorias() : []).filter(function(c) { return porCatCatalogo[c]; });
+    Object.keys(porCatCatalogo).forEach(function(c) { if (ordemCatsCatalogo.indexOf(c) === -1) ordemCatsCatalogo.push(c); });
+    var nomeTipoAtual = (buscarTipoEventoPorId(_ocoTipoAtual) || {}).nome || _ocoTipoAtual;
+
+    html += '<div style="font-size:11px;color:var(--text3);margin-bottom:14px">Todo insumo que aparece em alguma Ficha de Coquetel, sem filtro de Tipo de Evento — pra você ver tudo que existe no sistema antes de decidir o que associar. "✓ já nesta lista" quer dizer que o item já está nos Cálculos do Tipo de Evento selecionado acima (' + nomeTipoAtual + ').</div>';
+
+    if (!todosItens.length) {
+      html += '<div style="text-align:center;color:var(--text3);padding:32px">Nenhuma Ficha de Coquetel cadastrada ainda.</div>';
+    }
+
+    ordemCatsCatalogo.forEach(function(cat) {
+      var itensCat = porCatCatalogo[cat];
+      html += '<div style="margin-bottom:16px">' +
+        '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;border-bottom:2px solid var(--border2);padding-bottom:4px;margin-bottom:8px">' + cat + '</div>' +
+        '<div style="display:grid;gap:4px">' +
+        itensCat.map(function(it) {
+          var jaTem = itensExistentes[it.nome.toUpperCase()];
+          return '<div style="display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:6px 12px;font-size:11px">' +
+            '<span style="flex:1;color:var(--text);font-weight:500">' + it.nome + '</span>' +
+            '<span style="font-size:10px;color:var(--text3)">' + it.fichas.join(', ') + '</span>' +
+            (jaTem
+              ? '<span style="font-size:10px;color:var(--green);white-space:nowrap">✓ já nesta lista</span>'
+              : '<button class="btn-sm" style="background:var(--blue);white-space:nowrap" onclick="ocoAdicionarItemDireto(\'' + it.nome.replace(/'/g, "\\'") + '\',\'' + (it.cat||'').replace(/'/g, "\\'") + '\')">+ adicionar a ' + nomeTipoAtual + '</button>') +
+          '</div>';
+        }).join('') +
+        '</div></div>';
+    });
+
+    html += '</div>';
+    cont.innerHTML = html;
+    return;
+  }
 
   html += '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:18px;overflow:hidden">' +
     '<div style="padding:10px 14px;background:var(--bg3);border-bottom:1px solid var(--border)">' +
