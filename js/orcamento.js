@@ -738,7 +738,7 @@ function rOrcCardapio(orc) {
   const p            = orc.calcParams || {};
   const custoInsumos = insumos.reduce((s,i) => s + (i.total||0), 0);
 
-  const grupoLabel = (typeof _calcTipoToGrupoRC === 'function') ? _calcTipoToGrupoRC(p.tipoEvento||'outros') : '';
+  const grupoLabel = (buscarTipoEventoPorId(p.tipoEvento||'outros')||{}).nome || (p.tipoEvento||'outros');
 
   const coqueteisAplicados = [...new Set(insumos.flatMap(i => i.coqueteis||[]))];
   const coqueteisHtml = coqueteisAplicados.length ? `
@@ -801,14 +801,13 @@ function rOrcCardapio(orc) {
                 <div style="display:grid;grid-template-columns:1fr 120px;gap:8px;align-items:center;padding:6px 12px;border-bottom:1px solid var(--border)">
                   <div>
                     <span style="font-weight:500;color:var(--text)">${item.nome}</span>
-                    ${item.origem==='proporcao'?'<span style="font-size:9px;color:var(--blue,#4F8EF7);margin-left:4px">(via Regras de Proporção)</span>':''}
-                    ${!item.origem?'<span style="font-size:9px;color:var(--amber);margin-left:4px">(sem ref. histórica nem regra)</span>':''}
+                    ${!item.origem?'<span style="font-size:9px;color:var(--amber);margin-left:4px">(sem regra em Cálculos do Orçamento)</span>':''}
                   </div>
                   <div style="display:flex;align-items:center;gap:3px;justify-content:flex-end">
                     <input type="number" id="orc-card-item-${item.idx}" value="${item.qtd}" min="0" step="1"
                       onchange="calcUpdateCardapioItem(${item.idx},this.value)"
                       style="width:55px;text-align:center;font-size:12px;font-weight:700;padding:3px 5px;border-radius:4px;border:1px solid ${item.qtd>0?'var(--green-dim)':'var(--border2)'};background:var(--bg);color:${item.qtd>0?'var(--green)':'var(--text3)'};font-family:var(--mono)">
-                    <span style="font-size:9px;color:var(--text3)">${typeof _orcGetUnit==='function'?_orcGetUnit(item.rcNome||''):''}</span>
+                    <span style="font-size:9px;color:var(--text3)">${item.cat==='COPOS E TAÇAS'?'uni':'garrafas'}</span>
                   </div>
                 </div>`).join('')}`).join('');
           })()}
@@ -943,19 +942,22 @@ function orcClickFichaCardapio(fichaId) {
 // na aplicação em lote do cardápio sugerido do Tipo de Evento (várias
 // fichas de uma vez, ver orcAplicarSugestaoCardapio). Devolve [] se a ficha
 // não existir.
+//
+// 2026-09-14: a quantidade vem de Comercial → Cálculos do Orçamento
+// (calcQtdItemOrcamento, base própria por Tipo de Evento — a média real de
+// uso, não a "quantidade de levar" da Separação). Não cai mais na
+// Estimativa de Bebidas (Ref.Consumo) nem nas Regras de Proporção da
+// Separação: por pedido dela, os dois ficaram desligados do Orçamento —
+// sem regra cadastrada em Cálculos do Orçamento pra aquele Tipo de Evento,
+// o item entra zerado mesmo, pra ela notar e preencher lá (ver aba
+// "Catálogo de Insumos").
 function _orcItensParaFicha(orc, fichaId) {
   const ficha = (D.fichas||[]).find(f => f.id === fichaId);
   if (!ficha) return [];
 
-  const p       = orc.calcParams || {};
-  const conv    = orc.convidados || 0;
-  const grupoRC = (typeof _calcTipoToGrupoRC === 'function') ? _calcTipoToGrupoRC(p.tipoEvento||'outros') : 'CASAMENTO';
-  const gd      = (typeof _rcGetStats === 'function') ? (_rcGetStats()[grupoRC] || {}) : {};
-
-  // Fallback para Regras de Proporção (Regras e Cálculos → Proporções) quando o item não é uma
-  // bebida rastreada pelo Ref.Consumo (ex: itens de MATERIAL/ESPECIARIAS/PRODUÇÃO como
-  // Descascador, Tesoura, Suco de Limão) — mesma fórmula (calcQtdItem) que a Folha de
-  // Separação já usa para gerar essas quantidades automaticamente.
+  const p           = orc.calcParams || {};
+  const conv        = orc.convidados || 0;
+  const tipoEvento  = p.tipoEvento || 'outros';
   const autoS       = (typeof _calcAutoStaff === 'function') ? _calcAutoStaff(conv) : {bt:0,bb:0,hb:0,cd:0};
   const bartenders  = p.bartender != null ? Number(p.bartender) : (autoS.bt||0);
   const equipeTotal = bartenders
@@ -963,7 +965,6 @@ function _orcItensParaFicha(orc, fichaId) {
     + (p.head    != null ? Number(p.head)    : (autoS.hb||0))
     + (p.coord   != null ? Number(p.coord)   : (autoS.cd||0))
     + (p.copeiro != null ? Number(p.copeiro) : 0);
-  const regrasProp  = (typeof getRegrasItens === 'function') ? getRegrasItens() : [];
 
   // Dedupe defensivo: fichas salvas antes da correção de 2026-07-28 podem ter
   // o mesmo item (cat+nome) gravado duas vezes, o que dobrava a quantidade
@@ -977,24 +978,11 @@ function _orcItensParaFicha(orc, fichaId) {
   });
 
   return itensUnicos.map(item => {
-    const rc      = (typeof _rcMapFichaItemToRC === 'function') ? _rcMapFichaItemToRC(item.nome) : null;
-    const d       = rc ? gd[rc] : null;
-    // Sem histórico específico para este tipo de evento (d.avg), cai para a média geral
-    // entre todos os tipos de evento (d.mediaGeral) — mesma lógica já usada na tabela
-    // comparativa do Ref. Consumo (refConsumo.js). Sem isso, qualquer insumo sem histórico
-    // "15 Anos"/"Formatura"/etc. específico vinha sempre zerado mesmo tendo dado de outros eventos.
-    const base = d ? (d.avg != null ? d.avg : d.mediaGeral) : null;
-    let   qtd    = (base != null && typeof _rcSugestao === 'function') ? _rcSugestao(base) : null;
-    let   origem = qtd != null ? 'refconsumo' : null;
-
-    if (qtd == null) {
-      // categoria da ficha (ex: "MATERIAL (ESPECÍFICO)") não bate literalmente com a categoria
-      // das Regras de Proporção (ex: "MATERIAL") — casa só pelo nome do item, que já é único.
-      const regra = regrasProp.find(r => (r.item||'').trim().toUpperCase() === (item.nome||'').trim().toUpperCase());
-      if (regra && typeof calcQtdItem === 'function') { qtd = calcQtdItem(regra, conv, bartenders, equipeTotal); origem = 'proporcao'; }
-    }
-
-    return { cat: item.cat, nome: item.nome, rcNome: rc, origem, qtd: qtd != null ? qtd : 0 };
+    const qtd    = (typeof calcQtdItemOrcamento === 'function')
+      ? calcQtdItemOrcamento(tipoEvento, item.nome, conv, bartenders, equipeTotal)
+      : null;
+    const origem = qtd != null ? 'calculoOrcamento' : null;
+    return { cat: item.cat, nome: item.nome, origem, qtd: qtd != null ? qtd : 0 };
   });
 }
 
@@ -1045,12 +1033,13 @@ function _orcPrecoInsumoComTemporada(nome, temporada) {
 function atualizarValoresOrcamento(orcId) {
   const orc = (D.orcamentos||[]).find(o => o.id === orcId);
   if (!orc) return;
-  if (!confirm('Isso vai recalcular os valores automáticos da Calculadora e re-buscar custo e quantidade de cada insumo do Cardápio a partir dos cadastros atuais.\n\nQualquer ajuste manual que você já tenha feito nesses valores, dentro deste orçamento, será substituído. Itens manuais da Calculadora e insumos sem Regra de Proporção correspondente não são afetados na quantidade. Continuar?')) return;
+  if (!confirm('Isso vai recalcular os valores automáticos da Calculadora e re-buscar custo e quantidade de cada insumo do Cardápio a partir dos cadastros atuais (Cálculos do Orçamento).\n\nQualquer ajuste manual que você já tenha feito nesses valores, dentro deste orçamento, será substituído. Itens manuais da Calculadora e insumos sem regra correspondente não são afetados na quantidade. Continuar?')) return;
 
   recalcularAutos();
 
   const p = orc.calcParams || {};
   const conv = orc.convidados || 0;
+  const tipoEvento = p.tipoEvento || 'outros';
   const temporada = p.temporada || 'baixa';
   const autoS = _calcAutoStaff(conv);
   const bartenders  = p.bartender != null ? Number(p.bartender) : (autoS.bt||0);
@@ -1059,14 +1048,15 @@ function atualizarValoresOrcamento(orcId) {
     + (p.head    != null ? Number(p.head)    : (autoS.hb||0))
     + (p.coord   != null ? Number(p.coord)   : (autoS.cd||0))
     + (p.copeiro != null ? Number(p.copeiro) : 0);
-  const regras = getRegrasItens();
 
   (orc.insumos||[]).forEach(ins => {
     const preco = _orcPrecoInsumoComTemporada(ins.nome, temporada);
     ins.custoGarrafa = preco.valor;
     ins.viaRevenda = preco.viaRevenda;
-    const regra = regras.find(r => (r.item||'').trim().toUpperCase() === (ins.nome||'').trim().toUpperCase());
-    if (regra) ins.qtdGarrafas = calcQtdItem(regra, conv, bartenders, equipeTotal);
+    const qtd = (typeof calcQtdItemOrcamento === 'function')
+      ? calcQtdItemOrcamento(tipoEvento, ins.nome, conv, bartenders, equipeTotal)
+      : null;
+    if (qtd != null) ins.qtdGarrafas = qtd;
     ins.total = Math.round((ins.qtdGarrafas||0) * (ins.custoGarrafa||0) * 100) / 100;
   });
 
@@ -1123,13 +1113,9 @@ function _orcMergeItensCardapio(orc, items, fichaNome, temporada) {
   if (!orc.insumos) orc.insumos = [];
   let adicionados = 0, atualizados = 0;
   items.forEach(item => {
-    // Nome sempre o específico da ficha ("VODKA ABSOLUT 1000ML"), nunca o
-    // "balde" genérico do Ref.Consumo (item.rcNome, ex: "Vodka") — esse balde
-    // serve só pra buscar a média histórica de consumo (_rcMapFichaItemToRC),
-    // não é identidade do produto. Usá-lo aqui gravava um nome genérico que
-    // não casa com o Cadastro de Insumos e, quando duas fichas ou dois itens
-    // caem no mesmo balde (ex: duas marcas de gin viram "Gim"), fundia os dois
-    // numa linha só, sumindo com um deles.
+    // Nome sempre o específico da ficha ("VODKA ABSOLUT 1000ML"), que é o
+    // que bate com o Cadastro de Insumos — nunca um nome genérico, senão
+    // duas marcas diferentes (ex: dois gins) fundiam numa linha só.
     const nome = item.nome;
     const qtd  = item.qtd;
     const existing = orc.insumos.find(i => i.nome === nome);
