@@ -23,8 +23,7 @@
 // Cardápio) — por enquanto só a tela de configuração em si.
 
 var _ocoTipoAtual = '';
-var _ocoAbaAtual  = 'quantidades'; // 'quantidades' | 'catalogo'
-var _ocoView      = 'overview';    // 'overview' (lista de todos os tipos) | 'detalhe' (um tipo)
+var _ocoView      = 'overview';    // 'overview' (todos os tipos) | 'detalhe' (um tipo) | 'catalogo' (referência global)
 var _ocoSoAvisos  = false;         // aba Catálogo: true = mostra só item com grafia duplicada/sem cadastro
 
 function ocoToggleSoAvisos() {
@@ -40,11 +39,6 @@ function ocoToggleSoAvisos() {
 function _ocoNorm(s) {
   var base = (typeof _sepNormNome === 'function') ? _sepNormNome(s) : (s || '').toUpperCase();
   return base.replace(/[-–—/]/g, ' ').replace(/\s+/g, ' ').trim();
-}
-
-function ocoSetAba(aba) {
-  _ocoAbaAtual = aba;
-  rOrcCalculos();
 }
 
 // Nome "oficial" de um item de ficha: se existir um insumo no Cadastro cujo
@@ -444,9 +438,29 @@ var OCO_BASE_OPCOES = [
   ['associado', 'Segue outro item'],
 ];
 
+function ocoSetView(v) {
+  _ocoView = v;
+  rOrcCalculos();
+}
+
+// Abas de nível mais alto: "Tipos de Evento" (visão geral + detalhe) e
+// "Catálogo de Insumos" (referência de TODAS as fichas, sem ligação com
+// nenhum Tipo de Evento específico) — o catálogo é ajuda pra não ter que
+// preencher tudo de novo em cada Tipo de Evento quando um item ainda não
+// estiver associado em lugar nenhum, por isso vive fora do grupo de
+// Tipos de Evento, não dentro do detalhe de um deles.
+function _ocoTopTabsHtml() {
+  var emTipos = (_ocoView === 'overview' || _ocoView === 'detalhe');
+  return '<div style="display:flex;gap:6px;margin-bottom:18px">' +
+    '<button class="sort-btn ' + (emTipos ? 'active' : '') + '" onclick="ocoSetView(\'overview\')">📊 Tipos de Evento</button>' +
+    '<button class="sort-btn ' + (_ocoView === 'catalogo' ? 'active' : '') + '" onclick="ocoSetView(\'catalogo\')">📖 Catálogo de Insumos (todas as Fichas)</button>' +
+  '</div>';
+}
+
 // Dispatcher: visão geral (todos os Tipos de Evento + coquetéis associados,
-// tela de entrada) ou detalhe (quantidades de UM Tipo de Evento, aberto
-// clicando nele na visão geral).
+// tela de entrada), detalhe (quantidades de UM Tipo de Evento, aberto
+// clicando nele na visão geral), ou catálogo (referência global, fora dos
+// Tipos de Evento).
 function rOrcCalculos() {
   var cont = document.getElementById('orcCalculos-content');
   if (!cont) return;
@@ -459,7 +473,8 @@ function rOrcCalculos() {
   }
   if (!_ocoTipoAtual || !tipos.some(function(t) { return t.id === _ocoTipoAtual; })) _ocoTipoAtual = tipos[0].id;
 
-  if (_ocoView === 'detalhe') _ocoRenderDetalhe(cont, tipos);
+  if (_ocoView === 'catalogo') _ocoRenderCatalogo(cont);
+  else if (_ocoView === 'detalhe') _ocoRenderDetalhe(cont, tipos);
   else _ocoRenderOverview(cont, tipos);
 }
 
@@ -478,6 +493,8 @@ function _ocoRenderOverview(cont, tipos) {
     '<div style="font-size:18px;font-weight:700;color:var(--text)">Cálculos do Orçamento</div>' +
     '<div style="font-size:12px;color:var(--text3);margin-top:2px">Associe os coquetéis de cada Tipo de Evento aqui. Depois clique no nome do Tipo de Evento pra preencher as quantidades de cada insumo.</div>' +
   '</div>';
+
+  html += _ocoTopTabsHtml();
 
   html += '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:20px;display:flex;gap:20px;flex-wrap:wrap;align-items:flex-end">' +
     '<div>' +
@@ -528,6 +545,82 @@ function _ocoRenderOverview(cont, tipos) {
       '</div>';
     });
     html += '</div>';
+  });
+
+  html += '</div>';
+  cont.innerHTML = html;
+}
+
+// ─── CATÁLOGO DE INSUMOS (referência global, fora dos Tipos de Evento) ─────
+// Todo insumo que aparece em qualquer Ficha de Coquetel do sistema — não
+// pertence a nenhum Tipo de Evento específico. Serve pra ela achar
+// duplicata/nome sem Cadastro de uma vez só, sem precisar entrar tipo por
+// tipo, e pra saber o que existe antes de decidir associar em algum.
+function _ocoRenderCatalogo(cont) {
+  var norm = _ocoNorm;
+  var html = '<div style="padding:20px 24px;max-width:1100px">';
+
+  html += '<div style="margin-bottom:16px">' +
+    '<div style="font-size:18px;font-weight:700;color:var(--text)">Cálculos do Orçamento</div>' +
+    '<div style="font-size:12px;color:var(--text3);margin-top:2px">Todo insumo que aparece em alguma Ficha de Coquetel, de referência — não é filtrado por Tipo de Evento.</div>' +
+  '</div>';
+
+  html += _ocoTopTabsHtml();
+
+  var todosItens = _ocoTodosItensDeFichas();
+
+  // Marca quem tem problema (grafia diferente entre fichas, ou nome que
+  // não bate com nenhum insumo cadastrado) — é isso que ela chama de
+  // "duplicada": o mesmo insumo aparecendo mais de uma vez com nome
+  // ligeiramente diferente entre fichas.
+  todosItens.forEach(function(it) {
+    var grafias = Object.keys(it.grafias || {});
+    it._grafias = grafias;
+    it._temInsumo = (D.insumos || []).some(function(i) { return norm(i.nome) === norm(it.nome); });
+    it._temAviso = grafias.length > 1 || !it._temInsumo;
+  });
+  var totalAvisos = todosItens.filter(function(it) { return it._temAviso; }).length;
+  var itensFiltrados = _ocoSoAvisos ? todosItens.filter(function(it) { return it._temAviso; }) : todosItens;
+
+  var porCatCatalogo = {};
+  itensFiltrados.forEach(function(it) { (porCatCatalogo[it.cat] = porCatCatalogo[it.cat] || []).push(it); });
+  var ordemCatsCatalogo = (typeof getCategorias === 'function' ? getCategorias() : []).filter(function(c) { return porCatCatalogo[c]; });
+  Object.keys(porCatCatalogo).forEach(function(c) { if (ordemCatsCatalogo.indexOf(c) === -1) ordemCatsCatalogo.push(c); });
+
+  html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">' +
+    '<button class="btn-sm" style="background:' + (_ocoSoAvisos ? 'var(--amber)' : 'var(--bg3)') + ';color:' + (_ocoSoAvisos ? '#1a1400' : 'var(--text)') + ';font-weight:700" onclick="ocoToggleSoAvisos()">' +
+      (totalAvisos ? '⚠️ ' + totalAvisos + ' com grafia duplicada/sem cadastro' : '✓ nenhuma duplicata encontrada') +
+      (_ocoSoAvisos ? ' — mostrando só esses' : ' — ver só esses') +
+    '</button>' +
+    (_ocoSoAvisos ? '<button class="btn-sm" style="background:var(--bg3)" onclick="ocoToggleSoAvisos()">Ver todos de novo</button>' : '') +
+  '</div>';
+
+  if (!todosItens.length) {
+    html += '<div style="text-align:center;color:var(--text3);padding:32px">Nenhuma Ficha de Coquetel cadastrada ainda.</div>';
+  } else if (_ocoSoAvisos && !totalAvisos) {
+    html += '<div style="text-align:center;color:var(--text3);padding:32px">Nenhuma duplicata encontrada — todo insumo de ficha bate com um item do Cadastro.</div>';
+  }
+
+  ordemCatsCatalogo.forEach(function(cat) {
+    var itensCat = porCatCatalogo[cat];
+    html += '<div style="margin-bottom:16px">' +
+      '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;border-bottom:2px solid var(--border2);padding-bottom:4px;margin-bottom:8px">' + cat + '</div>' +
+      '<div style="display:grid;gap:4px">' +
+      itensCat.map(function(it) {
+        var avisoGrafia = it._grafias.length > 1
+          ? '<div style="font-size:9px;color:var(--amber);margin-top:2px">⚠️ grafia diferente entre fichas: ' +
+              it._grafias.map(function(g) { return '"' + g + '" (' + it.grafias[g].join(', ') + ')'; }).join(' · ') +
+              ' — corrija a ficha errada pra usar sempre o mesmo nome</div>'
+          : (!it._temInsumo ? '<div style="font-size:9px;color:var(--amber);margin-top:2px">⚠️ esse nome não bate com nenhum insumo do Cadastro — confira se é apelido/nome digitado diferente</div>' : '');
+        return '<div style="background:var(--bg3);border:1px solid ' + (it._temAviso ? 'var(--amber-dim,var(--amber))' : 'var(--border)') + ';border-radius:var(--radius);padding:6px 12px;font-size:11px">' +
+          '<div style="display:flex;align-items:center;gap:10px">' +
+            '<span style="flex:1;color:var(--text);font-weight:500">' + it.nome + '</span>' +
+            '<span style="font-size:10px;color:var(--text3)">' + it.fichas.join(', ') + '</span>' +
+          '</div>' +
+          avisoGrafia +
+        '</div>';
+      }).join('') +
+      '</div></div>';
   });
 
   html += '</div>';
@@ -592,80 +685,6 @@ function _ocoRenderDetalhe(cont, tipos) {
       '<button class="btn" style="background:var(--green);font-weight:700" onclick="ocoSalvar()">💾 Salvar</button>' +
     '</div>' +
   '</div>';
-
-  html += '<div style="display:flex;gap:6px;margin-bottom:14px">' +
-    '<button class="sort-btn ' + (_ocoAbaAtual === 'quantidades' ? 'active' : '') + '" onclick="ocoSetAba(\'quantidades\')">📊 Quantidades</button>' +
-    '<button class="sort-btn ' + (_ocoAbaAtual === 'catalogo' ? 'active' : '') + '" onclick="ocoSetAba(\'catalogo\')">📖 Catálogo de Insumos (todas as Fichas)</button>' +
-  '</div>';
-
-  if (_ocoAbaAtual === 'catalogo') {
-    var todosItens = _ocoTodosItensDeFichas();
-    var nomeTipoAtual = (buscarTipoEventoPorId(_ocoTipoAtual) || {}).nome || _ocoTipoAtual;
-
-    // Marca quem tem problema (grafia diferente entre fichas, ou nome que
-    // não bate com nenhum insumo cadastrado) — é isso que ela chama de
-    // "duplicada": o mesmo insumo aparecendo mais de uma vez com nome
-    // ligeiramente diferente entre fichas.
-    todosItens.forEach(function(it) {
-      var grafias = Object.keys(it.grafias || {});
-      it._grafias = grafias;
-      it._temInsumo = (D.insumos || []).some(function(i) { return norm(i.nome) === norm(it.nome); });
-      it._temAviso = grafias.length > 1 || !it._temInsumo;
-    });
-    var totalAvisos = todosItens.filter(function(it) { return it._temAviso; }).length;
-    var itensFiltrados = _ocoSoAvisos ? todosItens.filter(function(it) { return it._temAviso; }) : todosItens;
-
-    var porCatCatalogo = {};
-    itensFiltrados.forEach(function(it) { (porCatCatalogo[it.cat] = porCatCatalogo[it.cat] || []).push(it); });
-    var ordemCatsCatalogo = (typeof getCategorias === 'function' ? getCategorias() : []).filter(function(c) { return porCatCatalogo[c]; });
-    Object.keys(porCatCatalogo).forEach(function(c) { if (ordemCatsCatalogo.indexOf(c) === -1) ordemCatsCatalogo.push(c); });
-
-    html += '<div style="font-size:11px;color:var(--text3);margin-bottom:10px">Todo insumo que aparece em alguma Ficha de Coquetel, sem filtro de Tipo de Evento — pra você ver tudo que existe no sistema antes de decidir o que associar. "✓ já nesta lista" quer dizer que o item já está nos Cálculos do Tipo de Evento selecionado acima (' + nomeTipoAtual + ').</div>';
-
-    html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">' +
-      '<button class="btn-sm" style="background:' + (_ocoSoAvisos ? 'var(--amber)' : 'var(--bg3)') + ';color:' + (_ocoSoAvisos ? '#1a1400' : 'var(--text)') + ';font-weight:700" onclick="ocoToggleSoAvisos()">' +
-        (totalAvisos ? '⚠️ ' + totalAvisos + ' com grafia duplicada/sem cadastro' : '✓ nenhuma duplicata encontrada') +
-        (_ocoSoAvisos ? ' — mostrando só esses' : ' — ver só esses') +
-      '</button>' +
-      (_ocoSoAvisos ? '<button class="btn-sm" style="background:var(--bg3)" onclick="ocoToggleSoAvisos()">Ver todos de novo</button>' : '') +
-    '</div>';
-
-    if (!todosItens.length) {
-      html += '<div style="text-align:center;color:var(--text3);padding:32px">Nenhuma Ficha de Coquetel cadastrada ainda.</div>';
-    } else if (_ocoSoAvisos && !totalAvisos) {
-      html += '<div style="text-align:center;color:var(--text3);padding:32px">Nenhuma duplicata encontrada — todo insumo de ficha bate com um item do Cadastro.</div>';
-    }
-
-    ordemCatsCatalogo.forEach(function(cat) {
-      var itensCat = porCatCatalogo[cat];
-      html += '<div style="margin-bottom:16px">' +
-        '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;border-bottom:2px solid var(--border2);padding-bottom:4px;margin-bottom:8px">' + cat + '</div>' +
-        '<div style="display:grid;gap:4px">' +
-        itensCat.map(function(it) {
-          var jaTem = itensExistentes[norm(it.nome)];
-          var avisoGrafia = it._grafias.length > 1
-            ? '<div style="font-size:9px;color:var(--amber);margin-top:2px">⚠️ grafia diferente entre fichas: ' +
-                it._grafias.map(function(g) { return '"' + g + '" (' + it.grafias[g].join(', ') + ')'; }).join(' · ') +
-                ' — corrija a ficha errada pra usar sempre o mesmo nome</div>'
-            : (!it._temInsumo ? '<div style="font-size:9px;color:var(--amber);margin-top:2px">⚠️ esse nome não bate com nenhum insumo do Cadastro — confira se é apelido/nome digitado diferente</div>' : '');
-          return '<div style="background:var(--bg3);border:1px solid ' + (it._temAviso ? 'var(--amber-dim,var(--amber))' : 'var(--border)') + ';border-radius:var(--radius);padding:6px 12px;font-size:11px">' +
-            '<div style="display:flex;align-items:center;gap:10px">' +
-              '<span style="flex:1;color:var(--text);font-weight:500">' + it.nome + '</span>' +
-              '<span style="font-size:10px;color:var(--text3)">' + it.fichas.join(', ') + '</span>' +
-              (jaTem
-                ? '<span style="font-size:10px;color:var(--green);white-space:nowrap">✓ já nesta lista</span>'
-                : '<button class="btn-sm" style="background:var(--blue);white-space:nowrap" onclick="ocoAdicionarItemDireto(\'' + it.nome.replace(/'/g, "\\'") + '\',\'' + (it.cat||'').replace(/'/g, "\\'") + '\')">+ adicionar a ' + nomeTipoAtual + '</button>') +
-            '</div>' +
-            avisoGrafia +
-          '</div>';
-        }).join('') +
-        '</div></div>';
-    });
-
-    html += '</div>';
-    cont.innerHTML = html;
-    return;
-  }
 
   var fichasOrdenadasDet = (D.fichas || []).slice().sort(function(a, b) { return (a.nome || '').localeCompare(b.nome || '', 'pt-BR'); });
   html += '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:18px;overflow:hidden">' +
