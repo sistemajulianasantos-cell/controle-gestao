@@ -745,9 +745,11 @@ function rAnalise() {
   const fR = v => 'R$\u00a0' + (v||0).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
   const fN = v => (v||0).toLocaleString('pt-BR');
 
-  // Contratos do período
+  // Contratos do período — cancelado fica de fora, igual ao módulo Contratos
+  // (não é venda fechada, senão o faturamento aqui diverge do total lá).
   const todos = D.contratos || [];
   const filtrar = (a, m) => todos.filter(c => {
+    if (c.status === 'cancelado') return false;
     if (!c.data) return false;
     if (!c.data.startsWith(a)) return false;
     if (m && !c.data.startsWith(`${a}-${m}`)) return false;
