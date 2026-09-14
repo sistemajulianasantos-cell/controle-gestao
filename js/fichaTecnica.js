@@ -145,6 +145,76 @@ function copoSelecionarFoto(inputEl, id, legado) {
   inputEl.value = '';
 }
 
+// ── Fotos dos Coquetéis (Catálogo) ──────────────────────────────────────────
+// Foto do coquetel pronto, servido — usada no Catálogo do Sistema de
+// Separação (tela de consulta pro cliente). Sem foto própria, o Catálogo cai
+// na foto do copo (getCopos/insumoFoto_ acima). Análogo à Biblioteca de
+// Copos, mas gravando em fichaFoto_<fichaId>.
+function rFichasFotos() {
+  var cont = document.getElementById('regras-view-fotos');
+  if (!cont) return;
+  var lista = (D.fichas || []).slice().sort(function(a, b) { return (a.nome || '').localeCompare(b.nome || ''); });
+
+  var html = '<div class="sec"><div class="sec-head"><span class="sec-title">📷 Fotos dos Coquetéis</span></div>' +
+    '<div style="padding:14px 16px">' +
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:12px">' +
+      'Foto de cada coquetel pronto, usada no <strong>Catálogo</strong> que os clientes veem no Sistema de Separação. ' +
+      'Coquetel sem foto própria aparece lá com a foto do copo (aba <a href="#" onclick="setRegrasView(\'copos\');return false" style="color:var(--blue)">Copos</a>). ' +
+      'Pra adicionar ou renomear um coquetel, use a aba <a href="#" onclick="setRegrasView(\'fichas\');return false" style="color:var(--blue)">Fichas</a>.' +
+    '</div>';
+
+  html += lista.length ? ('<div style="display:grid;gap:8px">' + lista.map(function(f) {
+    return '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;display:flex;align-items:center;gap:12px">' +
+      '<label style="position:relative;flex:0 0 auto;cursor:pointer" title="Clique pra enviar ou trocar a foto">' +
+        '<img id="ficha-thumb-' + f.id + '" src="" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--border2);background:var(--bg2);display:block">' +
+        '<span id="ficha-thumb-empty-' + f.id + '" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--text3);text-align:center;line-height:1.15;pointer-events:none">sem<br>foto</span>' +
+        '<input type="file" accept="image/*" onchange="fichaSelecionarFoto(this,\'' + f.id + '\')" style="display:none">' +
+      '</label>' +
+      '<span style="flex:1;font-size:12px;color:var(--text)">' + (f.nome || '').replace(/</g, '&lt;') + '</span>' +
+      '<label class="btn-sm" style="background:var(--bg2);cursor:pointer;white-space:nowrap">📷 Foto' +
+        '<input type="file" accept="image/*" onchange="fichaSelecionarFoto(this,\'' + f.id + '\')" style="display:none"></label>' +
+    '</div>';
+  }).join('') + '</div>') : '<div style="font-size:12px;color:var(--text3)">Nenhuma ficha cadastrada. Cadastre os coquetéis na aba Fichas.</div>';
+
+  html += '</div></div>';
+  cont.innerHTML = html;
+
+  lista.forEach(function(f) {
+    (typeof window.buscarFichaFoto === 'function' ? window.buscarFichaFoto(f.id) : Promise.resolve(null)).then(function(b64) {
+      var img = document.getElementById('ficha-thumb-' + f.id);
+      var vazio = document.getElementById('ficha-thumb-empty-' + f.id);
+      if (img && b64) img.src = b64;
+      if (vazio) vazio.style.display = b64 ? 'none' : 'flex';
+    });
+  });
+}
+
+function fichaSelecionarFoto(inputEl, fichaId) {
+  var file = inputEl.files && inputEl.files[0];
+  if (!file) return;
+  var leitor = new FileReader();
+  leitor.onload = function(e) {
+    var img = new Image();
+    img.onload = function() {
+      var sc = Math.min(700 / img.width, 700 / img.height, 1);
+      var cv = document.createElement('canvas');
+      cv.width = Math.round(img.width * sc);
+      cv.height = Math.round(img.height * sc);
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      var b64 = cv.toDataURL('image/jpeg', 0.85);
+      (typeof window.salvarFichaFoto === 'function' ? window.salvarFichaFoto(fichaId, b64) : Promise.resolve()).then(function() {
+        var t = document.getElementById('ficha-thumb-' + fichaId);
+        if (t) t.src = b64;
+        var vazio = document.getElementById('ficha-thumb-empty-' + fichaId);
+        if (vazio) vazio.style.display = 'none';
+      });
+    };
+    img.src = e.target.result;
+  };
+  leitor.readAsDataURL(file);
+  inputEl.value = '';
+}
+
 // ── Geração da Ficha Técnica ──────────────────────────────────────────────
 
 // Linhas de ingrediente: { med: "50 ML", nome: "APEROL" } (sem medida = med '').

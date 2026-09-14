@@ -627,7 +627,7 @@ if (!D.produtos) D.produtos = [];
 function setRegrasView(v) {
   // Proporções e Associações saíram daqui (2026-08-28) — viraram a tabela
   // única de Cálculo em Separação → Cálculos.
-  ['fichas','nova-ficha','biblioteca','copos','opcionais','precos'].forEach(function(x) {
+  ['fichas','nova-ficha','biblioteca','copos','fotos','opcionais','precos'].forEach(function(x) {
     var el = document.getElementById('regras-view-' + x);
     if (el) el.style.display = x === v ? '' : 'none';
     var btn = document.getElementById('regras-tab-' + x);
@@ -637,6 +637,7 @@ function setRegrasView(v) {
   if (v === 'nova-ficha') rFormFicha();
   if (v === 'biblioteca') rBiblioteca();
   if (v === 'copos') rCopos();
+  if (v === 'fotos' && typeof rFichasFotos === 'function') rFichasFotos();
   if (v === 'opcionais' && typeof rOpcionaisLista === 'function') rOpcionaisLista();
   if (v === 'precos') rPrecosOrcamento();
 }
@@ -938,33 +939,6 @@ function filtrarItensFicha(v) {
 }
 
 if (!window._customItens) window._customItens = [];
-
-function fichaSelecionarFoto(inputEl) {
-  var file = inputEl.files && inputEl.files[0];
-  if (!file) return;
-  var leitor = new FileReader();
-  leitor.onload = function(e) {
-    var img = new Image();
-    img.onload = function() {
-      var sc = Math.min(300/img.width, 300/img.height, 1);
-      var cv = document.createElement('canvas');
-      cv.width = Math.round(img.width*sc); cv.height = Math.round(img.height*sc);
-      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
-      window._fichaFotoAtual = cv.toDataURL('image/jpeg', 0.8);
-      var prev = document.getElementById('fc-foto-preview');
-      if (prev) { prev.src = window._fichaFotoAtual; prev.style.display = 'inline-block'; }
-    };
-    img.src = e.target.result;
-  };
-  leitor.readAsDataURL(file);
-  inputEl.value = '';
-}
-
-function fichaRemoverFoto() {
-  window._fichaFotoAtual = '';
-  var prev = document.getElementById('fc-foto-preview');
-  if (prev) { prev.src = ''; prev.style.display = 'none'; }
-}
 
 function adicionarItemCustom() {
   var cat = document.getElementById('fc-custom-cat')?.value;
