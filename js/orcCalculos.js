@@ -24,6 +24,17 @@
 
 var _ocoTipoAtual = '';
 var _ocoAbaAtual  = 'quantidades'; // 'quantidades' | 'catalogo'
+var _ocoView      = 'overview';    // 'overview' (lista de todos os tipos) | 'detalhe' (um tipo)
+
+// Normalização usada em toda comparação/dedupe de nome de item: tira
+// acento/caixa (_sepNormNome, de js/separacao.js) e também colapsa hífen/
+// barra em espaço — sem isso "VODKA ABSOLUT - 1000ML" e "VODKA ABSOLUT
+// 1000ML" (mesma garrafa, só um traço de diferença) continuavam batendo
+// como itens diferentes mesmo depois de tirar o acento.
+function _ocoNorm(s) {
+  var base = (typeof _sepNormNome === 'function') ? _sepNormNome(s) : (s || '').toUpperCase();
+  return base.replace(/[-–—/]/g, ' ').replace(/\s+/g, ' ').trim();
+}
 
 function ocoSetAba(aba) {
   _ocoAbaAtual = aba;
@@ -37,7 +48,7 @@ function ocoSetAba(aba) {
 // DESIDRATADO" numa e "LIMAO DESIDRATADO" noutra) viravam dois itens
 // separados aqui, sem bater com nenhum insumo cadastrado de verdade.
 function _ocoNomeCanonico(nomeFicha) {
-  var norm = (typeof _sepNormNome === 'function') ? _sepNormNome : function(s) { return (s||'').toUpperCase(); };
+  var norm = _ocoNorm;
   var chave = norm(nomeFicha);
   var insumo = (D.insumos || []).find(function(i) { return norm(i.nome) === chave; });
   return insumo ? insumo.nome : nomeFicha;
@@ -53,7 +64,7 @@ function _ocoNomeCanonico(nomeFicha) {
 // ingrediente digitado diferente em fichas diferentes, mostrado como aviso
 // na tela pra ela saber em qual ficha corrigir.
 function _ocoTodosItensDeFichas() {
-  var norm = (typeof _sepNormNome === 'function') ? _sepNormNome : function(s) { return (s||'').toUpperCase(); };
+  var norm = _ocoNorm;
   var porChave = {};
   (D.fichas || []).forEach(function(f) {
     (f.itens || []).forEach(function(it) {
@@ -75,7 +86,7 @@ function _ocoTodosItensDeFichas() {
 // "+" da aba Catálogo — adiciona direto no Tipo de Evento atual, sem passar
 // pelo select de "+ Adicionar item" (o nome/categoria já vêm da ficha).
 function ocoAdicionarItemDireto(nome, cat) {
-  var norm = (typeof _sepNormNome === 'function') ? _sepNormNome : function(s) { return (s||'').toUpperCase(); };
+  var norm = _ocoNorm;
   var lista = _ocoRegras(_ocoTipoAtual);
   if (lista.some(function(r) { return norm(r.item) === norm(nome); })) return;
   lista.push({ id: _gerarId('OC'), item: nome, cat: cat || 'OUTROS', base: 'convidado', valor: 0, ref: 1, min: 0, cargos: [], principal: '' });
@@ -89,6 +100,20 @@ function initOrcCalculos() {
     var tipos = getTiposEvento();
     _ocoTipoAtual = tipos.length ? tipos[0].id : '';
   }
+  _ocoView = 'overview'; // toda vez que entra na página, começa pela visão geral
+  rOrcCalculos();
+}
+
+// Abre o detalhe (quantidades) de um Tipo de Evento — clicado a partir da
+// visão geral.
+function ocoAbrirDetalhe(tipoId) {
+  _ocoTipoAtual = tipoId;
+  _ocoView = 'detalhe';
+  rOrcCalculos();
+}
+
+function ocoVoltarOverview() {
+  _ocoView = 'overview';
   rOrcCalculos();
 }
 
@@ -130,7 +155,7 @@ function ocoFiltrarCoqueteis(v) {
 // item da ficha (que por sua vez veio do Cadastro de Insumos quando a
 // ficha foi montada).
 function _ocoItensDeFichas(tipoId) {
-  var norm = (typeof _sepNormNome === 'function') ? _sepNormNome : function(s) { return (s||'').toUpperCase(); };
+  var norm = _ocoNorm;
   var idsAssociados = _ocoCoqueteisDoTipo(tipoId);
   var vistos = {};
   var itens = [];
@@ -157,7 +182,7 @@ function _ocoItensDeFichas(tipoId) {
 // que ela já tinha digitado do lado errado), e corrige o nome pra bater
 // com o Cadastro de Insumos quando possível. Devolve true se mudou algo.
 function _ocoMesclarDuplicatas(tipoId) {
-  var norm = (typeof _sepNormNome === 'function') ? _sepNormNome : function(s) { return (s||'').toUpperCase(); };
+  var norm = _ocoNorm;
   var lista = D.calculosOrcamento[tipoId] || [];
   var porChave = {};
   var nova = [];
@@ -210,7 +235,7 @@ function _ocoMarcarSincronizado(tipoId) {
 function _ocoSincronizarDeFichas(tipoId, forcar) {
   if (!tipoId) return;
   if (!forcar && _ocoJaSincronizado(tipoId)) return;
-  var norm = (typeof _sepNormNome === 'function') ? _sepNormNome : function(s) { return (s||'').toUpperCase(); };
+  var norm = _ocoNorm;
   if (!D.calculosOrcamento[tipoId]) D.calculosOrcamento[tipoId] = [];
   _ocoMesclarDuplicatas(tipoId); // junta linhas antigas com grafia diferente do mesmo insumo
   var lista = D.calculosOrcamento[tipoId];
@@ -253,7 +278,7 @@ function _ocoRegras(tipoId) {
 // base — a resolução de verdade (Separação) mora numa função própria da
 // Folha de Separação que não se aplica aqui.
 function calcQtdItemOrcamento(tipoId, nomeItem, conv, bartenders, equipeTotal, cargoCounts) {
-  var norm = (typeof _sepNormNome === 'function') ? _sepNormNome : function(s) { return (s||'').toUpperCase(); };
+  var norm = _ocoNorm;
   var lista = _ocoRegras(tipoId);
   var regra = lista.find(function(r) { return norm(r.item) === norm(nomeItem); });
   if (!regra) return null;
@@ -321,7 +346,7 @@ function ocoAdicionarItem() {
   if (!nome) { alert('Escolha um item.'); return; }
   var opt = sel.options[sel.selectedIndex];
   var cat = opt ? opt.getAttribute('data-cat') : 'OUTROS';
-  var norm = (typeof _sepNormNome === 'function') ? _sepNormNome : function(s) { return (s||'').toUpperCase(); };
+  var norm = _ocoNorm;
   var lista = _ocoRegras(_ocoTipoAtual);
   if (lista.some(function(r) { return norm(r.item) === norm(nome); })) {
     alert('Esse item já está na lista.');
@@ -374,11 +399,13 @@ var OCO_BASE_OPCOES = [
   ['associado', 'Segue outro item'],
 ];
 
+// Dispatcher: visão geral (todos os Tipos de Evento + coquetéis associados,
+// tela de entrada) ou detalhe (quantidades de UM Tipo de Evento, aberto
+// clicando nele na visão geral).
 function rOrcCalculos() {
   var cont = document.getElementById('orcCalculos-content');
   if (!cont) return;
   if (!D.calculosOrcamento) D.calculosOrcamento = {};
-  var norm = (typeof _sepNormNome === 'function') ? _sepNormNome : function(s) { return (s||'').toUpperCase(); };
 
   var tipos = getTiposEvento();
   if (!tipos.length) {
@@ -387,11 +414,89 @@ function rOrcCalculos() {
   }
   if (!_ocoTipoAtual || !tipos.some(function(t) { return t.id === _ocoTipoAtual; })) _ocoTipoAtual = tipos[0].id;
 
+  if (_ocoView === 'detalhe') _ocoRenderDetalhe(cont, tipos);
+  else _ocoRenderOverview(cont, tipos);
+}
+
+// ─── VISÃO GERAL ────────────────────────────────────────────────────────────
+// Cabeçalho (Tipo de Evento + Coquetéis + Salvar) e, logo abaixo, TODOS os
+// Tipos de Evento cadastrados com os coquetéis já associados a cada um —
+// pra ver de relance o que já foi feito, sem entrar um por um. Clicar no
+// nome do Tipo de Evento abre o detalhe (quantidades).
+function _ocoRenderOverview(cont, tipos) {
+  var coqueteisAssociados = _ocoCoqueteisDoTipo(_ocoTipoAtual);
+  var fichasOrdenadas = (D.fichas || []).slice().sort(function(a, b) { return (a.nome || '').localeCompare(b.nome || '', 'pt-BR'); });
+
+  var html = '<div style="padding:20px 24px;max-width:1100px">';
+
+  html += '<div style="margin-bottom:16px">' +
+    '<div style="font-size:18px;font-weight:700;color:var(--text)">Cálculos do Orçamento</div>' +
+    '<div style="font-size:12px;color:var(--text3);margin-top:2px">Associe os coquetéis de cada Tipo de Evento aqui. Depois clique no nome do Tipo de Evento pra preencher as quantidades de cada insumo.</div>' +
+  '</div>';
+
+  html += '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:20px;display:flex;gap:20px;flex-wrap:wrap;align-items:flex-end">' +
+    '<div>' +
+      '<label class="lbl">Tipo de evento</label>' +
+      '<select onchange="ocoSetTipo(this.value)" style="min-width:220px;padding:7px 10px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px">' +
+        tiposEventoOptionsHtml(_ocoTipoAtual) +
+      '</select>' +
+    '</div>' +
+    '<div style="flex:1;min-width:260px;position:relative">' +
+      '<label class="lbl">Coquetéis deste Tipo de Evento</label>' +
+      '<input class="inp" id="oco-coq-busca" type="text" placeholder="Digite o nome do coquetel para buscar..." oninput="ocoFiltrarCoqueteis(this.value)" style="width:100%">' +
+      '<div id="oco-coq-lista" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">' +
+        (fichasOrdenadas.length ? fichasOrdenadas.map(function(f) {
+          var marcado = coqueteisAssociados.indexOf(f.id) !== -1;
+          return '<label class="oco-coq-item" data-busca="' + f.nome.toLowerCase().replace(/"/g, '&quot;') + '" data-marcado="' + (marcado ? '1' : '0') + '" style="display:' + (marcado ? 'flex' : 'none') + ';align-items:center;gap:5px;font-size:11px;cursor:pointer;background:' + (marcado ? 'var(--green-bg)' : 'var(--bg3)') + ';padding:4px 10px;border-radius:var(--radius);border:1px solid ' + (marcado ? 'var(--green-dim)' : 'var(--border)') + '">' +
+            '<input type="checkbox" ' + (marcado ? 'checked' : '') + ' onchange="ocoToggleCoquetel(\'' + f.id + '\',this.checked)"> ' + f.nome + '</label>';
+        }).join('') : '<span style="font-size:11px;color:var(--text3)">Nenhuma ficha cadastrada ainda.</span>') +
+        '<span id="oco-coq-vazio" style="font-size:11px;color:var(--text3)">' + (coqueteisAssociados.length ? 'Digite acima para adicionar mais coquetéis.' : 'Nenhum coquetel marcado ainda — digite acima para buscar.') + '</span>' +
+      '</div>' +
+    '</div>' +
+    '<button class="btn" style="background:var(--green);font-weight:700" onclick="ocoSalvar()">💾 Salvar</button>' +
+  '</div>';
+
+  var porGrupo = {}, ordemGrupos = [];
+  tipos.forEach(function(t) {
+    var g = t.grupo || t.nome;
+    if (!porGrupo[g]) { porGrupo[g] = []; ordemGrupos.push(g); }
+    porGrupo[g].push(t);
+  });
+
+  ordemGrupos.forEach(function(g) {
+    html += '<div style="margin-bottom:14px">' +
+      '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">' + g + '</div>';
+    porGrupo[g].forEach(function(t) {
+      var idsCoq = _ocoCoqueteisDoTipo(t.id);
+      var nomesCoq = idsCoq.map(function(id) { var f = (D.fichas||[]).find(function(x){return x.id===id;}); return f ? f.nome : null; }).filter(Boolean);
+      var nItens = _ocoRegras(t.id).length;
+      html += '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:8px">' +
+        '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
+          '<button onclick="ocoAbrirDetalhe(\'' + t.id + '\')" style="background:none;border:none;padding:0;cursor:pointer;font-size:14px;font-weight:700;color:var(--blue,#4F8EF7);text-decoration:underline">' + t.nome + '</button>' +
+          (nItens ? '<span style="font-size:10px;color:var(--text3)">' + nItens + ' insumo(s) na tabela de quantidades</span>' : '') +
+        '</div>' +
+        '<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">' +
+          (nomesCoq.length
+            ? nomesCoq.map(function(n) { return '<span style="font-size:11px;background:var(--bg3);border:1px solid var(--border2);border-radius:12px;padding:3px 10px;color:var(--text2)">' + n + '</span>'; }).join('')
+            : '<span style="font-size:11px;color:var(--text3)">Nenhum coquetel associado ainda.</span>') +
+        '</div>' +
+      '</div>';
+    });
+    html += '</div>';
+  });
+
+  html += '</div>';
+  cont.innerHTML = html;
+}
+
+// ─── DETALHE (quantidades de um Tipo de Evento) ────────────────────────────
+function _ocoRenderDetalhe(cont, tipos) {
+  var norm = _ocoNorm;
+
   _ocoSincronizarDeFichas(_ocoTipoAtual);
   var regras = _ocoRegras(_ocoTipoAtual);
   var cargos = _cargosDisponiveis();
   var coqueteisAssociados = _ocoCoqueteisDoTipo(_ocoTipoAtual);
-  var fichasOrdenadas = (D.fichas || []).slice().sort(function(a, b) { return (a.nome || '').localeCompare(b.nome || '', 'pt-BR'); });
 
   var porCat = {};
   regras.forEach(function(r) { (porCat[r.cat] = porCat[r.cat] || []).push(r); });
@@ -405,20 +510,18 @@ function rOrcCalculos() {
   var itensExistentes = {};
   regras.forEach(function(r) { itensExistentes[norm(r.item)] = true; });
 
+  var nomeTipoDetalhe = (buscarTipoEventoPorId(_ocoTipoAtual) || {}).nome || _ocoTipoAtual;
   var html = '<div style="padding:20px 24px;max-width:1100px">';
 
-  html += '<div style="margin-bottom:16px">' +
-    '<div style="font-size:18px;font-weight:700;color:var(--text)">Cálculos do Orçamento</div>' +
-    '<div style="font-size:12px;color:var(--text3);margin-top:2px">Quanto considerar de cada insumo na Calculadora do Orçamento — a média real de uso por Tipo de Evento, não a quantidade de levar (essa fica em Folha de Separação → Cálculos).</div>' +
+  html += '<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px">' +
+    '<button class="btn-sm" style="background:var(--bg3)" onclick="ocoVoltarOverview()">← Voltar</button>' +
+    '<div>' +
+      '<div style="font-size:18px;font-weight:700;color:var(--text)">Cálculos do Orçamento — ' + nomeTipoDetalhe + '</div>' +
+      '<div style="font-size:12px;color:var(--text3);margin-top:2px">Quanto considerar de cada insumo na Calculadora do Orçamento — a média real de uso, não a quantidade de levar (essa fica em Folha de Separação → Cálculos).</div>' +
+    '</div>' +
   '</div>';
 
   html += '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:18px;display:flex;gap:20px;flex-wrap:wrap;align-items:flex-end">' +
-    '<div>' +
-      '<label class="lbl">Tipo de evento</label>' +
-      '<select onchange="ocoSetTipo(this.value)" style="min-width:240px;padding:7px 10px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px">' +
-        tiposEventoOptionsHtml(_ocoTipoAtual) +
-      '</select>' +
-    '</div>' +
     '<div style="display:flex;gap:8px;align-items:flex-end">' +
       '<div>' +
         '<label class="lbl">Duplicar valores de...</label>' +
@@ -489,29 +592,16 @@ function rOrcCalculos() {
     return;
   }
 
-  html += '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:18px;overflow:hidden">' +
-    '<div style="padding:10px 14px;background:var(--bg3);border-bottom:1px solid var(--border)">' +
-      '<span style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.8px">🍹 Coquetéis deste Tipo de Evento</span>' +
-      '<span style="font-size:11px;color:var(--text3);margin-left:8px">Marque os coquetéis servidos aqui — só os ingredientes deles entram na lista de quantidades abaixo</span>' +
-    '</div>' +
-    '<div style="padding:10px 14px">' +
-      '<input class="inp" id="oco-coq-busca" type="text" placeholder="Digite o nome do coquetel para buscar..." oninput="ocoFiltrarCoqueteis(this.value)" style="width:100%;max-width:280px;margin-bottom:10px">' +
-      '<div id="oco-coq-lista" style="display:flex;flex-wrap:wrap;gap:6px">' +
-        (fichasOrdenadas.length ? fichasOrdenadas.map(function(f) {
-          var marcado = coqueteisAssociados.indexOf(f.id) !== -1;
-          return '<label class="oco-coq-item" data-busca="' + f.nome.toLowerCase().replace(/"/g, '&quot;') + '" data-marcado="' + (marcado ? '1' : '0') + '" style="display:' + (marcado ? 'flex' : 'none') + ';align-items:center;gap:5px;font-size:11px;cursor:pointer;background:' + (marcado ? 'var(--green-bg)' : 'var(--bg3)') + ';padding:4px 10px;border-radius:var(--radius);border:1px solid ' + (marcado ? 'var(--green-dim)' : 'var(--border)') + '">' +
-            '<input type="checkbox" ' + (marcado ? 'checked' : '') + ' onchange="ocoToggleCoquetel(\'' + f.id + '\',this.checked)"> ' + f.nome + '</label>';
-        }).join('') : '<span style="font-size:11px;color:var(--text3)">Nenhuma ficha cadastrada ainda.</span>') +
-        '<span id="oco-coq-vazio" style="font-size:11px;color:var(--text3)">' + (coqueteisAssociados.length ? 'Digite acima para adicionar mais coquetéis.' : 'Nenhum coquetel marcado ainda — digite acima para buscar.') + '</span>' +
-      '</div>' +
-    '</div>' +
-  '</div>';
+  var nomesCoqAtual = coqueteisAssociados.map(function(id) { var f = (D.fichas||[]).find(function(x){return x.id===id;}); return f ? f.nome : null; }).filter(Boolean);
+  html += '<div style="font-size:11px;color:var(--text3);margin-bottom:14px">Coquetéis associados: ' +
+    (nomesCoqAtual.length ? '<strong style="color:var(--text2)">' + nomesCoqAtual.join(', ') + '</strong>' : 'nenhum') +
+    ' — <a href="#" onclick="ocoVoltarOverview();return false" style="color:var(--blue,#4F8EF7)">mudar na visão geral</a></div>';
 
   if (!regras.length) {
     html += '<div style="text-align:center;color:var(--text3);padding:32px">' +
       (coqueteisAssociados.length
-        ? 'Nenhum ingrediente encontrado nos coquetéis marcados acima — adicione um item manualmente lá embaixo.'
-        : 'Marque acima quais coquetéis são servidos neste Tipo de Evento — os ingredientes deles aparecem aqui pra você preencher a quantidade.') +
+        ? 'Nenhum ingrediente encontrado nos coquetéis associados — adicione um item manualmente lá embaixo.'
+        : 'Nenhum coquetel associado ainda — volte pra visão geral e marque os coquetéis deste Tipo de Evento.') +
       '</div>';
   }
 
