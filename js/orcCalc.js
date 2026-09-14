@@ -587,26 +587,33 @@ function rOrcCalc() {
           </div>
         </div>
         ${sItens.length ? `
-          <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed">
+            <colgroup>
+              <col>
+              <col style="width:80px">
+              <col style="width:105px">
+              <col style="width:100px">
+              <col style="width:30px">
+            </colgroup>
             <tbody>
               ${sItens.map(item => `
                 <tr style="border-bottom:1px solid var(--border)">
-                  <td style="padding:6px 10px;color:var(--text);font-weight:500">
+                  <td style="padding:6px 10px;color:var(--text);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
                     ${item.nome}
                     ${item.auto ? `<span style="font-size:9px;color:var(--text3);font-weight:400;margin-left:4px">auto</span>` : ''}
                   </td>
                   <td style="padding:4px 6px;text-align:right">
                     <input type="number" value="${item.qtd}" min="0" step="0.01"
                       onchange="calcUpdateItem('${item.id}','qtd',this.value)"
-                      style="width:60px;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono)">
+                      style="width:100%;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono);box-sizing:border-box">
                   </td>
                   <td style="padding:4px 6px;text-align:right">
                     <input type="number" value="${Number(item.preco).toFixed(4)}" min="0" step="0.01"
                       onchange="calcUpdateItem('${item.id}','preco',this.value)"
-                      style="width:85px;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono)">
+                      style="width:100%;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono);box-sizing:border-box">
                   </td>
                   <td style="padding:6px 8px;text-align:right;font-family:var(--mono);font-weight:700;color:${sec.cor};white-space:nowrap">${fR(item.total || 0)}</td>
-                  <td style="padding:6px 8px;text-align:center;width:28px">
+                  <td style="padding:6px 8px;text-align:center">
                     <span onclick="calcRemoveItem('${item.id}')" style="cursor:pointer;color:var(--red);font-size:15px;line-height:1" title="Remover">×</span>
                   </td>
                 </tr>`).join('')}
