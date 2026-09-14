@@ -679,6 +679,7 @@ function rFichas() {
         '<div style="margin-left:auto;display:flex;gap:6px">' +
           '<button class="btn-sm" style="background:#6C63FF" onclick="imprimirFichaTecnicaCoquetel(\'' + f.id + '\')">🖨️ Ficha Técnica</button>' +
           '<button class="btn-sm" style="background:var(--blue)" onclick="editarFicha(\'' + f.id + '\')">✏️ Editar</button>' +
+          '<button class="btn-sm" style="background:var(--bg3)" onclick="clonarFicha(\'' + f.id + '\')" title="Cria uma nova ficha com os mesmos itens desta, pra você só ajustar o que for diferente">📋 Clonar</button>' +
           '<button class="btn-sm btn-red" onclick="excluirFicha(\'' + f.id + '\')">Excluir</button>' +
         '</div>' +
       '</div>' +
@@ -1075,6 +1076,22 @@ function editarFicha(id) {
   window._customItens = [];
   setRegrasView('nova-ficha');
   setTimeout(function(){rFormFicha(f);}, 50);
+}
+
+// Abre o formulário de Nova Ficha já preenchido com os mesmos itens/medidas
+// de uma ficha existente, pra ela só trocar o que for diferente (ex: uma
+// variante do mesmo coquetel) em vez de montar tudo de novo do zero. `id`
+// vazio ('') faz salvarFicha() criar uma ficha nova, nunca sobrescrever a
+// original.
+function clonarFicha(id) {
+  var f = (D.fichas||[]).find(function(x){return x.id===id;});
+  if (!f) return;
+  var clone = JSON.parse(JSON.stringify(f));
+  clone.id = '';
+  clone.nome = (f.nome || '') + ' (CÓPIA)';
+  window._customItens = [];
+  setRegrasView('nova-ficha');
+  setTimeout(function(){rFormFicha(clone);}, 50);
 }
 
 function excluirFicha(id) {
