@@ -448,8 +448,13 @@ function _orcCalcResumo(orc) {
   // Pacote Essencial = mesmo cálculo (custo → +margem segurança → +margem
   // lucro), só que sem o custo das Bebidas Alcoólicas do Cardápio/Insumos —
   // Pacote Completo é o valorTotal de sempre, com tudo incluso.
-  const custoBebidasAlc = insumosCusto.filter(i => i.cat === 'BEBIDAS ALCOÓLICAS').reduce((s, i) => s + (i.total || 0), 0);
-  const valorBebidasAlcRevenda = insumosRevenda.filter(i => i.cat === 'BEBIDAS ALCOÓLICAS').reduce((s, i) => s + (i.total || 0), 0);
+  // Comparação sem acento/caixa (_sepNormNome, js/separacao.js) — a
+  // categoria às vezes está gravada sem acento ("BEBIDAS ALCOOLICAS") em
+  // insumo/item antigo, e a comparação exata deixava esse insumo de fora
+  // da conta, fazendo o Pacote Essencial sair igual ao Completo.
+  const _ehBebidaAlc = i => (typeof _sepNormNome === 'function' ? _sepNormNome(i.cat) === _sepNormNome('BEBIDAS ALCOÓLICAS') : i.cat === 'BEBIDAS ALCOÓLICAS');
+  const custoBebidasAlc = insumosCusto.filter(_ehBebidaAlc).reduce((s, i) => s + (i.total || 0), 0);
+  const valorBebidasAlcRevenda = insumosRevenda.filter(_ehBebidaAlc).reduce((s, i) => s + (i.total || 0), 0);
   const custoPresenteEssencial = custoPresente - custoBebidasAlc;
   const custoEstEssencial  = custoPresenteEssencial * (1 + margSeg / 100);
   const valorTotalEssencial = custoEstEssencial * (1 + margLuc / 100) + (valorInsumosRevenda - valorBebidasAlcRevenda);

@@ -216,8 +216,11 @@ function _propostaDadosComputados(orc) {
   var qCoord     = p.coord     != null ? p.coord     : (autoS.cd || 0);
   var qCopeiro   = p.copeiro   != null ? p.copeiro   : 0;
 
+  // Comparação sem acento/caixa — categoria às vezes gravada sem acento
+  // ("BEBIDAS ALCOOLICAS") em insumo/item antigo (ver mesmo ajuste em
+  // _orcCalcResumo, js/orcCalc.js).
   var destilados = Array.from(new Set((resumo.insumos || [])
-    .filter(function(i) { return i.cat === 'BEBIDAS ALCOÓLICAS'; })
+    .filter(function(i) { return (typeof _sepNormNome === 'function' ? _sepNormNome(i.cat) === _sepNormNome('BEBIDAS ALCOÓLICAS') : i.cat === 'BEBIDAS ALCOÓLICAS'); })
     .map(function(i) { return i.nome; })));
 
   return { p: p, resumo: resumo, qBartender: qBartender, qBarback: qBarback, qHead: qHead, qCoord: qCoord, qCopeiro: qCopeiro, destilados: destilados };
