@@ -504,7 +504,7 @@ function rOrcCalc() {
         <div>
           <label style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:3px">Tipo de evento</label>
           <select onchange="calcSetParam('tipoEvento',this.value)" style="width:100%;font-size:12px;padding:6px 8px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius)">
-            ${getTiposEvento().map(t=>`<option value="${t.id}"${(p.tipoEvento||'outros')===t.id?' selected':''}>${t.nome}</option>`).join('')}
+            ${tiposEventoOptionsHtml(p.tipoEvento||'outros')}
           </select>
         </div>
 

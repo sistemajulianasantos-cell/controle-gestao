@@ -298,9 +298,7 @@ function _rOrcRealContent(orc) {
 function abrirModalNovoOrcamento() {
   const sel = document.getElementById('orc-m-tipo');
   if (sel) {
-    const atual = sel.value;
-    sel.innerHTML = getTiposEvento().map(t => `<option value="${t.id}">${t.nome}</option>`).join('');
-    if (atual && sel.querySelector(`option[value="${atual}"]`)) sel.value = atual;
+    sel.innerHTML = tiposEventoOptionsHtml(sel.value);
   }
   document.getElementById('m-novo-orc').style.display = 'flex';
 }
