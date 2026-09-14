@@ -240,10 +240,14 @@ function _ocoMarcarSincronizado(tipoId) {
 // pra não brigar com quem limpou tudo de propósito.
 function _ocoSincronizarDeFichas(tipoId, forcar) {
   if (!tipoId) return;
+  if (!D.calculosOrcamento[tipoId]) D.calculosOrcamento[tipoId] = [];
+  // Mescla duplicatas SEMPRE, mesmo quando esse tipo já foi sincronizado
+  // antes — sem isso, um tipo já visitado antes da correção de acento/
+  // hífen nunca mais rodava essa limpeza (o "return" logo abaixo pulava
+  // ela também), e a duplicata salva continuava aparecendo pra sempre.
+  _ocoMesclarDuplicatas(tipoId);
   if (!forcar && _ocoJaSincronizado(tipoId)) return;
   var norm = _ocoNorm;
-  if (!D.calculosOrcamento[tipoId]) D.calculosOrcamento[tipoId] = [];
-  _ocoMesclarDuplicatas(tipoId); // junta linhas antigas com grafia diferente do mesmo insumo
   var lista = D.calculosOrcamento[tipoId];
   var porNome = {};
   lista.forEach(function(r) { porNome[norm(r.item)] = r; });
@@ -334,6 +338,18 @@ function ocoRegraSet(id, campo, valorRaw) {
   if (campo === 'base') r.base = valorRaw;
   else if (campo === 'principal') r.principal = valorRaw;
   else if (campo === 'valor' || campo === 'ref' || campo === 'min') r[campo] = parseFloat(valorRaw) || 0;
+  rOrcCalculos();
+}
+
+// "Incluir" do alerta de item sem Cadastro: reaponta a linha pra um insumo
+// que já existe (nome renomeado/apelido) — mesmo padrão de regraKitRevincular
+// em Separação → Cálculos (js/regras.js).
+function ocoRevincular(id, novoNome) {
+  if (!novoNome) return;
+  var r = _ocoRegras(_ocoTipoAtual).find(function(x) { return x.id === id; });
+  if (!r) return;
+  r.item = novoNome;
+  r.cat = (typeof categoriaAtualDoInsumo === 'function') ? categoriaAtualDoInsumo(novoNome, r.cat) : r.cat;
   rOrcCalculos();
 }
 
@@ -516,6 +532,14 @@ function _ocoRenderDetalhe(cont, tipos) {
   var itensExistentes = {};
   regras.forEach(function(r) { itensExistentes[norm(r.item)] = true; });
 
+  // Todo item deve corresponder a um insumo real do Cadastro — usado pra
+  // avisar (e oferecer revincular) quando o nome salvo na regra não bate
+  // com nenhum insumo (renomeado no Cadastro, ou digitado diferente na
+  // ficha de origem).
+  var insumosParaRevincular = (typeof getInsumos === 'function' ? getInsumos() : [])
+    .map(function(i) { return i.nome; }).filter(Boolean)
+    .sort(function(a, b) { return a.localeCompare(b, 'pt-BR'); });
+
   var nomeTipoDetalhe = (buscarTipoEventoPorId(_ocoTipoAtual) || {}).nome || _ocoTipoAtual;
   var html = '<div style="padding:20px 24px;max-width:1100px">';
 
@@ -620,10 +644,24 @@ function _ocoRenderDetalhe(cont, tipos) {
     return;
   }
 
-  var nomesCoqAtual = coqueteisAssociados.map(function(id) { var f = (D.fichas||[]).find(function(x){return x.id===id;}); return f ? f.nome : null; }).filter(Boolean);
-  html += '<div style="font-size:11px;color:var(--text3);margin-bottom:14px">Coquetéis associados: ' +
-    (nomesCoqAtual.length ? '<strong style="color:var(--text2)">' + nomesCoqAtual.join(', ') + '</strong>' : 'nenhum') +
-    ' — <a href="#" onclick="ocoVoltarOverview();return false" style="color:var(--blue,#4F8EF7)">mudar na visão geral</a></div>';
+  var fichasOrdenadasDet = (D.fichas || []).slice().sort(function(a, b) { return (a.nome || '').localeCompare(b.nome || '', 'pt-BR'); });
+  html += '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:18px;overflow:hidden">' +
+    '<div style="padding:8px 14px;background:var(--bg3);border-bottom:1px solid var(--border)">' +
+      '<span style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.8px">🍹 Coquetéis deste Tipo de Evento</span>' +
+      '<span style="font-size:10px;color:var(--text3);margin-left:8px">Marque/desmarque aqui mesmo — não precisa voltar pra visão geral</span>' +
+    '</div>' +
+    '<div style="padding:10px 14px">' +
+      '<input class="inp" id="oco-coq-busca" type="text" placeholder="Digite o nome do coquetel para buscar..." oninput="ocoFiltrarCoqueteis(this.value)" style="width:100%;max-width:280px;margin-bottom:10px">' +
+      '<div id="oco-coq-lista" style="display:flex;flex-wrap:wrap;gap:6px">' +
+        (fichasOrdenadasDet.length ? fichasOrdenadasDet.map(function(f) {
+          var marcado = coqueteisAssociados.indexOf(f.id) !== -1;
+          return '<label class="oco-coq-item" data-busca="' + f.nome.toLowerCase().replace(/"/g, '&quot;') + '" data-marcado="' + (marcado ? '1' : '0') + '" style="display:' + (marcado ? 'flex' : 'none') + ';align-items:center;gap:5px;font-size:11px;cursor:pointer;background:' + (marcado ? 'var(--green-bg)' : 'var(--bg3)') + ';padding:4px 10px;border-radius:var(--radius);border:1px solid ' + (marcado ? 'var(--green-dim)' : 'var(--border)') + '">' +
+            '<input type="checkbox" ' + (marcado ? 'checked' : '') + ' onchange="ocoToggleCoquetel(\'' + f.id + '\',this.checked)"> ' + f.nome + '</label>';
+        }).join('') : '<span style="font-size:11px;color:var(--text3)">Nenhuma ficha cadastrada ainda.</span>') +
+        '<span id="oco-coq-vazio" style="font-size:11px;color:var(--text3)">' + (coqueteisAssociados.length ? 'Digite acima para adicionar mais coquetéis.' : 'Nenhum coquetel marcado ainda — digite acima para buscar.') + '</span>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
 
   if (!regras.length) {
     html += '<div style="text-align:center;color:var(--text3);padding:32px">' +
@@ -644,10 +682,23 @@ function _ocoRenderDetalhe(cont, tipos) {
       var ef = _regraBaseEfetiva(r);
       var cols = 'minmax(160px,1fr) 140px 70px 110px 70px 40px';
 
-      html += '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;font-size:11px">' +
+      var insumoDaRegra = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(r.item) : null;
+      var semInsumo = !insumoDaRegra;
+
+      html += '<div style="background:var(--bg3);border:1px solid ' + (semInsumo ? 'var(--amber-dim,var(--amber))' : 'var(--border)') + ';border-radius:var(--radius);padding:8px 12px;font-size:11px">' +
         '<div style="display:grid;grid-template-columns:' + cols + ';gap:8px;align-items:end">' +
 
-        '<div style="color:var(--text);font-weight:500">' + r.item + '</div>' +
+        '<div><span style="color:var(--text);font-weight:500">' + r.item + '</span>' +
+          (semInsumo
+            ? '<div style="font-size:9px;color:var(--amber);margin-top:2px">⚠️ não bate com nenhum insumo do Cadastro. Incluir (revincular):' +
+                '<select onchange="ocoRevincular(\'' + r.id + '\',this.value)" style="display:block;margin-top:3px;width:100%;font-size:10px;padding:2px 4px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">' +
+                  '<option value="">— escolher insumo —</option>' +
+                  insumosParaRevincular.map(function(n) { return '<option value="' + n.replace(/"/g, '&quot;') + '">' + n + '</option>'; }).join('') +
+                '</select>' +
+                '<span style="display:block;margin-top:2px">ou <a href="#" onclick="ocoRemoverItem(\'' + r.id + '\');return false" style="color:var(--red)">excluir este item</a></span>' +
+              '</div>'
+            : '') +
+        '</div>' +
 
         '<div><div style="font-size:9px;color:var(--text3);margin-bottom:2px">BASE</div>' +
           '<select onchange="ocoRegraSet(\'' + r.id + '\',\'base\',this.value)" style="width:100%;font-size:10px;padding:3px 4px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">' +
