@@ -52,7 +52,6 @@ function ocoToggleCoquetel(fichaId, checked) {
   // desmarcar um coquetel não some com os itens já na lista, pra não
   // apagar um ajuste manual que ela já tenha feito nesse insumo.
   if (checked) _ocoSincronizarDeFichas(_ocoTipoAtual, true);
-  else sv('calculosOrcamento');
   rOrcCalculos();
 }
 
@@ -88,6 +87,11 @@ function _ocoItensDeFichas(tipoId) {
   return itens;
 }
 
+// Nada aqui grava no Firestore direto — só mexe em D.calculosOrcamento em
+// memória. A gravação de verdade é só no botão "💾 Salvar" (ocoSalvar),
+// igual ao padrão já usado em Separação → Cálculos (salvarRegrasItens):
+// ela edita à vontade, base/valor/coquetéis, e só grava quando decide.
+//
 // Controle de "já populei automaticamente esse Tipo de Evento" — guardado
 // à parte (não no array em si: uma propriedade solta num array não
 // sobrevive ao Firestore, que só grava os índices numéricos). Sem isso,
@@ -130,7 +134,6 @@ function _ocoSincronizarDeFichas(tipoId, forcar) {
     }
   });
   _ocoMarcarSincronizado(tipoId);
-  sv('calculosOrcamento'); // sempre grava — ao menos a flag de sincronizado mudou
   return adicionados;
 }
 
@@ -193,7 +196,6 @@ function ocoDuplicar() {
   if (!D.calculosOrcamento._meta.coqueteis) D.calculosOrcamento._meta.coqueteis = {};
   D.calculosOrcamento._meta.coqueteis[_ocoTipoAtual] = _ocoCoqueteisDoTipo(origemId).slice();
   _ocoMarcarSincronizado(_ocoTipoAtual);
-  sv('calculosOrcamento');
   rOrcCalculos();
 }
 
@@ -203,7 +205,6 @@ function ocoRegraSet(id, campo, valorRaw) {
   if (campo === 'base') r.base = valorRaw;
   else if (campo === 'principal') r.principal = valorRaw;
   else if (campo === 'valor' || campo === 'ref' || campo === 'min') r[campo] = parseFloat(valorRaw) || 0;
-  sv('calculosOrcamento');
   rOrcCalculos();
 }
 
@@ -214,7 +215,6 @@ function ocoToggleCargo(id, cargoKey, checked) {
   var i = r.cargos.indexOf(cargoKey);
   if (checked && i === -1) r.cargos.push(cargoKey);
   else if (!checked && i !== -1) r.cargos.splice(i, 1);
-  sv('calculosOrcamento');
 }
 
 function ocoAdicionarItem() {
@@ -230,14 +230,12 @@ function ocoAdicionarItem() {
   }
   lista.push({ id: _gerarId('OC'), item: nome, cat: cat || 'OUTROS', base: 'convidado', valor: 0, ref: 1, min: 0, cargos: [], principal: '' });
   D.calculosOrcamento[_ocoTipoAtual] = lista;
-  sv('calculosOrcamento');
   rOrcCalculos();
 }
 
 function ocoRemoverItem(id) {
   if (!confirm('Remover este item dos Cálculos do Orçamento (só deste Tipo de Evento)?')) return;
   D.calculosOrcamento[_ocoTipoAtual] = _ocoRegras(_ocoTipoAtual).filter(function(r) { return r.id !== id; });
-  sv('calculosOrcamento');
   rOrcCalculos();
 }
 
@@ -245,7 +243,6 @@ function ocoZerarTipo() {
   var atual = buscarTipoEventoPorId(_ocoTipoAtual);
   if (!confirm('Zerar todas as quantidades de "' + (atual ? atual.nome : _ocoTipoAtual) + '"? Os itens continuam na lista, só voltam pra 0.')) return;
   _ocoRegras(_ocoTipoAtual).forEach(function(r) { r.valor = 0; });
-  sv('calculosOrcamento');
   rOrcCalculos();
 }
 
@@ -260,8 +257,14 @@ function ocoLimparTudo() {
   if (!confirm('Apagar TODOS os itens de "' + (atual ? atual.nome : _ocoTipoAtual) + '" desta tela e começar do zero?\n\nIsso não mexe na Folha de Separação nem em nenhuma Ficha de Coquetel — só na lista deste Tipo de Evento aqui.')) return;
   D.calculosOrcamento[_ocoTipoAtual] = [];
   _ocoMarcarSincronizado(_ocoTipoAtual);
-  sv('calculosOrcamento');
   rOrcCalculos();
+}
+
+// Botão "💾 Salvar" — só aqui grava de fato no Firestore. Tudo antes disso
+// (marcar coquetel, mudar base/qtd, duplicar, limpar) mexe só em memória.
+function ocoSalvar() {
+  sv('calculosOrcamento');
+  alert('💾 Cálculos do Orçamento salvos!');
 }
 
 var OCO_BASE_OPCOES = [
@@ -330,6 +333,7 @@ function rOrcCalculos() {
       '<button class="btn" onclick="ocoSincronizarDeFichas()" title="Traz ingredientes de coquetel associado que ainda não estão na lista (ex: depois de editar uma ficha)">🔄 Trazer itens novos</button>' +
       '<button class="btn" style="color:var(--amber);border-color:var(--amber)" onclick="ocoZerarTipo()">↺ Zerar quantidades</button>' +
       '<button class="btn" style="color:var(--red);border-color:var(--red)" onclick="ocoLimparTudo()">🗑️ Limpar tudo e começar do zero</button>' +
+      '<button class="btn" style="background:var(--green);font-weight:700" onclick="ocoSalvar()">💾 Salvar</button>' +
     '</div>' +
   '</div>';
 
@@ -443,6 +447,10 @@ function rOrcCalculos() {
       '<button class="btn" onclick="ocoAdicionarItem()" style="background:var(--blue);white-space:nowrap">+ Adicionar</button>' +
     '</div>' +
     (disponiveis.length ? '' : '<div style="font-size:10px;color:var(--text3);margin-top:6px">Todos os itens da Biblioteca já estão na lista deste Tipo de Evento.</div>') +
+  '</div>';
+
+  html += '<div style="margin:16px 0 20px">' +
+    '<button class="btn" style="background:var(--green);font-weight:700;padding:10px 24px" onclick="ocoSalvar()">💾 Salvar</button>' +
   '</div>';
 
   html += '</div>';
