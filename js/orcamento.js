@@ -868,12 +868,20 @@ function rOrcCardapio(orc) {
             Nenhum insumo adicionado. Selecione um cardápio acima ou adicione manualmente abaixo.
           </div>`}
       <div style="padding:10px 14px;border-top:1px solid var(--border);background:var(--bg3);border-radius:0 0 var(--radius) var(--radius)">
-        <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:8px">+ Adicionar insumo manualmente</div>
+        <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:8px">+ Adicionar insumo do Cadastro</div>
         <div style="display:grid;grid-template-columns:1fr 120px 120px auto;gap:8px;align-items:flex-end">
-          <div>
+          <div style="position:relative">
             <label style="font-size:9px;color:var(--text3);display:block;margin-bottom:2px">Nome do insumo</label>
-            <input id="ins-nome" type="text" placeholder="Ex: Vodka, Gin, Whisky..."
+            <input type="hidden" id="ins-nome" value="">
+            <input id="ins-nome-busca" type="text" autocomplete="off" placeholder="🔍 Digite pra buscar no Cadastro de Insumos..."
+              oninput="calcFiltrarInsumoManual(this.value)"
+              onfocus="calcFiltrarInsumoManual(this.value)"
+              onblur="setTimeout(()=>{const dd=document.getElementById('ins-nome-dropdown');if(dd)dd.style.display='none';},150)"
               style="width:100%;font-size:11px;padding:5px 7px;background:var(--bg4);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius)">
+            <div id="ins-nome-dropdown"
+              style="display:none;position:absolute;bottom:32px;left:0;right:0;max-height:220px;overflow-y:auto;
+                     background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius);
+                     z-index:500;box-shadow:0 6px 24px rgba(0,0,0,.55)"></div>
           </div>
           <div>
             <label style="font-size:9px;color:var(--text3);display:block;margin-bottom:2px">Qtd</label>

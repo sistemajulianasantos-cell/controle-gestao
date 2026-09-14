@@ -370,30 +370,82 @@ function calcAddItemPrompt(secao) {
 }
 
 // ─── INSUMOS / BEBIDAS ────────────────────────────────────────────────────────
+// "+ Adicionar insumo" só aceita item que já existe no Cadastro de Insumos —
+// nada de nome avulso digitado na hora. O campo de texto é só a busca
+// visível; quem decide o que foi escolhido é o hidden #ins-nome, preenchido
+// só ao clicar num resultado (calcClickInsumoManual).
+
+var _calcInsumoManualLista = [];
+
+function calcFiltrarInsumoManual(busca) {
+  const dd = document.getElementById('ins-nome-dropdown');
+  if (!dd) return;
+  _calcInsumoManualLista = (typeof getInsumos === 'function' ? getInsumos() : [])
+    .slice().sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'));
+  const b = (busca || '').toLowerCase().trim();
+  const lista = b ? _calcInsumoManualLista.filter(i => (i.nome || '').toLowerCase().includes(b)) : _calcInsumoManualLista;
+
+  dd.innerHTML = lista.length
+    ? lista.map(i => {
+        const nomeEsc = (i.nome || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        return `<div onmousedown="calcClickInsumoManual('${nomeEsc}')"
+          style="padding:8px 14px;cursor:pointer;font-size:12px;color:var(--text);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:10px"
+          onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+          <span>${i.nome}</span><span style="color:var(--text3);font-size:10px">${i.categoria || ''}</span>
+        </div>`;
+      }).join('')
+    : '<div style="padding:10px 14px;color:var(--text3);font-size:12px">Nenhum insumo cadastrado com esse nome — cadastre em Cadastro de Insumos primeiro.</div>';
+  dd.style.display = 'block';
+}
+
+function calcClickInsumoManual(nome) {
+  const dd = document.getElementById('ins-nome-dropdown');
+  if (dd) dd.style.display = 'none';
+  const busca = document.getElementById('ins-nome-busca');
+  const hidden = document.getElementById('ins-nome');
+  if (busca)  busca.value = nome;
+  if (hidden) hidden.value = nome;
+
+  const orc = _calcGetOrc();
+  const temporada = (orc && orc.calcParams && orc.calcParams.temporada) || 'baixa';
+  const preco = (typeof _orcPrecoInsumoComTemporada === 'function') ? _orcPrecoInsumoComTemporada(nome, temporada) : null;
+  const custoEl = document.getElementById('ins-custo');
+  if (custoEl && preco && preco.valor) custoEl.value = preco.valor.toFixed(4);
+}
 
 function calcAddInsumoItem() {
   const nome  = document.getElementById('ins-nome')?.value?.trim();
   const qtd   = parseFloat(document.getElementById('ins-qtd')?.value)   || 0;
-  const custo = parseFloat(document.getElementById('ins-custo')?.value) || 0;
+  let   custo = parseFloat(document.getElementById('ins-custo')?.value) || 0;
 
-  if (!nome) { alert2('Informe o nome do insumo', 'error'); return; }
+  if (!nome) { alert2('Busque e escolha um insumo do Cadastro de Insumos.', 'error'); return; }
+  const insumo = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(nome) : null;
+  if (!insumo) { alert2('Esse insumo não está no Cadastro — escolha um da lista (ou cadastre-o primeiro em Cadastro de Insumos).', 'error'); return; }
   if (!qtd)  { alert2('Informe a quantidade de garrafas', 'error'); return; }
 
   const orc = _calcGetOrc();
   if (!orc) return;
   if (!orc.insumos) orc.insumos = [];
 
+  if (!custo) {
+    const orcTemporada = (orc.calcParams && orc.calcParams.temporada) || 'baixa';
+    const preco = (typeof _orcPrecoInsumoComTemporada === 'function') ? _orcPrecoInsumoComTemporada(insumo.nome, orcTemporada) : null;
+    custo = preco ? preco.valor : 0;
+  }
+
   orc.insumos.push({
     id:           'ins-' + Date.now() + Math.random().toString(36).slice(2, 4),
-    nome,
+    nome:         insumo.nome,
+    cat:          insumo.categoria || 'OUTROS',
     qtdGarrafas:  qtd,
     custoGarrafa: custo,
     total:        Math.round(qtd * custo * 100) / 100,
   });
 
-  document.getElementById('ins-nome').value  = '';
-  document.getElementById('ins-qtd').value   = '';
-  document.getElementById('ins-custo').value = '';
+  document.getElementById('ins-nome').value       = '';
+  document.getElementById('ins-nome-busca').value = '';
+  document.getElementById('ins-qtd').value        = '';
+  document.getElementById('ins-custo').value      = '';
 
   sv('orcamentos');
   _rTabContent();
