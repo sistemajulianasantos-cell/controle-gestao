@@ -120,18 +120,7 @@ function rOrcDetalhe() {
   if (!orc) { rOrcLista(); return; }
 
   const itens     = orc.itens     || [];
-  const calcItens = orc.calcItens || [];
-  const totalOrc  = itens.reduce((s,i) => s+(i.totalOrc||0), 0);
-  const totalReal = itens.reduce((s,i) => s+(i.totalReal||0), 0);
-  const diff      = totalReal - totalOrc;
   const acima     = itens.filter(i => (i.totalReal||0) > (i.totalOrc||0));
-
-  // Custo calculado para o card
-  const p         = orc.calcParams || {};
-  const custoCalc = calcItens.reduce((s,i) => s+(i.total||0), 0);
-  const margSeg   = Number(p.margemSeguranca != null ? p.margemSeguranca : 10);
-  const margLuc   = Number(p.margemLucro     != null ? p.margemLucro     : 30);
-  const valorCalc = custoCalc * (1 + margSeg/100) * (1 + margLuc/100);
 
   el.innerHTML = `
     <!-- Cabeçalho -->
@@ -147,30 +136,6 @@ function rOrcDetalhe() {
         <button class="btn-sm" onclick="abrirImportOrc('${orc.id}')"
           style="background:var(--bg2);border:1px solid var(--green);color:var(--green)">📥 Importar Excel</button>
         <button class="btn-sm btn-primary" onclick="abrirAddItemOrc('${orc.id}')">+ Item real</button>
-      </div>
-    </div>
-
-    <!-- Cards -->
-    <div class="cards" style="margin-bottom:14px">
-      <div class="card">
-        <div class="card-label">Orçamento calculado</div>
-        <div class="card-val" style="color:var(--green)">${valorCalc > 0 ? fR(valorCalc) : '—'}</div>
-      </div>
-      <div class="card">
-        <div class="card-label">Total orçado (manual)</div>
-        <div class="card-val" style="color:#4F8EF7">${fR(totalOrc)}</div>
-      </div>
-      <div class="card">
-        <div class="card-label">Total Real</div>
-        <div class="card-val" style="color:${totalReal>totalOrc&&totalReal>0?'var(--red)':'var(--text)'}">
-          ${totalReal > 0 ? fR(totalReal) : '—'}
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-label">Diferença</div>
-        <div class="card-val" style="color:${diff>0?'var(--red)':diff<0?'var(--green)':'var(--text3)'}">
-          ${totalReal>0 ? (diff>=0?'+':'')+fR(diff) : '—'}
-        </div>
       </div>
     </div>
 
@@ -790,14 +755,20 @@ function rOrcCardapio(orc) {
     <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px">
       <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">🍹 Selecionar Cardápio</div>
       <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
-        <div style="flex:1;min-width:200px">
+        <div style="flex:1;min-width:200px;position:relative">
           <label class="lbl">Ficha de coquetel</label>
           ${(D.fichas||[]).length
-            ? `<select id="orc-ficha-sel" onchange="orcSelecionarFicha(this.value)"
+            ? `<input type="text" id="orc-ficha-busca" autocomplete="off"
+                placeholder="🔍 Digite para buscar a ficha..."
+                value="${_orcCardapioFichaId ? ((D.fichas||[]).find(f=>f.id===_orcCardapioFichaId)?.nome || '') : ''}"
+                oninput="orcFiltrarFichaCardapio(this.value)"
+                onfocus="orcFiltrarFichaCardapio(this.value)"
+                onblur="setTimeout(()=>{const dd=document.getElementById('orc-ficha-dropdown');if(dd)dd.style.display='none';},150)"
                 style="width:100%;padding:7px 10px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:12px">
-                <option value="">— Selecione uma ficha —</option>
-                ${(D.fichas||[]).map(f=>`<option value="${f.id}"${f.id===_orcCardapioFichaId?' selected':''}>${f.nome}${f.variantes?' ('+f.variantes+')':''}</option>`).join('')}
-              </select>`
+              <div id="orc-ficha-dropdown"
+                style="display:none;position:absolute;top:56px;left:0;right:0;max-height:220px;overflow-y:auto;
+                       background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius);
+                       z-index:500;box-shadow:0 6px 24px rgba(0,0,0,.55)"></div>`
             : '<span style="font-size:11px;color:var(--text3)">Nenhuma ficha cadastrada. Vá em Regras → Fichas de Coquetéis.</span>'
           }
         </div>
@@ -934,6 +905,30 @@ function orcExcluirCoquetel(orcId, nomeCoquetel) {
   sv('orcamentos');
   alert2(`🗑️ "${nomeCoquetel}" removido${removidos ? ' · ' + removidos + ' insumo(s) exclusivo(s) excluído(s)' : ''}.`);
   rOrcCardapio(orc);
+}
+
+function orcFiltrarFichaCardapio(busca) {
+  const dd = document.getElementById('orc-ficha-dropdown');
+  if (!dd) return;
+  const b = (busca||'').toLowerCase().trim();
+  const lista = (D.fichas||[]).filter(f => !b || f.nome.toLowerCase().includes(b))
+    .sort((a,b2) => a.nome.localeCompare(b2.nome,'pt-BR'));
+
+  dd.innerHTML = lista.length
+    ? lista.map(f => `
+        <div onmousedown="orcClickFichaCardapio('${f.id}')"
+          style="padding:8px 14px;cursor:pointer;font-size:12px;color:var(--text);border-bottom:1px solid var(--border)"
+          onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+          ${f.nome}${f.variantes?' <span style="color:var(--text3)">('+f.variantes+')</span>':''}
+        </div>`).join('')
+    : '<div style="padding:10px 14px;color:var(--text3);font-size:12px">Nenhuma ficha encontrada.</div>';
+  dd.style.display = 'block';
+}
+
+function orcClickFichaCardapio(fichaId) {
+  const dd = document.getElementById('orc-ficha-dropdown');
+  if (dd) dd.style.display = 'none';
+  orcSelecionarFicha(fichaId);
 }
 
 function orcSelecionarFicha(fichaId) {
