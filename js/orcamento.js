@@ -341,8 +341,14 @@ function criarOrcamento() {
   // Já entra com o cardápio sugerido daquele Tipo de Evento (se houver
   // algum configurado em Cálculos do Orçamento) — evita ter que escolher
   // coquetel por coquetel toda vez; ela só ajusta se o cliente pedir algo
-  // diferente.
-  if (typeof orcAplicarSugestaoCardapio === 'function') orcAplicarSugestaoCardapio(id, { silencioso: true });
+  // diferente. Em try/catch: o orçamento já foi criado e salvo na linha
+  // acima — um erro aqui (cardápio sugerido) não pode travar a tela nem
+  // impedir ela de ver/abrir o orçamento que acabou de criar.
+  try {
+    if (typeof orcAplicarSugestaoCardapio === 'function') orcAplicarSugestaoCardapio(id, { silencioso: true });
+  } catch (e) {
+    console.error('Erro ao aplicar cardápio sugerido no orçamento novo:', e);
+  }
   document.getElementById('m-novo-orc').style.display = 'none';
   ['orc-m-cliente','orc-m-data','orc-m-conv'].forEach(fid => {
     const el = document.getElementById(fid); if (el) el.value = '';
