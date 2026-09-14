@@ -25,6 +25,12 @@
 var _ocoTipoAtual = '';
 var _ocoAbaAtual  = 'quantidades'; // 'quantidades' | 'catalogo'
 var _ocoView      = 'overview';    // 'overview' (lista de todos os tipos) | 'detalhe' (um tipo)
+var _ocoSoAvisos  = false;         // aba Catálogo: true = mostra só item com grafia duplicada/sem cadastro
+
+function ocoToggleSoAvisos() {
+  _ocoSoAvisos = !_ocoSoAvisos;
+  rOrcCalculos();
+}
 
 // Normalização usada em toda comparação/dedupe de nome de item: tira
 // acento/caixa (_sepNormNome, de js/separacao.js) e também colapsa hífen/
@@ -547,16 +553,40 @@ function _ocoRenderDetalhe(cont, tipos) {
 
   if (_ocoAbaAtual === 'catalogo') {
     var todosItens = _ocoTodosItensDeFichas();
-    var porCatCatalogo = {};
-    todosItens.forEach(function(it) { (porCatCatalogo[it.cat] = porCatCatalogo[it.cat] || []).push(it); });
-    var ordemCatsCatalogo = (typeof getCategorias === 'function' ? getCategorias() : []).filter(function(c) { return porCatCatalogo[c]; });
-    Object.keys(porCatCatalogo).forEach(function(c) { if (ordemCatsCatalogo.indexOf(c) === -1) ordemCatsCatalogo.push(c); });
     var nomeTipoAtual = (buscarTipoEventoPorId(_ocoTipoAtual) || {}).nome || _ocoTipoAtual;
 
-    html += '<div style="font-size:11px;color:var(--text3);margin-bottom:14px">Todo insumo que aparece em alguma Ficha de Coquetel, sem filtro de Tipo de Evento — pra você ver tudo que existe no sistema antes de decidir o que associar. "✓ já nesta lista" quer dizer que o item já está nos Cálculos do Tipo de Evento selecionado acima (' + nomeTipoAtual + ').</div>';
+    // Marca quem tem problema (grafia diferente entre fichas, ou nome que
+    // não bate com nenhum insumo cadastrado) — é isso que ela chama de
+    // "duplicada": o mesmo insumo aparecendo mais de uma vez com nome
+    // ligeiramente diferente entre fichas.
+    todosItens.forEach(function(it) {
+      var grafias = Object.keys(it.grafias || {});
+      it._grafias = grafias;
+      it._temInsumo = (D.insumos || []).some(function(i) { return norm(i.nome) === norm(it.nome); });
+      it._temAviso = grafias.length > 1 || !it._temInsumo;
+    });
+    var totalAvisos = todosItens.filter(function(it) { return it._temAviso; }).length;
+    var itensFiltrados = _ocoSoAvisos ? todosItens.filter(function(it) { return it._temAviso; }) : todosItens;
+
+    var porCatCatalogo = {};
+    itensFiltrados.forEach(function(it) { (porCatCatalogo[it.cat] = porCatCatalogo[it.cat] || []).push(it); });
+    var ordemCatsCatalogo = (typeof getCategorias === 'function' ? getCategorias() : []).filter(function(c) { return porCatCatalogo[c]; });
+    Object.keys(porCatCatalogo).forEach(function(c) { if (ordemCatsCatalogo.indexOf(c) === -1) ordemCatsCatalogo.push(c); });
+
+    html += '<div style="font-size:11px;color:var(--text3);margin-bottom:10px">Todo insumo que aparece em alguma Ficha de Coquetel, sem filtro de Tipo de Evento — pra você ver tudo que existe no sistema antes de decidir o que associar. "✓ já nesta lista" quer dizer que o item já está nos Cálculos do Tipo de Evento selecionado acima (' + nomeTipoAtual + ').</div>';
+
+    html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">' +
+      '<button class="btn-sm" style="background:' + (_ocoSoAvisos ? 'var(--amber)' : 'var(--bg3)') + ';color:' + (_ocoSoAvisos ? '#1a1400' : 'var(--text)') + ';font-weight:700" onclick="ocoToggleSoAvisos()">' +
+        (totalAvisos ? '⚠️ ' + totalAvisos + ' com grafia duplicada/sem cadastro' : '✓ nenhuma duplicata encontrada') +
+        (_ocoSoAvisos ? ' — mostrando só esses' : ' — ver só esses') +
+      '</button>' +
+      (_ocoSoAvisos ? '<button class="btn-sm" style="background:var(--bg3)" onclick="ocoToggleSoAvisos()">Ver todos de novo</button>' : '') +
+    '</div>';
 
     if (!todosItens.length) {
       html += '<div style="text-align:center;color:var(--text3);padding:32px">Nenhuma Ficha de Coquetel cadastrada ainda.</div>';
+    } else if (_ocoSoAvisos && !totalAvisos) {
+      html += '<div style="text-align:center;color:var(--text3);padding:32px">Nenhuma duplicata encontrada — todo insumo de ficha bate com um item do Cadastro.</div>';
     }
 
     ordemCatsCatalogo.forEach(function(cat) {
@@ -566,14 +596,12 @@ function _ocoRenderDetalhe(cont, tipos) {
         '<div style="display:grid;gap:4px">' +
         itensCat.map(function(it) {
           var jaTem = itensExistentes[norm(it.nome)];
-          var grafias = Object.keys(it.grafias || {});
-          var temInsumo = (D.insumos || []).some(function(i) { return norm(i.nome) === norm(it.nome); });
-          var avisoGrafia = grafias.length > 1
+          var avisoGrafia = it._grafias.length > 1
             ? '<div style="font-size:9px;color:var(--amber);margin-top:2px">⚠️ grafia diferente entre fichas: ' +
-                grafias.map(function(g) { return '"' + g + '" (' + it.grafias[g].join(', ') + ')'; }).join(' · ') +
+                it._grafias.map(function(g) { return '"' + g + '" (' + it.grafias[g].join(', ') + ')'; }).join(' · ') +
                 ' — corrija a ficha errada pra usar sempre o mesmo nome</div>'
-            : (!temInsumo ? '<div style="font-size:9px;color:var(--amber);margin-top:2px">⚠️ esse nome não bate com nenhum insumo do Cadastro — confira se é apelido/nome digitado diferente</div>' : '');
-          return '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:6px 12px;font-size:11px">' +
+            : (!it._temInsumo ? '<div style="font-size:9px;color:var(--amber);margin-top:2px">⚠️ esse nome não bate com nenhum insumo do Cadastro — confira se é apelido/nome digitado diferente</div>' : '');
+          return '<div style="background:var(--bg3);border:1px solid ' + (it._temAviso ? 'var(--amber-dim,var(--amber))' : 'var(--border)') + ';border-radius:var(--radius);padding:6px 12px;font-size:11px">' +
             '<div style="display:flex;align-items:center;gap:10px">' +
               '<span style="flex:1;color:var(--text);font-weight:500">' + it.nome + '</span>' +
               '<span style="font-size:10px;color:var(--text3)">' + it.fichas.join(', ') + '</span>' +
