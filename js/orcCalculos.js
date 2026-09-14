@@ -45,31 +45,59 @@ function _ocoItensDeFichas() {
   return itens;
 }
 
-// Garante uma linha (zerada, base "Por convidado") pra cada item de ficha
-// que ainda não tem regra própria nesse Tipo de Evento — idempotente, roda
-// toda vez que a tela abre pra esse tipo. Também atualiza a categoria de
-// quem já existe, caso o insumo tenha sido reclassificado depois.
-function _ocoGarantirItens(tipoId) {
+// Controle de "já populei automaticamente esse Tipo de Evento" — guardado
+// à parte (não no array em si: uma propriedade solta num array não
+// sobrevive ao Firestore, que só grava os índices numéricos). Sem isso,
+// "Limpar tudo" seria inútil: no próximo render, a sincronização automática
+// ia achar a lista vazia e repopular tudo de novo sozinha.
+function _ocoJaSincronizado(tipoId) {
+  return !!(D.calculosOrcamento._meta && D.calculosOrcamento._meta.sincronizado && D.calculosOrcamento._meta.sincronizado[tipoId]);
+}
+function _ocoMarcarSincronizado(tipoId) {
+  if (!D.calculosOrcamento._meta) D.calculosOrcamento._meta = {};
+  if (!D.calculosOrcamento._meta.sincronizado) D.calculosOrcamento._meta.sincronizado = {};
+  D.calculosOrcamento._meta.sincronizado[tipoId] = true;
+}
+
+// Adiciona (nunca remove) uma linha zerada, base "Por convidado", pra cada
+// item de ficha que ainda não tem regra própria nesse Tipo de Evento, e
+// atualiza a categoria de quem já existe (caso o insumo tenha sido
+// reclassificado depois). Roda sozinha só na PRIMEIRA vez que a tela abre
+// pra esse tipo — depois disso é sob pedido (botão "Trazer itens novos"),
+// pra não brigar com quem limpou tudo de propósito.
+function _ocoSincronizarDeFichas(tipoId, forcar) {
   if (!tipoId) return;
+  if (!forcar && _ocoJaSincronizado(tipoId)) return;
   if (!D.calculosOrcamento[tipoId]) D.calculosOrcamento[tipoId] = [];
   var lista = D.calculosOrcamento[tipoId];
   var porNome = {};
   lista.forEach(function(r) { porNome[(r.item || '').toUpperCase()] = r; });
 
-  var mudou = false;
+  var adicionados = 0;
   _ocoItensDeFichas().forEach(function(it) {
     var existente = porNome[it.nome.toUpperCase()];
     if (existente) {
-      if (existente.cat !== it.cat) { existente.cat = it.cat; mudou = true; }
+      existente.cat = it.cat;
     } else {
       lista.push({
         id: _gerarId('OC'), item: it.nome, cat: it.cat,
         base: 'convidado', valor: 0, ref: 1, min: 0, cargos: [], principal: '',
       });
-      mudou = true;
+      adicionados++;
     }
   });
-  if (mudou) sv('calculosOrcamento');
+  _ocoMarcarSincronizado(tipoId);
+  sv('calculosOrcamento'); // sempre grava — ao menos a flag de sincronizado mudou
+  return adicionados;
+}
+
+// Botão "🔄 Trazer itens novos das Fichas" — igual à sincronização automática
+// da primeira vez, mas chamável quando ela quiser (ex: depois de cadastrar
+// uma ficha nova, ou depois de ter limpado tudo e querer repopular).
+function ocoSincronizarDeFichas() {
+  var n = _ocoSincronizarDeFichas(_ocoTipoAtual, true);
+  if (!n) alert('Nenhum item novo — todo item de Ficha de Coquetel já está nesta lista.');
+  rOrcCalculos();
 }
 
 function _ocoRegras(tipoId) {
@@ -116,8 +144,8 @@ function ocoDuplicar() {
   D.calculosOrcamento[_ocoTipoAtual] = origemRegras.map(function(r) {
     return Object.assign({}, r, { id: _gerarId('OC'), cargos: (r.cargos || []).slice() });
   });
+  _ocoMarcarSincronizado(_ocoTipoAtual);
   sv('calculosOrcamento');
-  _ocoGarantirItens(_ocoTipoAtual); // itens de ficha que a origem não tinha ainda entram zerados
   rOrcCalculos();
 }
 
@@ -173,6 +201,21 @@ function ocoZerarTipo() {
   rOrcCalculos();
 }
 
+// Esvazia a lista inteira (diferente de ocoZerarTipo, que só zera o valor
+// mas mantém todo item de ficha na tela) — pra quem prefere montar do zero,
+// item por item, em vez de editar uma lista já cheia com tudo que existe em
+// alguma Ficha de Coquetel. Marca como sincronizado pra _ocoSincronizarDeFichas
+// não repopular sozinha no próximo render — só volta com o botão manual
+// "🔄 Trazer itens novos das Fichas".
+function ocoLimparTudo() {
+  var atual = buscarTipoEventoPorId(_ocoTipoAtual);
+  if (!confirm('Apagar TODOS os itens de "' + (atual ? atual.nome : _ocoTipoAtual) + '" desta tela e começar do zero?\n\nIsso não mexe na Folha de Separação nem em nenhuma Ficha de Coquetel — só na lista deste Tipo de Evento aqui.')) return;
+  D.calculosOrcamento[_ocoTipoAtual] = [];
+  _ocoMarcarSincronizado(_ocoTipoAtual);
+  sv('calculosOrcamento');
+  rOrcCalculos();
+}
+
 var OCO_BASE_OPCOES = [
   ['fixo', 'Fixo (por evento)'],
   ['convidado', 'Por convidado'],
@@ -193,7 +236,7 @@ function rOrcCalculos() {
   }
   if (!_ocoTipoAtual || !tipos.some(function(t) { return t.id === _ocoTipoAtual; })) _ocoTipoAtual = tipos[0].id;
 
-  _ocoGarantirItens(_ocoTipoAtual);
+  _ocoSincronizarDeFichas(_ocoTipoAtual);
   var regras = _ocoRegras(_ocoTipoAtual);
   var cargos = _cargosDisponiveis();
 
@@ -233,11 +276,15 @@ function rOrcCalculos() {
       '</div>' +
       '<button class="btn" style="background:var(--blue)" onclick="ocoDuplicar()">📋 Duplicar pra cá</button>' +
     '</div>' +
-    '<button class="btn" style="margin-left:auto;color:var(--red);border-color:var(--red)" onclick="ocoZerarTipo()">↺ Zerar este Tipo de Evento</button>' +
+    '<div style="display:flex;gap:8px;margin-left:auto">' +
+      '<button class="btn" onclick="ocoSincronizarDeFichas()">🔄 Trazer itens novos das Fichas</button>' +
+      '<button class="btn" style="color:var(--amber);border-color:var(--amber)" onclick="ocoZerarTipo()">↺ Zerar quantidades</button>' +
+      '<button class="btn" style="color:var(--red);border-color:var(--red)" onclick="ocoLimparTudo()">🗑️ Limpar tudo e começar do zero</button>' +
+    '</div>' +
   '</div>';
 
   if (!regras.length) {
-    html += '<div style="text-align:center;color:var(--text3);padding:32px">Nenhum item de Ficha de Coquetel cadastrado ainda. Cadastre uma ficha em Regras e Cálculos → Fichas de Coquetéis.</div>';
+    html += '<div style="text-align:center;color:var(--text3);padding:32px">Nenhum item ainda pra este Tipo de Evento — use "🔄 Trazer itens novos das Fichas" pra puxar tudo que existe em alguma Ficha de Coquetel, ou adicione um por um lá embaixo.</div>';
   }
 
   ordemCats.forEach(function(cat) {
