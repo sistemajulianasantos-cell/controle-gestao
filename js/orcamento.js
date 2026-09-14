@@ -338,6 +338,11 @@ function criarOrcamento() {
     }
   });
   sv('orcamentos');
+  // Já entra com o cardápio sugerido daquele Tipo de Evento (se houver
+  // algum configurado em Cálculos do Orçamento) — evita ter que escolher
+  // coquetel por coquetel toda vez; ela só ajusta se o cliente pedir algo
+  // diferente.
+  if (typeof orcAplicarSugestaoCardapio === 'function') orcAplicarSugestaoCardapio(id, { silencioso: true });
   document.getElementById('m-novo-orc').style.display = 'none';
   ['orc-m-cliente','orc-m-data','orc-m-conv'].forEach(fid => {
     const el = document.getElementById(fid); if (el) el.value = '';
@@ -751,7 +756,10 @@ function rOrcCardapio(orc) {
 
   const fichaSelectHtml = `
     <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px">
-      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">🍹 Selecionar Cardápio</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">🍹 Selecionar Cardápio</div>
+        <button class="btn-sm" style="margin-left:auto;background:var(--bg3);border:1px solid #4F8EF7;color:#4F8EF7" onclick="orcAplicarSugestaoCardapio('${orc.id}')" title="Aplica de uma vez todos os coquetéis marcados como sugestão deste Tipo de Evento em Comercial → Cálculos do Orçamento">✨ Usar cardápio sugerido</button>
+      </div>
       <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
         <div style="flex:1;min-width:200px;position:relative">
           <label class="lbl">Ficha de coquetel</label>
@@ -929,18 +937,20 @@ function orcClickFichaCardapio(fichaId) {
   orcSelecionarFicha(fichaId);
 }
 
-function orcSelecionarFicha(fichaId) {
-  _orcCardapioFichaId = fichaId;
-  _orcCardapioItems   = [];
-  const orc = _calcGetOrc();
-  if (!fichaId || !orc) { if (orc) rOrcCardapio(orc); return; }
+// Calcula a lista de itens (insumo + quantidade sugerida) de UMA ficha pra
+// um orçamento — extraído de orcSelecionarFicha pra poder ser reaproveitado
+// tanto na pré-visualização de uma ficha por vez (Cardápio → busca) quanto
+// na aplicação em lote do cardápio sugerido do Tipo de Evento (várias
+// fichas de uma vez, ver orcAplicarSugestaoCardapio). Devolve [] se a ficha
+// não existir.
+function _orcItensParaFicha(orc, fichaId) {
+  const ficha = (D.fichas||[]).find(f => f.id === fichaId);
+  if (!ficha) return [];
 
   const p       = orc.calcParams || {};
   const conv    = orc.convidados || 0;
   const grupoRC = (typeof _calcTipoToGrupoRC === 'function') ? _calcTipoToGrupoRC(p.tipoEvento||'outros') : 'CASAMENTO';
   const gd      = (typeof _rcGetStats === 'function') ? (_rcGetStats()[grupoRC] || {}) : {};
-  const ficha   = (D.fichas||[]).find(f => f.id === fichaId);
-  if (!ficha) { rOrcCardapio(orc); return; }
 
   // Fallback para Regras de Proporção (Regras e Cálculos → Proporções) quando o item não é uma
   // bebida rastreada pelo Ref.Consumo (ex: itens de MATERIAL/ESPECIARIAS/PRODUÇÃO como
@@ -966,7 +976,7 @@ function orcSelecionarFicha(fichaId) {
     return true;
   });
 
-  itensUnicos.forEach(item => {
+  return itensUnicos.map(item => {
     const rc      = (typeof _rcMapFichaItemToRC === 'function') ? _rcMapFichaItemToRC(item.nome) : null;
     const d       = rc ? gd[rc] : null;
     // Sem histórico específico para este tipo de evento (d.avg), cai para a média geral
@@ -984,8 +994,16 @@ function orcSelecionarFicha(fichaId) {
       if (regra && typeof calcQtdItem === 'function') { qtd = calcQtdItem(regra, conv, bartenders, equipeTotal); origem = 'proporcao'; }
     }
 
-    _orcCardapioItems.push({ cat: item.cat, nome: item.nome, rcNome: rc, origem, qtd: qtd != null ? qtd : 0 });
+    return { cat: item.cat, nome: item.nome, rcNome: rc, origem, qtd: qtd != null ? qtd : 0 };
   });
+}
+
+function orcSelecionarFicha(fichaId) {
+  _orcCardapioFichaId = fichaId;
+  _orcCardapioItems   = [];
+  const orc = _calcGetOrc();
+  if (!fichaId || !orc) { if (orc) rOrcCardapio(orc); return; }
+  _orcCardapioItems = _orcItensParaFicha(orc, fichaId);
   rOrcCardapio(orc);
 }
 
@@ -1096,19 +1114,15 @@ function _sincronizarInsumosAutoRegra(orc, conv, bartenders, equipeTotal) {
   orc.insumos = orc.insumos.filter(i => !i.autoRegra || nomesAtivos.has((i.nome||'').toUpperCase()));
 }
 
-function orcAplicarCardapio(orcId) {
-  const orc = (D.orcamentos||[]).find(o => o.id === orcId);
-  if (!orc) return;
-  const temporada = (orc.calcParams && orc.calcParams.temporada) || 'baixa';
-  const fichaAtual = (D.fichas||[]).find(f => f.id === _orcCardapioFichaId);
-  const fichaNome  = fichaAtual ? fichaAtual.nome : '';
-  _orcCardapioItems.forEach((item, idx) => {
-    const inp = document.getElementById('orc-card-item-' + idx);
-    if (inp) item.qtd = parseInt(inp.value) || 0;
-  });
+// Mescla uma lista de itens (insumo + qtd, formato de _orcItensParaFicha) no
+// orc.insumos — extraído de orcAplicarCardapio pra ser reaproveitado tanto
+// ao aplicar uma ficha por vez quanto ao aplicar várias de uma vez (cardápio
+// sugerido do Tipo de Evento, ver orcAplicarSugestaoCardapio). Devolve
+// {adicionados, atualizados}.
+function _orcMergeItensCardapio(orc, items, fichaNome, temporada) {
   if (!orc.insumos) orc.insumos = [];
   let adicionados = 0, atualizados = 0;
-  _orcCardapioItems.forEach(item => {
+  items.forEach(item => {
     // Nome sempre o específico da ficha ("VODKA ABSOLUT 1000ML"), nunca o
     // "balde" genérico do Ref.Consumo (item.rcNome, ex: "Vodka") — esse balde
     // serve só pra buscar a média histórica de consumo (_rcMapFichaItemToRC),
@@ -1145,6 +1159,50 @@ function orcAplicarCardapio(orcId) {
       adicionados++;
     }
   });
+  return { adicionados, atualizados };
+}
+
+// Aplica de uma vez TODOS os coquetéis marcados como sugestão do Tipo de
+// Evento deste orçamento (Comercial → Cálculos do Orçamento → seção
+// "Coquetéis deste Tipo de Evento") — pra quem cria o orçamento não
+// precisar escolher ficha por ficha; só ajusta depois se o cliente pedir
+// algo diferente. opts.silencioso pula o alerta (usado ao criar o
+// orçamento, onde o resultado já aparece na tela em seguida).
+function orcAplicarSugestaoCardapio(orcId, opts) {
+  opts = opts || {};
+  const orc = (D.orcamentos||[]).find(o => o.id === orcId);
+  if (!orc) return;
+  const tipoEvento = (orc.calcParams||{}).tipoEvento;
+  const fichaIds = (typeof _ocoCoqueteisDoTipo === 'function') ? _ocoCoqueteisDoTipo(tipoEvento) : [];
+  if (!fichaIds.length) {
+    if (!opts.silencioso) alert2('Nenhum coquetel sugerido pra este Tipo de Evento ainda. Configure em Comercial → Cálculos do Orçamento.', 'error');
+    return;
+  }
+  const temporada = (orc.calcParams && orc.calcParams.temporada) || 'baixa';
+  let adicionados = 0, atualizados = 0, aplicados = 0;
+  fichaIds.forEach(fichaId => {
+    const ficha = (D.fichas||[]).find(f => f.id === fichaId);
+    if (!ficha) return;
+    const items = _orcItensParaFicha(orc, fichaId);
+    const r = _orcMergeItensCardapio(orc, items, ficha.nome, temporada);
+    adicionados += r.adicionados; atualizados += r.atualizados; aplicados++;
+  });
+  sv('orcamentos');
+  if (!opts.silencioso) alert2(`✅ ${aplicados} coquetel(is) sugerido(s) aplicado(s) — ${adicionados} insumo(s) adicionado(s)${atualizados?' · '+atualizados+' atualizado(s)':''}.`);
+  rOrcCardapio(orc);
+}
+
+function orcAplicarCardapio(orcId) {
+  const orc = (D.orcamentos||[]).find(o => o.id === orcId);
+  if (!orc) return;
+  const temporada = (orc.calcParams && orc.calcParams.temporada) || 'baixa';
+  const fichaAtual = (D.fichas||[]).find(f => f.id === _orcCardapioFichaId);
+  const fichaNome  = fichaAtual ? fichaAtual.nome : '';
+  _orcCardapioItems.forEach((item, idx) => {
+    const inp = document.getElementById('orc-card-item-' + idx);
+    if (inp) item.qtd = parseInt(inp.value) || 0;
+  });
+  const { adicionados, atualizados } = _orcMergeItensCardapio(orc, _orcCardapioItems, fichaNome, temporada);
   sv('orcamentos');
   _orcCardapioFichaId = '';
   _orcCardapioItems   = [];
