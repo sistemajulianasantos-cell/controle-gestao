@@ -25,7 +25,7 @@ function rOrcLista() {
   el.innerHTML = `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
       <span style="font-size:16px;font-weight:600;color:var(--text)">Orçamentos de Eventos</span>
-      <button class="btn btn-primary btn-sm" onclick="document.getElementById('m-novo-orc').style.display='flex'"
+      <button class="btn btn-primary btn-sm" onclick="abrirModalNovoOrcamento()"
         style="margin-left:auto">+ Novo orçamento</button>
     </div>
 
@@ -329,6 +329,16 @@ function _rOrcRealContent(orc) {
 }
 
 // ─── CRIAR ORÇAMENTO ─────────────────────────────────────────────────────────
+
+function abrirModalNovoOrcamento() {
+  const sel = document.getElementById('orc-m-tipo');
+  if (sel) {
+    const atual = sel.value;
+    sel.innerHTML = getTiposEvento().map(t => `<option value="${t.id}">${t.nome}</option>`).join('');
+    if (atual && sel.querySelector(`option[value="${atual}"]`)) sel.value = atual;
+  }
+  document.getElementById('m-novo-orc').style.display = 'flex';
+}
 
 function criarOrcamento() {
   const nome = document.getElementById('orc-m-cliente')?.value?.trim();
