@@ -179,6 +179,29 @@ function _ocoItensDeFichas(tipoId) {
   return itens;
 }
 
+// Linhas já salvas que NÃO pertencem a nenhum coquetel associado hoje —
+// sobra de quando o item foi adicionado (coquetel que depois foi
+// desmarcado, item cadastrado antes de existir a associação por coquetel,
+// ou item manual que não corresponde a nada nas fichas atuais). Não é
+// removido sozinho (a sincronização só adiciona, nunca remove, pra não
+// apagar ajuste manual sem querer) — aparece com aviso pra ela decidir.
+function _ocoItensOrfaos(tipoId) {
+  var norm = _ocoNorm;
+  var validos = {};
+  _ocoItensDeFichas(tipoId).forEach(function(it) { validos[norm(it.nome)] = true; });
+  return _ocoRegras(tipoId).filter(function(r) { return !validos[norm(r.item)]; });
+}
+
+function ocoLimparOrfaos() {
+  var orfaos = _ocoItensOrfaos(_ocoTipoAtual);
+  if (!orfaos.length) return;
+  var nomes = orfaos.map(function(r) { return r.item; }).join(', ');
+  if (!confirm('Remover ' + orfaos.length + ' item(ns) que não pertence(m) a nenhum coquetel associado atualmente?\n\n' + nomes)) return;
+  var idsOrfaos = orfaos.map(function(r) { return r.id; });
+  D.calculosOrcamento[_ocoTipoAtual] = _ocoRegras(_ocoTipoAtual).filter(function(r) { return idsOrfaos.indexOf(r.id) === -1; });
+  rOrcCalculos();
+}
+
 // Mescla linhas já salvas em D.calculosOrcamento[tipoId] que representam o
 // mesmo insumo com grafia diferente (ex: uma regra criada quando a ficha
 // ainda usava "LIMAO DESIDRATADO" sem acento, e outra pra "LIMÃO
@@ -663,6 +686,19 @@ function _ocoRenderDetalhe(cont, tipos) {
     '</div>' +
   '</div>';
 
+  var orfaos = _ocoItensOrfaos(_ocoTipoAtual);
+  var orfaosIds = {};
+  orfaos.forEach(function(r) { orfaosIds[r.id] = true; });
+  if (orfaos.length) {
+    html += '<div style="background:var(--amber-bg,rgba(245,166,35,.1));border:1px solid var(--amber-dim,var(--amber));border-radius:var(--radius);padding:10px 14px;margin-bottom:14px">' +
+      '<div style="font-size:11px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">' + orfaos.length + ' item(ns) que não pertence(m) a nenhum coquetel associado</div>' +
+      '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">Sobrou de um coquetel que foi desmarcado, ou de antes de existir a associação por coquetel: ' +
+        orfaos.map(function(r) { return '"' + r.item + '"'; }).join(', ') +
+      '</div>' +
+      '<button class="btn-sm" style="background:var(--amber);color:#1a1400;font-weight:700" onclick="ocoLimparOrfaos()">Remover todos</button>' +
+    '</div>';
+  }
+
   if (!regras.length) {
     html += '<div style="text-align:center;color:var(--text3);padding:32px">' +
       (coqueteisAssociados.length
@@ -684,8 +720,9 @@ function _ocoRenderDetalhe(cont, tipos) {
 
       var insumoDaRegra = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(r.item) : null;
       var semInsumo = !insumoDaRegra;
+      var ehOrfao = !!orfaosIds[r.id];
 
-      html += '<div style="background:var(--bg3);border:1px solid ' + (semInsumo ? 'var(--amber-dim,var(--amber))' : 'var(--border)') + ';border-radius:var(--radius);padding:8px 12px;font-size:11px">' +
+      html += '<div style="background:var(--bg3);border:1px solid ' + (semInsumo ? 'var(--amber-dim,var(--amber))' : (ehOrfao ? 'var(--amber-dim,var(--amber))' : 'var(--border)')) + ';border-radius:var(--radius);padding:8px 12px;font-size:11px">' +
         '<div style="display:grid;grid-template-columns:' + cols + ';gap:8px;align-items:end">' +
 
         '<div><span style="color:var(--text);font-weight:500">' + r.item + '</span>' +
@@ -697,7 +734,7 @@ function _ocoRenderDetalhe(cont, tipos) {
                 '</select>' +
                 '<span style="display:block;margin-top:2px">ou <a href="#" onclick="ocoRemoverItem(\'' + r.id + '\');return false" style="color:var(--red)">excluir este item</a></span>' +
               '</div>'
-            : '') +
+            : (ehOrfao ? '<div style="font-size:9px;color:var(--amber);margin-top:2px">⚠️ não está em nenhum coquetel associado atualmente</div>' : '')) +
         '</div>' +
 
         '<div><div style="font-size:9px;color:var(--text3);margin-bottom:2px">BASE</div>' +
