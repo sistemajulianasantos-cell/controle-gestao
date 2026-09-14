@@ -9,6 +9,15 @@
 // Cadastro → Tipos de Evento) tem sua própria tabela, independente da de
 // Separação e independente uma da outra.
 //
+// Ponto de partida: ela associa quais Coquetéis (Fichas) entram nesse Tipo
+// de Evento (D.calculosOrcamento._meta.coqueteis[tipoId]) — só os
+// ingredientes desses coquetéis aparecem na lista pra preencher, em vez de
+// todo insumo de toda Ficha do sistema. Não é conta automática por ml de
+// receita (o Cadastro de Insumos não tem "capacidade da garrafa" pra isso,
+// e ela decidiu não criar esse campo agora): ela mesma digita quantas
+// garrafas por convidado de cada insumo, só que numa lista bem menor e
+// relevante em vez de ter que garimpar entre todos os insumos do sistema.
+//
 // 2026-09-14: criada. Ainda não conectada ao Orçamento (isso é a Fase 3,
 // que vai substituir a Estimativa de Bebidas como fonte de quantidade do
 // Cardápio) — por enquanto só a tela de configuração em si.
@@ -24,15 +33,49 @@ function initOrcCalculos() {
   rOrcCalculos();
 }
 
-// Todo item que aparece em alguma Ficha de Coquetel, deduplicado pelo nome
-// (uma ficha pode repetir o mesmo insumo) — a categoria vem do próprio item
-// da ficha (que por sua vez veio do Cadastro de Insumos quando a ficha foi
-// montada). Sem isso, um insumo só usado numa ficha nunca apareceria aqui
-// pra ela dar uma quantidade — ficaria "sem quantidade" no Orçamento.
-function _ocoItensDeFichas() {
+// Coquetéis associados a um Tipo de Evento — só esses entram na conta dos
+// itens desse subgrupo (em vez de toda Ficha de Coquetel do sistema). Sem
+// associação nenhuma ainda, a lista vem vazia (ela associa antes de ver
+// item aparecer), não com tudo que existe.
+function _ocoCoqueteisDoTipo(tipoId) {
+  return (D.calculosOrcamento._meta && D.calculosOrcamento._meta.coqueteis && D.calculosOrcamento._meta.coqueteis[tipoId]) || [];
+}
+
+function ocoToggleCoquetel(fichaId, checked) {
+  if (!D.calculosOrcamento._meta) D.calculosOrcamento._meta = {};
+  if (!D.calculosOrcamento._meta.coqueteis) D.calculosOrcamento._meta.coqueteis = {};
+  var lst = D.calculosOrcamento._meta.coqueteis[_ocoTipoAtual] || (D.calculosOrcamento._meta.coqueteis[_ocoTipoAtual] = []);
+  var idx = lst.indexOf(fichaId);
+  if (checked && idx === -1) lst.push(fichaId);
+  else if (!checked && idx !== -1) lst.splice(idx, 1);
+  // Só adiciona (nunca remove) os ingredientes do coquetel recém-marcado —
+  // desmarcar um coquetel não some com os itens já na lista, pra não
+  // apagar um ajuste manual que ela já tenha feito nesse insumo.
+  if (checked) _ocoSincronizarDeFichas(_ocoTipoAtual, true);
+  else sv('calculosOrcamento');
+  rOrcCalculos();
+}
+
+function ocoFiltrarCoqueteis(v) {
+  var termo = (v || '').trim().toLowerCase();
+  document.querySelectorAll('#oco-coq-lista .oco-coq-item').forEach(function(label) {
+    var mostra = label.dataset.marcado === '1' || (!!termo && label.dataset.busca.indexOf(termo) !== -1);
+    label.style.display = mostra ? 'flex' : 'none';
+  });
+  var vazio = document.getElementById('oco-coq-vazio');
+  if (vazio) vazio.style.display = termo ? 'none' : '';
+}
+
+// Todo item das Fichas de Coquetel ASSOCIADAS a este Tipo de Evento,
+// deduplicado pelo nome (uma ficha pode repetir o mesmo insumo, e duas
+// fichas podem compartilhar um ingrediente) — a categoria vem do próprio
+// item da ficha (que por sua vez veio do Cadastro de Insumos quando a
+// ficha foi montada).
+function _ocoItensDeFichas(tipoId) {
+  var idsAssociados = _ocoCoqueteisDoTipo(tipoId);
   var vistos = {};
   var itens = [];
-  (D.fichas || []).forEach(function(f) {
+  (D.fichas || []).filter(function(f) { return idsAssociados.indexOf(f.id) !== -1; }).forEach(function(f) {
     (f.itens || []).forEach(function(it) {
       var nome = (it.nome || '').trim();
       if (!nome) return;
@@ -74,7 +117,7 @@ function _ocoSincronizarDeFichas(tipoId, forcar) {
   lista.forEach(function(r) { porNome[(r.item || '').toUpperCase()] = r; });
 
   var adicionados = 0;
-  _ocoItensDeFichas().forEach(function(it) {
+  _ocoItensDeFichas(tipoId).forEach(function(it) {
     var existente = porNome[it.nome.toUpperCase()];
     if (existente) {
       existente.cat = it.cat;
@@ -96,7 +139,7 @@ function _ocoSincronizarDeFichas(tipoId, forcar) {
 // uma ficha nova, ou depois de ter limpado tudo e querer repopular).
 function ocoSincronizarDeFichas() {
   var n = _ocoSincronizarDeFichas(_ocoTipoAtual, true);
-  if (!n) alert('Nenhum item novo — todo item de Ficha de Coquetel já está nesta lista.');
+  if (!n) alert('Nenhum item novo — todo ingrediente dos coquetéis marcados já está nesta lista.');
   rOrcCalculos();
 }
 
@@ -144,6 +187,11 @@ function ocoDuplicar() {
   D.calculosOrcamento[_ocoTipoAtual] = origemRegras.map(function(r) {
     return Object.assign({}, r, { id: _gerarId('OC'), cargos: (r.cargos || []).slice() });
   });
+  // Coquetéis associados também são copiados — geralmente subgrupos
+  // parecidos (ex: Aniversário 10 e 15 anos) servem o mesmo cardápio.
+  if (!D.calculosOrcamento._meta) D.calculosOrcamento._meta = {};
+  if (!D.calculosOrcamento._meta.coqueteis) D.calculosOrcamento._meta.coqueteis = {};
+  D.calculosOrcamento._meta.coqueteis[_ocoTipoAtual] = _ocoCoqueteisDoTipo(origemId).slice();
   _ocoMarcarSincronizado(_ocoTipoAtual);
   sv('calculosOrcamento');
   rOrcCalculos();
@@ -239,6 +287,8 @@ function rOrcCalculos() {
   _ocoSincronizarDeFichas(_ocoTipoAtual);
   var regras = _ocoRegras(_ocoTipoAtual);
   var cargos = _cargosDisponiveis();
+  var coqueteisAssociados = _ocoCoqueteisDoTipo(_ocoTipoAtual);
+  var fichasOrdenadas = (D.fichas || []).slice().sort(function(a, b) { return (a.nome || '').localeCompare(b.nome || '', 'pt-BR'); });
 
   var porCat = {};
   regras.forEach(function(r) { (porCat[r.cat] = porCat[r.cat] || []).push(r); });
@@ -277,14 +327,36 @@ function rOrcCalculos() {
       '<button class="btn" style="background:var(--blue)" onclick="ocoDuplicar()">📋 Duplicar pra cá</button>' +
     '</div>' +
     '<div style="display:flex;gap:8px;margin-left:auto">' +
-      '<button class="btn" onclick="ocoSincronizarDeFichas()">🔄 Trazer itens novos das Fichas</button>' +
+      '<button class="btn" onclick="ocoSincronizarDeFichas()" title="Traz ingredientes de coquetel associado que ainda não estão na lista (ex: depois de editar uma ficha)">🔄 Trazer itens novos</button>' +
       '<button class="btn" style="color:var(--amber);border-color:var(--amber)" onclick="ocoZerarTipo()">↺ Zerar quantidades</button>' +
       '<button class="btn" style="color:var(--red);border-color:var(--red)" onclick="ocoLimparTudo()">🗑️ Limpar tudo e começar do zero</button>' +
     '</div>' +
   '</div>';
 
+  html += '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:18px;overflow:hidden">' +
+    '<div style="padding:10px 14px;background:var(--bg3);border-bottom:1px solid var(--border)">' +
+      '<span style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.8px">🍹 Coquetéis deste Tipo de Evento</span>' +
+      '<span style="font-size:11px;color:var(--text3);margin-left:8px">Marque os coquetéis servidos aqui — só os ingredientes deles entram na lista de quantidades abaixo</span>' +
+    '</div>' +
+    '<div style="padding:10px 14px">' +
+      '<input class="inp" id="oco-coq-busca" type="text" placeholder="Digite o nome do coquetel para buscar..." oninput="ocoFiltrarCoqueteis(this.value)" style="width:100%;max-width:280px;margin-bottom:10px">' +
+      '<div id="oco-coq-lista" style="display:flex;flex-wrap:wrap;gap:6px">' +
+        (fichasOrdenadas.length ? fichasOrdenadas.map(function(f) {
+          var marcado = coqueteisAssociados.indexOf(f.id) !== -1;
+          return '<label class="oco-coq-item" data-busca="' + f.nome.toLowerCase().replace(/"/g, '&quot;') + '" data-marcado="' + (marcado ? '1' : '0') + '" style="display:' + (marcado ? 'flex' : 'none') + ';align-items:center;gap:5px;font-size:11px;cursor:pointer;background:' + (marcado ? 'var(--green-bg)' : 'var(--bg3)') + ';padding:4px 10px;border-radius:var(--radius);border:1px solid ' + (marcado ? 'var(--green-dim)' : 'var(--border)') + '">' +
+            '<input type="checkbox" ' + (marcado ? 'checked' : '') + ' onchange="ocoToggleCoquetel(\'' + f.id + '\',this.checked)"> ' + f.nome + '</label>';
+        }).join('') : '<span style="font-size:11px;color:var(--text3)">Nenhuma ficha cadastrada ainda.</span>') +
+        '<span id="oco-coq-vazio" style="font-size:11px;color:var(--text3)">' + (coqueteisAssociados.length ? 'Digite acima para adicionar mais coquetéis.' : 'Nenhum coquetel marcado ainda — digite acima para buscar.') + '</span>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+
   if (!regras.length) {
-    html += '<div style="text-align:center;color:var(--text3);padding:32px">Nenhum item ainda pra este Tipo de Evento — use "🔄 Trazer itens novos das Fichas" pra puxar tudo que existe em alguma Ficha de Coquetel, ou adicione um por um lá embaixo.</div>';
+    html += '<div style="text-align:center;color:var(--text3);padding:32px">' +
+      (coqueteisAssociados.length
+        ? 'Nenhum ingrediente encontrado nos coquetéis marcados acima — adicione um item manualmente lá embaixo.'
+        : 'Marque acima quais coquetéis são servidos neste Tipo de Evento — os ingredientes deles aparecem aqui pra você preencher a quantidade.') +
+      '</div>';
   }
 
   ordemCats.forEach(function(cat) {
