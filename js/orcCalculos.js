@@ -30,32 +30,54 @@ function ocoSetAba(aba) {
   rOrcCalculos();
 }
 
+// Nome "oficial" de um item de ficha: se existir um insumo no Cadastro cujo
+// nome bate ignorando acento/maiúscula (_sepNormNome, de js/separacao.js),
+// usa a grafia DELE — o Cadastro é a fonte de verdade. Sem isso, duas
+// fichas gravando o mesmo ingrediente com acento diferente (ex: "LIMÃO
+// DESIDRATADO" numa e "LIMAO DESIDRATADO" noutra) viravam dois itens
+// separados aqui, sem bater com nenhum insumo cadastrado de verdade.
+function _ocoNomeCanonico(nomeFicha) {
+  var norm = (typeof _sepNormNome === 'function') ? _sepNormNome : function(s) { return (s||'').toUpperCase(); };
+  var chave = norm(nomeFicha);
+  var insumo = (D.insumos || []).find(function(i) { return norm(i.nome) === chave; });
+  return insumo ? insumo.nome : nomeFicha;
+}
+
 // Catálogo de referência: TODO insumo que aparece em QUALQUER Ficha de
 // Coquetel do sistema, com a lista de coquetéis onde ele aparece — não
 // filtrado pelos coquetéis associados ao Tipo de Evento atual (essa
 // filtragem só vale na aba "Quantidades"). Serve pra ela ver de cara tudo
 // que existe antes de decidir o que associar/preencher, em vez de garimpar
-// ficha por ficha.
+// ficha por ficha. Agrupa por nome normalizado (sem acento/caixa) e guarda
+// as grafias exatas encontradas — se houver mais de uma, é sinal de
+// ingrediente digitado diferente em fichas diferentes, mostrado como aviso
+// na tela pra ela saber em qual ficha corrigir.
 function _ocoTodosItensDeFichas() {
-  var porNome = {};
+  var norm = (typeof _sepNormNome === 'function') ? _sepNormNome : function(s) { return (s||'').toUpperCase(); };
+  var porChave = {};
   (D.fichas || []).forEach(function(f) {
     (f.itens || []).forEach(function(it) {
-      var nome = (it.nome || '').trim();
-      if (!nome) return;
-      var chave = nome.toUpperCase();
-      if (!porNome[chave]) porNome[chave] = { nome: nome, cat: it.cat || 'OUTROS', fichas: [] };
-      if (porNome[chave].fichas.indexOf(f.nome) === -1) porNome[chave].fichas.push(f.nome);
+      var nomeRaw = (it.nome || '').trim();
+      if (!nomeRaw) return;
+      var nome  = _ocoNomeCanonico(nomeRaw);
+      var chave = norm(nome);
+      if (!porChave[chave]) porChave[chave] = { nome: nome, cat: it.cat || 'OUTROS', fichas: [], grafias: {} };
+      var g = porChave[chave];
+      if (g.fichas.indexOf(f.nome) === -1) g.fichas.push(f.nome);
+      if (!g.grafias[nomeRaw]) g.grafias[nomeRaw] = [];
+      if (g.grafias[nomeRaw].indexOf(f.nome) === -1) g.grafias[nomeRaw].push(f.nome);
     });
   });
-  return Object.keys(porNome).map(function(k) { return porNome[k]; })
+  return Object.keys(porChave).map(function(k) { return porChave[k]; })
     .sort(function(a, b) { return a.nome.localeCompare(b.nome, 'pt-BR'); });
 }
 
 // "+" da aba Catálogo — adiciona direto no Tipo de Evento atual, sem passar
 // pelo select de "+ Adicionar item" (o nome/categoria já vêm da ficha).
 function ocoAdicionarItemDireto(nome, cat) {
+  var norm = (typeof _sepNormNome === 'function') ? _sepNormNome : function(s) { return (s||'').toUpperCase(); };
   var lista = _ocoRegras(_ocoTipoAtual);
-  if (lista.some(function(r) { return (r.item || '').toUpperCase() === nome.toUpperCase(); })) return;
+  if (lista.some(function(r) { return norm(r.item) === norm(nome); })) return;
   lista.push({ id: _gerarId('OC'), item: nome, cat: cat || 'OUTROS', base: 'convidado', valor: 0, ref: 1, min: 0, cargos: [], principal: '' });
   D.calculosOrcamento[_ocoTipoAtual] = lista;
   rOrcCalculos();
@@ -108,20 +130,56 @@ function ocoFiltrarCoqueteis(v) {
 // item da ficha (que por sua vez veio do Cadastro de Insumos quando a
 // ficha foi montada).
 function _ocoItensDeFichas(tipoId) {
+  var norm = (typeof _sepNormNome === 'function') ? _sepNormNome : function(s) { return (s||'').toUpperCase(); };
   var idsAssociados = _ocoCoqueteisDoTipo(tipoId);
   var vistos = {};
   var itens = [];
   (D.fichas || []).filter(function(f) { return idsAssociados.indexOf(f.id) !== -1; }).forEach(function(f) {
     (f.itens || []).forEach(function(it) {
-      var nome = (it.nome || '').trim();
-      if (!nome) return;
-      var chave = nome.toUpperCase();
+      var nomeRaw = (it.nome || '').trim();
+      if (!nomeRaw) return;
+      var nome  = _ocoNomeCanonico(nomeRaw);
+      var chave = norm(nome);
       if (vistos[chave]) return;
       vistos[chave] = true;
       itens.push({ nome: nome, cat: it.cat || 'OUTROS' });
     });
   });
   return itens;
+}
+
+// Mescla linhas já salvas em D.calculosOrcamento[tipoId] que representam o
+// mesmo insumo com grafia diferente (ex: uma regra criada quando a ficha
+// ainda usava "LIMAO DESIDRATADO" sem acento, e outra pra "LIMÃO
+// DESIDRATADO") — problema de dado anterior a essa normalização entrar em
+// _ocoItensDeFichas. Mantém a primeira ocorrência, mas herda o valor
+// preenchido da duplicata se a mantida ainda estiver zerada (não perde o
+// que ela já tinha digitado do lado errado), e corrige o nome pra bater
+// com o Cadastro de Insumos quando possível. Devolve true se mudou algo.
+function _ocoMesclarDuplicatas(tipoId) {
+  var norm = (typeof _sepNormNome === 'function') ? _sepNormNome : function(s) { return (s||'').toUpperCase(); };
+  var lista = D.calculosOrcamento[tipoId] || [];
+  var porChave = {};
+  var nova = [];
+  var mudou = false;
+  lista.forEach(function(r) {
+    var chave = norm(r.item || '');
+    var existente = porChave[chave];
+    if (!existente) {
+      var nomeCanon = _ocoNomeCanonico(r.item);
+      if (nomeCanon !== r.item) { r.item = nomeCanon; mudou = true; }
+      porChave[chave] = r;
+      nova.push(r);
+    } else {
+      if ((parseFloat(existente.valor) || 0) === 0 && (parseFloat(r.valor) || 0) > 0) {
+        existente.base = r.base; existente.valor = r.valor; existente.ref = r.ref;
+        existente.min = r.min; existente.cargos = (r.cargos || []).slice(); existente.principal = r.principal;
+      }
+      mudou = true;
+    }
+  });
+  if (mudou) D.calculosOrcamento[tipoId] = nova;
+  return mudou;
 }
 
 // Nada aqui grava no Firestore direto — só mexe em D.calculosOrcamento em
@@ -152,14 +210,16 @@ function _ocoMarcarSincronizado(tipoId) {
 function _ocoSincronizarDeFichas(tipoId, forcar) {
   if (!tipoId) return;
   if (!forcar && _ocoJaSincronizado(tipoId)) return;
+  var norm = (typeof _sepNormNome === 'function') ? _sepNormNome : function(s) { return (s||'').toUpperCase(); };
   if (!D.calculosOrcamento[tipoId]) D.calculosOrcamento[tipoId] = [];
+  _ocoMesclarDuplicatas(tipoId); // junta linhas antigas com grafia diferente do mesmo insumo
   var lista = D.calculosOrcamento[tipoId];
   var porNome = {};
-  lista.forEach(function(r) { porNome[(r.item || '').toUpperCase()] = r; });
+  lista.forEach(function(r) { porNome[norm(r.item)] = r; });
 
   var adicionados = 0;
   _ocoItensDeFichas(tipoId).forEach(function(it) {
-    var existente = porNome[it.nome.toUpperCase()];
+    var existente = porNome[norm(it.nome)];
     if (existente) {
       existente.cat = it.cat;
     } else {
@@ -193,14 +253,15 @@ function _ocoRegras(tipoId) {
 // base — a resolução de verdade (Separação) mora numa função própria da
 // Folha de Separação que não se aplica aqui.
 function calcQtdItemOrcamento(tipoId, nomeItem, conv, bartenders, equipeTotal, cargoCounts) {
+  var norm = (typeof _sepNormNome === 'function') ? _sepNormNome : function(s) { return (s||'').toUpperCase(); };
   var lista = _ocoRegras(tipoId);
-  var regra = lista.find(function(r) { return (r.item || '').toUpperCase() === (nomeItem || '').toUpperCase(); });
+  var regra = lista.find(function(r) { return norm(r.item) === norm(nomeItem); });
   if (!regra) return null;
   var ef = _regraBaseEfetiva(regra);
   if (ef.base !== 'associado') {
     return calcQtdItem(regra, conv, bartenders, equipeTotal, cargoCounts);
   }
-  var principal = lista.find(function(r) { return r.item === ef.principal; });
+  var principal = lista.find(function(r) { return norm(r.item) === norm(ef.principal); });
   if (!principal) return parseFloat(regra.min) || 0;
   var qtdPrincipal = calcQtdItemOrcamento(tipoId, principal.item, conv, bartenders, equipeTotal, cargoCounts) || 0;
   var min = parseFloat(regra.min) || 0;
@@ -260,8 +321,9 @@ function ocoAdicionarItem() {
   if (!nome) { alert('Escolha um item.'); return; }
   var opt = sel.options[sel.selectedIndex];
   var cat = opt ? opt.getAttribute('data-cat') : 'OUTROS';
+  var norm = (typeof _sepNormNome === 'function') ? _sepNormNome : function(s) { return (s||'').toUpperCase(); };
   var lista = _ocoRegras(_ocoTipoAtual);
-  if (lista.some(function(r) { return (r.item || '').toUpperCase() === nome.toUpperCase(); })) {
+  if (lista.some(function(r) { return norm(r.item) === norm(nome); })) {
     alert('Esse item já está na lista.');
     return;
   }
@@ -316,6 +378,7 @@ function rOrcCalculos() {
   var cont = document.getElementById('orcCalculos-content');
   if (!cont) return;
   if (!D.calculosOrcamento) D.calculosOrcamento = {};
+  var norm = (typeof _sepNormNome === 'function') ? _sepNormNome : function(s) { return (s||'').toUpperCase(); };
 
   var tipos = getTiposEvento();
   if (!tipos.length) {
@@ -340,7 +403,7 @@ function rOrcCalculos() {
   Object.keys(_bib).sort().forEach(function(c) { (_bib[c] || []).forEach(function(it) { _bibFlat.push(it); }); });
 
   var itensExistentes = {};
-  regras.forEach(function(r) { itensExistentes[(r.item || '').toUpperCase()] = true; });
+  regras.forEach(function(r) { itensExistentes[norm(r.item)] = true; });
 
   var html = '<div style="padding:20px 24px;max-width:1100px">';
 
@@ -399,13 +462,23 @@ function rOrcCalculos() {
         '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;border-bottom:2px solid var(--border2);padding-bottom:4px;margin-bottom:8px">' + cat + '</div>' +
         '<div style="display:grid;gap:4px">' +
         itensCat.map(function(it) {
-          var jaTem = itensExistentes[it.nome.toUpperCase()];
-          return '<div style="display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:6px 12px;font-size:11px">' +
-            '<span style="flex:1;color:var(--text);font-weight:500">' + it.nome + '</span>' +
-            '<span style="font-size:10px;color:var(--text3)">' + it.fichas.join(', ') + '</span>' +
-            (jaTem
-              ? '<span style="font-size:10px;color:var(--green);white-space:nowrap">✓ já nesta lista</span>'
-              : '<button class="btn-sm" style="background:var(--blue);white-space:nowrap" onclick="ocoAdicionarItemDireto(\'' + it.nome.replace(/'/g, "\\'") + '\',\'' + (it.cat||'').replace(/'/g, "\\'") + '\')">+ adicionar a ' + nomeTipoAtual + '</button>') +
+          var jaTem = itensExistentes[norm(it.nome)];
+          var grafias = Object.keys(it.grafias || {});
+          var temInsumo = (D.insumos || []).some(function(i) { return norm(i.nome) === norm(it.nome); });
+          var avisoGrafia = grafias.length > 1
+            ? '<div style="font-size:9px;color:var(--amber);margin-top:2px">⚠️ grafia diferente entre fichas: ' +
+                grafias.map(function(g) { return '"' + g + '" (' + it.grafias[g].join(', ') + ')'; }).join(' · ') +
+                ' — corrija a ficha errada pra usar sempre o mesmo nome</div>'
+            : (!temInsumo ? '<div style="font-size:9px;color:var(--amber);margin-top:2px">⚠️ esse nome não bate com nenhum insumo do Cadastro — confira se é apelido/nome digitado diferente</div>' : '');
+          return '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:6px 12px;font-size:11px">' +
+            '<div style="display:flex;align-items:center;gap:10px">' +
+              '<span style="flex:1;color:var(--text);font-weight:500">' + it.nome + '</span>' +
+              '<span style="font-size:10px;color:var(--text3)">' + it.fichas.join(', ') + '</span>' +
+              (jaTem
+                ? '<span style="font-size:10px;color:var(--green);white-space:nowrap">✓ já nesta lista</span>'
+                : '<button class="btn-sm" style="background:var(--blue);white-space:nowrap" onclick="ocoAdicionarItemDireto(\'' + it.nome.replace(/'/g, "\\'") + '\',\'' + (it.cat||'').replace(/'/g, "\\'") + '\')">+ adicionar a ' + nomeTipoAtual + '</button>') +
+            '</div>' +
+            avisoGrafia +
           '</div>';
         }).join('') +
         '</div></div>';
@@ -509,14 +582,14 @@ function rOrcCalculos() {
     html += '</div></div>';
   });
 
-  var disponiveis = _bibFlat.filter(function(it) { return !itensExistentes[it.toUpperCase()]; });
+  var disponiveis = _bibFlat.filter(function(it) { return !itensExistentes[norm(it)]; });
   html += '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-top:8px">' +
     '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">+ Adicionar item (só neste Tipo de Evento)</div>' +
     '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">' +
       '<div style="flex:1;min-width:240px"><label class="lbl">Item</label>' +
         '<select id="oco-item-add" class="inp" style="width:100%">' +
           Object.keys(_bib).sort().map(function(cat) {
-            var opts = (_bib[cat] || []).filter(function(it) { return !itensExistentes[it.toUpperCase()]; });
+            var opts = (_bib[cat] || []).filter(function(it) { return !itensExistentes[norm(it)]; });
             if (!opts.length) return '';
             return '<optgroup label="' + cat.replace(/"/g, '&quot;') + '">' +
               opts.map(function(it) { return '<option value="' + it.replace(/"/g, '&quot;') + '" data-cat="' + cat.replace(/"/g, '&quot;') + '">' + it + '</option>'; }).join('') +

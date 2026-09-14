@@ -966,23 +966,31 @@ function _orcItensParaFicha(orc, fichaId) {
     + (p.coord   != null ? Number(p.coord)   : (autoS.cd||0))
     + (p.copeiro != null ? Number(p.copeiro) : 0);
 
+  // Nome oficial do item: se bater (sem acento/caixa) com um insumo do
+  // Cadastro, usa a grafia dele — evita duas fichas com o mesmo ingrediente
+  // digitado com acento diferente (ex: "LIMÃO DESIDRATADO" x "LIMAO
+  // DESIDRATADO") virarem dois itens/insumos separados no orçamento.
+  const nomeCanonico = item => (typeof _ocoNomeCanonico === 'function') ? _ocoNomeCanonico(item.nome) : item.nome;
+
   // Dedupe defensivo: fichas salvas antes da correção de 2026-07-28 podem ter
   // o mesmo item (cat+nome) gravado duas vezes, o que dobrava a quantidade
-  // sugerida no Cardápio do Orçamento.
+  // sugerida no Cardápio do Orçamento. Dedupe pelo nome já canonicalizado,
+  // não pelo texto cru, pra pegar também variação só de acento.
   const itensVistos = new Set();
   const itensUnicos = (ficha.itens||[]).filter(item => {
-    const key = item.cat + '|' + item.nome;
+    const key = item.cat + '|' + nomeCanonico(item);
     if (itensVistos.has(key)) return false;
     itensVistos.add(key);
     return true;
   });
 
   return itensUnicos.map(item => {
+    const nome   = nomeCanonico(item);
     const qtd    = (typeof calcQtdItemOrcamento === 'function')
-      ? calcQtdItemOrcamento(tipoEvento, item.nome, conv, bartenders, equipeTotal)
+      ? calcQtdItemOrcamento(tipoEvento, nome, conv, bartenders, equipeTotal)
       : null;
     const origem = qtd != null ? 'calculoOrcamento' : null;
-    return { cat: item.cat, nome: item.nome, origem, qtd: qtd != null ? qtd : 0 };
+    return { cat: item.cat, nome, origem, qtd: qtd != null ? qtd : 0 };
   });
 }
 
