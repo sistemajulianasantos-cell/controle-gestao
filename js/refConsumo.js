@@ -7,40 +7,6 @@ const RC_GRUPOS_CAT = {
 };
 const RC_GRUPOS_LIST = Object.values(RC_GRUPOS_CAT).flat();
 
-// ── Categorias de insumo ──────────────────────────────────────────────────────
-const RC_CATEGORIAS_ORDEM = [
-  'DESTILADOS PRINCIPAIS',
-  'DESTILADOS SECUNDÁRIOS',
-  'ESPUMAS',
-  'NÃO ALCOÓLICOS',
-  'COPOS E TAÇAS',
-  'OUTROS',
-];
-
-const RC_ITEM_CAT = {
-  'Vodka':'DESTILADOS PRINCIPAIS','Gim':'DESTILADOS PRINCIPAIS',
-  'Aperol':'DESTILADOS PRINCIPAIS','Campari':'DESTILADOS PRINCIPAIS','Vermouth':'DESTILADOS PRINCIPAIS',
-  'Espumante':'DESTILADOS PRINCIPAIS','Whisky':'DESTILADOS PRINCIPAIS','Lillet':'DESTILADOS PRINCIPAIS',
-  'Tequila':'DESTILADOS PRINCIPAIS','Cachaça':'DESTILADOS PRINCIPAIS',
-  'Fernet':'DESTILADOS SECUNDÁRIOS','Fireball':'DESTILADOS SECUNDÁRIOS','Rum':'DESTILADOS SECUNDÁRIOS',
-  'Manzza':'DESTILADOS SECUNDÁRIOS','Sake':'DESTILADOS SECUNDÁRIOS','Vinho':'DESTILADOS SECUNDÁRIOS',
-  'Licor 43':'DESTILADOS SECUNDÁRIOS','Licor Doce de Leite':'DESTILADOS SECUNDÁRIOS',
-  'Negroni Romero':'DESTILADOS SECUNDÁRIOS','Limonchello':'DESTILADOS SECUNDÁRIOS',
-  'Nib Shot':'DESTILADOS SECUNDÁRIOS','Bananinha':'DESTILADOS SECUNDÁRIOS',
-  'Ballena':'DESTILADOS SECUNDÁRIOS','Pisco':'DESTILADOS SECUNDÁRIOS','Martini':'DESTILADOS SECUNDÁRIOS',
-  'Espuma de Gengibre':'ESPUMAS','Espuma de Siciliano':'ESPUMAS',
-  'Angostura':'NÃO ALCOÓLICOS',
-  'Mix Frutas Vermelhas':'NÃO ALCOÓLICOS','Grapefruit':'NÃO ALCOÓLICOS','Ginger Ale':'NÃO ALCOÓLICOS',
-  'Café':'NÃO ALCOÓLICOS','Suco de Limão':'NÃO ALCOÓLICOS','Xarope de Açucar':'NÃO ALCOÓLICOS',
-  'Agua gasosa':'NÃO ALCOÓLICOS','Agua Tônica':'NÃO ALCOÓLICOS',
-  'Long Drink':'COPOS E TAÇAS','Long liso':'COPOS E TAÇAS','Taça de Vinho':'COPOS E TAÇAS',
-  'Caneca':'COPOS E TAÇAS','Coupe':'COPOS E TAÇAS','Receptivo':'COPOS E TAÇAS',
-  'Taça Flute':'COPOS E TAÇAS','Suprema Multicristal':'COPOS E TAÇAS','Calise':'COPOS E TAÇAS',
-  'Baixo Liso':'COPOS E TAÇAS','Lampada':'COPOS E TAÇAS','Long Xtra':'COPOS E TAÇAS',
-  'Xtra Baixo':'COPOS E TAÇAS','Bunello':'COPOS E TAÇAS','Taça Xtar':'COPOS E TAÇAS',
-  'Whiskey Elysia':'COPOS E TAÇAS','Whiskey Timeles':'COPOS E TAÇAS','Gim2':'COPOS E TAÇAS',
-};
-
 // ── Estado ────────────────────────────────────────────────────────────────────
 var _rcView      = 'tabela';
 var _rcGrupo     = 'CASAMENTO';
@@ -394,6 +360,14 @@ function _rcSugestao(avgQty) {
   return Math.ceil(avgQty * (avgQty < 18 ? 1.20 : 1.15));
 }
 
+// Categoria de um item na Tabela comparativa vem do Cadastro de Insumos
+// (mesmo helper que Regras/Separação já usam pra resolver "categoria atual",
+// já que a ficha/histórico pode guardar uma categoria antiga) — item sem
+// insumo cadastrado com esse nome exato cai em OUTROS, nunca escondido.
+function _rcCategoriaDoItem(nome) {
+  return (typeof categoriaAtualDoInsumo === 'function') ? categoriaAtualDoInsumo(nome, 'OUTROS') : 'OUTROS';
+}
+
 function _rcBuildComparativaRows(statsArg, groupsArg) {
   const stats  = statsArg  || _rcGetStats();
   const groups = groupsArg || (_rcGruposVisiveis.length ? _rcGruposVisiveis : ['CASAMENTO']);
@@ -405,17 +379,23 @@ function _rcBuildComparativaRows(statsArg, groupsArg) {
   const allBevSet = new Set();
   groups.forEach(g => _rcBebidaDoGrupo(stats, g).forEach(b => allBevSet.add(b)));
 
-  // Agrupa por categoria, respeitando filtro
+  // Agrupa por categoria (do Cadastro), respeitando filtro
+  const categoriasOrdem = (typeof getCategorias === 'function') ? getCategorias().slice() : ['OUTROS'];
+  if (!categoriasOrdem.includes('OUTROS')) categoriasOrdem.push('OUTROS');
+  const ordemSet = new Set(categoriasOrdem);
   const porCat = {};
-  RC_CATEGORIAS_ORDEM.forEach(c => { porCat[c] = []; });
   [...allBevSet]
     .filter(b => !filtro || b.toLowerCase().includes(filtro))
-    .forEach(b => { (porCat[RC_ITEM_CAT[b] || 'OUTROS']).push(b); });
+    .forEach(b => {
+      const cat = _rcCategoriaDoItem(b);
+      if (!ordemSet.has(cat)) { ordemSet.add(cat); categoriasOrdem.push(cat); }
+      (porCat[cat] || (porCat[cat]=[])).push(b);
+    });
 
   const html = [];
-  RC_CATEGORIAS_ORDEM.forEach(cat => {
+  categoriasOrdem.forEach(cat => {
     const itens = porCat[cat];
-    if (!itens.length) return;
+    if (!itens || !itens.length) return;
 
     html.push(`<tr style="background:var(--bg3)">
       <td colspan="${nCols}" style="padding:9px 14px 5px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;border-top:2px solid var(--border)">${cat}</td>
@@ -639,6 +619,7 @@ function _rcHistResultadosHTML() {
           <td style="padding:6px 12px;line-height:1.8">${prods||'<span style="color:var(--text3);font-size:11px">—</span>'}</td>
           <td style="padding:8px 12px;text-align:right;white-space:nowrap">
             <button onclick="_rcVerEvento(${idxReal})" style="background:none;border:none;color:#4F8EF7;cursor:pointer;font-size:11px;text-decoration:underline;margin-right:8px">detalhes</button>
+            ${e._fonte==='manual' ? `<button onclick="_rcEditarEvento(${idxReal})" style="background:none;border:none;color:#4F8EF7;cursor:pointer;font-size:11px;margin-right:8px">editar</button>` : ''}
             <button onclick="_rcDeleteEvento(${idxReal})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:11px">excluir</button>
           </td>
         </tr>`;
@@ -852,8 +833,12 @@ function _rcNovoAplicarContrato(id) {
 function _rcBuildNovo() {
   const f     = _rcNovoForm;
   const hoje  = new Date().toISOString().slice(0,10);
+  const editando = !!f.id;
 
-  if (!f.tipoEventoId) {
+  // Só cai no primeiro tipo cadastrado por padrão pra um lançamento NOVO —
+  // editando um existente sem tipo reconhecido, mantém o grupo salvo como
+  // está em vez de sobrescrever silenciosamente.
+  if (!f.tipoEventoId && !editando) {
     const primeiro = (typeof getTiposEvento === 'function') ? (getTiposEvento()[0] || null) : null;
     if (primeiro) { f.tipoEventoId = primeiro.id; f.grupo = _rcResolverGrupoPorTipoEventoId(primeiro.id); }
   }
@@ -866,8 +851,8 @@ function _rcBuildNovo() {
   return `
 <div style="padding:20px 24px;max-width:680px">
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
-    <button class="btn" onclick="_rcSetView('tabela')">← Cancelar</button>
-    <div style="font-size:18px;font-weight:600;color:var(--text)">Lançar Evento</div>
+    <button class="btn" onclick="_rcNovoCancelar()">← Cancelar</button>
+    <div style="font-size:18px;font-weight:600;color:var(--text)">${editando ? 'Editar Evento' : 'Lançar Evento'}</div>
   </div>
 
   <div style="margin-bottom:16px">
@@ -940,8 +925,8 @@ function _rcBuildNovo() {
   </div>
 
   <div style="margin-top:18px;display:flex;gap:10px;align-items:center">
-    <button class="btn" style="background:#3DDC84;border-color:#3DDC84;color:#000;font-weight:600;padding:10px 24px" onclick="_rcSalvarEvento()">Salvar evento</button>
-    <button class="btn" onclick="_rcSetView('tabela')">Cancelar</button>
+    <button class="btn" style="background:#3DDC84;border-color:#3DDC84;color:#000;font-weight:600;padding:10px 24px" onclick="_rcSalvarEvento()">${editando ? 'Salvar alterações' : 'Salvar evento'}</button>
+    <button class="btn" onclick="_rcNovoCancelar()">Cancelar</button>
     <span id="rc-novo-status" style="font-size:12px;color:var(--text3)"></span>
   </div>
 </div>`;
@@ -962,10 +947,19 @@ function _rcNovoItensHTML() {
   const ordemSet   = new Set(ordemCats);
   const porCat     = {};
   insumos.forEach(i => {
-    if (fil && !(i.nome||'').toLowerCase().includes(fil)) return;
+    const nome  = i.nome;
+    const temQtd = f.consumo && parseFloat(f.consumo[nome]) > 0;
+    // Sem busca ativa: só mostra o que já tem quantidade lançada (evita
+    // rolar centenas de insumos do Cadastro à toa). Com busca, mostra tudo
+    // que bate, tenha quantidade ou não — é assim que ela adiciona um novo.
+    if (fil) {
+      if (!(nome||'').toLowerCase().includes(fil)) return;
+    } else if (!temQtd) {
+      return;
+    }
     const cat = i.categoria || 'OUTROS';
     if (!ordemSet.has(cat)) { ordemSet.add(cat); ordemCats.push(cat); }
-    (porCat[cat] || (porCat[cat]=[])).push(i.nome);
+    (porCat[cat] || (porCat[cat]=[])).push(nome);
   });
 
   const bevBlocks = ordemCats.map(cat => {
@@ -988,7 +982,10 @@ function _rcNovoItensHTML() {
     </div>`;
   }).join('');
 
-  return bevBlocks || '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Nenhum insumo cadastrado ainda. Cadastre em Cadastro → Insumos.</div>';
+  const vazio = fil
+    ? 'Nenhum insumo encontrado no Cadastro com esse nome.'
+    : 'Nenhum item lançado ainda. Digite acima pra buscar e adicionar um insumo.';
+  return bevBlocks || `<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">${vazio}</div>`;
 }
 
 // Recebe o <input> em si (não só o valor) pra poder ajustar seu próprio
@@ -1023,9 +1020,8 @@ function _rcSalvarEvento() {
   const consumo = {};
   Object.entries(f.consumo||{}).forEach(([k,v])=>{ if(parseFloat(v)>0) consumo[k]=parseFloat(v); });
   if (!Object.keys(consumo).length)          { _rcNovoStatus('Informe ao menos um insumo.', true); return; }
-  const evts = _rcGetEventos();
-  evts.push({
-    id:_gerarId('RC'),
+
+  const dadosEvento = {
     data:f.data||new Date().toISOString().slice(0,10),
     cliente:f.cliente||'',
     contratoId:f.contratoId||'',
@@ -1034,11 +1030,58 @@ function _rcSalvarEvento() {
     convidados:parseFloat(f.convidados),
     convidadosContrato:f.convidadosContrato ? parseFloat(f.convidadosContrato) : null,
     consumo,
-  });
+  };
+
+  const evts = _rcGetEventos();
+  const editando = !!f.id;
+  if (editando) {
+    const idx = evts.findIndex(e => e.id === f.id);
+    if (idx >= 0) evts[idx] = { ...evts[idx], ...dadosEvento };
+    else evts.push({ id:f.id, ...dadosEvento });
+  } else {
+    evts.push({ id:_gerarId('RC'), ...dadosEvento });
+  }
   _rcSaveEventos(evts);
   _rcNovoForm = { data:'', cliente:'', contratoId:'', tipoEventoId:'', grupo:'', observacao:'', convidados:'', convidadosContrato:'', consumo:{} };
   _rcNovoBev  = '';
-  _rcSetView('tabela');
+  _rcSetView(editando ? 'eventos' : 'tabela');
+}
+
+// Descarta a edição/lançamento em andamento e volta pra onde fazia sentido:
+// Histórico se estava editando um evento existente, Tabela se era um novo.
+function _rcNovoCancelar() {
+  const destino = _rcNovoForm.id ? 'eventos' : 'tabela';
+  _rcNovoForm = { data:'', cliente:'', contratoId:'', tipoEventoId:'', grupo:'', observacao:'', convidados:'', convidadosContrato:'', consumo:{} };
+  _rcNovoBev  = '';
+  _rcSetView(destino);
+}
+
+// Carrega um evento manual já salvo no formulário de Lançar Evento pra
+// edição. Eventos de fechamento não têm registro próprio (ver
+// _rcGetEventosDasFestas) — não dá pra editar, só excluir.
+function _rcEditarEvento(i) {
+  const todos = [..._rcGetEventos().slice().reverse().map(e=>({...e,_fonte:'manual'})), ..._rcGetEventosDasFestas().map(e=>({...e,_fonte:'fechamento'}))];
+  const e = todos[i];
+  if (!e || e._fonte !== 'manual') return;
+
+  const grupoUp = (e.grupo||'').toUpperCase();
+  const lista   = (typeof getTiposEvento === 'function') ? getTiposEvento() : [];
+  const match   = lista.find(t => _rcResolverGrupoPorTipoEventoId(t.id) === grupoUp);
+
+  _rcNovoForm = {
+    id: e.id,
+    data: e.data || '',
+    cliente: e.cliente || '',
+    contratoId: e.contratoId || '',
+    tipoEventoId: match ? match.id : '',
+    grupo: e.grupo || '',
+    observacao: e.observacao || '',
+    convidados: e.convidados || '',
+    convidadosContrato: e.convidadosContrato || '',
+    consumo: { ...(e.consumo||{}) },
+  };
+  _rcNovoBev = '';
+  _rcSetView('novo');
 }
 
 function _rcNovoStatus(msg, err) {

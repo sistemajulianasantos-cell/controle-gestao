@@ -1475,6 +1475,7 @@ if (!D.escalas) D.escalas = [];
 if (!D.orcamentos) D.orcamentos = [];
 if (!D.rcEventos) D.rcEventos = [];
 if (!D.rcEventosImportados) D.rcEventosImportados = [];
+if (!D.rcEventosExcluidos) D.rcEventosExcluidos = [];
 
 function baixarModeloCSV() {
   const linhas = [
