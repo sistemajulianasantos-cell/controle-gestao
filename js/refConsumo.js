@@ -54,6 +54,7 @@ var _rcHistInsumo    = '';
 var _rcHistConvMin   = '';
 var _rcHistConvMax   = '';
 var _rcGruposVisiveis = ['CASAMENTO','ANIVERSÁRIO','FORMATURA'];
+var _rcHistSelecionados = new Set();
 const RC_HIST_PER_PAGE = 50;
 
 // ── Storage (Firebase via D) ──────────────────────────────────────────────────
@@ -518,13 +519,22 @@ function _rcBuildEventos() {
     <th style="padding:9px 12px;text-align:right;color:#4F8EF7;font-weight:600;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap">Qtd ${auditBev}</th>
     <th style="padding:9px 12px;text-align:right;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Unid./Conv.</th>` : '';
 
+  const idsManuaisVisiveis = pagina.filter(e => e._fonte==='manual').map(e => e.id);
+  const todosVisiveisMarcados = idsManuaisVisiveis.length>0 && idsManuaisVisiveis.every(id => _rcHistSelecionados.has(id));
+  const selTh = idsManuaisVisiveis.length
+    ? `<th style="padding:9px 6px;text-align:center;width:26px"><input type="checkbox" ${todosVisiveisMarcados?'checked':''} onchange='_rcHistSelecionarTodosVisiveis(${JSON.stringify(idsManuaisVisiveis)},this.checked)' title="Selecionar todos os manuais desta página"></th>`
+    : `<th style="width:26px"></th>`;
+
   const rows = pagina.length === 0
-    ? `<tr><td colspan="${auditBev?7:5}" style="padding:32px;text-align:center;color:var(--text3)">Nenhum evento encontrado.</td></tr>`
+    ? `<tr><td colspan="${auditBev?8:6}" style="padding:32px;text-align:center;color:var(--text3)">Nenhum evento encontrado.</td></tr>`
     : pagina.map((e) => {
         const idxReal = todos.indexOf(e);
         const badge   = e._fonte==='manual'
           ? `<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:rgba(61,220,132,.12);border:1px solid rgba(61,220,132,.3);color:#3DDC84">manual</span>`
           : `<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:rgba(245,166,35,.12);border:1px solid rgba(245,166,35,.3);color:#F5A623">fechamento</span>`;
+        const selTd = e._fonte==='manual'
+          ? `<td style="padding:8px 6px;text-align:center"><input type="checkbox" ${_rcHistSelecionados.has(e.id)?'checked':''} onchange="_rcHistToggleSel('${e.id}')"></td>`
+          : `<td></td>`;
 
         // Produtos consumidos em lista vertical, ordenados por qtd desc
         const prods = Object.entries(e.consumo||{})
@@ -548,6 +558,7 @@ function _rcBuildEventos() {
             <td style="padding:8px 12px;text-align:right;color:var(--text3);font-family:var(--mono);font-size:11px">${taxa > 0 ? taxa.toFixed(4) : '—'}</td>`;
         }
         return `<tr style="border-bottom:1px solid var(--border)">
+          ${selTd}
           <td style="padding:8px 12px;color:var(--text2);font-family:var(--mono);font-size:11px;white-space:nowrap">${e.data||'—'}</td>
           <td style="padding:8px 12px">${badge} <span style="font-size:11px;color:var(--text2);margin-left:4px">${e.grupo||'—'}</span></td>
           <td style="padding:8px 12px;text-align:right;font-family:var(--mono);color:var(--text);font-weight:600">${e.convidados||0}</td>
@@ -611,14 +622,21 @@ function _rcBuildEventos() {
 
   ${auditSummary}
 
-  <div style="font-size:12px;color:var(--text3);margin-bottom:10px">
-    ${total} evento${total!==1?'s':''}${activeFilters ? ' · ' + activeFilters : ''}
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+    <div style="font-size:12px;color:var(--text3)">
+      ${total} evento${total!==1?'s':''}${activeFilters ? ' · ' + activeFilters : ''}
+    </div>
+    ${_rcHistSelecionados.size ? `
+      <button class="btn" style="background:var(--red);border-color:var(--red);color:#fff;font-size:11px;padding:5px 12px" onclick="_rcHistExcluirSelecionados()">Excluir selecionados (${_rcHistSelecionados.size})</button>
+      <button class="btn" style="font-size:11px;padding:5px 12px" onclick="_rcHistLimparSelecao()">Limpar seleção</button>
+    ` : ''}
   </div>
 
   <div style="overflow-x:auto">
     <table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead>
         <tr style="background:var(--bg3);border-bottom:2px solid var(--border)">
+          ${selTh}
           <th style="padding:9px 12px;text-align:left;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Data</th>
           <th style="padding:9px 12px;text-align:left;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Tipo</th>
           <th style="padding:9px 12px;text-align:right;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Conv.</th>
@@ -645,6 +663,26 @@ function _rcHistFiltrarInsumo(v)     { _rcHistInsumo = v; _rcHistPage = 0; rRefC
 function _rcHistFiltrarConvMin(v)    { _rcHistConvMin = v; _rcHistPage = 0; rRefConsumo(); }
 function _rcHistFiltrarConvMax(v)    { _rcHistConvMax = v; _rcHistPage = 0; rRefConsumo(); }
 function _rcHistLimparFiltros()      { _rcHistGrupo=''; _rcHistInsumo=''; _rcHistConvMin=''; _rcHistConvMax=''; _rcHistPage=0; rRefConsumo(); }
+
+function _rcHistToggleSel(id) {
+  if (_rcHistSelecionados.has(id)) _rcHistSelecionados.delete(id);
+  else _rcHistSelecionados.add(id);
+  rRefConsumo();
+}
+function _rcHistSelecionarTodosVisiveis(ids, marcar) {
+  ids.forEach(id => { if (marcar) _rcHistSelecionados.add(id); else _rcHistSelecionados.delete(id); });
+  rRefConsumo();
+}
+function _rcHistLimparSelecao() { _rcHistSelecionados.clear(); rRefConsumo(); }
+function _rcHistExcluirSelecionados() {
+  const n = _rcHistSelecionados.size;
+  if (!n) return;
+  if (!confirm(`Excluir ${n} lançamento${n>1?'s':''} selecionado${n>1?'s':''}?`)) return;
+  const manuais = _rcGetEventos().filter(m => !_rcHistSelecionados.has(m.id));
+  _rcSaveEventos(manuais);
+  _rcHistSelecionados.clear();
+  rRefConsumo();
+}
 
 function _rcVerEvento(i) {
   const todos = [..._rcGetEventos().slice().reverse().map(e=>({...e,_fonte:'manual'})), ..._rcGetEventosDasFestas().map(e=>({...e,_fonte:'fechamento'}))];
