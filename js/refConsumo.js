@@ -729,6 +729,24 @@ function _rcContratoOptionsHTML(selecionadoId) {
   return `<option value="">— sem contrato / lançar manualmente —</option>${opts}`;
 }
 
+// ── Tipo de evento: segue o Cadastro → Tipos de Evento (js/tiposEvento.js) ───
+// em vez da lista fixa RC_GRUPOS_CAT. A bucket usada pro cálculo de
+// estatística (evt.grupo) continua normalizada por _rcNormalizarTipo (mesma
+// função que já casa o histórico de festas/contratos) quando reconhecida;
+// tipo/subgrupo novo que ela cadastrar e que a normalizadora não reconheça
+// ainda vira bucket próprio pelo nome — nunca é descartado silenciosamente.
+function _rcResolverGrupoPorTipoEventoId(id) {
+  const t = (typeof buscarTipoEventoPorId === 'function') ? buscarTipoEventoPorId(id) : null;
+  if (!t) return '';
+  return _rcNormalizarTipo(t.nome) || (t.nome || '').toUpperCase();
+}
+
+function _rcNovoSetTipoEvento(id) {
+  _rcNovoForm.tipoEventoId = id;
+  _rcNovoForm.grupo = _rcResolverGrupoPorTipoEventoId(id);
+  rRefConsumo();
+}
+
 function _rcNovoAplicarContrato(id) {
   const f = _rcNovoForm;
   f.contratoId = id || '';
@@ -738,7 +756,14 @@ function _rcNovoAplicarContrato(id) {
   f.cliente = c.nome || c.nomeEvento || '';
   if (c.data) f.data = c.data;
   const grupoNorm = _rcNormalizarTipo(c.tipo);
-  if (grupoNorm) f.grupo = grupoNorm;
+  if (grupoNorm) {
+    f.grupo = grupoNorm;
+    // Tenta casar o tipo do contrato (texto livre) com um tipo cadastrado,
+    // só pra manter o <select> sincronizado com o que foi aplicado.
+    const lista = (typeof getTiposEvento === 'function') ? getTiposEvento() : [];
+    const match = lista.find(t => _rcResolverGrupoPorTipoEventoId(t.id) === grupoNorm);
+    if (match) f.tipoEventoId = match.id;
+  }
   f.convidadosContrato = c.convidados || '';
   if (!f.convidados) f.convidados = c.convidados || '';
   rRefConsumo();
@@ -748,12 +773,13 @@ function _rcBuildNovo() {
   const f     = _rcNovoForm;
   const hoje  = new Date().toISOString().slice(0,10);
 
-  const grupoOpts = Object.entries(RC_GRUPOS_CAT).map(([cat, gs]) => {
-    const opts = gs.map(g =>
-      `<option value="${g}"${(f.grupo||'CASAMENTO')===g?' selected':''}>${_rcGrupoLabel(g)}</option>`
-    ).join('');
-    return `<optgroup label="── ${cat}">${opts}</optgroup>`;
-  }).join('');
+  if (!f.tipoEventoId) {
+    const primeiro = (typeof getTiposEvento === 'function') ? (getTiposEvento()[0] || null) : null;
+    if (primeiro) { f.tipoEventoId = primeiro.id; f.grupo = _rcResolverGrupoPorTipoEventoId(primeiro.id); }
+  }
+  const grupoOpts = (typeof tiposEventoOptionsHtml === 'function')
+    ? tiposEventoOptionsHtml(f.tipoEventoId || '')
+    : '<option value="">(Cadastro de Tipos de Evento não carregado)</option>';
 
   const nPreench = Object.values(f.consumo||{}).filter(v=>parseFloat(v)>0).length;
 
@@ -816,7 +842,8 @@ function _rcBuildNovo() {
     <div style="grid-column:1/-1">
       <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Tipo de evento</label>
       <select style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;box-sizing:border-box"
-        onchange="_rcNovoForm.grupo=this.value">${grupoOpts}</select>
+        onchange="_rcNovoSetTipoEvento(this.value)">${grupoOpts}</select>
+      <div style="font-size:10px;color:var(--text3);margin-top:4px">Vem do Cadastro → Tipos de Evento. Falta algum? Cadastre lá primeiro.</div>
     </div>
   </div>
 
@@ -889,7 +916,7 @@ function _rcSalvarEvento() {
     consumo,
   });
   _rcSaveEventos(evts);
-  _rcNovoForm = { data:'', cliente:'', contratoId:'', grupo:'CASAMENTO', convidados:'', convidadosContrato:'', consumo:{} };
+  _rcNovoForm = { data:'', cliente:'', contratoId:'', tipoEventoId:'', grupo:'', convidados:'', convidadosContrato:'', consumo:{} };
   _rcNovoBev  = '';
   _rcSetView('tabela');
 }
