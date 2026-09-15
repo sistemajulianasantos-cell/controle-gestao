@@ -50,6 +50,41 @@ function _rcMigrarLocalStorage() {
   } catch(e) {}
 }
 
+// Insumo cadastrado duas vezes no Cadastro (mesmo nome, dois registros)
+// fazia a lista de consumo mostrar duas linhas pro mesmo item — se ela
+// preencheu quantidade nas duas, o evento salvo ficava com duas chaves de
+// consumo pro "mesmo" insumo (ex: "2 Espumante"). Mescla essas chaves nos
+// eventos manuais já salvos, somando as quantidades e mantendo a primeira
+// grafia encontrada. Roda uma vez no boot, idempotente — não muda nada se
+// não houver duplicata. O registro duplicado em si continua existindo no
+// Cadastro → Insumos; a lista de consumo (_rcGetInsumosConsumo) já dedupe
+// pra não deixar acontecer de novo daqui pra frente.
+function _rcMigrarConsumoDuplicado() {
+  const evts = _rcGetEventos();
+  if (!evts.length) return;
+  let mudou = false;
+  evts.forEach(e => {
+    const consumo = e.consumo || {};
+    const nomes = Object.keys(consumo);
+    const porChave = {};
+    let temDup = false;
+    nomes.forEach(nome => {
+      const chave = _rcNomeNormalizado(nome);
+      if (porChave[chave]) temDup = true;
+      else porChave[chave] = nome;
+    });
+    if (!temDup) return;
+    const novoConsumo = {};
+    nomes.forEach(nome => {
+      const nomeCanonico = porChave[_rcNomeNormalizado(nome)];
+      novoConsumo[nomeCanonico] = (novoConsumo[nomeCanonico] || 0) + (parseFloat(consumo[nome]) || 0);
+    });
+    e.consumo = novoConsumo;
+    mudou = true;
+  });
+  if (mudou) _rcSaveEventos(evts);
+}
+
 // ── Mapeamento produto → categoria RC ─────────────────────────────────────────
 function _rcMapProdToRC(prod) {
   const p = (prod || '').toUpperCase()
@@ -237,10 +272,29 @@ function _r(v) { return Math.round(v * 10000) / 10000; }
 // nomes de categoria podem divergir em acento/grafia do cadastro real). Se
 // faltar algum insumo aqui, o cadastro dele em Cadastro → Insumos que resolve
 // (mesmo padrão de fonte única já usado em Biblioteca de Itens/Regras).
+// Alguns insumos existem duplicados no Cadastro (dois registros com o mesmo
+// nome, ex: cadastrado duas vezes por engano) — sem isso, a lista mostrava
+// duas linhas pro mesmo nome e ela conseguia lançar quantidade nas duas,
+// gerando "2 Espumante" no consumo salvo. Aqui dedupe por nome
+// normalizado (maiúsc./espaço), mantendo só um registro por nome. O
+// duplicado em si continua existindo no Cadastro → Insumos — vale limpar
+// lá se quiser, isso aqui só evita a linha repetida nesta tela.
+function _rcNomeNormalizado(s) {
+  return (s||'').trim().replace(/\s+/g,' ').toUpperCase();
+}
 function _rcGetInsumosConsumo() {
-  return (D.insumos || [])
+  const vistos = new Set();
+  const lista = [];
+  (D.insumos || [])
     .slice()
-    .sort((a,b) => (a.nome||'').localeCompare(b.nome||'', 'pt-BR'));
+    .sort((a,b) => (a.nome||'').localeCompare(b.nome||'', 'pt-BR'))
+    .forEach(i => {
+      const chave = _rcNomeNormalizado(i.nome);
+      if (!chave || vistos.has(chave)) return;
+      vistos.add(chave);
+      lista.push(i);
+    });
+  return lista;
 }
 
 // ── Render ────────────────────────────────────────────────────────────────────

@@ -2438,7 +2438,7 @@
 <script src="js/orcCalculos.js?v=20260914k"></script>
 <script src="js/orcProposta.js?v=20260915a"></script>
 <script src="js/_refConsumoData.js?v=20260610z"></script>
-<script src="js/refConsumo.js?v=20260916f"></script>
+<script src="js/refConsumo.js?v=20260916g"></script>
 <script src="js/seguranca-admin.js?v=20260610z"></script>
 
 <script type="module">
@@ -2846,6 +2846,7 @@ async function carregarDados() {
     // Re-render página ativa após dados chegarem
     window._dadosCarregados = true;
     if (typeof _rcMigrarLocalStorage === 'function') _rcMigrarLocalStorage();
+    if (typeof _rcMigrarConsumoDuplicado === 'function') _rcMigrarConsumoDuplicado();
     setTimeout(() => {
       try {
         const pa = document.querySelector('.page.active');
