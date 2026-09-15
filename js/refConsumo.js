@@ -1,12 +1,5 @@
 // ─── REFERÊNCIA DE CONSUMO ────────────────────────────────────────────────────
 
-const RC_GRUPOS_CAT = {
-  'CELEBRAÇÃO':  ['CASAMENTO', 'CASAMENTO CIVIL', 'NOIVADO'],
-  'ANIVERSÁRIO': ['ANIVERSÁRIO', 'ANIVERSÁRIO 15 ANOS', 'ANIVERSÁRIO 18 ANOS', 'ANIVERSÁRIO 30-50 ANOS', 'ANIVERSÁRIO 51-90 ANOS'],
-  'DIVERSOS':    ['CORPORATIVO', 'CONFRATERNIZAÇÃO', 'FORMATURA', 'ALMOÇO'],
-};
-const RC_GRUPOS_LIST = Object.values(RC_GRUPOS_CAT).flat();
-
 // ── Estado ────────────────────────────────────────────────────────────────────
 var _rcView      = 'tabela';
 var _rcGrupo     = 'CASAMENTO';
@@ -206,10 +199,14 @@ function _rcComputeStats(evts) {
     });
   });
 
+  // "Médio" = ponto médio entre mínimo e máximo histórico (não a média
+  // aritmética das quantidades) — pedido explícito dela (2026-09-16).
+  const pontoMedio = list => (Math.min(...list) + Math.max(...list)) / 2;
+
   // Stats globais (fallback para grupos sem histórico naquele insumo)
   const globalAvg = {};
   Object.entries(qtysAll).forEach(([bev, list]) => {
-    globalAvg[bev] = list.reduce((a,b)=>a+b, 0) / list.length;
+    globalAvg[bev] = pontoMedio(list);
   });
 
   const allBevs = Object.keys(qtysAll);
@@ -221,7 +218,7 @@ function _rcComputeStats(evts) {
       if (list.length) {
         const mn  = Math.min(...list);
         const mx  = Math.max(...list);
-        const avg = list.reduce((a,b)=>a+b, 0) / list.length;
+        const avg = (mn + mx) / 2;
         out[g][bev] = { min:mn, max:mx, avg:avg, mediaGeral:null, count:list.length };
       } else {
         out[g][bev] = { min:null, max:null, avg:null, mediaGeral: globalAvg[bev]??null, count:0 };
@@ -262,24 +259,40 @@ function _rcBuildTabela() {
   const stats     = _rcGetStats();
   const total     = dasFestas.length + manual.length;
 
-  const grupoToggles = Object.entries(RC_GRUPOS_CAT).map(([cat, gs]) => {
-    const btns = gs.map(g => {
-      const on = _rcGruposVisiveis.includes(g);
-      return `<button class="rc-tab${on?' active':''}" onclick="_rcToggleGrupo('${g}')">${_rcGrupoLabel(g)}</button>`;
+  // Cabeçalho segue o Cadastro → Tipos de Evento (grupo/subgrupo de lá),
+  // não mais uma lista fixa no código — cada botão usa a mesma chave que
+  // _rcSalvarEvento grava (_rcResolverGrupoPorTipoEventoId), então o que
+  // aparece aqui é sempre exatamente o que está cadastrado, sem duplicar
+  // nem divergir por causa de sinônimo/typo.
+  const tiposCadastro  = (typeof getTiposEvento === 'function') ? getTiposEvento() : [];
+  const tiposPorGrupo  = {};
+  const ordemGruposTipo = [];
+  tiposCadastro.forEach(t => {
+    const g = t.grupo || t.nome;
+    if (!tiposPorGrupo[g]) { tiposPorGrupo[g] = []; ordemGruposTipo.push(g); }
+    tiposPorGrupo[g].push(t);
+  });
+
+  const grupoToggles = ordemGruposTipo.map(catGrupo => {
+    const btns = tiposPorGrupo[catGrupo].map(t => {
+      const chave = _rcResolverGrupoPorTipoEventoId(t.id);
+      const on = _rcGruposVisiveis.includes(chave);
+      return `<button class="rc-tab${on?' active':''}" onclick="_rcToggleGrupo('${chave.replace(/'/g,"\\'")}')">${t.nome}</button>`;
     }).join('');
     return `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-      <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;white-space:nowrap;min-width:96px">${cat}</span>
+      <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;white-space:nowrap;min-width:96px">${catGrupo}</span>
       <div style="width:1px;height:20px;background:var(--border);flex-shrink:0"></div>
       ${btns}
     </div>`;
   }).join('');
 
-  // Tipo de evento lançado que tem dado na base mas não é nenhum dos buckets
-  // fixos acima (ex: tipo/subgrupo do Cadastro com nome que não bate com
-  // nenhum sinônimo conhecido) — nunca fica escondido, ganha sua própria
-  // linha de alternância em vez de sumir da Tabela.
+  // Tipo com dado na base que não corresponde a nenhum tipo cadastrado hoje
+  // (ex: veio de festa/contrato com tipo em texto livre que não bate com
+  // nada do Cadastro) — nunca fica escondido, ganha sua própria linha em vez
+  // de sumir da Tabela.
+  const chavesCadastro = new Set(tiposCadastro.map(t => _rcResolverGrupoPorTipoEventoId(t.id)));
   const gruposExtras = Object.keys(stats)
-    .filter(g => !RC_GRUPOS_LIST.includes(g))
+    .filter(g => !chavesCadastro.has(g))
     .sort((a,b) => a.localeCompare(b,'pt-BR'));
   const extrasToggle = gruposExtras.length ? `
     <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
@@ -447,14 +460,16 @@ function _rcBuildComparativaRows(statsArg, groupsArg) {
 // muda — sem reconstruir os campos de filtro no topo, que é o que fazia o
 // cursor perder o foco a cada letra digitada.
 function _rcBuildEventos() {
-  // Une a lista fixa com qualquer grupo que já tenha evento salvo (manual ou
-  // de fechamento) — mesmo padrão da Tabela: tipo lançado nunca fica de fora
-  // do filtro só porque não é um dos buckets conhecidos.
+  // Une o Cadastro → Tipos de Evento com qualquer grupo que já tenha evento
+  // salvo (manual ou de fechamento) — mesmo padrão da Tabela: tipo lançado
+  // nunca fica de fora do filtro só por não estar cadastrado.
+  const chavesCadastroHist = ((typeof getTiposEvento === 'function') ? getTiposEvento() : [])
+    .map(t => _rcResolverGrupoPorTipoEventoId(t.id));
   const gruposComDados = new Set([
     ..._rcGetEventos().map(e => (e.grupo||'').toUpperCase()),
     ..._rcGetEventosDasFestas().map(e => (e.grupo||'').toUpperCase()),
   ].filter(Boolean));
-  const todosGrupos = [...new Set([...RC_GRUPOS_LIST, ...gruposComDados])].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  const todosGrupos = [...new Set([...chavesCadastroHist, ...gruposComDados])].sort((a,b)=>a.localeCompare(b,'pt-BR'));
   const grupoOpts = ['', ...todosGrupos].map(g =>
     `<option value="${g}"${_rcHistGrupo===g?' selected':''}>${g||'Todos os tipos'}</option>`
   ).join('');
@@ -567,7 +582,7 @@ function _rcHistResultadosHTML() {
       const qtys      = dados.map(d => d.qty);
       const mn        = Math.min(...qtys);
       const mx        = Math.max(...qtys);
-      const avgQty    = qtys.reduce((a,b)=>a+b,0) / qtys.length;
+      const avgQty    = (mn + mx) / 2; // ponto médio entre mín. e máx., não a média aritmética
       const totalQty  = qtys.reduce((a,b)=>a+b,0);
       const margem    = avgQty < 18 ? 1.20 : 1.15;
       const sug       = Math.ceil(avgQty * margem);
@@ -802,11 +817,13 @@ function _rcContratoOptionsHTML(selecionadoId) {
 }
 
 // ── Tipo de evento: segue o Cadastro → Tipos de Evento (js/tiposEvento.js) ───
-// em vez da lista fixa RC_GRUPOS_CAT. A bucket usada pro cálculo de
-// estatística (evt.grupo) continua normalizada por _rcNormalizarTipo (mesma
-// função que já casa o histórico de festas/contratos) quando reconhecida;
+// A bucket usada pro cálculo de estatística (evt.grupo) continua normalizada
+// por _rcNormalizarTipo (mesma função que já casa o histórico de
+// festas/contratos, que ainda usam tipo em texto livre) quando reconhecida;
 // tipo/subgrupo novo que ela cadastrar e que a normalizadora não reconheça
-// ainda vira bucket próprio pelo nome — nunca é descartado silenciosamente.
+// ainda vira bucket próprio pelo nome exato do Cadastro — nunca é descartado
+// silenciosamente. Essa mesma chave é o que a Tabela/Histórico usam pra
+// montar os botões/filtro de tipo, então cadastro e exibição nunca divergem.
 function _rcResolverGrupoPorTipoEventoId(id) {
   const t = (typeof buscarTipoEventoPorId === 'function') ? buscarTipoEventoPorId(id) : null;
   if (!t) return '';
