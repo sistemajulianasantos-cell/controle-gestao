@@ -64,6 +64,14 @@ function _rcGetEventosImportados() { return D.rcEventosImportados || []; }
 function _rcSaveEventos(l)         { D.rcEventos = l; sv('rcEventos'); }
 function _rcSaveEventosImp(l)      { D.rcEventosImportados = l; sv('rcEventosImportados'); }
 
+// Eventos vindos de fechamento (calculados a partir de festas — ver
+// _rcGetEventosDasFestas) não são um registro próprio, então "excluir" um
+// deles não apaga a festa/contrato original: só marca o id aqui pra ele
+// parar de entrar nas estatísticas/histórico do Ref. Consumo. Reversível —
+// ver _rcHistRestaurarExcluidos().
+function _rcGetEventosExcluidos()  { return D.rcEventosExcluidos || []; }
+function _rcSaveEventosExcluidos(l){ D.rcEventosExcluidos = l; sv('rcEventosExcluidos'); }
+
 // Migração única: se houver dados no localStorage, move para Firebase
 function _rcMigrarLocalStorage() {
   try {
@@ -201,7 +209,8 @@ function _rcGetEventosDasFestas() {
       if (!Object.keys(consumo).length) return null;
       return { id: f.id, data: f.data, cliente: f.nome, grupo, convidados, consumo };
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter(e => !_rcGetEventosExcluidos().includes(e.id));
 }
 
 // ── Cálculo de stats a partir de todos os eventos ─────────────────────────────
@@ -261,14 +270,13 @@ function _r(v) { return Math.round(v * 10000) / 10000; }
 
 // ── Itens de consumo vindos do Cadastro (Cadastro → Insumos) ─────────────────
 // A lista de insumos disponíveis pra lançar consumo não é mais hardcoded: vem
-// direto do Cadastro, restrita às categorias relevantes pra bebida/bar. Se
+// direto do Cadastro, TODOS os itens (sem restringir por categoria — filtrar
+// por nome só limitava a "copos" quando restringia por categoria fixa, porque
+// nomes de categoria podem divergir em acento/grafia do cadastro real). Se
 // faltar algum insumo aqui, o cadastro dele em Cadastro → Insumos que resolve
 // (mesmo padrão de fonte única já usado em Biblioteca de Itens/Regras).
-const RC_CATEGORIAS_CONSUMO_CADASTRO = ['BEBIDAS ALCOÓLICAS', 'BEBIDAS SEM ÁLCOOL', 'COPOS E TAÇAS', 'SHOTS'];
-
 function _rcGetInsumosConsumo() {
   return (D.insumos || [])
-    .filter(i => RC_CATEGORIAS_CONSUMO_CADASTRO.includes(i.categoria))
     .slice()
     .sort((a,b) => (a.nome||'').localeCompare(b.nome||'', 'pt-BR'));
 }
@@ -586,10 +594,10 @@ function _rcHistResultadosHTML() {
     <th style="padding:9px 12px;text-align:right;color:#4F8EF7;font-weight:600;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap">Qtd ${auditBev}</th>
     <th style="padding:9px 12px;text-align:right;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Unid./Conv.</th>` : '';
 
-  const idsManuaisVisiveis = pagina.filter(e => e._fonte==='manual').map(e => e.id);
-  const todosVisiveisMarcados = idsManuaisVisiveis.length>0 && idsManuaisVisiveis.every(id => _rcHistSelecionados.has(id));
-  const selTh = idsManuaisVisiveis.length
-    ? `<th style="padding:9px 6px;text-align:center;width:26px"><input type="checkbox" ${todosVisiveisMarcados?'checked':''} onchange='_rcHistSelecionarTodosVisiveis(${JSON.stringify(idsManuaisVisiveis)},this.checked)' title="Selecionar todos os manuais desta página"></th>`
+  const idsVisiveis = pagina.map(e => e.id);
+  const todosVisiveisMarcados = idsVisiveis.length>0 && idsVisiveis.every(id => _rcHistSelecionados.has(id));
+  const selTh = idsVisiveis.length
+    ? `<th style="padding:9px 6px;text-align:center;width:26px"><input type="checkbox" ${todosVisiveisMarcados?'checked':''} onchange='_rcHistSelecionarTodosVisiveis(${JSON.stringify(idsVisiveis)},this.checked)' title="Selecionar todos desta página"></th>`
     : `<th style="width:26px"></th>`;
 
   const rows = pagina.length === 0
@@ -599,9 +607,7 @@ function _rcHistResultadosHTML() {
         const badge   = e._fonte==='manual'
           ? `<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:rgba(61,220,132,.12);border:1px solid rgba(61,220,132,.3);color:#3DDC84">manual</span>`
           : `<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:rgba(245,166,35,.12);border:1px solid rgba(245,166,35,.3);color:#F5A623">fechamento</span>`;
-        const selTd = e._fonte==='manual'
-          ? `<td style="padding:8px 6px;text-align:center"><input type="checkbox" ${_rcHistSelecionados.has(e.id)?'checked':''} onchange="_rcHistToggleSel('${e.id}')"></td>`
-          : `<td></td>`;
+        const selTd = `<td style="padding:8px 6px;text-align:center"><input type="checkbox" ${_rcHistSelecionados.has(e.id)?'checked':''} onchange="_rcHistToggleSel('${e.id}')"></td>`;
 
         // Produtos consumidos em lista vertical, ordenados por qtd desc
         const prods = Object.entries(e.consumo||{})
@@ -633,7 +639,7 @@ function _rcHistResultadosHTML() {
           <td style="padding:6px 12px;line-height:1.8">${prods||'<span style="color:var(--text3);font-size:11px">—</span>'}</td>
           <td style="padding:8px 12px;text-align:right;white-space:nowrap">
             <button onclick="_rcVerEvento(${idxReal})" style="background:none;border:none;color:#4F8EF7;cursor:pointer;font-size:11px;text-decoration:underline;margin-right:8px">detalhes</button>
-            ${e._fonte==='manual' ? `<button onclick="_rcDeleteEvento(${idxReal})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:11px">excluir</button>` : ''}
+            <button onclick="_rcDeleteEvento(${idxReal})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:11px">excluir</button>
           </td>
         </tr>`;
       }).join('');
@@ -684,8 +690,12 @@ function _rcHistResultadosHTML() {
 
   ${paginacao}
 
-  <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
+  <div style="margin-top:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
     ${manual.length ? `<button class="btn" style="color:var(--red);border-color:var(--red)" onclick="_rcLimparManuais()">Apagar lançamentos manuais</button>` : ''}
+    ${_rcGetEventosExcluidos().length ? `
+      <span style="font-size:11px;color:var(--text3)">${_rcGetEventosExcluidos().length} evento${_rcGetEventosExcluidos().length>1?'s':''} de fechamento excluído${_rcGetEventosExcluidos().length>1?'s':''} do histórico</span>
+      <button class="btn" style="font-size:11px;padding:5px 12px" onclick="_rcHistRestaurarExcluidos()">Restaurar</button>
+    ` : ''}
   </div>`;
 }
 
@@ -707,13 +717,35 @@ function _rcHistSelecionarTodosVisiveis(ids, marcar) {
   _rcHistRefresh();
 }
 function _rcHistLimparSelecao() { _rcHistSelecionados.clear(); _rcHistRefresh(); }
+
+// Separa os ids selecionados em "manual" (remove do array D.rcEventos) e
+// "fechamento" (não tem registro próprio — só entra na lista de excluídos,
+// pra não contar mais nas estatísticas, sem tocar na festa/contrato original).
 function _rcHistExcluirSelecionados() {
   const n = _rcHistSelecionados.size;
   if (!n) return;
-  if (!confirm(`Excluir ${n} lançamento${n>1?'s':''} selecionado${n>1?'s':''}?`)) return;
-  const manuais = _rcGetEventos().filter(m => !_rcHistSelecionados.has(m.id));
-  _rcSaveEventos(manuais);
+  if (!confirm(`Excluir ${n} lançamento${n>1?'s':''} selecionado${n>1?'s':''} do histórico do Ref. Consumo?\n\nOs vindos de "fechamento" não têm a festa/contrato apagados — só param de contar nas estatísticas daqui.`)) return;
+  const ids = new Set(_rcHistSelecionados);
+  const manuais = _rcGetEventos();
+  const idsManuais = new Set(manuais.filter(m => ids.has(m.id)).map(m => m.id));
+  if (idsManuais.size) _rcSaveEventos(manuais.filter(m => !idsManuais.has(m.id)));
+
+  const idsFechamento = [...ids].filter(id => !idsManuais.has(id));
+  if (idsFechamento.length) {
+    const excl = _rcGetEventosExcluidos();
+    idsFechamento.forEach(id => { if (!excl.includes(id)) excl.push(id); });
+    _rcSaveEventosExcluidos(excl);
+  }
   _rcHistSelecionados.clear();
+  _rcHistRefresh();
+}
+
+// N ids excluídos "escondidos" (fonte fechamento) — mostra contador + botão
+// de restaurar, pra deixar essa exclusão reversível sem precisar reabrir
+// festa por festa.
+function _rcHistRestaurarExcluidos() {
+  if (!confirm('Restaurar todos os lançamentos de fechamento excluídos do histórico?')) return;
+  _rcSaveEventosExcluidos([]);
   _rcHistRefresh();
 }
 
@@ -736,14 +768,19 @@ function _rcVerEvento(i) {
 }
 
 function _rcDeleteEvento(i) {
-  if (!confirm('Excluir este evento?')) return;
   const todos  = [..._rcGetEventos().slice().reverse().map(e=>({...e,_fonte:'manual'})), ..._rcGetEventosDasFestas().map(e=>({...e,_fonte:'fechamento'}))];
   const e = todos[i];
-  if (!e || e._fonte !== 'manual') return;
-  // Encontra o índice real na lista manual
-  const manuais = _rcGetEventos();
-  const idx = manuais.findIndex(m => m.id === e.id);
-  if (idx >= 0) { manuais.splice(idx, 1); _rcSaveEventos(manuais); }
+  if (!e) return;
+  if (e._fonte === 'manual') {
+    if (!confirm('Excluir este evento?')) return;
+    const manuais = _rcGetEventos();
+    const idx = manuais.findIndex(m => m.id === e.id);
+    if (idx >= 0) { manuais.splice(idx, 1); _rcSaveEventos(manuais); }
+  } else {
+    if (!confirm('Excluir este evento do histórico do Ref. Consumo?\n\nA festa/contrato original não é apagada — ele só para de contar nas estatísticas daqui.')) return;
+    const excl = _rcGetEventosExcluidos();
+    if (!excl.includes(e.id)) { excl.push(e.id); _rcSaveEventosExcluidos(excl); }
+  }
   _rcHistRefresh();
 }
 
@@ -753,8 +790,17 @@ function _rcLimparTudo()       { if (!confirm('Apagar TODA a base (importados + 
 
 
 // ── VIEW: NOVO EVENTO ─────────────────────────────────────────────────────────
+// Só oferece contratos "pendentes" — que ainda não viraram um lançamento
+// aqui (D.rcEventos[].contratoId). Assim que ela lança o consumo de um
+// contrato, ele some da lista sozinho, sobrando só quem falta lançar. O
+// contrato já selecionado no formulário atual nunca some da lista embaixo
+// dela, mesmo que já tenha sido usado (evita perder a seleção em edição).
 function _rcContratoOptionsHTML(selecionadoId) {
-  const contratos = (D.contratos || []).slice().sort((a,b) => (b.data||'').localeCompare(a.data||''));
+  const usados = new Set(_rcGetEventos().map(e => e.contratoId).filter(Boolean));
+  const contratos = (D.contratos || [])
+    .filter(c => c.id === selecionadoId || !usados.has(c.id))
+    .slice()
+    .sort((a,b) => (b.data||'').localeCompare(a.data||''));
   const opts = contratos.map(c => {
     const dataBR = c.data ? c.data.split('-').reverse().join('/') : 's/ data';
     const label  = `${c.nome||c.nomeEvento||'(sem nome)'} — ${dataBR}${c.tipo?' — '+c.tipo:''}`;
@@ -828,7 +874,7 @@ function _rcBuildNovo() {
     <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Contrato</label>
     <select style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;box-sizing:border-box"
       onchange="_rcNovoAplicarContrato(this.value)">${_rcContratoOptionsHTML(f.contratoId||'')}</select>
-    <div style="font-size:11px;color:var(--text3);margin-top:4px">Selecionar um contrato preenche cliente, data, tipo de evento e convidados do contrato automaticamente.</div>
+    <div style="font-size:11px;color:var(--text3);margin-top:4px">Selecionar um contrato preenche cliente, data, tipo de evento e convidados automaticamente. Só mostra contratos pendentes — some da lista assim que o lançamento é salvo.</div>
   </div>
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
@@ -908,14 +954,21 @@ function _rcNovoItensHTML() {
   const f = _rcNovoForm;
   const insumos = _rcGetInsumosConsumo();
   const fil     = (_rcNovoBev||'').toLowerCase().trim();
-  const porCat  = {};
-  RC_CATEGORIAS_CONSUMO_CADASTRO.forEach(c => { porCat[c] = []; });
+
+  // Ordem de categoria vem do Cadastro de Categorias; qualquer categoria de
+  // insumo que não esteja lá (nome divergente/órfão) ainda aparece no fim,
+  // nunca escondida.
+  const ordemCats = (typeof getCategorias === 'function') ? getCategorias().slice() : [];
+  const ordemSet   = new Set(ordemCats);
+  const porCat     = {};
   insumos.forEach(i => {
     if (fil && !(i.nome||'').toLowerCase().includes(fil)) return;
-    (porCat[i.categoria] || (porCat[i.categoria]=[])).push(i.nome);
+    const cat = i.categoria || 'OUTROS';
+    if (!ordemSet.has(cat)) { ordemSet.add(cat); ordemCats.push(cat); }
+    (porCat[cat] || (porCat[cat]=[])).push(i.nome);
   });
 
-  const bevBlocks = RC_CATEGORIAS_CONSUMO_CADASTRO.map(cat => {
+  const bevBlocks = ordemCats.map(cat => {
     const itens = porCat[cat] || [];
     if (!itens.length) return '';
     const rows = itens.map(b => {
@@ -935,7 +988,7 @@ function _rcNovoItensHTML() {
     </div>`;
   }).join('');
 
-  return bevBlocks || '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Nenhum insumo encontrado no Cadastro para as categorias de bebida. Cadastre em Cadastro → Insumos.</div>';
+  return bevBlocks || '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Nenhum insumo cadastrado ainda. Cadastre em Cadastro → Insumos.</div>';
 }
 
 // Recebe o <input> em si (não só o valor) pra poder ajustar seu próprio
