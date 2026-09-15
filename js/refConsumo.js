@@ -257,11 +257,18 @@ function _rcComputeStats(evts) {
 
 function _r(v) { return Math.round(v * 10000) / 10000; }
 
-function _rcGetAllBebidas() {
-  const data = _rcGetStats();
-  const s = new Set();
-  Object.values(data).forEach(g => Object.keys(g).forEach(b => s.add(b)));
-  return [...s].sort((a,b) => a.localeCompare(b,'pt-BR'));
+// ── Itens de consumo vindos do Cadastro (Cadastro → Insumos) ─────────────────
+// A lista de insumos disponíveis pra lançar consumo não é mais hardcoded: vem
+// direto do Cadastro, restrita às categorias relevantes pra bebida/bar. Se
+// faltar algum insumo aqui, o cadastro dele em Cadastro → Insumos que resolve
+// (mesmo padrão de fonte única já usado em Biblioteca de Itens/Regras).
+const RC_CATEGORIAS_CONSUMO_CADASTRO = ['BEBIDAS ALCOÓLICAS', 'BEBIDAS SEM ÁLCOOL', 'COPOS E TAÇAS', 'SHOTS'];
+
+function _rcGetInsumosConsumo() {
+  return (D.insumos || [])
+    .filter(i => RC_CATEGORIAS_CONSUMO_CADASTRO.includes(i.categoria))
+    .slice()
+    .sort((a,b) => (a.nome||'').localeCompare(b.nome||'', 'pt-BR'));
 }
 
 // ── Render ────────────────────────────────────────────────────────────────────
@@ -650,7 +657,7 @@ function _rcVerEvento(i) {
   const el = document.getElementById('rc-evt-detalhe');
   if (el) el.innerHTML = `
     <div style="margin-bottom:14px;padding:12px 16px;background:var(--bg3);border-radius:8px;border-left:3px solid #4F8EF7">
-      <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px">${e.cliente||'Sem nome'} · ${e.grupo} · ${e.convidados} conv. · ${e.data}</div>
+      <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px">${e.cliente||'Sem nome'} · ${e.grupo} · ${e.convidados} conv.${e.convidadosContrato?` (${e.convidadosContrato} no contrato)`:''} · ${e.data}</div>
       <div style="line-height:1.8">${itens||'<span style="color:var(--text3)">Sem consumo registrado</span>'}</div>
       <button onclick="document.getElementById('rc-evt-detalhe').innerHTML=''" style="margin-top:8px;background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px">fechar ▲</button>
     </div>`;
@@ -674,12 +681,34 @@ function _rcLimparTudo()       { if (!confirm('Apagar TODA a base (importados + 
 
 
 // ── VIEW: NOVO EVENTO ─────────────────────────────────────────────────────────
+function _rcContratoOptionsHTML(selecionadoId) {
+  const contratos = (D.contratos || []).slice().sort((a,b) => (b.data||'').localeCompare(a.data||''));
+  const opts = contratos.map(c => {
+    const dataBR = c.data ? c.data.split('-').reverse().join('/') : 's/ data';
+    const label  = `${c.nome||c.nomeEvento||'(sem nome)'} — ${dataBR}${c.tipo?' — '+c.tipo:''}`;
+    return `<option value="${c.id}"${selecionadoId===c.id?' selected':''}>${label}</option>`;
+  }).join('');
+  return `<option value="">— sem contrato / lançar manualmente —</option>${opts}`;
+}
+
+function _rcNovoAplicarContrato(id) {
+  const f = _rcNovoForm;
+  f.contratoId = id || '';
+  if (!id) { rRefConsumo(); return; }
+  const c = (D.contratos || []).find(x => x.id === id);
+  if (!c) { rRefConsumo(); return; }
+  f.cliente = c.nome || c.nomeEvento || '';
+  if (c.data) f.data = c.data;
+  const grupoNorm = _rcNormalizarTipo(c.tipo);
+  if (grupoNorm) f.grupo = grupoNorm;
+  f.convidadosContrato = c.convidados || '';
+  if (!f.convidados) f.convidados = c.convidados || '';
+  rRefConsumo();
+}
+
 function _rcBuildNovo() {
   const f     = _rcNovoForm;
   const hoje  = new Date().toISOString().slice(0,10);
-  const todas = _rcGetAllBebidas();
-  const fil   = (_rcNovoBev||'').toLowerCase().trim();
-  const lista = fil ? todas.filter(b=>b.toLowerCase().includes(fil)) : todas;
 
   const grupoOpts = Object.entries(RC_GRUPOS_CAT).map(([cat, gs]) => {
     const opts = gs.map(g =>
@@ -690,15 +719,32 @@ function _rcBuildNovo() {
 
   const nPreench = Object.values(f.consumo||{}).filter(v=>parseFloat(v)>0).length;
 
-  const bevInputs = lista.map(b => {
-    const val = (f.consumo&&f.consumo[b]) ? f.consumo[b] : '';
-    const temVal = val && parseFloat(val) > 0;
-    return `<div style="display:flex;align-items:center;gap:8px;padding:5px 2px;border-bottom:1px solid var(--border)">
-      <span style="flex:1;font-size:12px;color:${temVal?'var(--text)':'var(--text2)'}">${b}</span>
-      <input type="number" min="0" step="0.5" placeholder="0" value="${val}"
-        style="width:80px;padding:5px 8px;background:var(--bg3);border:1px solid ${temVal?'#4F8EF7':'var(--border)'};border-radius:6px;color:var(--text);font-size:13px;text-align:right"
-        oninput="_rcNovoSetBev('${b.replace(/'/g,"\\'")}',this.value)">
-      <span style="font-size:10px;color:var(--text3);width:32px">garr.</span>
+  const insumos = _rcGetInsumosConsumo();
+  const fil     = (_rcNovoBev||'').toLowerCase().trim();
+  const porCat  = {};
+  RC_CATEGORIAS_CONSUMO_CADASTRO.forEach(c => { porCat[c] = []; });
+  insumos.forEach(i => {
+    if (fil && !(i.nome||'').toLowerCase().includes(fil)) return;
+    (porCat[i.categoria] || (porCat[i.categoria]=[])).push(i.nome);
+  });
+
+  const bevBlocks = RC_CATEGORIAS_CONSUMO_CADASTRO.map(cat => {
+    const itens = porCat[cat] || [];
+    if (!itens.length) return '';
+    const rows = itens.map(b => {
+      const val = (f.consumo&&f.consumo[b]) ? f.consumo[b] : '';
+      const temVal = val && parseFloat(val) > 0;
+      return `<div style="display:flex;align-items:center;gap:8px;padding:5px 2px;border-bottom:1px solid var(--border)">
+        <span style="flex:1;font-size:12px;color:${temVal?'var(--text)':'var(--text2)'}">${b}</span>
+        <input type="number" min="0" step="0.5" placeholder="0" value="${val}"
+          style="width:80px;padding:5px 8px;background:var(--bg3);border:1px solid ${temVal?'#4F8EF7':'var(--border)'};border-radius:6px;color:var(--text);font-size:13px;text-align:right"
+          oninput="_rcNovoSetBev('${b.replace(/'/g,"\\'")}',this.value)">
+        <span style="font-size:10px;color:var(--text3);width:32px">garr.</span>
+      </div>`;
+    }).join('');
+    return `<div style="margin-bottom:4px">
+      <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;padding:8px 2px 4px">${cat}</div>
+      ${rows}
     </div>`;
   }).join('');
 
@@ -709,7 +755,14 @@ function _rcBuildNovo() {
     <div style="font-size:18px;font-weight:600;color:var(--text)">Lançar Evento</div>
   </div>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+  <div style="margin-bottom:16px">
+    <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Contrato</label>
+    <select style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;box-sizing:border-box"
+      onchange="_rcNovoAplicarContrato(this.value)">${_rcContratoOptionsHTML(f.contratoId||'')}</select>
+    <div style="font-size:11px;color:var(--text3);margin-top:4px">Selecionar um contrato preenche cliente, data, tipo de evento e convidados do contrato automaticamente.</div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
     <div>
       <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Data do evento</label>
       <input type="date" value="${f.data||hoje}"
@@ -722,17 +775,30 @@ function _rcBuildNovo() {
         style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;box-sizing:border-box"
         oninput="_rcNovoForm.cliente=this.value">
     </div>
-    <div>
+    <div style="grid-column:1/-1">
       <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Tipo de evento</label>
       <select style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;box-sizing:border-box"
         onchange="_rcNovoForm.grupo=this.value">${grupoOpts}</select>
     </div>
-    <div>
-      <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Convidados</label>
-      <input type="number" min="1" placeholder="ex: 150" value="${f.convidados||''}"
-        style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;box-sizing:border-box"
-        oninput="_rcNovoForm.convidados=this.value">
+  </div>
+
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:20px">
+    <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:8px">Convidados</label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div>
+        <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:5px">Convidados no contrato</label>
+        <input type="number" min="0" placeholder="ex: 150" value="${f.convidadosContrato||''}"
+          style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;box-sizing:border-box"
+          oninput="_rcNovoForm.convidadosContrato=this.value">
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:5px">Convidados no evento (real)</label>
+        <input type="number" min="1" placeholder="ex: 150" value="${f.convidados||''}"
+          style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid #4F8EF7;border-radius:6px;color:var(--text);font-size:13px;box-sizing:border-box"
+          oninput="_rcNovoForm.convidados=this.value">
+      </div>
     </div>
+    <div style="font-size:10px;color:var(--text3);margin-top:6px">"Convidados no evento" é o valor usado para calcular a taxa de consumo (min/méd/máx/sugestão).</div>
   </div>
 
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:10px;flex-wrap:wrap">
@@ -744,9 +810,10 @@ function _rcBuildNovo() {
       style="width:150px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px"
       oninput="_rcFiltrarNovoBev(this.value)">
   </div>
+  <div style="font-size:10px;color:var(--text3);margin-bottom:8px">Itens vêm do Cadastro → Insumos. Falta algum? Cadastre lá primeiro.</div>
 
   <div style="max-height:360px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:6px 12px;background:var(--bg2)">
-    ${bevInputs||'<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Nenhum insumo encontrado</div>'}
+    ${bevBlocks||'<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Nenhum insumo encontrado no Cadastro para as categorias de bebida. Cadastre em Cadastro → Insumos.</div>'}
   </div>
 
   <div style="margin-top:18px;display:flex;gap:10px;align-items:center">
@@ -773,9 +840,18 @@ function _rcSalvarEvento() {
   Object.entries(f.consumo||{}).forEach(([k,v])=>{ if(parseFloat(v)>0) consumo[k]=parseFloat(v); });
   if (!Object.keys(consumo).length)          { _rcNovoStatus('Informe ao menos um insumo.', true); return; }
   const evts = _rcGetEventos();
-  evts.push({ id:_gerarId('RC'), data:f.data||new Date().toISOString().slice(0,10), cliente:f.cliente||'', grupo:(f.grupo||'').toUpperCase(), convidados:parseFloat(f.convidados), consumo });
+  evts.push({
+    id:_gerarId('RC'),
+    data:f.data||new Date().toISOString().slice(0,10),
+    cliente:f.cliente||'',
+    contratoId:f.contratoId||'',
+    grupo:(f.grupo||'').toUpperCase(),
+    convidados:parseFloat(f.convidados),
+    convidadosContrato:f.convidadosContrato ? parseFloat(f.convidadosContrato) : null,
+    consumo,
+  });
   _rcSaveEventos(evts);
-  _rcNovoForm = { data:'', cliente:'', grupo:'CASAMENTO', convidados:'', consumo:{} };
+  _rcNovoForm = { data:'', cliente:'', contratoId:'', grupo:'CASAMENTO', convidados:'', convidadosContrato:'', consumo:{} };
   _rcNovoBev  = '';
   _rcSetView('tabela');
 }
