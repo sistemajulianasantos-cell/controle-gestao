@@ -53,6 +53,7 @@ var _rcHistGrupo     = '';
 var _rcHistInsumo    = '';
 var _rcHistConvMin   = '';
 var _rcHistConvMax   = '';
+var _rcHistObs       = '';
 var _rcGruposVisiveis = ['CASAMENTO','ANIVERSÁRIO','FORMATURA'];
 var _rcHistSelecionados = new Set();
 const RC_HIST_PER_PAGE = 50;
@@ -437,14 +438,76 @@ function _rcBuildComparativaRows(statsArg, groupsArg) {
 }
 
 // ── VIEW: HISTÓRICO ───────────────────────────────────────────────────────────
+// A tabela/paginação/seleção ficam numa função à parte (_rcHistResultadosHTML)
+// pra poder ser atualizada sozinha (#rc-hist-resultados) sempre que um filtro
+// muda — sem reconstruir os campos de filtro no topo, que é o que fazia o
+// cursor perder o foco a cada letra digitada.
 function _rcBuildEventos() {
-  const dasFestas = _rcGetEventosDasFestas().map(e => ({...e, _fonte:'fechamento'}));
-  const manual    = _rcGetEventos().map(e => ({...e, _fonte:'manual'}));
-  const todos     = [...manual.slice().reverse(), ...dasFestas];
-
   const grupoOpts = ['', ...RC_GRUPOS_LIST].map(g =>
     `<option value="${g}"${_rcHistGrupo===g?' selected':''}>${g||'Todos os tipos'}</option>`
   ).join('');
+
+  return `
+<div style="padding:20px 24px;max-width:1200px">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+    <button class="btn" onclick="_rcSetView('tabela')">← Tabela</button>
+    <div style="font-size:18px;font-weight:600;color:var(--text)">Histórico de Eventos</div>
+    <button class="btn" style="background:#3DDC84;border-color:#3DDC84;color:#000;font-weight:600;margin-left:auto" onclick="_rcSetView('novo')">+ Manual</button>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;padding:12px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)">
+    <div style="display:flex;flex-direction:column;gap:3px">
+      <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Tipo de evento</label>
+      <select style="padding:6px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;min-width:160px" onchange="_rcHistFiltrar(this.value)">${grupoOpts}</select>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:3px">
+      <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Conv. mín.</label>
+      <input type="number" min="0" value="${_rcHistConvMin}" placeholder="ex: 80"
+        style="width:80px;padding:6px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px"
+        oninput="_rcHistFiltrarConvMin(this.value)">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:3px">
+      <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Conv. máx.</label>
+      <input type="number" min="0" value="${_rcHistConvMax}" placeholder="ex: 120"
+        style="width:80px;padding:6px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px"
+        oninput="_rcHistFiltrarConvMax(this.value)">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:3px">
+      <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Insumo (auditoria)</label>
+      <input type="text" placeholder="ex: Vodka" value="${_rcHistInsumo}"
+        style="width:140px;padding:6px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px"
+        oninput="_rcHistFiltrarInsumo(this.value)">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:3px">
+      <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Observação</label>
+      <input type="text" placeholder="ex: 11 a 15 anos" value="${_rcHistObs}"
+        style="width:160px;padding:6px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px"
+        oninput="_rcHistFiltrarObs(this.value)">
+    </div>
+    <button class="btn" id="rc-hist-limpar" style="color:var(--text3);font-size:11px;align-self:flex-end;${_rcHistTemFiltro()?'':'display:none'}" onclick="_rcHistLimparFiltros()">✕ Limpar filtros</button>
+  </div>
+
+  <div id="rc-evt-detalhe"></div>
+
+  <div id="rc-hist-resultados">${_rcHistResultadosHTML()}</div>
+</div>`;
+}
+
+function _rcHistTemFiltro() {
+  return !!(_rcHistGrupo || _rcHistConvMin!=='' || _rcHistConvMax!=='' || _rcHistInsumo.trim() || _rcHistObs.trim());
+}
+
+function _rcHistRefresh() {
+  const el = document.getElementById('rc-hist-resultados');
+  if (el) el.innerHTML = _rcHistResultadosHTML();
+  const btnLimpar = document.getElementById('rc-hist-limpar');
+  if (btnLimpar) btnLimpar.style.display = _rcHistTemFiltro() ? '' : 'none';
+}
+
+function _rcHistResultadosHTML() {
+  const dasFestas = _rcGetEventosDasFestas().map(e => ({...e, _fonte:'fechamento'}));
+  const manual    = _rcGetEventos().map(e => ({...e, _fonte:'manual'}));
+  const todos     = [...manual.slice().reverse(), ...dasFestas];
 
   let filtrados = _rcHistGrupo
     ? todos.filter(e => (e.grupo||'').toUpperCase() === _rcHistGrupo)
@@ -462,6 +525,10 @@ function _rcBuildEventos() {
   if (_rcHistConvMax !== '') {
     const mx = parseFloat(_rcHistConvMax);
     if (!isNaN(mx)) filtrados = filtrados.filter(e => parseFloat(e.convidados||0) <= mx);
+  }
+  if (_rcHistObs.trim()) {
+    const termObs = _rcHistObs.toLowerCase().trim();
+    filtrados = filtrados.filter(e => (e.observacao||'').toLowerCase().includes(termObs));
   }
 
   // Modo auditoria: detecta o insumo exato sendo pesquisado
@@ -560,7 +627,7 @@ function _rcBuildEventos() {
         return `<tr style="border-bottom:1px solid var(--border)">
           ${selTd}
           <td style="padding:8px 12px;color:var(--text2);font-family:var(--mono);font-size:11px;white-space:nowrap">${e.data||'—'}</td>
-          <td style="padding:8px 12px">${badge} <span style="font-size:11px;color:var(--text2);margin-left:4px">${e.grupo||'—'}</span></td>
+          <td style="padding:8px 12px">${badge} <span style="font-size:11px;color:var(--text2);margin-left:4px">${e.grupo||'—'}</span>${e.observacao?`<div style="font-size:10px;color:var(--text3);margin-top:2px">${e.observacao}</div>`:''}</td>
           <td style="padding:8px 12px;text-align:right;font-family:var(--mono);color:var(--text);font-weight:600">${e.convidados||0}</td>
           ${auditTds}
           <td style="padding:6px 12px;line-height:1.8">${prods||'<span style="color:var(--text3);font-size:11px">—</span>'}</td>
@@ -582,44 +649,10 @@ function _rcBuildEventos() {
     _rcHistGrupo ? _rcHistGrupo : '',
     (_rcHistConvMin||_rcHistConvMax) ? `${_rcHistConvMin||'0'}–${_rcHistConvMax||'∞'} conv.` : '',
     _rcHistInsumo.trim() ? `insumo: ${_rcHistInsumo}` : '',
+    _rcHistObs.trim() ? `observação: ${_rcHistObs}` : '',
   ].filter(Boolean).join(' · ');
 
   return `
-<div style="padding:20px 24px;max-width:1200px">
-  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
-    <button class="btn" onclick="_rcSetView('tabela')">← Tabela</button>
-    <div style="font-size:18px;font-weight:600;color:var(--text)">Histórico de Eventos</div>
-    <button class="btn" style="background:#3DDC84;border-color:#3DDC84;color:#000;font-weight:600;margin-left:auto" onclick="_rcSetView('novo')">+ Manual</button>
-  </div>
-
-  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;padding:12px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)">
-    <div style="display:flex;flex-direction:column;gap:3px">
-      <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Tipo de evento</label>
-      <select style="padding:6px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;min-width:160px" onchange="_rcHistFiltrar(this.value)">${grupoOpts}</select>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:3px">
-      <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Conv. mín.</label>
-      <input type="number" min="0" value="${_rcHistConvMin}" placeholder="ex: 80"
-        style="width:80px;padding:6px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px"
-        oninput="_rcHistFiltrarConvMin(this.value)">
-    </div>
-    <div style="display:flex;flex-direction:column;gap:3px">
-      <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Conv. máx.</label>
-      <input type="number" min="0" value="${_rcHistConvMax}" placeholder="ex: 120"
-        style="width:80px;padding:6px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px"
-        oninput="_rcHistFiltrarConvMax(this.value)">
-    </div>
-    <div style="display:flex;flex-direction:column;gap:3px">
-      <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Insumo (auditoria)</label>
-      <input type="text" placeholder="ex: Vodka" value="${_rcHistInsumo}"
-        style="width:140px;padding:6px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px"
-        oninput="_rcHistFiltrarInsumo(this.value)">
-    </div>
-    ${activeFilters ? `<button class="btn" style="color:var(--text3);font-size:11px;align-self:flex-end" onclick="_rcHistLimparFiltros()">✕ Limpar filtros</button>` : ''}
-  </div>
-
-  <div id="rc-evt-detalhe"></div>
-
   ${auditSummary}
 
   <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
@@ -653,27 +686,27 @@ function _rcBuildEventos() {
 
   <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
     ${manual.length ? `<button class="btn" style="color:var(--red);border-color:var(--red)" onclick="_rcLimparManuais()">Apagar lançamentos manuais</button>` : ''}
-  </div>
-</div>`;
+  </div>`;
 }
 
-function _rcHistSetPage(p)           { _rcHistPage = p; rRefConsumo(); }
-function _rcHistFiltrar(g)           { _rcHistGrupo = g; _rcHistPage = 0; rRefConsumo(); }
-function _rcHistFiltrarInsumo(v)     { _rcHistInsumo = v; _rcHistPage = 0; rRefConsumo(); }
-function _rcHistFiltrarConvMin(v)    { _rcHistConvMin = v; _rcHistPage = 0; rRefConsumo(); }
-function _rcHistFiltrarConvMax(v)    { _rcHistConvMax = v; _rcHistPage = 0; rRefConsumo(); }
-function _rcHistLimparFiltros()      { _rcHistGrupo=''; _rcHistInsumo=''; _rcHistConvMin=''; _rcHistConvMax=''; _rcHistPage=0; rRefConsumo(); }
+function _rcHistSetPage(p)           { _rcHistPage = p; _rcHistRefresh(); }
+function _rcHistFiltrar(g)           { _rcHistGrupo = g; _rcHistPage = 0; _rcHistRefresh(); }
+function _rcHistFiltrarInsumo(v)     { _rcHistInsumo = v; _rcHistPage = 0; _rcHistRefresh(); }
+function _rcHistFiltrarConvMin(v)    { _rcHistConvMin = v; _rcHistPage = 0; _rcHistRefresh(); }
+function _rcHistFiltrarConvMax(v)    { _rcHistConvMax = v; _rcHistPage = 0; _rcHistRefresh(); }
+function _rcHistFiltrarObs(v)        { _rcHistObs = v; _rcHistPage = 0; _rcHistRefresh(); }
+function _rcHistLimparFiltros()      { _rcHistGrupo=''; _rcHistInsumo=''; _rcHistConvMin=''; _rcHistConvMax=''; _rcHistObs=''; _rcHistPage=0; rRefConsumo(); }
 
 function _rcHistToggleSel(id) {
   if (_rcHistSelecionados.has(id)) _rcHistSelecionados.delete(id);
   else _rcHistSelecionados.add(id);
-  rRefConsumo();
+  _rcHistRefresh();
 }
 function _rcHistSelecionarTodosVisiveis(ids, marcar) {
   ids.forEach(id => { if (marcar) _rcHistSelecionados.add(id); else _rcHistSelecionados.delete(id); });
-  rRefConsumo();
+  _rcHistRefresh();
 }
-function _rcHistLimparSelecao() { _rcHistSelecionados.clear(); rRefConsumo(); }
+function _rcHistLimparSelecao() { _rcHistSelecionados.clear(); _rcHistRefresh(); }
 function _rcHistExcluirSelecionados() {
   const n = _rcHistSelecionados.size;
   if (!n) return;
@@ -681,7 +714,7 @@ function _rcHistExcluirSelecionados() {
   const manuais = _rcGetEventos().filter(m => !_rcHistSelecionados.has(m.id));
   _rcSaveEventos(manuais);
   _rcHistSelecionados.clear();
-  rRefConsumo();
+  _rcHistRefresh();
 }
 
 function _rcVerEvento(i) {
@@ -696,6 +729,7 @@ function _rcVerEvento(i) {
   if (el) el.innerHTML = `
     <div style="margin-bottom:14px;padding:12px 16px;background:var(--bg3);border-radius:8px;border-left:3px solid #4F8EF7">
       <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px">${e.cliente||'Sem nome'} · ${e.grupo} · ${e.convidados} conv.${e.convidadosContrato?` (${e.convidadosContrato} no contrato)`:''} · ${e.data}</div>
+      ${e.observacao ? `<div style="font-size:11px;color:var(--text2);margin-bottom:8px">Obs.: ${e.observacao}</div>` : ''}
       <div style="line-height:1.8">${itens||'<span style="color:var(--text3)">Sem consumo registrado</span>'}</div>
       <button onclick="document.getElementById('rc-evt-detalhe').innerHTML=''" style="margin-top:8px;background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px">fechar ▲</button>
     </div>`;
@@ -710,7 +744,7 @@ function _rcDeleteEvento(i) {
   const manuais = _rcGetEventos();
   const idx = manuais.findIndex(m => m.id === e.id);
   if (idx >= 0) { manuais.splice(idx, 1); _rcSaveEventos(manuais); }
-  rRefConsumo();
+  _rcHistRefresh();
 }
 
 function _rcLimparManuais()    { if (!confirm('Apagar todos os eventos lançados manualmente?')) return; _rcSaveEventos([]); rRefConsumo(); }
@@ -783,35 +817,6 @@ function _rcBuildNovo() {
 
   const nPreench = Object.values(f.consumo||{}).filter(v=>parseFloat(v)>0).length;
 
-  const insumos = _rcGetInsumosConsumo();
-  const fil     = (_rcNovoBev||'').toLowerCase().trim();
-  const porCat  = {};
-  RC_CATEGORIAS_CONSUMO_CADASTRO.forEach(c => { porCat[c] = []; });
-  insumos.forEach(i => {
-    if (fil && !(i.nome||'').toLowerCase().includes(fil)) return;
-    (porCat[i.categoria] || (porCat[i.categoria]=[])).push(i.nome);
-  });
-
-  const bevBlocks = RC_CATEGORIAS_CONSUMO_CADASTRO.map(cat => {
-    const itens = porCat[cat] || [];
-    if (!itens.length) return '';
-    const rows = itens.map(b => {
-      const val = (f.consumo&&f.consumo[b]) ? f.consumo[b] : '';
-      const temVal = val && parseFloat(val) > 0;
-      return `<div style="display:flex;align-items:center;gap:8px;padding:5px 2px;border-bottom:1px solid var(--border)">
-        <span style="flex:1;font-size:12px;color:${temVal?'var(--text)':'var(--text2)'}">${b}</span>
-        <input type="number" min="0" step="0.5" placeholder="0" value="${val}"
-          style="width:80px;padding:5px 8px;background:var(--bg3);border:1px solid ${temVal?'#4F8EF7':'var(--border)'};border-radius:6px;color:var(--text);font-size:13px;text-align:right"
-          oninput="_rcNovoSetBev('${b.replace(/'/g,"\\'")}',this.value)">
-        <span style="font-size:10px;color:var(--text3);width:32px">garr.</span>
-      </div>`;
-    }).join('');
-    return `<div style="margin-bottom:4px">
-      <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;padding:8px 2px 4px">${cat}</div>
-      ${rows}
-    </div>`;
-  }).join('');
-
   return `
 <div style="padding:20px 24px;max-width:680px">
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
@@ -845,6 +850,13 @@ function _rcBuildNovo() {
         onchange="_rcNovoSetTipoEvento(this.value)">${grupoOpts}</select>
       <div style="font-size:10px;color:var(--text3);margin-top:4px">Vem do Cadastro → Tipos de Evento. Falta algum? Cadastre lá primeiro.</div>
     </div>
+    <div style="grid-column:1/-1">
+      <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Observação</label>
+      <input type="text" placeholder="ex: 11 a 15 anos" value="${f.observacao||''}"
+        style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;box-sizing:border-box"
+        oninput="_rcNovoForm.observacao=this.value">
+      <div style="font-size:10px;color:var(--text3);margin-top:4px">Livre — ex: faixa etária, detalhe do evento. Aparece no Histórico e pode ser usada pra filtrar.</div>
+    </div>
   </div>
 
   <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:20px">
@@ -869,7 +881,7 @@ function _rcBuildNovo() {
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:10px;flex-wrap:wrap">
     <span style="font-size:13px;font-weight:600;color:var(--text)">
       Consumo por insumo
-      ${nPreench ? `<span style="font-size:11px;color:#3DDC84;font-weight:600;margin-left:8px">${nPreench} preenchido${nPreench>1?'s':''}</span>` : ''}
+      <span id="rc-novo-count" style="font-size:11px;color:#3DDC84;font-weight:600;margin-left:8px;${nPreench?'':'display:none'}">${nPreench} preenchido${nPreench===1?'':'s'}</span>
     </span>
     <input type="text" placeholder="Filtrar insumo..." value="${_rcNovoBev}"
       style="width:150px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px"
@@ -877,8 +889,8 @@ function _rcBuildNovo() {
   </div>
   <div style="font-size:10px;color:var(--text3);margin-bottom:8px">Itens vêm do Cadastro → Insumos. Falta algum? Cadastre lá primeiro.</div>
 
-  <div style="max-height:360px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:6px 12px;background:var(--bg2)">
-    ${bevBlocks||'<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Nenhum insumo encontrado no Cadastro para as categorias de bebida. Cadastre em Cadastro → Insumos.</div>'}
+  <div id="rc-novo-itens" style="max-height:360px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:6px 12px;background:var(--bg2)">
+    ${_rcNovoItensHTML()}
   </div>
 
   <div style="margin-top:18px;display:flex;gap:10px;align-items:center">
@@ -889,13 +901,67 @@ function _rcBuildNovo() {
 </div>`;
 }
 
-function _rcNovoSetBev(bev, val) {
-  if (!_rcNovoForm.consumo) _rcNovoForm.consumo = {};
-  _rcNovoForm.consumo[bev] = parseFloat(val) || 0;
-  rRefConsumo();
+// Monta só a lista de insumos (categorias + linhas), pra poder ser atualizada
+// sozinha (#rc-novo-itens) sem redesenhar o formulário inteiro — evitar que
+// o campo de busca/quantidade perca o foco a cada tecla digitada.
+function _rcNovoItensHTML() {
+  const f = _rcNovoForm;
+  const insumos = _rcGetInsumosConsumo();
+  const fil     = (_rcNovoBev||'').toLowerCase().trim();
+  const porCat  = {};
+  RC_CATEGORIAS_CONSUMO_CADASTRO.forEach(c => { porCat[c] = []; });
+  insumos.forEach(i => {
+    if (fil && !(i.nome||'').toLowerCase().includes(fil)) return;
+    (porCat[i.categoria] || (porCat[i.categoria]=[])).push(i.nome);
+  });
+
+  const bevBlocks = RC_CATEGORIAS_CONSUMO_CADASTRO.map(cat => {
+    const itens = porCat[cat] || [];
+    if (!itens.length) return '';
+    const rows = itens.map(b => {
+      const val = (f.consumo&&f.consumo[b]) ? f.consumo[b] : '';
+      const temVal = val && parseFloat(val) > 0;
+      return `<div style="display:flex;align-items:center;gap:8px;padding:5px 2px;border-bottom:1px solid var(--border)">
+        <span style="flex:1;font-size:12px;color:${temVal?'var(--text)':'var(--text2)'}">${b}</span>
+        <input type="number" min="0" step="0.5" placeholder="0" value="${val}"
+          style="width:80px;padding:5px 8px;background:var(--bg3);border:1px solid ${temVal?'#4F8EF7':'var(--border)'};border-radius:6px;color:var(--text);font-size:13px;text-align:right"
+          oninput="_rcNovoSetBev('${b.replace(/'/g,"\\'")}',this)">
+        <span style="font-size:10px;color:var(--text3);width:32px">garr.</span>
+      </div>`;
+    }).join('');
+    return `<div style="margin-bottom:4px">
+      <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;padding:8px 2px 4px">${cat}</div>
+      ${rows}
+    </div>`;
+  }).join('');
+
+  return bevBlocks || '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Nenhum insumo encontrado no Cadastro para as categorias de bebida. Cadastre em Cadastro → Insumos.</div>';
 }
 
-function _rcFiltrarNovoBev(v) { _rcNovoBev = v; rRefConsumo(); }
+// Recebe o <input> em si (não só o valor) pra poder ajustar seu próprio
+// estilo direto, sem precisar redesenhar a lista inteira a cada tecla.
+function _rcNovoSetBev(bev, inputEl) {
+  const val = inputEl.value;
+  if (!_rcNovoForm.consumo) _rcNovoForm.consumo = {};
+  _rcNovoForm.consumo[bev] = parseFloat(val) || 0;
+  const temVal = parseFloat(val) > 0;
+  inputEl.style.borderColor = temVal ? '#4F8EF7' : 'var(--border)';
+  const label = inputEl.previousElementSibling;
+  if (label) label.style.color = temVal ? 'var(--text)' : 'var(--text2)';
+
+  const n = Object.values(_rcNovoForm.consumo||{}).filter(v=>parseFloat(v)>0).length;
+  const badge = document.getElementById('rc-novo-count');
+  if (badge) {
+    badge.textContent = n ? `${n} preenchido${n===1?'':'s'}` : '';
+    badge.style.display = n ? '' : 'none';
+  }
+}
+
+function _rcFiltrarNovoBev(v) {
+  _rcNovoBev = v;
+  const cont = document.getElementById('rc-novo-itens');
+  if (cont) cont.innerHTML = _rcNovoItensHTML();
+}
 
 function _rcSalvarEvento() {
   const f = _rcNovoForm;
@@ -911,12 +977,13 @@ function _rcSalvarEvento() {
     cliente:f.cliente||'',
     contratoId:f.contratoId||'',
     grupo:(f.grupo||'').toUpperCase(),
+    observacao:(f.observacao||'').trim(),
     convidados:parseFloat(f.convidados),
     convidadosContrato:f.convidadosContrato ? parseFloat(f.convidadosContrato) : null,
     consumo,
   });
   _rcSaveEventos(evts);
-  _rcNovoForm = { data:'', cliente:'', contratoId:'', tipoEventoId:'', grupo:'', convidados:'', convidadosContrato:'', consumo:{} };
+  _rcNovoForm = { data:'', cliente:'', contratoId:'', tipoEventoId:'', grupo:'', observacao:'', convidados:'', convidadosContrato:'', consumo:{} };
   _rcNovoBev  = '';
   _rcSetView('tabela');
 }
