@@ -274,6 +274,23 @@ function _rcBuildTabela() {
     </div>`;
   }).join('');
 
+  // Tipo de evento lançado que tem dado na base mas não é nenhum dos buckets
+  // fixos acima (ex: tipo/subgrupo do Cadastro com nome que não bate com
+  // nenhum sinônimo conhecido) — nunca fica escondido, ganha sua própria
+  // linha de alternância em vez de sumir da Tabela.
+  const gruposExtras = Object.keys(stats)
+    .filter(g => !RC_GRUPOS_LIST.includes(g))
+    .sort((a,b) => a.localeCompare(b,'pt-BR'));
+  const extrasToggle = gruposExtras.length ? `
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+      <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;white-space:nowrap;min-width:96px">OUTROS TIPOS</span>
+      <div style="width:1px;height:20px;background:var(--border);flex-shrink:0"></div>
+      ${gruposExtras.map(g => {
+        const on = _rcGruposVisiveis.includes(g);
+        return `<button class="rc-tab${on?' active':''}" onclick="_rcToggleGrupo('${g}')">${_rcGrupoLabel(g)}</button>`;
+      }).join('')}
+    </div>` : '';
+
   return `
 <div style="padding:20px 24px">
   <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;gap:12px;flex-wrap:wrap">
@@ -307,7 +324,7 @@ function _rcBuildTabela() {
     </div>
   </div>
 
-  <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">${grupoToggles}</div>
+  <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">${grupoToggles}${extrasToggle}</div>
 
   <div style="overflow-x:auto">
     ${_rcBuildTabelaComparativa(stats)}
@@ -430,7 +447,15 @@ function _rcBuildComparativaRows(statsArg, groupsArg) {
 // muda — sem reconstruir os campos de filtro no topo, que é o que fazia o
 // cursor perder o foco a cada letra digitada.
 function _rcBuildEventos() {
-  const grupoOpts = ['', ...RC_GRUPOS_LIST].map(g =>
+  // Une a lista fixa com qualquer grupo que já tenha evento salvo (manual ou
+  // de fechamento) — mesmo padrão da Tabela: tipo lançado nunca fica de fora
+  // do filtro só porque não é um dos buckets conhecidos.
+  const gruposComDados = new Set([
+    ..._rcGetEventos().map(e => (e.grupo||'').toUpperCase()),
+    ..._rcGetEventosDasFestas().map(e => (e.grupo||'').toUpperCase()),
+  ].filter(Boolean));
+  const todosGrupos = [...new Set([...RC_GRUPOS_LIST, ...gruposComDados])].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  const grupoOpts = ['', ...todosGrupos].map(g =>
     `<option value="${g}"${_rcHistGrupo===g?' selected':''}>${g||'Todos os tipos'}</option>`
   ).join('');
 
@@ -1028,6 +1053,9 @@ function _rcSalvarEvento() {
     evts.push({ id:_gerarId('RC'), ...dadosEvento });
   }
   _rcSaveEventos(evts);
+  // Garante que o tipo lançado fique visível de cara na Tabela comparativa,
+  // mesmo que seja um grupo novo (não estava marcado antes).
+  if (!_rcGruposVisiveis.includes(dadosEvento.grupo)) _rcGruposVisiveis.push(dadosEvento.grupo);
   _rcNovoForm = { data:'', cliente:'', contratoId:'', tipoEventoId:'', grupo:'', observacao:'', convidados:'', convidadosContrato:'', consumo:{} };
   _rcNovoBev  = '';
   _rcSetView(editando ? 'eventos' : 'tabela');
