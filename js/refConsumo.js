@@ -33,8 +33,7 @@ function _rcSaveEventosImp(l)      { D.rcEventosImportados = l; sv('rcEventosImp
 // Eventos vindos de fechamento (calculados a partir de festas — ver
 // _rcGetEventosDasFestas) não são um registro próprio, então "excluir" um
 // deles não apaga a festa/contrato original: só marca o id aqui pra ele
-// parar de entrar nas estatísticas/histórico do Ref. Consumo. Reversível —
-// ver _rcHistRestaurarExcluidos().
+// parar de entrar nas estatísticas/histórico do Ref. Consumo.
 function _rcGetEventosExcluidos()  { return D.rcEventosExcluidos || []; }
 function _rcSaveEventosExcluidos(l){ D.rcEventosExcluidos = l; sv('rcEventosExcluidos'); }
 
@@ -673,10 +672,6 @@ function _rcHistResultadosHTML() {
 
   <div style="margin-top:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
     ${manual.length ? `<button class="btn" style="color:var(--red);border-color:var(--red)" onclick="_rcLimparManuais()">Apagar lançamentos manuais</button>` : ''}
-    ${_rcGetEventosExcluidos().length ? `
-      <span style="font-size:11px;color:var(--text3)">${_rcGetEventosExcluidos().length} evento${_rcGetEventosExcluidos().length>1?'s':''} de fechamento excluído${_rcGetEventosExcluidos().length>1?'s':''} do histórico</span>
-      <button class="btn" style="font-size:11px;padding:5px 12px" onclick="_rcHistRestaurarExcluidos()">Restaurar</button>
-    ` : ''}
   </div>`;
 }
 
@@ -718,15 +713,6 @@ function _rcHistExcluirSelecionados() {
     _rcSaveEventosExcluidos(excl);
   }
   _rcHistSelecionados.clear();
-  _rcHistRefresh();
-}
-
-// N ids excluídos "escondidos" (fonte fechamento) — mostra contador + botão
-// de restaurar, pra deixar essa exclusão reversível sem precisar reabrir
-// festa por festa.
-function _rcHistRestaurarExcluidos() {
-  if (!confirm('Restaurar todos os lançamentos de fechamento excluídos do histórico?')) return;
-  _rcSaveEventosExcluidos([]);
   _rcHistRefresh();
 }
 
