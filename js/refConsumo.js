@@ -294,6 +294,16 @@ function _rcBuildTabela() {
   const gruposExtras = Object.keys(stats)
     .filter(g => !chavesCadastro.has(g))
     .sort((a,b) => a.localeCompare(b,'pt-BR'));
+
+  // Limpa do _rcGruposVisiveis qualquer chave que não corresponda a nenhum
+  // botão real hoje (ex: "ANIVERSÁRIO" genérico do valor padrão antigo,
+  // quando o Cadastro só tem subgrupos como "01 a 10 anos") — sem isso a
+  // coluna continuava aparecendo na Tabela mesmo sem nenhum botão aceso.
+  const chavesValidas = new Set([...chavesCadastro, ...gruposExtras]);
+  for (let i = _rcGruposVisiveis.length - 1; i >= 0; i--) {
+    if (!chavesValidas.has(_rcGruposVisiveis[i])) _rcGruposVisiveis.splice(i, 1);
+  }
+
   const extrasToggle = gruposExtras.length ? `
     <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
       <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;white-space:nowrap;min-width:96px">OUTROS TIPOS</span>
