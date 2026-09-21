@@ -419,9 +419,24 @@ function sepCarregarProducao(prodId) {
     window._sepBebidasOverrideMap[prodId] = Object.assign({}, (sepExistente && sepExistente.bebidasOverride) || {});
   }
   var _bebOv = window._sepBebidasOverrideMap[prodId];
+  // O copo trocado por evento ("Copos da Ficha Técnica") entra no mesmo
+  // mecanismo de troca: o copo da ficha é um item dela (categoria COPOS E
+  // TAÇAS), então a linha dele em Conferência passa a ter o nome do copo
+  // escolhido, pra ela colocar a quantidade nele.
+  if (!window._sepCoposOverrideMap) window._sepCoposOverrideMap = {};
+  if (!window._sepCoposOverrideMap[prodId]) {
+    window._sepCoposOverrideMap[prodId] = Object.assign({}, (sepExistente && sepExistente.coposOverride) || {});
+  }
+  var _copoOv = window._sepCoposOverrideMap[prodId];
+  var _trocasItens = Object.assign({}, _bebOv);
+  coqueteisCardapio.forEach(function(coq) {
+    var copoNovo = _copoOv[coq.ficha.id];
+    var copoPadrao = (typeof nomeCopoDaFicha === 'function') ? nomeCopoDaFicha(coq.ficha) : (coq.ficha.copo || '');
+    if (copoNovo && copoPadrao) _trocasItens[coq.ficha.id + '|' + _sepNormNome(copoPadrao)] = copoNovo;
+  });
   coqueteisCardapio.forEach(function(coq) {
     coq.itensEfetivos = (coq.ficha.itens || []).map(function(item) {
-      var novoNome = _bebOv[coq.ficha.id + '|' + _sepNormNome(item.nome)];
+      var novoNome = _trocasItens[coq.ficha.id + '|' + _sepNormNome(item.nome)];
       return novoNome ? Object.assign({}, item, { nome: novoNome }) : item;
     });
   });
@@ -537,7 +552,7 @@ function sepCarregarProducao(prodId) {
   // Troca de bebida/destilado por evento — aplicada por último: a linha já
   // tem a quantidade calculada (pela regra do item ORIGINAL), aqui só muda
   // a identidade/rótulo dela pro item escolhido no evento.
-  _sepAplicarBebidasOverride(todosItens, _bebOv);
+  _sepAplicarBebidasOverride(todosItens, _trocasItens);
 
   var equipeHtml = equipe.length
     ? equipe.map(function(e){return '<span style="margin-right:10px">'+e.qtd+' '+e.cargo+'</span>';}).join('')
@@ -948,6 +963,7 @@ function sepSetCopoOverride(prodId, fichaId, copoId) {
   if (!window._sepCoposOverrideMap[prodId]) window._sepCoposOverrideMap[prodId] = {};
   if (copoId) window._sepCoposOverrideMap[prodId][fichaId] = copoId;
   else delete window._sepCoposOverrideMap[prodId][fichaId];
+  sepCarregarProducao(prodId);
 }
 
 // Troca de bebida/destilado de uma ficha, só pra este evento. Chave por
