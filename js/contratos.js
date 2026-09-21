@@ -1125,8 +1125,8 @@ function rContratos() {
     document.getElementById('ct-total-contratos').textContent = fechados.length.toLocaleString('pt-BR');
     document.getElementById('ct-total-contratos-sub').textContent = cancelados ? ('+ ' + cancelados + ' cancelado' + (cancelados !== 1 ? 's' : '')) : 'todos ativos/concluídos';
 
-    const clientesUnicos = new Set(fechados.map(c => (c.nome || '').toLowerCase().trim()).filter(Boolean));
-    document.getElementById('ct-total-clientes').textContent = clientesUnicos.size.toLocaleString('pt-BR');
+    const totalConvidados = fechados.reduce((s, c) => s + (parseInt(c.convidados) || 0), 0);
+    document.getElementById('ct-total-clientes').textContent = totalConvidados.toLocaleString('pt-BR');
   }
 
   const tbody = document.getElementById('contratos-body');
