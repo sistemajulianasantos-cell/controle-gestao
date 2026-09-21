@@ -220,11 +220,46 @@ function _sepRenomeiaLinha(todosItens, de, para) {
 // item original, só o rótulo muda pro item escolhido no evento.
 function _sepAplicarBebidasOverride(todosItens, bebOv) {
   if (!todosItens || !bebOv) return;
+  // Nomes dos coquetéis que trocam cada item original — a linha do item é
+  // única pra festa toda, então se OUTRO coquetel (que não trocou) ainda usa
+  // o original, a linha original não pode ser renomeada: sumia o item dele
+  // (ex: Drink do Mar troca o saquê por vodka, mas o Sakura continua com
+  // saquê — o saquê desaparecia da folha).
+  var trocadores = {};
+  Object.keys(bebOv).forEach(function(k) {
+    if (!bebOv[k]) return;
+    var i = k.indexOf('|');
+    var ficha = (D.fichas || []).find(function(f) { return f.id === k.slice(0, i); });
+    var o = k.slice(i + 1);
+    if (!trocadores[o]) trocadores[o] = [];
+    if (ficha) trocadores[o].push(ficha.nome);
+  });
   Object.keys(bebOv).forEach(function(k) {
     var novoNome = bebOv[k];
     if (!novoNome) return;
-    var origNorm = k.slice(k.indexOf('|') + 1);
-    _sepRenomeiaLinha(todosItens, origNorm, novoNome);
+    var i = k.indexOf('|');
+    var origNorm = k.slice(i + 1);
+    var ficha = (D.fichas || []).find(function(f) { return f.id === k.slice(0, i); });
+    var origem = _sepLinhaMontada(todosItens, origNorm);
+    if (!origem || _sepNormNome(origNorm) === _sepNormNome(novoNome)) return;
+    var restantes = (origem.coqueteis || []).filter(function(c) { return trocadores[origNorm].indexOf(c) === -1; });
+    if (!ficha || !restantes.length) { _sepRenomeiaLinha(todosItens, origNorm, novoNome); return; }
+    // Parcial: a linha original fica pros coquetéis que não trocaram; o item
+    // novo ganha linha própria (quantidade à mão) pro coquetel que trocou.
+    origem.coqueteis = origem.coqueteis.filter(function(c) { return c !== ficha.nome; });
+    var destino = _sepLinhaMontada(todosItens, novoNome);
+    if (destino) {
+      if (destino.coqueteis.indexOf(ficha.nome) === -1) destino.coqueteis.push(ficha.nome);
+      destino.doCardapio = true;
+      return;
+    }
+    Object.keys(todosItens).forEach(function(c) {
+      if ((todosItens[c] || []).indexOf(origem) === -1) return;
+      todosItens[c].push({
+        item: novoNome, qtd: 0, doCardapio: true, coqueteis: [ficha.nome],
+        soSeCardapio: false, obs: '', semFicha: false
+      });
+    });
   });
 }
 
