@@ -220,43 +220,55 @@ function _sepRenomeiaLinha(todosItens, de, para) {
 // item original, só o rótulo muda pro item escolhido no evento.
 function _sepAplicarBebidasOverride(todosItens, bebOv) {
   if (!todosItens || !bebOv) return;
-  // Nomes dos coquetéis que trocam cada item original — a linha do item é
-  // única pra festa toda, então se OUTRO coquetel (que não trocou) ainda usa
-  // o original, a linha original não pode ser renomeada: sumia o item dele
-  // (ex: Drink do Mar troca o saquê por vodka, mas o Sakura continua com
-  // saquê — o saquê desaparecia da folha).
-  var trocadores = {};
+  // A linha de um item é única pra festa toda, mas cada coquetel pode trocar o
+  // item original por uma marca diferente (ex: Aurora e Fitzgerald usam gin;
+  // uma troca por vodka e a outra por outro gin). Agrupa as trocas pelo item
+  // original: a linha original fica com quem NÃO trocou; se todos trocaram, ela
+  // vira a linha da primeira troca (mantém a quantidade calculada). As demais
+  // marcas ganham linha própria com quantidade 0, pra ela preencher à mão —
+  // antes só a primeira troca aparecia e as outras sumiam da folha.
+  var grupos = {};
   Object.keys(bebOv).forEach(function(k) {
-    if (!bebOv[k]) return;
+    var novo = bebOv[k];
+    if (!novo) return;
     var i = k.indexOf('|');
     var ficha = (D.fichas || []).find(function(f) { return f.id === k.slice(0, i); });
     var o = k.slice(i + 1);
-    if (!trocadores[o]) trocadores[o] = [];
-    if (ficha) trocadores[o].push(ficha.nome);
+    if (!ficha || _sepNormNome(o) === _sepNormNome(novo)) return;
+    if (!grupos[o]) grupos[o] = [];
+    grupos[o].push({ nome: ficha.nome, novo: novo });
   });
-  Object.keys(bebOv).forEach(function(k) {
-    var novoNome = bebOv[k];
-    if (!novoNome) return;
-    var i = k.indexOf('|');
-    var origNorm = k.slice(i + 1);
-    var ficha = (D.fichas || []).find(function(f) { return f.id === k.slice(0, i); });
-    var origem = _sepLinhaMontada(todosItens, origNorm);
-    if (!origem || _sepNormNome(origNorm) === _sepNormNome(novoNome)) return;
-    var restantes = (origem.coqueteis || []).filter(function(c) { return trocadores[origNorm].indexOf(c) === -1; });
-    if (!ficha || !restantes.length) { _sepRenomeiaLinha(todosItens, origNorm, novoNome); return; }
-    // Parcial: a linha original fica pros coquetéis que não trocaram; o item
-    // novo ganha linha própria (quantidade à mão) pro coquetel que trocou.
-    origem.coqueteis = origem.coqueteis.filter(function(c) { return c !== ficha.nome; });
-    var destino = _sepLinhaMontada(todosItens, novoNome);
-    if (destino) {
-      if (destino.coqueteis.indexOf(ficha.nome) === -1) destino.coqueteis.push(ficha.nome);
-      destino.doCardapio = true;
-      return;
+  Object.keys(grupos).forEach(function(o) {
+    var origem = _sepLinhaMontada(todosItens, o);
+    if (!origem) return;
+    var trocas = grupos[o];
+    var catOrigem = Object.keys(todosItens).filter(function(c) { return (todosItens[c] || []).indexOf(origem) !== -1; })[0];
+    var nomesTroca = trocas.map(function(t) { return t.nome; });
+    origem.coqueteis = (origem.coqueteis || []).filter(function(c) { return nomesTroca.indexOf(c) === -1; });
+    var pendentes = trocas.slice();
+    if (!origem.coqueteis.length) {
+      // Ninguém mais usa o original: a linha dele é reaproveitada pra 1ª troca.
+      var primeira = pendentes.shift();
+      var destino = _sepLinhaMontada(todosItens, primeira.novo);
+      if (destino && destino !== origem) {
+        destino.qtd = (destino.qtd || 0) + (origem.qtd || 0);
+        if (destino.coqueteis.indexOf(primeira.nome) === -1) destino.coqueteis.push(primeira.nome);
+        destino.doCardapio = true;
+        todosItens[catOrigem] = todosItens[catOrigem].filter(function(x) { return x !== origem; });
+      } else {
+        origem.item = primeira.novo;
+        origem.coqueteis = [primeira.nome];
+      }
     }
-    Object.keys(todosItens).forEach(function(c) {
-      if ((todosItens[c] || []).indexOf(origem) === -1) return;
-      todosItens[c].push({
-        item: novoNome, qtd: 0, doCardapio: true, coqueteis: [ficha.nome],
+    pendentes.forEach(function(t) {
+      var linha = _sepLinhaMontada(todosItens, t.novo);
+      if (linha) {
+        if (linha.coqueteis.indexOf(t.nome) === -1) linha.coqueteis.push(t.nome);
+        linha.doCardapio = true;
+        return;
+      }
+      todosItens[catOrigem].push({
+        item: t.novo, qtd: 0, doCardapio: true, coqueteis: [t.nome],
         soSeCardapio: false, obs: '', semFicha: false
       });
     });
