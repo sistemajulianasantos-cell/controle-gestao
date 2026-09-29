@@ -1,9 +1,9 @@
-// ─── ORÇAMENTO vs REAL ─────────────────────────────────────────────────────
+// ─── ORÇAMENTOS ─────────────────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════
 
 let orcView    = 'lista';  // 'lista' | 'detalhe'
 let orcAtualId = null;
-let orcDetTab  = 'calc';   // 'calc' | 'real'
+let orcDetTab  = 'calc';   // 'calc' | 'cardapio' | 'servicos' | 'proposta'
 
 function rOrcamento() {
   if (orcView === 'detalhe' && orcAtualId) rOrcDetalhe();
@@ -44,15 +44,13 @@ function rOrcLista() {
       <div style="text-align:center;padding:60px 20px;color:var(--text3)">
         <div style="font-size:36px;margin-bottom:12px">📋</div>
         <div style="margin-bottom:8px;font-size:14px">Nenhum orçamento cadastrado</div>
-        <div style="font-size:12px">Crie um novo orçamento e importe o Excel com os valores orçados</div>
+        <div style="font-size:12px">Crie um novo orçamento ou gere a partir de uma Solicitação de Orçamento</div>
       </div>` :
     `<div style="display:grid;gap:10px">
       ${lista.map(o => {
-        const totalOrc  = (o.itens||[]).reduce((s,i) => s+(i.totalOrc||0), 0);
-        const totalReal = (o.itens||[]).reduce((s,i) => s+(i.totalReal||0), 0);
-        const diff      = totalReal - totalOrc;
-        const pendentes = (o.itens||[]).filter(i => i.qtdReal == null).length;
-        const total     = (o.itens||[]).length;
+        // Valor = o mesmo da Calculadora (Pacote Completo e Essencial)
+        const r = (typeof _orcCalcResumo === 'function') ? _orcCalcResumo(o) : null;
+        const temValor = r && r.valorTotal > 0;
         return `
           <div onclick="abrirOrcDetalhe('${o.id}')"
                style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);
@@ -60,37 +58,26 @@ function rOrcLista() {
                       flex-wrap:wrap;transition:.15s" onmouseover="this.style.borderColor='var(--border2)'"
                onmouseout="this.style.borderColor='var(--border)'">
             <div style="flex:1;min-width:160px">
-              <div style="font-weight:600;color:var(--text);font-size:14px">${o.nomeCliente||'Sem nome'}</div>
+              <div style="font-weight:600;color:var(--text);font-size:14px">
+                ${o.numeroProposta ? `<span style="font-family:var(--mono);font-size:11px;color:var(--text3);font-weight:400;margin-right:6px">${o.numeroProposta}</span>` : ''}${o.nomeCliente||'Sem nome'}
+              </div>
               <div style="font-size:11px;color:var(--text3);margin-top:2px">
                 ${fd(o.dataEvento)||'sem data'}
                 ${o.convidados ? ' · '+o.convidados+' conv.' : ''}
-                · ${total} ite${total===1?'m':'ns'}
               </div>
             </div>
             <div style="text-align:right">
-              <div style="font-size:10px;color:#4F8EF7;text-transform:uppercase;margin-bottom:2px">Orçado</div>
-              <div style="font-family:var(--mono);font-size:14px;color:#4F8EF7;font-weight:600">${fR(totalOrc)}</div>
+              <div style="font-size:10px;color:#4F8EF7;text-transform:uppercase;margin-bottom:2px">Pacote Completo</div>
+              <div style="font-family:var(--mono);font-size:14px;color:#4F8EF7;font-weight:600">${temValor ? fR(r.valorTotal) : '—'}</div>
+              <div style="font-size:10px;color:var(--text3)">${temValor && r.porPessoa ? fR(r.porPessoa)+' / pessoa' : ''}</div>
             </div>
             <div style="text-align:right">
-              <div style="font-size:10px;color:var(--green);text-transform:uppercase;margin-bottom:2px">Real</div>
-              <div style="font-family:var(--mono);font-size:14px;color:var(--green);font-weight:600">
-                ${totalReal > 0 ? fR(totalReal) : '—'}
-              </div>
-            </div>
-            <div style="text-align:right">
-              <div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Diferença</div>
-              <div style="font-family:var(--mono);font-size:14px;font-weight:600;
-                          color:${diff>0?'var(--red)':diff<0?'var(--green)':'var(--text3)'}">
-                ${totalReal>0 ? (diff>=0?'+':'')+fR(diff) : '—'}
-              </div>
+              <div style="font-size:10px;color:var(--green);text-transform:uppercase;margin-bottom:2px">Pacote Essencial</div>
+              <div style="font-family:var(--mono);font-size:14px;color:var(--green);font-weight:600">${temValor ? fR(r.valorTotalEssencial) : '—'}</div>
+              <div style="font-size:10px;color:var(--text3)">${temValor && r.porPessoaEssencial ? fR(r.porPessoaEssencial)+' / pessoa' : ''}</div>
             </div>
             <div style="display:flex;align-items:center;gap:6px">
-              ${pendentes > 0
-                ? `<span style="background:#7A5A00;color:#F7C84F;font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px">${pendentes} pendente${pendentes>1?'s':''}</span>`
-                : total > 0
-                  ? `<span style="background:#0D3B1E;color:var(--green);font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px">✓ Completo</span>`
-                  : `<span style="background:var(--bg3);color:var(--text3);font-size:9px;padding:2px 7px;border-radius:3px">Vazio</span>`
-              }
+              ${temValor ? '' : `<span style="background:var(--bg3);color:var(--text3);font-size:9px;padding:2px 7px;border-radius:3px">Sem cálculo</span>`}
               <button class="btn-sm btn-red" onclick="event.stopPropagation();excluirOrc('${o.id}')" title="Excluir">✕</button>
             </div>
           </div>`;
@@ -103,7 +90,7 @@ function rOrcLista() {
 function abrirOrcDetalhe(id) {
   orcView = 'detalhe';
   orcAtualId = id;
-  orcDetTab  = 'cardapio';
+  orcDetTab  = 'calc';
   rOrcDetalhe();
 }
 
@@ -119,40 +106,37 @@ function rOrcDetalhe() {
   const orc = (D.orcamentos||[]).find(o => o.id === orcAtualId);
   if (!orc) { rOrcLista(); return; }
 
-  const itens     = orc.itens     || [];
-  const acima     = itens.filter(i => (i.totalReal||0) > (i.totalOrc||0));
+  const esc = v => String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  const campo = 'font-size:12px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius)';
 
+  // Cabeçalho = dados do evento editáveis (substitui a antiga aba Evento,
+  // removida 2026-09-29). Local/Tipo/Temporada ficam nos Parâmetros do evento
+  // da Calculadora.
   el.innerHTML = `
     <!-- Cabeçalho -->
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+    <div style="display:flex;align-items:flex-end;gap:10px;margin-bottom:16px;flex-wrap:wrap">
       <button class="btn-sm" onclick="rOrcLista()" style="background:var(--bg3)">← Voltar</button>
-      <div>
-        <span style="font-weight:600;font-size:15px;color:var(--text)">${orc.nomeCliente||'Sem nome'}</span>
-        <span style="font-size:11px;color:var(--text3);margin-left:8px">
-          ${fd(orc.dataEvento)||''}${orc.convidados?' · '+orc.convidados+' convidados':''}
-        </span>
+      ${orc.numeroProposta ? `<div style="font-family:var(--mono);font-size:12px;color:var(--text3);padding-bottom:6px">${esc(orc.numeroProposta)}</div>` : ''}
+      <div style="flex:1;min-width:200px;max-width:360px">
+        <label style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:3px">Cliente / evento</label>
+        <input type="text" value="${esc(orc.nomeCliente)}" onchange="orcSetCabecalho('${orc.id}','nomeCliente',this.value)"
+          style="${campo};width:100%;font-weight:600;font-size:14px">
       </div>
-      <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn-sm" onclick="abrirImportOrc('${orc.id}')"
-          style="background:var(--bg2);border:1px solid var(--green);color:var(--green)">📥 Importar Excel</button>
-        <button class="btn-sm btn-primary" onclick="abrirAddItemOrc('${orc.id}')">+ Item real</button>
+      <div>
+        <label style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:3px">Data do evento</label>
+        <input type="date" value="${esc(orc.dataEvento)}" onchange="orcSetCabecalho('${orc.id}','dataEvento',this.value)" style="${campo}">
+      </div>
+      <div>
+        <label style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:3px">Convidados</label>
+        <input type="number" min="1" value="${esc(orc.convidados)}" onchange="orcSetCabecalho('${orc.id}','convidados',this.value)" style="${campo};width:90px">
       </div>
     </div>
 
-    ${acima.length ? `
-      <div style="background:#1A0808;border:1px solid var(--red);border-radius:var(--radius);
-                  padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--red)">
-        ⚠️ <strong>${acima.length} item(ns)</strong> com custo real acima do orçado:
-        ${acima.slice(0,3).map(i=>`<strong>${i.nome}</strong>`).join(', ')}${acima.length>3?'...':''}
-      </div>` : ''}
-
     <!-- Abas -->
     <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
-      <button class="sort-btn ${orcDetTab==='evento'?'active':''}" onclick="setOrcTab('evento')">📋 Evento</button>
+      <button class="sort-btn ${orcDetTab==='calc'?'active':''}" onclick="setOrcTab('calc')">📊 Calculadora</button>
       <button class="sort-btn ${orcDetTab==='cardapio'?'active':''}" onclick="setOrcTab('cardapio')">🍹 Cardápio</button>
       <button class="sort-btn ${orcDetTab==='servicos'?'active':''}" onclick="setOrcTab('servicos')">➕ Serviços</button>
-      <button class="sort-btn ${orcDetTab==='calc'?'active':''}" onclick="setOrcTab('calc')">📊 Calculadora</button>
-      <button class="sort-btn ${orcDetTab==='real'?'active':''}" onclick="setOrcTab('real')">📋 Orçado vs Real</button>
       <button class="sort-btn ${orcDetTab==='proposta'?'active':''}" onclick="setOrcTab('proposta')">📄 Proposta</button>
     </div>
 
@@ -635,85 +619,34 @@ function confirmarImportOrc() {
 function _rTabContent() {
   const orc = (D.orcamentos||[]).find(o => o.id === orcAtualId);
   if (!orc) return;
-  if      (orcDetTab === 'evento')   rOrcEvento(orc);
-  else if (orcDetTab === 'cardapio') rOrcCardapio(orc);
+  if      (orcDetTab === 'cardapio') rOrcCardapio(orc);
   else if (orcDetTab === 'servicos') rOrcServicos(orc);
-  else if (orcDetTab === 'calc')     rOrcCalc();
-  else if (orcDetTab === 'real')     _rOrcRealContent(orc);
   else if (orcDetTab === 'proposta') rOrcProposta(orc);
+  else                               rOrcCalc();
 }
 
-// ─── ABA EVENTO ──────────────────────────────────────────────────────────────
+// ─── CABEÇALHO (dados do evento) ─────────────────────────────────────────────
 
-function rOrcEvento(orc) {
-  const el = document.getElementById('orc-det-content');
-  if (!el) return;
-  const p = orc.calcParams || {};
-  const localAtual = (typeof _migrarLocalOrcamento === 'function') ? _migrarLocalOrcamento(p) : (p.local || 'area_central');
-  const LOCAIS = (typeof REGIOES_LOCAL !== 'undefined')
-    ? Object.fromEntries(REGIOES_LOCAL.map(r => [r.key, r.label]))
-    : { area_central:'Área Central BH', jardim_canada:'Jardim Canadá / C. Nova', reg_metro:'Região Metropolitana' };
-  const TIPOS = Object.fromEntries(getTiposEvento().map(t => [t.id, t.nome]));
-
-  el.innerHTML = `
-    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;max-width:600px">
-      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:16px">📋 Dados do Evento</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div style="grid-column:1/-1">
-          <label class="lbl">Nome do cliente / evento</label>
-          <input id="ev-nome" class="inp" type="text" value="${orc.nomeCliente||''}" placeholder="Nome do cliente ou evento">
-        </div>
-        <div>
-          <label class="lbl">Data do evento</label>
-          <input id="ev-data" class="inp" type="date" value="${orc.dataEvento||''}">
-        </div>
-        <div>
-          <label class="lbl">Nº de convidados</label>
-          <input id="ev-conv" class="inp" type="number" min="1" value="${orc.convidados||''}" placeholder="Ex: 200">
-        </div>
-        <div>
-          <label class="lbl">Local</label>
-          <select id="ev-local" class="inp">
-            ${Object.entries(LOCAIS).map(([k,v])=>`<option value="${k}"${localAtual===k?' selected':''}>${v}</option>`).join('')}
-          </select>
-        </div>
-        <div>
-          <label class="lbl">Tipo de evento</label>
-          <select id="ev-tipo" class="inp">
-            ${Object.entries(TIPOS).map(([k,v])=>`<option value="${k}"${(p.tipoEvento||'outros')===k?' selected':''}>${v}</option>`).join('')}
-          </select>
-        </div>
-        <div>
-          <label class="lbl">Temporada</label>
-          <select id="ev-temporada" class="inp" title="Usada pra escolher o preço de revenda (baixa/alta) dos insumos aplicados via Cardápio">
-            <option value="baixa"${(p.temporada||'baixa')==='baixa'?' selected':''}>Baixa Temporada</option>
-            <option value="alta"${p.temporada==='alta'?' selected':''}>Alta Temporada</option>
-          </select>
-        </div>
-      </div>
-      <div style="margin-top:16px">
-        <button class="btn btn-primary" onclick="salvarDadosEvento('${orc.id}')">💾 Salvar alterações</button>
-      </div>
-    </div>`;
-}
-
-function salvarDadosEvento(orcId) {
+function orcSetCabecalho(orcId, campo, valor) {
   const orc = (D.orcamentos||[]).find(o => o.id === orcId);
   if (!orc) return;
-  const nome = document.getElementById('ev-nome')?.value?.trim();
-  const conv = parseInt(document.getElementById('ev-conv')?.value) || 0;
-  if (!nome) { alert2('Informe o nome do cliente/evento.', 'error'); return; }
-  if (!conv) { alert2('Informe o número de convidados.', 'error'); return; }
-  orc.nomeCliente = nome;
-  orc.dataEvento  = document.getElementById('ev-data')?.value || '';
-  orc.convidados  = conv;
-  if (!orc.calcParams) orc.calcParams = {};
-  orc.calcParams.local      = document.getElementById('ev-local')?.value  || 'area_central';
-  orc.calcParams.tipoEvento = document.getElementById('ev-tipo')?.value   || 'outros';
-  orc.calcParams.temporada  = document.getElementById('ev-temporada')?.value || 'baixa';
+  if (campo === 'nomeCliente') {
+    valor = String(valor || '').trim();
+    if (!valor) { alert2('Informe o nome do cliente/evento.', 'error'); rOrcDetalhe(); return; }
+  }
+  if (campo === 'convidados') {
+    valor = parseInt(valor) || 0;
+    if (!valor) { alert2('Informe o número de convidados.', 'error'); rOrcDetalhe(); return; }
+  }
+  orc[campo] = valor;
   sv('orcamentos');
-  alert2('Alterações salvas!');
-  rOrcDetalhe();
+  // Convidados muda a sugestão de equipe e os itens automáticos por pessoa da
+  // Calculadora — recalcula na hora (recalcularAutos desenha a Calculadora,
+  // então redesenha a aba que estiver aberta depois).
+  if (campo === 'convidados') {
+    if (typeof recalcularAutos === 'function') recalcularAutos();
+    if (orcDetTab !== 'calc') _rTabContent();
+  }
 }
 
 // ─── ABA CARDÁPIO ─────────────────────────────────────────────────────────────

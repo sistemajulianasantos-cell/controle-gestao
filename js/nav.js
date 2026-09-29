@@ -28,7 +28,7 @@ var pageInfo={
   'fechamento-mensal':['Fechamento Mensal','Receitas, despesas e resultado do mês, em regime de competência'],
   despesas:['Análise Financeira','Receita, despesas e KPIs financeiros'],
   equipe:['Equipe','Cadastro e escala de colaboradores'],
-  orcamento:['Orcamento vs Real','Comparativo custo orcado e real'],
+  orcamento:['Orçamentos','Cálculo, cardápio, serviços e proposta'],
   orcCalculos:['Cálculos do Orçamento','Quanto considerar de cada insumo por Tipo de Evento — média real, não a quantidade de levar da Separação'],
   refconsumo:['Estimativa de Bebidas','Estimativa de consumo por tipo de evento e número de convidados'],
   seguranca: ['Segurança','Gestão de senhas e autenticação em dois fatores'],
