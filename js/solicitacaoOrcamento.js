@@ -68,7 +68,50 @@ function _solHoraTexto(h) {
   return m ? m[1] + ':' + m[2] : t;
 }
 
+// Tipo de Evento vem do Cadastro de Tipos de Evento (js/tiposEvento.js). A
+// solicitação guarda o NOME (texto, igual vem da planilha); a comparação
+// ignora maiúscula/acento/espaço ("FESTA DE FAMÍLIA" = "Festa de Familia").
+function _solNormTxt(s) {
+  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function _solTiposCadastro() {
+  return typeof getTiposEvento === 'function' ? getTiposEvento() : [];
+}
+
+function _solTipoDoCadastro(txt) {
+  var n = _solNormTxt(txt);
+  if (!n) return null;
+  return _solTiposCadastro().find(function(t) { return _solNormTxt(t.nome) === n; }) || null;
+}
+
+// <option>s agrupados como no cadastro; valor = nome do tipo. Se o valor
+// atual (ex.: importado da planilha) não existir no cadastro, aparece como
+// opção extra marcada "(não cadastrado)" pra não perder o dado ao salvar.
+function _solTipoOptionsHtml(valorAtual) {
+  var esc = function(x) { return String(x).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); };
+  var atual = _solTipoDoCadastro(valorAtual);
+  var porGrupo = {}, ordemGrupos = [];
+  _solTiposCadastro().forEach(function(t) {
+    var g = t.grupo || t.nome;
+    if (!porGrupo[g]) { porGrupo[g] = []; ordemGrupos.push(g); }
+    porGrupo[g].push(t);
+  });
+  var html = '<option value="">— Selecione —</option>';
+  if (valorAtual && !atual) html += '<option value="' + esc(valorAtual) + '" selected>' + esc(valorAtual) + ' (não cadastrado)</option>';
+  html += ordemGrupos.map(function(g) {
+    var itens = porGrupo[g];
+    var opts = itens.map(function(t) {
+      return '<option value="' + esc(t.nome) + '"' + (atual && atual.id === t.id ? ' selected' : '') + '>' + esc(t.nome) + '</option>';
+    }).join('');
+    return itens.length > 1 ? '<optgroup label="' + esc(g) + '">' + opts + '</optgroup>' : opts;
+  }).join('');
+  return html;
+}
+
 function _solMapTipoEvento(t) {
+  var doCadastro = _solTipoDoCadastro(t);
+  if (doCadastro) return doCadastro.id;
   var n = (t || '').toLowerCase();
   if (n.includes('casamento')) return 'casamento';
   if (n.includes('15 anos') || n.includes('15anos')) return '15anos';
@@ -247,7 +290,7 @@ function _solBuildForm(id) {
       '<div style="grid-column:span 2"><label class="lbl">Cliente *</label><input class="inp" id="sol-cliente" type="text" placeholder="Nome do cliente" value="' + (s ? s.cliente || '' : '') + '"></div>' +
       '<div><label class="lbl">Telefone Fixo</label><input class="inp" id="sol-tel-fixo" type="text" placeholder="(31) 3333-3333" value="' + (s ? s.telefoneFixo || '' : '') + '"></div>' +
       '<div><label class="lbl">Celular</label><input class="inp" id="sol-celular" type="text" placeholder="(31) 9 9999-9999" value="' + (s ? s.celular || '' : '') + '"></div>' +
-      '<div><label class="lbl">Tipo de Evento</label><input class="inp" id="sol-tipo" type="text" placeholder="Ex: Casamento" value="' + (s ? s.tipoEvento || '' : '') + '"></div>' +
+      '<div><label class="lbl">Tipo de Evento</label><select class="inp" id="sol-tipo">' + _solTipoOptionsHtml(s ? s.tipoEvento || '' : '') + '</select></div>' +
       '<div><label class="lbl">Data do Evento</label><input class="inp" id="sol-data" type="date" value="' + (s ? s.dataEvento || '' : '') + '"></div>' +
       '<div><label class="lbl">PAX</label><input class="inp" id="sol-pax" type="number" min="0" placeholder="Nº de convidados" value="' + (s ? s.pax || '' : '') + '"></div>' +
       '<div style="grid-column:span 2"><label class="lbl">Local do Evento</label><input class="inp" id="sol-local" type="text" placeholder="Nome do espaço / endereço" value="' + (s ? s.localEvento || '' : '') + '"></div>' +
@@ -630,7 +673,8 @@ function _solConstruirSolicitacoes(linhas, linhasTxt) {
       // "Contato" na planilha dela é um campo único de telefone — se não tiver
       // as colunas antigas separadas (Telefone Fixo / Celular), usa esse.
       celular: iCel >= 0 ? cel(cols, iCel) : cel(cols, iContato),
-      tipoEvento: cel(cols, iTipo),
+      // Se bater com um tipo do cadastro, grava o nome como está lá.
+      tipoEvento: (_solTipoDoCadastro(cel(cols, iTipo)) || {}).nome || cel(cols, iTipo),
       dataEvento: iData >= 0 ? dataISO(cols[iData]) : '',
       localEvento: cel(cols, iLocal),
       centroCusto: iCC >= 0 ? centroCustoKey(cols[iCC]) : '',
