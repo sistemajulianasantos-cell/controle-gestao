@@ -87,12 +87,23 @@ function _solCorStatus(status) {
 
 // ── VIEW: LISTA ───────────────────────────────────────────────────────────────
 
-// Ordem = por cadastro/importação (mais recente primeiro) — não pelo Nº como
-// texto, porque o Nº importado da planilha nem sempre segue o mesmo padrão
-// zero-preenchido do gerado pelo sistema (ex.: "2" ficando depois de "10").
+// Ordem = pelo Nº (MMAA-XXX): ano, depois mês, depois a sequência — lido como
+// número, não como texto (senão "0127" ficaria antes de "0926" e "2" depois
+// de "10"). Nº fora do padrão vai pro fim, na ordem de cadastro/importação.
+function _solChaveNumero(n) {
+  var m = String(n || '').trim().match(/^(\d{3,4})\s*[-\/.]\s*(\d+)$/);
+  if (!m) return null;
+  var mmaa = parseInt(m[1], 10);
+  return (mmaa % 100) * 100000000 + Math.floor(mmaa / 100) * 1000000 + parseInt(m[2], 10);
+}
+
 function _solListaFiltrada() {
   var lista = getSolicitacoesOrcamento().slice().sort(function(a, b) {
-    return (b.criadoEm || '').localeCompare(a.criadoEm || '');
+    var ka = _solChaveNumero(a.numero), kb = _solChaveNumero(b.numero);
+    if (ka !== null && kb !== null && ka !== kb) return ka - kb;
+    if (ka !== null && kb === null) return -1;
+    if (ka === null && kb !== null) return 1;
+    return (a.criadoEm || '').localeCompare(b.criadoEm || '');
   });
 
   var busca = (document.getElementById('sol-busca')?.value || '').toLowerCase();
