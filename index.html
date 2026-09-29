@@ -121,6 +121,9 @@
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M2 6h12"/></svg>
           Tipos de Evento
         </div>
+        <div class="nav-item" data-page="medidas" data-modulo="estoque" onclick="go('medidas')">
+          Medidas
+        </div>
         <div class="nav-item" data-page="regras" data-modulo="regras" onclick="go('regras')">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.2 3.2l1.4 1.4M11.4 11.4l1.4 1.4M3.2 12.8l1.4-1.4M11.4 4.6l1.4-1.4"/></svg>
           Fichas de Coquetéis
@@ -1044,6 +1047,18 @@
       <div class="sec">
         <div class="sec-head"><span class="sec-title">🎉 Tipos de evento cadastrados</span></div>
         <div id="tev-lista-body" style="padding:8px 16px"></div>
+      </div>
+    </div>
+
+    <!-- ═══ CADASTRO DE MEDIDAS ═══ -->
+    <div id="page-medidas" class="page">
+      <div style="margin-bottom:14px">
+        <div style="font-size:15px;font-weight:600">Medidas</div>
+        <div style="font-size:11px;color:var(--text3)">Nomenclaturas de medida usadas nas quantidades da Ficha Técnica (Regras e Cálculos → Fichas)</div>
+      </div>
+      <div class="sec">
+        <div class="sec-head"><span class="sec-title">Medidas cadastradas</span></div>
+        <div id="med-lista-body" style="padding:8px 16px"></div>
       </div>
     </div>
 
@@ -2416,7 +2431,7 @@
 <script src="js/festas.js?v=20260929a"></script>
 <script src="js/relatorio.js?v=20260610z"></script>
 <script src="js/fornecedores.js?v=20260611d"></script>
-<script src="js/nav.js?v=20260804a"></script>
+<script src="js/nav.js?v=20260929a"></script>
 <script src="js/auth.js?v=20260929d"></script>
 <script src="js/contratos.js?v=20260921a"></script>
 <script src="js/agenda.js?v=20260610z"></script>
@@ -2429,14 +2444,15 @@
 <script src="js/categorias.js?v=20260901c"></script>
 <script src="js/servicos.js?v=20260713b"></script>
 <script src="js/tiposEvento.js?v=20260913a"></script>
+<script src="js/medidas.js?v=20260929a"></script>
 <script src="js/fechamentoMensal.js?v=20260726b"></script>
 <script src="js/insumos.js?v=20260901e"></script>
 <script src="js/estoqueSeparacao.js?v=20260901d"></script>
 <script src="js/cargos.js?v=20260713b"></script>
-<script src="js/regras.js?v=20260922a"></script>
+<script src="js/regras.js?v=20260929a"></script>
 <script src="js/opcionais.js?v=20260908a"></script>
 <script src="js/associacoes.js?v=20260901a"></script>
-<script src="js/fichaTecnica.js?v=20260915b"></script>
+<script src="js/fichaTecnica.js?v=20260929a"></script>
 <script src="js/separacao.js?v=20260921c"></script>
 <script src="js/equipe.js?v=20260805e"></script>
 <script src="js/solicitacaoOrcamento.js?v=20260803f"></script>
@@ -2502,6 +2518,7 @@ window.svFirebase = async function(chave) {
     if(chave==='servicos')       campo.servicos       = D.servicos;
     if(chave==='opcionais')      campo.opcionais      = D.opcionais;
     if(chave==='tiposEvento')    campo.tiposEvento    = D.tiposEvento;
+    if(chave==='medidasIngrediente') campo.medidasIngrediente = D.medidasIngrediente;
     if(chave==='calculosOrcamento') campo.calculosOrcamento = D.calculosOrcamento;
     if(chave==='categoriasServico') campo.categoriasServico = D.categoriasServico;
     if(chave==='historico')    campo.historico    = D.historico;
@@ -2812,6 +2829,7 @@ async function carregarDados() {
     D.enderecos    = r.enderecos    || [];
     D.categorias   = r.categorias   || [];
     D.tiposEvento  = r.tiposEvento  || [];
+    D.medidasIngrediente = r.medidasIngrediente || [];
     D.calculosOrcamento = r.calculosOrcamento || {};
     D.servicos          = r.servicos          || [];
     D.opcionais         = r.opcionais         || [];

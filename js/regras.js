@@ -685,7 +685,9 @@ function rFichas() {
         '</div>' +
       '</div>' +
       '<div style="padding:8px 16px;display:flex;flex-wrap:wrap;gap:12px;font-size:11px">' +
-        Object.entries(porCat).map(function(e) {
+        (typeof _ftOrdenarPorCategoria === 'function'
+          ? _ftOrdenarPorCategoria(Object.entries(porCat), function(e) { return e[0]; })
+          : Object.entries(porCat)).map(function(e) {
           return '<div><span style="color:var(--text3);font-weight:600">' + e[0] + ':</span> ' + e[1].join(', ') + '</div>';
         }).join('') +
       '</div>' +
@@ -854,12 +856,15 @@ function _fcSyncMedidas() {
   });
   var vistos = {};
   sel = sel.filter(function(x) { var k = x.cat + '|' + x.nome; if (vistos[k]) return false; vistos[k] = 1; return true; });
+  // Mesma ordem em que saem na Ficha Técnica (ordem das Categorias).
+  if (typeof _ftOrdenarPorCategoria === 'function') sel = _ftOrdenarPorCategoria(sel, function(x) { return x.cat; });
 
   if (!sel.length) {
     cont.innerHTML = '<div style="font-size:11px;color:var(--text3)">Marque os ingredientes acima pra definir as medidas.</div>';
     return;
   }
-  var UNS = (typeof UNIDADES_INGREDIENTE !== 'undefined') ? UNIDADES_INGREDIENTE : ['ML','GR','UN','DASH','GTS','BSP','—'];
+  // Medidas vêm do Cadastro Central → Medidas (js/medidas.js); '—' = sem medida.
+  var UNS = ((typeof getMedidasIngrediente === 'function') ? getMedidasIngrediente() : ['ML','GR','UN','DASH','GTS','BSP']).concat(['—']);
   var CATS_FORA = (typeof CATS_FORA_FICHA_TECNICA !== 'undefined') ? CATS_FORA_FICHA_TECNICA : ['MATERIAL','DESCARTÁVEIS','KIT BARTENDER','EQUIPE','COPOS E TAÇAS'];
   cont.innerHTML =
     '<div style="font-size:10px;color:var(--text3);margin-bottom:6px">Marque <strong>"fora da ficha"</strong> pro que é acessório/associação e não é ingrediente do drink (ex: garrafa vazia, bico) — não sai na Ficha Técnica.</div>' +
@@ -868,12 +873,15 @@ function _fcSyncMedidas() {
     var m = window._fcMedidas[k] || {};
     var foraPadrao = CATS_FORA.indexOf((x.cat || '').toUpperCase()) !== -1;
     var fora = (m.foraFT != null) ? !!m.foraFT : foraPadrao;
+    // Medida que a ficha já usa mas saiu do cadastro continua como opção,
+    // senão o select trocaria sozinho pra primeira da lista ao salvar.
+    var unsLinha = (m.un && UNS.indexOf(m.un) === -1) ? [m.un].concat(UNS) : UNS;
     return '<div data-med-key="' + k.replace(/"/g,'&quot;') + '" style="display:grid;grid-template-columns:1fr 90px 70px 78px;gap:8px;align-items:center;padding:4px 0;border-bottom:1px solid var(--border)">' +
       '<span style="font-size:12px;color:' + (fora ? 'var(--text3)' : 'var(--text2)') + '">' + x.nome + ' <span style="font-size:9px;color:var(--text3)">' + x.cat + '</span></span>' +
       '<label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text3);cursor:pointer">' +
         '<input type="checkbox" class="med-fora" ' + (fora ? 'checked' : '') + ' onchange="_fcSyncMedidas()"> fora da ficha</label>' +
       '<input class="inp med-qtd" type="number" min="0" step="any" value="' + (m.qtd != null ? m.qtd : '') + '" placeholder="qtd" ' + (fora ? 'disabled' : '') + ' style="font-size:12px;text-align:center' + (fora ? ';opacity:.4' : '') + '">' +
-      '<select class="inp med-un" ' + (fora ? 'disabled' : '') + ' style="font-size:12px' + (fora ? ';opacity:.4' : '') + '">' + UNS.map(function(u){ return '<option' + (m.un === u ? ' selected' : '') + '>' + u + '</option>'; }).join('') + '</select>' +
+      '<select class="inp med-un" ' + (fora ? 'disabled' : '') + ' style="font-size:12px' + (fora ? ';opacity:.4' : '') + '">' + unsLinha.map(function(u){ return '<option' + (m.un === u ? ' selected' : '') + '>' + u + '</option>'; }).join('') + '</select>' +
     '</div>';
   }).join('');
 }

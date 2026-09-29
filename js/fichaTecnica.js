@@ -18,6 +18,24 @@ var CAT_COPOS = 'COPOS E TAÇAS';
 // aparece). A ficha pode marcar item a item ("na receita") pra sobrepor.
 var CATS_FORA_FICHA_TECNICA = ['MATERIAL', 'DESCARTÁVEIS', 'KIT BARTENDER', 'EQUIPE', 'COPOS E TAÇAS'];
 
+// Ordena itens de ficha pela ordem das categorias (Cadastro Central →
+// Categorias, setas ▲▼) — a mesma usada no Cardápio do orçamento. Dentro da
+// mesma categoria mantém a ordem em que foram marcados. Categoria sem
+// cadastro vai pro fim.
+function _ftOrdenarPorCategoria(lista, getCat) {
+  var mapa = {};
+  (D.categorias || []).forEach(function(c) { mapa[(c.nome || '').toUpperCase()] = c.ordem; });
+  return lista.map(function(x, idx) {
+    var o = mapa[(getCat(x) || '').toUpperCase()];
+    return { x: x, idx: idx, o: (o == null ? Infinity : o) };
+  }).sort(function(a, b) { return (a.o - b.o) || (a.idx - b.idx); })
+    .map(function(e) { return e.x; });
+}
+
+function _ftCatAtual(i) {
+  return (typeof categoriaAtualDoInsumo === 'function') ? categoriaAtualDoInsumo(i.nome, i.cat) : i.cat;
+}
+
 function _ftItemEhIngrediente(i) {
   if (i.foraFT === true) return false;
   if (i.foraFT === false) return true;
@@ -267,7 +285,7 @@ function fichaSelecionarFoto(inputEl, fichaId) {
 // Linhas de ingrediente: { med: "50 ML", nome: "APEROL" } (sem medida = med '').
 // Só itens que são de fato ingrediente (ver _ftItemEhIngrediente).
 function _ftLinhasIngredientes(ficha) {
-  return (ficha.itens || []).filter(_ftItemEhIngrediente).map(function(i) {
+  return _ftOrdenarPorCategoria((ficha.itens || []).filter(_ftItemEhIngrediente), _ftCatAtual).map(function(i) {
     var med = '';
     if (i.qtd != null && i.qtd !== '' && !isNaN(parseFloat(i.qtd))) {
       var un = (i.un && i.un !== '—') ? i.un : '';
