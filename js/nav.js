@@ -56,7 +56,7 @@ function initPageRenders(){
     categorias:initCategoriasCadastro,
     servicos:initServicosCadastro,
     tiposevento:initTiposEventoCadastro,
-    medidas:initMedidasCadastro,
+    medidas:()=>initMedidasCadastro(), // arrow: se medidas.js não carregar, só esta tela falha
     regras:initRegras,
     producao:()=>setProdView('lista'),
     separacao:initSeparacao,
