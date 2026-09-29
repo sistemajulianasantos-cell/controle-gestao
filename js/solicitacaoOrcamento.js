@@ -48,12 +48,12 @@ function _solBuscar(id) {
 // solicitação) nunca repetir o número de uma solicitação e vice-versa.
 function _solProximoNumero() {
   var hoje = new Date();
-  var prefixo = String(hoje.getMonth() + 1).padStart(2, '0') + String(hoje.getFullYear()).slice(-2);
-  var re = new RegExp('^' + prefixo + '-(\\d+)$');
+  var mes = hoje.getMonth() + 1, ano = hoje.getFullYear() % 100;
+  var prefixo = String(mes).padStart(2, '0') + String(ano).padStart(2, '0');
   var max = 0;
   function considera(n) {
-    var m = String(n || '').trim().match(re);
-    if (m) max = Math.max(max, parseInt(m[1], 10));
+    var p = _solParseNumero(n);
+    if (p && p.mes === mes && p.ano === ano) max = Math.max(max, p.seq);
   }
   (D.solicitacoesOrcamento || []).forEach(function(s) { considera(s.numero); });
   (D.orcamentos || []).forEach(function(o) { considera(o.numeroProposta); });
@@ -90,11 +90,27 @@ function _solCorStatus(status) {
 // Ordem = pelo Nº (MMAA-XXX): ano, depois mês, depois a sequência — lido como
 // número, não como texto (senão "0127" ficaria antes de "0926" e "2" depois
 // de "10"). Nº fora do padrão vai pro fim, na ordem de cadastro/importação.
-function _solChaveNumero(n) {
-  var m = String(n || '').trim().match(/^(\d{3,4})\s*[-\/.]\s*(\d+)$/);
+// Aceita "0926-001", "0926 - 1", travessão (–/—) no lugar do hífen e também
+// o Nº sem hífen ("0926001"/"926001") — que é como chega quando a célula do
+// Excel é um número formatado pra parecer 0926-001.
+function _solParseNumero(n) {
+  var t = String(n == null ? '' : n).replace(/[ \s]+/g, ' ').trim();
+  var m = t.match(/^(\d{3,4})\s*[-‐-―\/.]\s*(\d+)$/) || t.match(/^(\d{3,4})(\d{3})$/);
   if (!m) return null;
   var mmaa = parseInt(m[1], 10);
-  return (mmaa % 100) * 100000000 + Math.floor(mmaa / 100) * 1000000 + parseInt(m[2], 10);
+  return { mes: Math.floor(mmaa / 100), ano: mmaa % 100, seq: parseInt(m[2], 10) };
+}
+
+// Nº no formato padrão "MMAA-XXX" quando reconhecido; senão o texto original.
+function _solNumeroTexto(n) {
+  var p = _solParseNumero(n);
+  if (!p) return String(n == null ? '' : n).trim();
+  return String(p.mes).padStart(2, '0') + String(p.ano).padStart(2, '0') + '-' + String(p.seq).padStart(3, '0');
+}
+
+function _solChaveNumero(n) {
+  var p = _solParseNumero(n);
+  return p ? p.ano * 100000000 + p.mes * 1000000 + p.seq : null;
 }
 
 function _solListaFiltrada() {
@@ -126,7 +142,7 @@ function _solBuildLista() {
         return '<tr style="border-bottom:1px solid var(--border)">' +
           '<td style="padding:8px 12px;text-align:center">' +
             '<input type="checkbox" ' + (_solSelecionados[s.id] ? 'checked' : '') + ' onchange="_solToggleSelecao(\'' + s.id + '\',this.checked)"></td>' +
-          '<td style="padding:8px 12px;font-family:var(--mono);font-size:11px">' + (s.numero || '—') + '</td>' +
+          '<td style="padding:8px 12px;font-family:var(--mono);font-size:11px">' + (_solNumeroTexto(s.numero) || '—') + '</td>' +
           '<td style="padding:8px 12px;font-size:11px;color:var(--text3)">' + (s.solicitadoPor || '—') + '</td>' +
           '<td style="padding:8px 12px"><strong>' + (s.cliente || '—') + '</strong></td>' +
           '<td style="padding:8px 12px;font-size:11px;color:var(--text3)">' + contato + '</td>' +
@@ -488,12 +504,12 @@ function _solProcessarImportColado() {
 
 function _solSalvarImportados(novos, semCliente) {
   if (!D.solicitacoesOrcamento) D.solicitacoesOrcamento = [];
-  var numerosExistentes = new Set(D.solicitacoesOrcamento.map(function(s) { return s.numero; }).filter(Boolean));
+  var numerosExistentes = new Set(D.solicitacoesOrcamento.map(function(s) { return _solNumeroTexto(s.numero); }).filter(Boolean));
   var importados = 0, ignorados = 0;
   novos.forEach(function(n) {
-    if (n.numero && numerosExistentes.has(n.numero)) { ignorados++; return; }
+    if (n.numero && numerosExistentes.has(_solNumeroTexto(n.numero))) { ignorados++; return; }
     D.solicitacoesOrcamento.push(n);
-    if (n.numero) numerosExistentes.add(n.numero);
+    if (n.numero) numerosExistentes.add(_solNumeroTexto(n.numero));
     importados++;
   });
   if (importados > 0) sv('solicitacoesOrcamento');
@@ -603,7 +619,9 @@ function _solConstruirSolicitacoes(linhas, linhasTxt) {
     if (!cliente) semCliente.push(comIndice[li].numPlanilha);
     novos.push({
       id: _gerarId('SOL'),
-      numero: cel(cols, iNum),
+      // Nº como aparece no Excel (texto formatado) — o valor bruto de uma
+      // célula numérica formatada como "0000-000" viria "926001".
+      numero: _solNumeroTexto((comIndice[li].txt ? cel(comIndice[li].txt, iNum) : '') || cel(cols, iNum)),
       solicitadoPor: cel(cols, iSolPor),
       cliente: cliente,
       telefoneFixo: cel(cols, iTelFix),
