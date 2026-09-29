@@ -43,16 +43,29 @@ function _solBuscar(id) {
 }
 
 // Nº segue o padrão real usado por ela: MMAA-XXX, sequencial dentro do mês
-// em que a solicitação foi CADASTRADA (não o mês do evento).
+// em que a solicitação/orçamento foi CADASTRADO (não o mês do evento).
+// Olha Solicitações E Orçamentos, pra um orçamento lançado direto (sem
+// solicitação) nunca repetir o número de uma solicitação e vice-versa.
 function _solProximoNumero() {
   var hoje = new Date();
   var prefixo = String(hoje.getMonth() + 1).padStart(2, '0') + String(hoje.getFullYear()).slice(-2);
+  var re = new RegExp('^' + prefixo + '-(\\d+)$');
   var max = 0;
-  (D.solicitacoesOrcamento || []).forEach(function(s) {
-    var m = (s.numero || '').match(new RegExp('^' + prefixo + '-(\\d+)$'));
+  function considera(n) {
+    var m = String(n || '').trim().match(re);
     if (m) max = Math.max(max, parseInt(m[1], 10));
-  });
+  }
+  (D.solicitacoesOrcamento || []).forEach(function(s) { considera(s.numero); });
+  (D.orcamentos || []).forEach(function(o) { considera(o.numeroProposta); });
   return prefixo + '-' + String(max + 1).padStart(3, '0');
+}
+
+// Registros importados antes da correção guardaram a hora como texto de Date
+// ("Sat Dec 30 1899 06:00:00 GMT-0300 ...") — exibe só o HH:MM.
+function _solHoraTexto(h) {
+  var t = String(h || '');
+  var m = /\b\d{4}\b.*?(\d{2}):(\d{2}):\d{2}\s*GMT/.exec(t);
+  return m ? m[1] + ':' + m[2] : t;
 }
 
 function _solMapTipoEvento(t) {
@@ -99,7 +112,7 @@ function _solBuildLista() {
     : lista.map(function(s) {
         var cor = _solCorStatus(s.status);
         var contato = [s.telefoneFixo, s.celular].filter(Boolean).join(' · ') || '—';
-        var extras = [s.hora, s.bebidas, s.observacao].filter(Boolean).join(' · ');
+        var extras = [_solHoraTexto(s.hora), s.bebidas, s.observacao].filter(Boolean).join(' · ');
         return '<tr style="border-bottom:1px solid var(--border)">' +
           '<td style="padding:8px 12px;text-align:center">' +
             '<input type="checkbox" ' + (_solSelecionados[s.id] ? 'checked' : '') + ' onchange="_solToggleSelecao(\'' + s.id + '\',this.checked)"></td>' +
@@ -216,7 +229,7 @@ function _solBuildForm(id) {
         SOL_STATUS_PADRAO.map(function(st) { return '<option value="' + st + '"' + (s && (s.status || 'PENDENTE') === st ? ' selected' : '') + '>' + st + '</option>'; }).join('') +
       '</select></div>' +
       '<div style="grid-column:1/-1"><label class="lbl">Serviços Orçados</label><input class="inp" id="sol-servicos" type="text" placeholder="Ex: Whiskeria opcional" value="' + (s ? s.servicosOrcados || '' : '') + '"></div>' +
-      '<div><label class="lbl">Hora</label><input class="inp" id="sol-hora" type="text" placeholder="Ex: 06:00 07:00 (tempo de festa)" value="' + (s ? s.hora || '' : '') + '"></div>' +
+      '<div><label class="lbl">Hora</label><input class="inp" id="sol-hora" type="text" placeholder="Ex: 06:00 07:00 (tempo de festa)" value="' + (s ? _solHoraTexto(s.hora) : '') + '"></div>' +
       '<div style="grid-column:span 2"><label class="lbl">Bebidas</label><input class="inp" id="sol-bebidas" type="text" placeholder="Ex: Vinho e Whisky" value="' + (s ? s.bebidas || '' : '') + '"></div>' +
       '<div style="grid-column:1/-1"><label class="lbl">Observação</label><textarea class="inp" id="sol-obs" rows="2" style="resize:vertical">' + (s ? s.observacao || '' : '') + '</textarea></div>' +
       '<div><label class="lbl">Modelo Utilizado</label><input class="inp" id="sol-modelo" type="text" placeholder="Modelo de proposta" value="' + (s ? s.modeloUtilizado || '' : '') + '"></div>' +
@@ -381,7 +394,7 @@ function _solBuildImportar() {
     '</div>' +
 
     '<div style="margin-bottom:14px;font-size:12px;color:var(--text3);line-height:1.7">' +
-      'Coluna obrigatória: <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">Cliente</code>. As demais (Nº, Solicitado por, Contato ou Telefone Fixo/Celular, Tipo de Evento, Data, Local, Centro de Custo, PAX, Serviços Orçados, Status, Hora, Bebidas, Obs., Modelo Utilizado, Bonificação/bv) são reconhecidas pelo nome da coluna, em qualquer posição — colunas com outros nomes são ignoradas.<br>' +
+      'O cabeçalho precisa ter a coluna <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">Cliente</code>, mas linhas com Cliente (ou qualquer outra coluna) em branco são importadas mesmo assim. As colunas (Nº, Solicitado por, Contato ou Telefone Fixo/Celular, Tipo de Evento, Data, Local, Centro de Custo, PAX, Serviços Orçados, Status, Hora, Bebidas, Obs., Modelo Utilizado, Bonificação/bv) são reconhecidas pelo nome da coluna, em qualquer posição — colunas com outros nomes são ignoradas.<br>' +
       'Linhas cujo <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">Nº</code> já existir no sistema são ignoradas (pode importar o mesmo arquivo de novo sem duplicar).' +
     '</div>' +
 
@@ -429,7 +442,11 @@ function _solLerArquivoImport(inputEl) {
       // texto formatado (o formato de texto do SheetJS pra data é ambíguo/errado às vezes,
       // ex.: "08/08/2026" virando "8/7/26").
       var linhas = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: '' });
-      var resultado = _solConstruirSolicitacoes(linhas);
+      // Mesma planilha como texto formatado (igual aparece no Excel) — usado só
+      // pra Hora: célula de hora vira Date de 1899 no modo raw e o texto saía
+      // "Sat Dec 30 1899 06:00:00 GMT...".
+      var linhasTxt = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
+      var resultado = _solConstruirSolicitacoes(linhas, linhasTxt);
       _solSalvarImportados(resultado.novos, resultado.semCliente);
     } catch (err) {
       _solImpStatus('Erro ao ler o arquivo: ' + err.message, true);
@@ -473,10 +490,10 @@ function _solSalvarImportados(novos, semCliente) {
   if (ignorados) msg += ', ' + ignorados + ' ignorada(s) por já existir';
   var temSemCliente = semCliente && semCliente.length > 0;
   if (temSemCliente) {
-    msg += ', ' + semCliente.length + ' linha(s) SEM a coluna "Cliente" preenchida (não importadas) — linha(s) da planilha: ' +
+    msg += ' — ' + semCliente.length + ' linha(s) sem Cliente preenchido (importadas mesmo assim, complete depois): linha(s) da planilha ' +
       semCliente.slice(0, 20).join(', ') + (semCliente.length > 20 ? '…' : '');
   }
-  _solImpStatus(msg + '.', temSemCliente);
+  _solImpStatus(msg + '.', false);
   if (importados > 0) setTimeout(function() { _solSetView('lista'); }, temSemCliente ? 4000 : 700);
 }
 
@@ -486,11 +503,11 @@ function _solSalvarImportados(novos, semCliente) {
 // { novos, semCliente } — os registros prontos para salvar e os números das
 // linhas da planilha (1-based, contando a linha do cabeçalho como linha 1)
 // que foram ignoradas por não terem a coluna Cliente preenchida.
-function _solConstruirSolicitacoes(linhas) {
+function _solConstruirSolicitacoes(linhas, linhasTxt) {
   // Mantém o número da linha ORIGINAL da planilha (1-based) atrelado a cada
   // linha, mesmo depois de descartar as linhas totalmente em branco — senão a
   // contagem de linha reportada pra ela não bate com o que ela vê no Excel.
-  var comIndice = (linhas || []).map(function(l, i) { return { linha: l, numPlanilha: i + 1 }; })
+  var comIndice = (linhas || []).map(function(l, i) { return { linha: l, txt: linhasTxt && linhasTxt[i], numPlanilha: i + 1 }; })
     .filter(function(x) { return x.linha && x.linha.some(function(c) { return String(c == null ? '' : c).trim(); }); });
   if (!comIndice.length) throw new Error('Planilha vazia.');
 
@@ -549,13 +566,29 @@ function _solConstruirSolicitacoes(linhas) {
     return '';
   }
   function cel(cols, i) { return i >= 0 ? String(cols[i] == null ? '' : cols[i]).trim() : ''; }
+  // Hora: prefere o texto formatado da célula (ex.: "06:00"); sem ele,
+  // converte Date/fração-de-dia do Excel pra HH:MM.
+  function hora(item) {
+    if (iHora < 0) return '';
+    var v = item.linha[iHora];
+    var txt = item.txt ? cel(item.txt, iHora) : '';
+    if (txt && !/GMT|\d{4}/.test(txt)) return txt;
+    var totalMin = null;
+    if (v instanceof Date && !isNaN(v)) totalMin = v.getHours() * 60 + v.getMinutes() + (v.getSeconds() >= 30 ? 1 : 0);
+    else if (typeof v === 'number' && v >= 0 && v < 1) totalMin = Math.round(v * 1440);
+    if (totalMin === null) return cel(item.linha, iHora);
+    totalMin = totalMin % 1440;
+    return String(Math.floor(totalMin / 60)).padStart(2, '0') + ':' + String(totalMin % 60).padStart(2, '0');
+  }
 
   var novos = [];
   var semCliente = [];
   for (var li = headerIdx + 1; li < comIndice.length; li++) {
     var cols = comIndice[li].linha;
+    // Linha sem Cliente também entra (ela completa depois) — só linha 100%
+    // em branco é descartada, lá em cima.
     var cliente = cel(cols, iCli);
-    if (!cliente) { semCliente.push(comIndice[li].numPlanilha); continue; }
+    if (!cliente) semCliente.push(comIndice[li].numPlanilha);
     novos.push({
       id: _gerarId('SOL'),
       numero: cel(cols, iNum),
@@ -572,7 +605,7 @@ function _solConstruirSolicitacoes(linhas) {
       pax: iPax >= 0 ? (parseInt(cel(cols, iPax).replace(/\D/g, '')) || 0) : 0,
       servicosOrcados: cel(cols, iServ),
       status: (cel(cols, iStatus) || 'PENDENTE').toUpperCase(),
-      hora: cel(cols, iHora),
+      hora: hora(comIndice[li]),
       bebidas: cel(cols, iBebidas),
       observacao: cel(cols, iObs),
       modeloUtilizado: cel(cols, iModelo),
@@ -581,6 +614,6 @@ function _solConstruirSolicitacoes(linhas) {
       criadoEm: new Date().toISOString(),
     });
   }
-  if (!novos.length) throw new Error('Nenhuma linha válida encontrada (verifique a coluna Cliente).');
+  if (!novos.length) throw new Error('Nenhuma linha com dados encontrada abaixo do cabeçalho.');
   return { novos: novos, semCliente: semCliente };
 }

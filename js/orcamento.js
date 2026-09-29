@@ -300,6 +300,8 @@ function abrirModalNovoOrcamento() {
   if (sel) {
     sel.innerHTML = tiposEventoOptionsHtml(sel.value);
   }
+  const num = document.getElementById('orc-m-numero');
+  if (num) num.value = typeof _solProximoNumero === 'function' ? _solProximoNumero() : '';
   document.getElementById('m-novo-orc').style.display = 'flex';
 }
 
@@ -319,7 +321,8 @@ function criarOrcamento() {
     dataEvento:   document.getElementById('orc-m-data')?.value || '',
     convidados:   conv,
     telefone:     '',
-    numeroProposta: '',
+    numeroProposta: (document.getElementById('orc-m-numero')?.value || '').trim() ||
+      (typeof _solProximoNumero === 'function' ? _solProximoNumero() : ''),
     criadoEm:     new Date().toISOString(),
     itens:      [],
     calcItens:  [],
