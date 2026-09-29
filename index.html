@@ -2417,7 +2417,7 @@
 <script src="js/relatorio.js?v=20260610z"></script>
 <script src="js/fornecedores.js?v=20260611d"></script>
 <script src="js/nav.js?v=20260804a"></script>
-<script src="js/auth.js?v=20260929c"></script>
+<script src="js/auth.js?v=20260929d"></script>
 <script src="js/contratos.js?v=20260921a"></script>
 <script src="js/agenda.js?v=20260610z"></script>
 <script src="js/producao.js?v=20260610z"></script>
@@ -2870,14 +2870,8 @@ async function carregarDados() {
     rFechamento();
     rNFItens();
     rNFEntItens();
-    // Verificar login salvo na sessão
-    const perfSalvo = sessionStorage.getItem("perfil");
-    if (perfSalvo) {
-      window.perfilAtual = perfSalvo;
-      document.getElementById("login-overlay").style.display = "none";
-      if (typeof aplicarPerfil === "function") aplicarPerfil(perfSalvo);
-      if (typeof _resetarSessao === "function") _resetarSessao();
-    }
+    // Sem restaurar login salvo: recarregar a página sempre pede a senha de novo
+    // (decisão dela, 09-29 — mais seguro que manter a aba logada).
     // Re-render página ativa após dados chegarem
     window._dadosCarregados = true;
     if (typeof _rcMigrarLocalStorage === 'function') _rcMigrarLocalStorage();

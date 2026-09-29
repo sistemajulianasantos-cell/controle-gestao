@@ -208,7 +208,6 @@ function cancelarMFA() {
 function _concluirLogin(perfil) {
   _bfReset();
   perfilAtual = perfil;
-  sessionStorage.setItem('perfil', perfil);
   document.getElementById('login-overlay').style.display = 'none';
   document.getElementById('login-step-senha').style.display = '';
   document.getElementById('login-step-mfa').style.display  = 'none';
