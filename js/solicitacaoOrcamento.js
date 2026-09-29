@@ -492,7 +492,8 @@ function _solGerarOrcamento(id) {
   var orcId = 'ORC' + Date.now();
   D.orcamentos.push({
     id: orcId,
-    nomeCliente: s.cliente,
+    // Sem Cliente preenchido (comum na planilha), nomeia pelo tipo + quem pediu
+    nomeCliente: s.cliente || [s.tipoEvento, s.solicitadoPor].filter(Boolean).join(' - ') || 'Sem nome',
     dataEvento: s.dataEvento || '',
     convidados: parseInt(s.pax) || 0,
     telefone: s.celular || s.telefoneFixo || '',

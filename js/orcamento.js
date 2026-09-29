@@ -109,26 +109,52 @@ function rOrcDetalhe() {
   const esc = v => String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
   const campo = 'font-size:12px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius)';
 
+  const lbl = 'font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:3px';
+  const sol = _orcSolVinculada(orc);
+  const info = c => esc(_orcInfo(orc, c));
+  const txt = (c, rotulo, ph, largo) => `
+      <div${largo ? ' style="grid-column:span 2"' : ''}>
+        <label style="${lbl}">${rotulo}</label>
+        <input type="text" value="${info(c)}" placeholder="${ph||''}" onchange="orcSetInfo('${orc.id}','${c}',this.value)" style="${campo};width:100%">
+      </div>`;
+
   // Cabeçalho = dados do evento editáveis (substitui a antiga aba Evento,
   // removida 2026-09-29). Local/Tipo/Temporada ficam nos Parâmetros do evento
-  // da Calculadora.
+  // da Calculadora. Os dados de contato/pedido (solicitado por, contato, local,
+  // hora, serviços, bebidas, obs.) são os da Solicitação de Orçamento
+  // vinculada — editar aqui grava lá, pra nunca ficarem diferentes.
   el.innerHTML = `
     <!-- Cabeçalho -->
-    <div style="display:flex;align-items:flex-end;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
       <button class="btn-sm" onclick="rOrcLista()" style="background:var(--bg3)">← Voltar</button>
-      ${orc.numeroProposta ? `<div style="font-family:var(--mono);font-size:12px;color:var(--text3);padding-bottom:6px">${esc(orc.numeroProposta)}</div>` : ''}
-      <div style="flex:1;min-width:200px;max-width:360px">
-        <label style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:3px">Cliente / evento</label>
-        <input type="text" value="${esc(orc.nomeCliente)}" onchange="orcSetCabecalho('${orc.id}','nomeCliente',this.value)"
-          style="${campo};width:100%;font-weight:600;font-size:14px">
+      ${orc.numeroProposta ? `<span style="font-family:var(--mono);font-size:12px;color:var(--text3)">${esc(orc.numeroProposta)}</span>` : ''}
+      <span style="font-weight:600;font-size:15px;color:var(--text)">${esc(orc.nomeCliente||'Sem nome')}</span>
+      ${sol ? `<span style="font-size:11px;color:var(--text3)">· da Solicitação de Orçamento</span>` : ''}
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:14px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:10px">
+        <div style="grid-column:span 2">
+          <label style="${lbl}">Cliente / evento</label>
+          <input type="text" value="${esc(orc.nomeCliente)}" onchange="orcSetCabecalho('${orc.id}','nomeCliente',this.value)"
+            style="${campo};width:100%;font-weight:600">
+        </div>
+        ${txt('solicitadoPor', 'Solicitado por', 'Quem pediu o orçamento')}
+        ${txt('contato', 'Contato', '(31) 99999-9999')}
+        <div>
+          <label style="${lbl}">Data do evento</label>
+          <input type="date" value="${esc(orc.dataEvento)}" onchange="orcSetCabecalho('${orc.id}','dataEvento',this.value)" style="${campo};width:100%">
+        </div>
+        <div>
+          <label style="${lbl}">Convidados</label>
+          <input type="number" min="1" value="${esc(orc.convidados)}" onchange="orcSetCabecalho('${orc.id}','convidados',this.value)" style="${campo};width:100%">
+        </div>
       </div>
-      <div>
-        <label style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:3px">Data do evento</label>
-        <input type="date" value="${esc(orc.dataEvento)}" onchange="orcSetCabecalho('${orc.id}','dataEvento',this.value)" style="${campo}">
-      </div>
-      <div>
-        <label style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:3px">Convidados</label>
-        <input type="number" min="1" value="${esc(orc.convidados)}" onchange="orcSetCabecalho('${orc.id}','convidados',this.value)" style="${campo};width:90px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px">
+        ${txt('localEvento', 'Local do evento', 'Nome do espaço / endereço', true)}
+        ${txt('hora', 'Hora', 'Ex: 06:00')}
+        ${txt('servicosOrcados', 'Serviços orçados', '')}
+        ${txt('bebidas', 'Bebidas', '')}
+        ${txt('observacao', 'Observação', '')}
       </div>
     </div>
 
@@ -627,6 +653,42 @@ function _rTabContent() {
 
 // ─── CABEÇALHO (dados do evento) ─────────────────────────────────────────────
 
+// Solicitação de Orçamento que gerou este orçamento (vínculo guardado na
+// solicitação, em `orcamentoId`), ou null se o orçamento foi criado direto.
+function _orcSolVinculada(orc) {
+  return (D.solicitacoesOrcamento || []).find(s => s.orcamentoId === orc.id) || null;
+}
+
+// Dados de contato/pedido: da Solicitação vinculada quando existe, senão do
+// próprio orçamento. "contato" = celular (ou fixo) da solicitação / orc.telefone.
+function _orcInfo(orc, campo) {
+  const sol = _orcSolVinculada(orc);
+  if (campo === 'contato') return sol ? (sol.celular || sol.telefoneFixo || orc.telefone || '') : (orc.telefone || '');
+  const v = sol ? sol[campo] : orc[campo];
+  if (campo === 'hora' && typeof _solHoraTexto === 'function') return _solHoraTexto(v);
+  return v || '';
+}
+
+function orcSetInfo(orcId, campo, valor) {
+  const orc = (D.orcamentos||[]).find(o => o.id === orcId);
+  if (!orc) return;
+  valor = String(valor || '').trim();
+  const sol = _orcSolVinculada(orc);
+  if (campo === 'contato') {
+    orc.telefone = valor; // usado na Proposta
+    if (sol) {
+      if (!sol.celular && sol.telefoneFixo) sol.telefoneFixo = valor;
+      else sol.celular = valor;
+    }
+  } else if (sol) {
+    sol[campo] = valor;
+  } else {
+    orc[campo] = valor;
+  }
+  sv('orcamentos');
+  if (sol) sv('solicitacoesOrcamento');
+}
+
 function orcSetCabecalho(orcId, campo, valor) {
   const orc = (D.orcamentos||[]).find(o => o.id === orcId);
   if (!orc) return;
@@ -640,6 +702,13 @@ function orcSetCabecalho(orcId, campo, valor) {
   }
   orc[campo] = valor;
   sv('orcamentos');
+  // Data e convidados são os mesmos da Solicitação vinculada — mantém igual lá.
+  const sol = _orcSolVinculada(orc);
+  if (sol && (campo === 'dataEvento' || campo === 'convidados')) {
+    sol[campo === 'convidados' ? 'pax' : 'dataEvento'] = valor;
+    sv('solicitacoesOrcamento');
+  }
+  if (campo === 'nomeCliente') { rOrcDetalhe(); return; }
   // Convidados muda a sugestão de equipe e os itens automáticos por pessoa da
   // Calculadora — recalcula na hora (recalcularAutos desenha a Calculadora,
   // então redesenha a aba que estiver aberta depois).
