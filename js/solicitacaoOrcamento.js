@@ -7,6 +7,9 @@
 var _solView = 'lista';
 var _solEditId = null;
 var _solSelecionados = {}; // id -> true, seleção múltipla na lista (só na view atual)
+// Filtros da lista — guardados aqui (e não lidos do DOM) porque a lista é
+// redesenhada inteira a cada mudança, o que zerava busca/select antes.
+var _solFiltro = { busca: '', status: '', tipo: '', solPor: '', mes: '' };
 
 var SOL_STATUS_PADRAO = ['PENDENTE', 'ENVIADO', 'APROVADO', 'RECUSADO'];
 
@@ -165,11 +168,94 @@ function _solListaFiltrada() {
     return (a.criadoEm || '').localeCompare(b.criadoEm || '');
   });
 
-  var busca = (document.getElementById('sol-busca')?.value || '').toLowerCase();
-  var statusFiltro = document.getElementById('sol-status-filtro')?.value || '';
-  if (busca) lista = lista.filter(function(s) { return (s.cliente || '').toLowerCase().includes(busca); });
-  if (statusFiltro) lista = lista.filter(function(s) { return (s.status || '').toUpperCase() === statusFiltro; });
+  var f = _solFiltro;
+  var busca = _solNormTxt(f.busca);
+  if (busca) lista = lista.filter(function(s) {
+    return _solNormTxt([_solNumeroTexto(s.numero), s.cliente, s.solicitadoPor, s.localEvento, s.telefoneFixo, s.celular].join(' ')).includes(busca);
+  });
+  if (f.status) lista = lista.filter(function(s) { return _solStatusDe(s) === f.status; });
+  if (f.tipo)   lista = lista.filter(function(s) { return _solNormTxt(s.tipoEvento) === f.tipo; });
+  if (f.solPor) lista = lista.filter(function(s) { return _solNormTxt(s.solicitadoPor) === f.solPor; });
+  if (f.mes)    lista = lista.filter(function(s) { return (s.dataEvento || '').slice(0, 7) === f.mes; });
   return lista;
+}
+
+function _solStatusDe(s) { return String(s.status || 'PENDENTE').trim().toUpperCase(); }
+
+function _solFiltroAtivo() {
+  return !!(_solFiltro.busca || _solFiltro.status || _solFiltro.tipo || _solFiltro.solPor || _solFiltro.mes);
+}
+
+function _solSetFiltro(campo, valor) {
+  _solFiltro[campo] = valor;
+  _solSelecionados = {};
+  rSolicitacao();
+  // Busca: a lista foi redesenhada — devolve o foco/cursor pro campo pra
+  // continuar digitando sem clicar de novo.
+  if (campo === 'busca') {
+    var el = document.getElementById('sol-busca');
+    if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+  }
+}
+
+function _solLimparFiltros() {
+  _solFiltro = { busca: '', status: '', tipo: '', solPor: '', mes: '' };
+  _solSelecionados = {};
+  rSolicitacao();
+}
+
+// Barra de filtros: opções montadas a partir dos dados cadastrados, com a
+// contagem de cada uma (ex.: "PENDENTE (40)").
+function _solBuildFiltros(totalFiltrado) {
+  var todas = getSolicitacoesOrcamento();
+  var esc = function(x) { return String(x).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); };
+  function contagem(chaveFn, rotuloFn) {
+    var mapa = {}, ordem = [];
+    todas.forEach(function(s) {
+      var k = chaveFn(s);
+      if (!k) return;
+      if (!mapa[k]) { mapa[k] = { rotulo: rotuloFn(s), n: 0 }; ordem.push(k); }
+      mapa[k].n++;
+    });
+    return { mapa: mapa, ordem: ordem };
+  }
+  function opcoes(c, atual, vazio) {
+    return '<option value="">' + vazio + '</option>' + c.ordem.map(function(k) {
+      return '<option value="' + esc(k) + '"' + (atual === k ? ' selected' : '') + '>' + esc(c.mapa[k].rotulo) + ' (' + c.mapa[k].n + ')</option>';
+    }).join('');
+  }
+
+  var st = contagem(_solStatusDe, _solStatusDe);
+  // Status padrão primeiro (mesmo sem nenhuma solicitação), depois os que vieram da planilha
+  var ordemSt = SOL_STATUS_PADRAO.slice();
+  st.ordem.forEach(function(k) { if (ordemSt.indexOf(k) === -1) ordemSt.push(k); });
+  SOL_STATUS_PADRAO.forEach(function(k) { if (!st.mapa[k]) st.mapa[k] = { rotulo: k, n: 0 }; });
+  st.ordem = ordemSt;
+
+  var tp = contagem(function(s) { return _solNormTxt(s.tipoEvento); }, function(s) { return (_solTipoDoCadastro(s.tipoEvento) || {}).nome || s.tipoEvento; });
+  tp.ordem.sort(function(a, b) { return tp.mapa[a].rotulo.localeCompare(tp.mapa[b].rotulo, 'pt-BR'); });
+
+  var sp = contagem(function(s) { return _solNormTxt(s.solicitadoPor); }, function(s) { return String(s.solicitadoPor).trim(); });
+  sp.ordem.sort(function(a, b) { return sp.mapa[a].rotulo.localeCompare(sp.mapa[b].rotulo, 'pt-BR'); });
+
+  var MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  var ms = contagem(function(s) { return /^\d{4}-\d{2}/.test(s.dataEvento || '') ? s.dataEvento.slice(0, 7) : ''; },
+    function(s) { return MESES[parseInt(s.dataEvento.slice(5, 7), 10) - 1] + '/' + s.dataEvento.slice(0, 4); });
+  ms.ordem.sort();
+
+  var sel = 'class="inp" style="width:auto;min-width:150px;max-width:220px"';
+  return '<div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">' +
+      '<input class="inp" id="sol-busca" type="text" placeholder="Buscar por cliente, Nº, local, contato..." style="flex:1;min-width:200px" value="' + esc(_solFiltro.busca) + '" oninput="_solSetFiltro(\'busca\',this.value)">' +
+      '<select ' + sel + ' onchange="_solSetFiltro(\'status\',this.value)">' + opcoes(st, _solFiltro.status, 'Todos os status') + '</select>' +
+      '<select ' + sel + ' onchange="_solSetFiltro(\'tipo\',this.value)">' + opcoes(tp, _solFiltro.tipo, 'Todos os tipos') + '</select>' +
+      '<select ' + sel + ' onchange="_solSetFiltro(\'solPor\',this.value)">' + opcoes(sp, _solFiltro.solPor, 'Solicitado por: todos') + '</select>' +
+      '<select ' + sel + ' onchange="_solSetFiltro(\'mes\',this.value)">' + opcoes(ms, _solFiltro.mes, 'Mês do evento: todos') + '</select>' +
+    '</div>' +
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;font-size:12px;color:var(--text3)">' +
+      (_solFiltroAtivo()
+        ? 'Mostrando ' + totalFiltrado + ' de ' + todas.length + ' <button class="btn-sm" style="background:var(--bg3);color:var(--text)" onclick="_solLimparFiltros()">Limpar filtros</button>'
+        : 'Mostrando todas (' + todas.length + ')') +
+    '</div>';
 }
 
 function _solBuildLista() {
@@ -231,17 +317,11 @@ function _solBuildLista() {
         '<button class="btn-sm" style="background:var(--bg3)" onclick="_solLimparSelecao()">Cancelar seleção</button>' +
       '</div>' : '') +
 
-    '<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">' +
-      '<input class="inp" id="sol-busca" type="text" placeholder="🔍 Buscar por cliente..." style="flex:1;min-width:200px" oninput="rSolicitacao()">' +
-      '<select class="inp" id="sol-status-filtro" style="width:180px" onchange="rSolicitacao()">' +
-        '<option value="">Todos os status</option>' +
-        SOL_STATUS_PADRAO.map(function(s) { return '<option value="' + s + '">' + s + '</option>'; }).join('') +
-      '</select>' +
-    '</div>' +
+    _solBuildFiltros(lista.length) +
 
     // Tabela rola dentro da própria caixa (altura da tela) — assim título,
     // botões e busca ficam sempre visíveis, e o cabeçalho das colunas fica fixo.
-    '<div style="overflow:auto;max-height:calc(100vh - 250px);border:1px solid var(--border);border-radius:8px">' +
+    '<div style="overflow:auto;max-height:calc(100vh - 285px);border:1px solid var(--border);border-radius:8px">' +
     '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
       '<thead><tr style="border-bottom:2px solid var(--border2);color:var(--text3);text-transform:uppercase;font-size:10px">' +
         '<th style="position:sticky;top:0;z-index:1;background:var(--bg4);padding:8px 12px;text-align:center"><input type="checkbox" ' + (todosSelecionados ? 'checked' : '') + ' onchange="_solToggleSelecaoTodos(this.checked)" title="Selecionar todos"></th>' +
