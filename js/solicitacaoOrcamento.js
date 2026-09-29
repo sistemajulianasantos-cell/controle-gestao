@@ -108,11 +108,10 @@ function _solBuildLista() {
   var todosSelecionados = lista.length > 0 && lista.every(function(s) { return _solSelecionados[s.id]; });
 
   var linhas = !lista.length
-    ? '<tr><td colspan="15" style="text-align:center;color:var(--text3);padding:24px">Nenhuma solicitação encontrada</td></tr>'
+    ? '<tr><td colspan="16" style="text-align:center;color:var(--text3);padding:24px">Nenhuma solicitação encontrada</td></tr>'
     : lista.map(function(s) {
         var cor = _solCorStatus(s.status);
         var contato = [s.telefoneFixo, s.celular].filter(Boolean).join(' · ') || '—';
-        var extras = [_solHoraTexto(s.hora), s.bebidas, s.observacao].filter(Boolean).join(' · ');
         return '<tr style="border-bottom:1px solid var(--border)">' +
           '<td style="padding:8px 12px;text-align:center">' +
             '<input type="checkbox" ' + (_solSelecionados[s.id] ? 'checked' : '') + ' onchange="_solToggleSelecao(\'' + s.id + '\',this.checked)"></td>' +
@@ -129,7 +128,8 @@ function _solBuildLista() {
           '<td style="padding:8px 12px">' +
             '<span style="background:' + cor.bg + ';color:' + cor.cor + ';font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;white-space:nowrap">' + (s.status || 'PENDENTE') + '</span>' +
           '</td>' +
-          '<td style="padding:8px 12px;font-size:11px;color:var(--text3);max-width:180px" title="' + extras + '">' + (extras || '—') + '</td>' +
+          '<td style="padding:8px 12px;font-size:11px;color:var(--text3);white-space:nowrap">' + (_solHoraTexto(s.hora) || '—') + '</td>' +
+          '<td style="padding:8px 12px;font-size:11px;color:var(--text3);max-width:180px" title="' + (s.observacao ? 'Obs.: ' + s.observacao : '') + '">' + (s.bebidas || '—') + '</td>' +
           '<td style="padding:8px 12px;font-size:11px;color:var(--text3)">' + (s.modeloUtilizado || '—') + '</td>' +
           '<td style="padding:8px 12px;font-size:11px;color:var(--text3)">' + (s.bonificacaoCerimonial || '—') + '</td>' +
           '<td style="padding:8px 12px;white-space:nowrap">' +
@@ -183,7 +183,8 @@ function _solBuildLista() {
         '<th style="padding:8px 12px;text-align:center">PAX</th>' +
         '<th style="padding:8px 12px;text-align:left">Serviços Orçados</th>' +
         '<th style="padding:8px 12px;text-align:left">Status</th>' +
-        '<th style="padding:8px 12px;text-align:left">Hora / Bebidas / Obs.</th>' +
+        '<th style="padding:8px 12px;text-align:left">Hora</th>' +
+        '<th style="padding:8px 12px;text-align:left">Bebidas</th>' +
         '<th style="padding:8px 12px;text-align:left">Modelo Utilizado</th>' +
         '<th style="padding:8px 12px;text-align:left">Bonificação (bv)</th>' +
         '<th style="padding:8px 12px;text-align:left">Ações</th>' +
