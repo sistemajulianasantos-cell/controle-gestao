@@ -142,7 +142,7 @@ function _solBuildLista() {
         return '<tr style="border-bottom:1px solid var(--border)">' +
           '<td style="padding:8px 12px;text-align:center">' +
             '<input type="checkbox" ' + (_solSelecionados[s.id] ? 'checked' : '') + ' onchange="_solToggleSelecao(\'' + s.id + '\',this.checked)"></td>' +
-          '<td style="padding:8px 12px;font-family:var(--mono);font-size:11px">' + (_solNumeroTexto(s.numero) || '—') + '</td>' +
+          '<td style="padding:8px 12px;font-family:var(--mono);font-size:11px;white-space:nowrap">' + (_solNumeroTexto(s.numero) || '—') + '</td>' +
           '<td style="padding:8px 12px;font-size:11px;color:var(--text3)">' + (s.solicitadoPor || '—') + '</td>' +
           '<td style="padding:8px 12px"><strong>' + (s.cliente || '—') + '</strong></td>' +
           '<td style="padding:8px 12px;font-size:11px;color:var(--text3)">' + contato + '</td>' +
@@ -196,25 +196,27 @@ function _solBuildLista() {
       '</select>' +
     '</div>' +
 
-    '<div style="overflow-x:auto">' +
+    // Tabela rola dentro da própria caixa (altura da tela) — assim título,
+    // botões e busca ficam sempre visíveis, e o cabeçalho das colunas fica fixo.
+    '<div style="overflow:auto;max-height:calc(100vh - 250px);border:1px solid var(--border);border-radius:8px">' +
     '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
       '<thead><tr style="border-bottom:2px solid var(--border2);color:var(--text3);text-transform:uppercase;font-size:10px">' +
-        '<th style="padding:8px 12px;text-align:center"><input type="checkbox" ' + (todosSelecionados ? 'checked' : '') + ' onchange="_solToggleSelecaoTodos(this.checked)" title="Selecionar todos"></th>' +
-        '<th style="padding:8px 12px;text-align:left">Nº</th>' +
-        '<th style="padding:8px 12px;text-align:left">Solicitado por</th>' +
-        '<th style="padding:8px 12px;text-align:left">Cliente</th>' +
-        '<th style="padding:8px 12px;text-align:left">Contato</th>' +
-        '<th style="padding:8px 12px;text-align:left">Tipo de Evento</th>' +
-        '<th style="padding:8px 12px;text-align:left">Data</th>' +
-        '<th style="padding:8px 12px;text-align:left">Local</th>' +
-        '<th style="padding:8px 12px;text-align:center">PAX</th>' +
-        '<th style="padding:8px 12px;text-align:left">Serviços Orçados</th>' +
-        '<th style="padding:8px 12px;text-align:left">Status</th>' +
-        '<th style="padding:8px 12px;text-align:left">Hora</th>' +
-        '<th style="padding:8px 12px;text-align:left">Bebidas</th>' +
-        '<th style="padding:8px 12px;text-align:left">Modelo Utilizado</th>' +
-        '<th style="padding:8px 12px;text-align:left">Bonificação (bv)</th>' +
-        '<th style="padding:8px 12px;text-align:left">Ações</th>' +
+        '<th style="position:sticky;top:0;z-index:1;background:var(--bg4);padding:8px 12px;text-align:center"><input type="checkbox" ' + (todosSelecionados ? 'checked' : '') + ' onchange="_solToggleSelecaoTodos(this.checked)" title="Selecionar todos"></th>' +
+        '<th style="position:sticky;top:0;z-index:1;background:var(--bg4);padding:8px 12px;text-align:left">Nº</th>' +
+        '<th style="position:sticky;top:0;z-index:1;background:var(--bg4);padding:8px 12px;text-align:left">Solicitado por</th>' +
+        '<th style="position:sticky;top:0;z-index:1;background:var(--bg4);padding:8px 12px;text-align:left">Cliente</th>' +
+        '<th style="position:sticky;top:0;z-index:1;background:var(--bg4);padding:8px 12px;text-align:left">Contato</th>' +
+        '<th style="position:sticky;top:0;z-index:1;background:var(--bg4);padding:8px 12px;text-align:left">Tipo de Evento</th>' +
+        '<th style="position:sticky;top:0;z-index:1;background:var(--bg4);padding:8px 12px;text-align:left">Data</th>' +
+        '<th style="position:sticky;top:0;z-index:1;background:var(--bg4);padding:8px 12px;text-align:left">Local</th>' +
+        '<th style="position:sticky;top:0;z-index:1;background:var(--bg4);padding:8px 12px;text-align:center">PAX</th>' +
+        '<th style="position:sticky;top:0;z-index:1;background:var(--bg4);padding:8px 12px;text-align:left">Serviços Orçados</th>' +
+        '<th style="position:sticky;top:0;z-index:1;background:var(--bg4);padding:8px 12px;text-align:left">Status</th>' +
+        '<th style="position:sticky;top:0;z-index:1;background:var(--bg4);padding:8px 12px;text-align:left">Hora</th>' +
+        '<th style="position:sticky;top:0;z-index:1;background:var(--bg4);padding:8px 12px;text-align:left">Bebidas</th>' +
+        '<th style="position:sticky;top:0;z-index:1;background:var(--bg4);padding:8px 12px;text-align:left">Modelo Utilizado</th>' +
+        '<th style="position:sticky;top:0;z-index:1;background:var(--bg4);padding:8px 12px;text-align:left">Bonificação (bv)</th>' +
+        '<th style="position:sticky;top:0;z-index:1;background:var(--bg4);padding:8px 12px;text-align:left">Ações</th>' +
       '</tr></thead>' +
       '<tbody>' + linhas + '</tbody>' +
     '</table>' +
