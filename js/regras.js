@@ -1501,11 +1501,16 @@ function rPrecosOrcamento() {
     }
     var tituloEditavel = '<input type="text" value="' + fator.nome + '" onchange="renomearOrcFator(\'' + fator.id + '\',this.value)" ' +
       'style="font-size:13px;font-weight:600;background:transparent;border:none;border-bottom:1px dashed var(--border2);color:var(--text);padding:2px 0;flex:1;min-width:180px">';
-    return '<div class="sec" style="margin-bottom:14px">' +
+    var pausado = !!fator.pausado;
+    return '<div class="sec" style="margin-bottom:14px' + (pausado ? ';border-style:dashed' : '') + '">' +
       '<div class="sec-head">' + _ordArrows(fator.id) + tituloEditavel +
+        (pausado ? '<span style="background:var(--bg3);color:var(--text3);font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;margin-left:8px;white-space:nowrap">PAUSADO</span>' : '') +
+        '<button class="btn-sm" style="margin-left:8px;white-space:nowrap;background:' + (pausado ? 'var(--green)' : 'var(--bg3)') + ';color:' + (pausado ? '#fff' : 'var(--text)') + '" onclick="pausarOrcFator(\'' + fator.id + '\',' + !pausado + ')" ' +
+          'title="' + (pausado ? 'Voltar a cobrar este item nos orçamentos' : 'Parar de cobrar este item nos orçamentos por enquanto (os valores continuam guardados)') + '">' + (pausado ? 'Reativar' : 'Pausar') + '</button>' +
         (!fator.builtin ? '<button class="btn-sm btn-red" style="margin-left:8px" onclick="excluirOrcFator(\'' + fator.id + '\')" title="Excluir categoria">🗑️</button>' : '') +
       '</div>' +
-      '<div style="padding:12px 16px">' + corpo + '</div></div>';
+      (pausado ? '<div style="padding:8px 16px 0;font-size:11px;color:var(--text3)">Pausado: não aparece nem soma em nenhum orçamento (Calculadora, lista e Proposta). Os valores abaixo ficam guardados para quando reativar.</div>' : '') +
+      '<div style="padding:12px 16px' + (pausado ? ';opacity:.5' : '') + '">' + corpo + '</div></div>';
   }
 
   var htmlPorId = { equipe: htmlPrecoEquipe, locais: htmlLocais };
@@ -1532,6 +1537,15 @@ function rPrecosOrcamento() {
       '<button class="btn" onclick="salvarPrecosOrcamento()" style="background:var(--green)">💾 Salvar Preços</button>' +
       '<button class="btn" onclick="resetarPrecosOrcamento()" style="background:var(--red-dim);color:var(--red)">↺ Restaurar Padrão</button>' +
     '</div>';
+}
+
+function pausarOrcFator(id, pausar) {
+  var f = buscarOrcFatorPorId(id);
+  if (!f) return;
+  f.pausado = !!pausar;
+  sv('orcFatores');
+  rPrecosOrcamento();
+  alert2(pausar ? '"' + f.nome + '" pausado: não entra mais nos orçamentos.' : '"' + f.nome + '" reativado.');
 }
 
 function renomearOrcFator(id, novoNomeRaw) {

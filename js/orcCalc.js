@@ -87,6 +87,14 @@ function getOrcFatores() {
   return D.orcFatores.slice().sort(function(a, b) { return ordem.indexOf(a.id) - ordem.indexOf(b.id); });
 }
 
+// Categoria pausada = fica configurada, mas não entra em nenhum orçamento
+// por enquanto (ex.: Seguro Quebra enquanto não está sendo cobrado).
+function _orcItemPausado(item) {
+  if (!item || !item.auto || typeof item.id !== 'string' || item.id.indexOf('auto-') !== 0) return false;
+  var f = buscarOrcFatorPorId(item.id.slice(5));
+  return !!(f && f.pausado);
+}
+
 function buscarOrcFatorPorId(id) {
   return (D.orcFatores || []).find(function(f) { return f.id === id; }) || null;
 }
@@ -476,7 +484,10 @@ function _orcCalcResumo(orc) {
   const p    = orc.calcParams || {};
   const pax  = orc.convidados || 0;
   const autoS = _calcAutoStaff(pax);
-  const itens  = orc.calcItens || [];
+  // Item automático de categoria PAUSADA (Regras e Cálculos → Preços do
+  // Orçamento) não aparece nem soma — continua gravado, então reativar a
+  // categoria traz de volta sem precisar recalcular cada orçamento.
+  const itens  = (orc.calcItens || []).filter(i => !_orcItemPausado(i));
   const insumos = orc.insumos || [];
 
   // Insumos com preço de revenda por temporada (viaRevenda, ver
@@ -579,7 +590,7 @@ function rOrcCalc() {
           </select>
         </div>
 
-        ${getOrcFatores().filter(function(f){ return !f.unicoValor && f.opcoesFonte !== 'tiposEvento'; }).map(function(f) {
+        ${getOrcFatores().filter(function(f){ return !f.unicoValor && !f.pausado && f.opcoesFonte !== 'tiposEvento'; }).map(function(f) {
           var paramKey = _orcFatorParamKey(f.id);
           var opcoes = _orcFatorOpcoes(f);
           var atual = p[paramKey] || f.chavePadrao || (opcoes[0] && opcoes[0].chave);
