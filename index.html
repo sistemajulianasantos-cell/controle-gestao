@@ -2410,7 +2410,7 @@
 <script src="js/relatorio.js?v=20260610z"></script>
 <script src="js/fornecedores.js?v=20260611d"></script>
 <script src="js/nav.js?v=20260804a"></script>
-<script src="js/auth.js?v=20260610z"></script>
+<script src="js/auth.js?v=20260929a"></script>
 <script src="js/contratos.js?v=20260921a"></script>
 <script src="js/agenda.js?v=20260610z"></script>
 <script src="js/producao.js?v=20260610z"></script>
@@ -2858,6 +2858,7 @@ async function carregarDados() {
     }, 300);
 
   } catch(e) {
+    window._erroCarregamento = true;
     document.getElementById("loading-msg").textContent = "⚠ Erro ao conectar. Verifique sua internet.";
     document.getElementById("loading-msg").style.color = "#F7625A";
     console.error("Firebase erro:", e);
@@ -2868,6 +2869,7 @@ async function carregarDados() {
 signInAnonymously(auth)
   .then(() => carregarDados())
   .catch(e => {
+    window._erroCarregamento = true;
     document.getElementById("loading-msg").textContent = "⚠ Falha na autenticação. Verifique sua internet.";
     document.getElementById("loading-msg").style.color = "#F7625A";
     console.error("Auth erro:", e);

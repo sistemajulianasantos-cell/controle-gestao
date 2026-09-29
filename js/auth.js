@@ -127,6 +127,29 @@ async function tentarLogin() {
   const s = document.getElementById('login-senha').value.trim();
   if (!s) return;
 
+  // O login fica por cima do "Carregando..." — antes de carregarDados()
+  // terminar, D.senhas ainda não existe e toda senha daria "incorreta"
+  // (e contaria pro bloqueio). Espera os dados chegarem em vez de recusar.
+  if (!window._dadosCarregados) {
+    const erroEl = document.getElementById('login-erro');
+    const msgCarga = document.getElementById('loading-msg');
+    if (window._erroCarregamento) {
+      erroEl.textContent = (msgCarga && msgCarga.textContent) || 'Erro ao conectar. Recarregue a página.';
+      return;
+    }
+    erroEl.textContent = 'Carregando dados, aguarde...';
+    if (!window._loginAguardando) {
+      window._loginAguardando = true;
+      const esperar = () => {
+        if (window._dadosCarregados) { window._loginAguardando = false; tentarLogin(); }
+        else if (window._erroCarregamento) { window._loginAguardando = false; tentarLogin(); }
+        else setTimeout(esperar, 300);
+      };
+      setTimeout(esperar, 300);
+    }
+    return;
+  }
+
   const hash = await hashSenha(s);
   const entry = (D.senhas || {})[hash];
   if (!entry) {
