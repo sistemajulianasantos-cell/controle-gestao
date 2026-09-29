@@ -162,8 +162,8 @@ select option{background:var(--bg3)}
 
 /* ── MODO CLARO ─────────────────────────────────────────────────────────── */
 body.light-mode{
-  --bg:#F1F5F9;--bg2:#FFFFFF;--bg3:#F8FAFC;--bg4:#E2E8F0;
-  --border:#CBD5E1;--border2:#94A3B8;
+  --bg:#F3EFE6;--bg2:#FFFEFB;--bg3:#FAF6ED;--bg4:#E9E2D2;
+  --border:#DDD4BE;--border2:#B7AB8D;
   --text:#0F172A;--text2:#334155;--text3:#64748B;
   --blue:#2563EB;--blue-dim:#93C5FD;--blue-bg:#EFF6FF;
   --green:#16A34A;--green-dim:#86EFAC;--green-bg:#F0FDF4;
