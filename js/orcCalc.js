@@ -308,6 +308,8 @@ function recalcularAutos() {
   // Itens "sempre tem" que não vêm de Ficha de Coquetel (ex: Gelo) — Regra
   // de Proporção marcada "autoOrcamento" (Regras e Cálculos → Proporções).
   if (typeof _sincronizarInsumosAutoRegra === 'function') _sincronizarInsumosAutoRegra(orc, pax, qt.bt, eqTotal);
+  // Lista única de Cálculos do Orçamento → Itens automáticos (todos os eventos)
+  if (typeof _sincronizarItensAutoGlobais === 'function') _sincronizarItensAutoGlobais(orc, pax, qt.bt, eqTotal, qt);
 
   sv('orcamentos');
   rOrcCalc();

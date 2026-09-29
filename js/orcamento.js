@@ -1165,6 +1165,7 @@ function atualizarValoresOrcamento(orcId) {
     + (p.copeiro != null ? Number(p.copeiro) : 0);
 
   (orc.insumos||[]).forEach(ins => {
+    if (ins.autoGlobal) return; // já recalculado por recalcularAutos (Itens automáticos)
     const preco = _orcPrecoInsumoComTemporada(ins.nome, temporada);
     ins.custoGarrafa = preco.valor;
     ins.viaRevenda = preco.viaRevenda;
@@ -1192,7 +1193,11 @@ function atualizarValoresOrcamento(orcId) {
 function _sincronizarInsumosAutoRegra(orc, conv, bartenders, equipeTotal) {
   if (!orc.insumos) orc.insumos = [];
   const temporada = (orc.calcParams && orc.calcParams.temporada) || 'baixa';
-  const regrasAuto = getRegrasItens().filter(r => r.autoOrcamento);
+  // Item que está na lista única de Cálculos do Orçamento → Itens automáticos
+  // usa a regra de lá (_sincronizarItensAutoGlobais), não a da Separação —
+  // senão entraria duas vezes.
+  const naListaGlobal = _orcNomesListaGlobal();
+  const regrasAuto = getRegrasItens().filter(r => r.autoOrcamento && !naListaGlobal.has(_orcNormNome(r.item)));
 
   regrasAuto.forEach(regra => {
     const qtd = calcQtdItem(regra, conv, bartenders, equipeTotal);
@@ -1217,6 +1222,53 @@ function _sincronizarInsumosAutoRegra(orc, conv, bartenders, equipeTotal) {
   // mexe em item manual ou vindo de ficha (só os marcados autoRegra:true).
   const nomesAtivos = new Set(regrasAuto.map(r => (r.item||'').toUpperCase()));
   orc.insumos = orc.insumos.filter(i => !i.autoRegra || nomesAtivos.has((i.nome||'').toUpperCase()));
+}
+
+const _orcNormNome = s => (typeof _ocoNorm === 'function') ? _ocoNorm(s) : String(s || '').toUpperCase().trim();
+
+function _orcNomesListaGlobal() {
+  const lista = (D.calculosOrcamento && typeof OCO_LISTA_TODOS !== 'undefined' && D.calculosOrcamento[OCO_LISTA_TODOS]) || [];
+  return new Set(lista.map(r => _orcNormNome(r.item)));
+}
+
+// Itens da lista única (Cálculos do Orçamento → Itens automáticos) SEM "só
+// com cardápio" entram sozinhos em todo orçamento: quantidade da regra ×
+// preço do Cadastro de Insumos. Ficam num bloco próprio "ITENS AUTOMÁTICOS"
+// (não na categoria original) porque MATERIAL/DESCARTÁVEIS não somam no
+// orçamento e o gelo, por exemplo, é MATERIAL mas tem que cobrar. Marcados
+// autoGlobal:true — só esses são mexidos aqui.
+function _sincronizarItensAutoGlobais(orc, conv, bartenders, equipeTotal, cargoCounts) {
+  if (!orc.insumos) orc.insumos = [];
+  const temporada = (orc.calcParams && orc.calcParams.temporada) || 'baixa';
+  const lista = (D.calculosOrcamento && typeof OCO_LISTA_TODOS !== 'undefined' && D.calculosOrcamento[OCO_LISTA_TODOS]) || [];
+  const ativos = lista.filter(r => !r.soSeCardapio);
+  const nomesAtivos = new Set();
+
+  ativos.forEach(regra => {
+    const qtd = calcQtdItemOrcamento(OCO_LISTA_TODOS, regra.item, conv, bartenders, equipeTotal, cargoCounts) || 0;
+    const chave = _orcNormNome(regra.item);
+    let item = orc.insumos.find(i => i.autoGlobal && _orcNormNome(i.nome) === chave);
+    if (qtd <= 0) {
+      if (item) orc.insumos = orc.insumos.filter(i => i !== item);
+      return;
+    }
+    nomesAtivos.add(chave);
+    const preco = _orcPrecoInsumoComTemporada(regra.item, temporada);
+    if (!item) {
+      item = { id: 'ins-glob-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5), nome: regra.item, autoGlobal: true };
+      orc.insumos.push(item);
+    }
+    item.cat = 'ITENS AUTOMÁTICOS';
+    item.qtdGarrafas = qtd;
+    item.custoGarrafa = preco.valor;
+    item.viaRevenda = preco.viaRevenda;
+    item.total = Math.round(qtd * preco.valor * 100) / 100;
+  });
+
+  // Tira o que saiu da lista (ou virou "só com cardápio")
+  orc.insumos = orc.insumos.filter(i => !i.autoGlobal || nomesAtivos.has(_orcNormNome(i.nome)));
+  // Mesmo item que antes vinha do AUTO ORÇ. da Separação sai de lá
+  orc.insumos = orc.insumos.filter(i => !i.autoRegra || !_orcNomesListaGlobal().has(_orcNormNome(i.nome)));
 }
 
 // Mescla uma lista de itens (insumo + qtd, formato de _orcItensParaFicha) no

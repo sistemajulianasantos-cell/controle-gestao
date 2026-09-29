@@ -23,7 +23,23 @@
 // Cardápio) — por enquanto só a tela de configuração em si.
 
 var _ocoTipoAtual = '';
-var _ocoView      = 'overview';    // 'overview' (todos os tipos) | 'detalhe' (um tipo) | 'catalogo' (referência global)
+var _ocoView      = 'todos';       // 'todos' (itens automáticos, todos os eventos) | 'overview' (todos os tipos) | 'detalhe' (um tipo) | 'catalogo' (referência global)
+
+// Lista ÚNICA de itens automáticos, que vale pra todo evento (2026-09-29) —
+// gelo, seguro quebra, lanche, uniforme... cada um com base/qtd/a cada/mín,
+// preço do Cadastro de Insumos. Entra sozinha em todo orçamento
+// (_sincronizarItensAutoGlobais, js/orcamento.js). Ela preferiu nivelar as
+// quantidades numa lista só antes de separar por Tipo de Evento. Mora em
+// D.calculosOrcamento junto das listas por tipo (chave com "_" na frente,
+// que nenhum id de Tipo de Evento usa, igual a "_meta").
+var OCO_LISTA_TODOS = '_todos';
+
+// Lista que as funções de edição (ocoRegraSet, ocoAdicionarItem...) alteram:
+// a global quando a aba "Itens automáticos" está aberta, senão a do Tipo de
+// Evento aberto no detalhe.
+function _ocoListaId() {
+  return _ocoView === 'todos' ? OCO_LISTA_TODOS : _ocoTipoAtual;
+}
 var _ocoSoAvisos  = false;         // aba Catálogo: true = mostra só item com grafia duplicada/sem cadastro
 
 function ocoToggleSoAvisos() {
@@ -100,7 +116,7 @@ function initOrcCalculos() {
     var tipos = getTiposEvento();
     _ocoTipoAtual = tipos.length ? tipos[0].id : '';
   }
-  _ocoView = 'overview'; // toda vez que entra na página, começa pela visão geral
+  _ocoView = 'todos'; // toda vez que entra na página, começa pelos Itens automáticos
   rOrcCalculos();
 }
 
@@ -304,10 +320,16 @@ function _ocoRegras(tipoId) {
 // duas passadas, porque calcQtdItem() sozinho só devolve o mínimo pra essa
 // base — a resolução de verdade (Separação) mora numa função própria da
 // Folha de Separação que não se aplica aqui.
+// 2026-09-29: a lista ÚNICA de Itens automáticos (OCO_LISTA_TODOS) vem
+// primeiro — ela quer nivelar as quantidades por item, sem Tipo de Evento
+// nem coquetel. A lista do Tipo de Evento só é usada pra item que não está
+// na lista única (quando ela for separar por evento, é aqui que inverte).
 function calcQtdItemOrcamento(tipoId, nomeItem, conv, bartenders, equipeTotal, cargoCounts) {
   var norm = _ocoNorm;
-  var lista = _ocoRegras(tipoId);
-  var regra = lista.find(function(r) { return norm(r.item) === norm(nomeItem); });
+  var achar = function(l) { return l.find(function(r) { return norm(r.item) === norm(nomeItem); }); };
+  var lista = _ocoRegras(OCO_LISTA_TODOS);
+  var regra = achar(lista);
+  if (!regra) { lista = _ocoRegras(tipoId); regra = achar(lista); }
   if (!regra) return null;
   var ef = _regraBaseEfetiva(regra);
   if (ef.base !== 'associado') {
@@ -350,7 +372,7 @@ function ocoDuplicar() {
 }
 
 function ocoRegraSet(id, campo, valorRaw) {
-  var r = _ocoRegras(_ocoTipoAtual).find(function(x) { return x.id === id; });
+  var r = _ocoRegras(_ocoListaId()).find(function(x) { return x.id === id; });
   if (!r) return;
   if (campo === 'base') r.base = valorRaw;
   else if (campo === 'principal') r.principal = valorRaw;
@@ -363,7 +385,7 @@ function ocoRegraSet(id, campo, valorRaw) {
 // em Separação → Cálculos (js/regras.js).
 function ocoRevincular(id, novoNome) {
   if (!novoNome) return;
-  var r = _ocoRegras(_ocoTipoAtual).find(function(x) { return x.id === id; });
+  var r = _ocoRegras(_ocoListaId()).find(function(x) { return x.id === id; });
   if (!r) return;
   r.item = novoNome;
   r.cat = (typeof categoriaAtualDoInsumo === 'function') ? categoriaAtualDoInsumo(novoNome, r.cat) : r.cat;
@@ -371,7 +393,7 @@ function ocoRevincular(id, novoNome) {
 }
 
 function ocoToggleCargo(id, cargoKey, checked) {
-  var r = _ocoRegras(_ocoTipoAtual).find(function(x) { return x.id === id; });
+  var r = _ocoRegras(_ocoListaId()).find(function(x) { return x.id === id; });
   if (!r) return;
   if (!r.cargos) r.cargos = [];
   var i = r.cargos.indexOf(cargoKey);
@@ -386,19 +408,23 @@ function ocoAdicionarItem() {
   var opt = sel.options[sel.selectedIndex];
   var cat = opt ? opt.getAttribute('data-cat') : 'OUTROS';
   var norm = _ocoNorm;
-  var lista = _ocoRegras(_ocoTipoAtual);
+  var lista = _ocoRegras(_ocoListaId());
   if (lista.some(function(r) { return norm(r.item) === norm(nome); })) {
     alert('Esse item já está na lista.');
     return;
   }
-  lista.push({ id: _gerarId('OC'), item: nome, cat: cat || 'OUTROS', base: 'convidado', valor: 0, ref: 1, min: 0, cargos: [], principal: '' });
-  D.calculosOrcamento[_ocoTipoAtual] = lista;
+  var nova = { id: _gerarId('OC'), item: nome, cat: cat || 'OUTROS', base: 'convidado', valor: 0, ref: 1, min: 0, cargos: [], principal: '' };
+  if (_ocoView === 'todos') nova.soSeCardapio = _ocoItemEmAlgumaFicha(nome);
+  lista.push(nova);
+  D.calculosOrcamento[_ocoListaId()] = lista;
   rOrcCalculos();
 }
 
 function ocoRemoverItem(id) {
-  if (!confirm('Remover este item dos Cálculos do Orçamento (só deste Tipo de Evento)?')) return;
-  D.calculosOrcamento[_ocoTipoAtual] = _ocoRegras(_ocoTipoAtual).filter(function(r) { return r.id !== id; });
+  if (!confirm(_ocoView === 'todos'
+    ? 'Remover este item dos Itens automáticos? Ele deixa de entrar sozinho nos orçamentos.'
+    : 'Remover este item dos Cálculos do Orçamento (só deste Tipo de Evento)?')) return;
+  D.calculosOrcamento[_ocoListaId()] = _ocoRegras(_ocoListaId()).filter(function(r) { return r.id !== id; });
   rOrcCalculos();
 }
 
@@ -451,7 +477,8 @@ function ocoSetView(v) {
 // Tipos de Evento, não dentro do detalhe de um deles.
 function _ocoTopTabsHtml() {
   var emTipos = (_ocoView === 'overview' || _ocoView === 'detalhe');
-  return '<div style="display:flex;gap:6px;margin-bottom:18px">' +
+  return '<div style="display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap">' +
+    '<button class="sort-btn ' + (_ocoView === 'todos' ? 'active' : '') + '" onclick="ocoSetView(\'todos\')">Itens automáticos (todos os eventos)</button>' +
     '<button class="sort-btn ' + (emTipos ? 'active' : '') + '" onclick="ocoSetView(\'overview\')">📊 Tipos de Evento</button>' +
     '<button class="sort-btn ' + (_ocoView === 'catalogo' ? 'active' : '') + '" onclick="ocoSetView(\'catalogo\')">📖 Catálogo de Insumos (todas as Fichas)</button>' +
   '</div>';
@@ -473,7 +500,8 @@ function rOrcCalculos() {
   }
   if (!_ocoTipoAtual || !tipos.some(function(t) { return t.id === _ocoTipoAtual; })) _ocoTipoAtual = tipos[0].id;
 
-  if (_ocoView === 'catalogo') _ocoRenderCatalogo(cont);
+  if (_ocoView === 'todos') _ocoRenderTodos(cont);
+  else if (_ocoView === 'catalogo') _ocoRenderCatalogo(cont);
   else if (_ocoView === 'detalhe') _ocoRenderDetalhe(cont, tipos);
   else _ocoRenderOverview(cont, tipos);
 }
@@ -726,6 +754,8 @@ function _ocoRenderDetalhe(cont, tipos) {
       '</div>';
   }
 
+  var ctxLinha = { regras: regras, cargos: cargos, insumos: insumosParaRevincular, orfaosIds: orfaosIds };
+
   ordemCats.forEach(function(cat) {
     var itens = porCat[cat];
     if (!itens || !itens.length) return;
@@ -734,74 +764,7 @@ function _ocoRenderDetalhe(cont, tipos) {
       '<div style="display:grid;gap:6px">';
 
     itens.forEach(function(r) {
-      var ef = _regraBaseEfetiva(r);
-      var cols = 'minmax(160px,1fr) 140px 70px 110px 70px 40px';
-
-      var insumoDaRegra = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(r.item) : null;
-      var semInsumo = !insumoDaRegra;
-      var ehOrfao = !!orfaosIds[r.id];
-
-      html += '<div style="background:var(--bg3);border:1px solid ' + (semInsumo ? 'var(--amber-dim,var(--amber))' : (ehOrfao ? 'var(--amber-dim,var(--amber))' : 'var(--border)')) + ';border-radius:var(--radius);padding:8px 12px;font-size:11px">' +
-        '<div style="display:grid;grid-template-columns:' + cols + ';gap:8px;align-items:end">' +
-
-        '<div><span style="color:var(--text);font-weight:500">' + r.item + '</span>' +
-          (semInsumo
-            ? '<div style="font-size:9px;color:var(--amber);margin-top:2px">⚠️ não bate com nenhum insumo do Cadastro. Incluir (revincular):' +
-                '<select onchange="ocoRevincular(\'' + r.id + '\',this.value)" style="display:block;margin-top:3px;width:100%;font-size:10px;padding:2px 4px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">' +
-                  '<option value="">— escolher insumo —</option>' +
-                  insumosParaRevincular.map(function(n) { return '<option value="' + n.replace(/"/g, '&quot;') + '">' + n + '</option>'; }).join('') +
-                '</select>' +
-                '<span style="display:block;margin-top:2px">ou <a href="#" onclick="ocoRemoverItem(\'' + r.id + '\');return false" style="color:var(--red)">excluir este item</a></span>' +
-              '</div>'
-            : (ehOrfao ? '<div style="font-size:9px;color:var(--amber);margin-top:2px">⚠️ não está em nenhum coquetel associado atualmente</div>' : '')) +
-        '</div>' +
-
-        '<div><div style="font-size:9px;color:var(--text3);margin-bottom:2px">BASE</div>' +
-          '<select onchange="ocoRegraSet(\'' + r.id + '\',\'base\',this.value)" style="width:100%;font-size:10px;padding:3px 4px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">' +
-            OCO_BASE_OPCOES.map(function(o) { return '<option value="' + o[0] + '"' + (ef.base === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') +
-          '</select>' +
-        '</div>' +
-
-        '<div><div style="font-size:9px;color:var(--text3);margin-bottom:2px">' + (ef.base === 'associado' ? 'QUANTOS' : 'QTD') + '</div>' +
-          '<input type="number" value="' + ef.valor + '" min="0" step="0.1" onchange="ocoRegraSet(\'' + r.id + '\',\'valor\',this.value)" style="width:100%;font-size:11px;padding:3px 5px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:center">' +
-        '</div>' +
-
-        '<div><div style="font-size:9px;color:var(--text3);margin-bottom:2px">' + (ef.base === 'fixo' ? '—' : 'A CADA') + '</div>' +
-          '<input type="number" value="' + ef.ref + '" min="1" ' + (ef.base === 'fixo' ? 'disabled' : '') + ' onchange="ocoRegraSet(\'' + r.id + '\',\'ref\',this.value)" style="width:100%;font-size:11px;padding:3px 5px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:center' + (ef.base === 'fixo' ? ';opacity:.4' : '') + '">' +
-        '</div>' +
-
-        '<div><div style="font-size:9px;color:var(--text3);margin-bottom:2px">MÍN.</div>' +
-          '<input type="number" value="' + (r.min || 0) + '" min="0" onchange="ocoRegraSet(\'' + r.id + '\',\'min\',this.value)" style="width:100%;font-size:11px;padding:3px 5px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:center">' +
-        '</div>' +
-
-        '<div style="text-align:center"><button class="btn-sm btn-red" onclick="ocoRemoverItem(\'' + r.id + '\')" style="padding:2px 6px">×</button></div>' +
-
-        '</div>' +
-
-        (ef.base === 'cargo'
-          ? '<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border2);display:flex;flex-wrap:wrap;gap:8px;align-items:center">' +
-              '<span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Cargos:</span>' +
-              (cargos.length ? cargos.map(function(c) {
-                var m = (r.cargos || []).indexOf(c.key) !== -1;
-                return '<label style="display:flex;align-items:center;gap:4px;font-size:10px;cursor:pointer;background:' + (m ? 'var(--green-bg)' : 'var(--bg)') + ';border:1px solid ' + (m ? 'var(--green-dim)' : 'var(--border2)') + ';padding:2px 8px;border-radius:12px">' +
-                  '<input type="checkbox" ' + (m ? 'checked' : '') + ' onchange="ocoToggleCargo(\'' + r.id + '\',\'' + c.key + '\',this.checked)"> ' + c.nome + '</label>';
-              }).join('') : '<span style="font-size:10px;color:var(--amber)">Nenhum cargo no Cadastro Central → Cargos</span>') +
-            '</div>'
-          : '') +
-
-        (ef.base === 'associado'
-          ? '<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border2);display:flex;flex-wrap:wrap;gap:6px;align-items:center">' +
-              '<span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Segue o item:</span>' +
-              '<select onchange="ocoRegraSet(\'' + r.id + '\',\'principal\',this.value)" style="font-size:10px;padding:2px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);max-width:240px">' +
-                '<option value="">— escolher —</option>' +
-                regras.filter(function(x) { return x.id !== r.id; }).map(function(x) { return '<option value="' + x.item.replace(/"/g, '&quot;') + '"' + (ef.principal === x.item ? ' selected' : '') + '>' + x.item + '</option>'; }).join('') +
-              '</select>' +
-              '<span style="font-size:9px;color:var(--text3)">— ' + ef.valor + ' a cada ' + ef.ref + ' do principal</span>' +
-              (!ef.principal ? '<span style="font-size:9px;color:var(--amber)">⚠️ escolha o item principal</span>' : '') +
-            '</div>'
-          : '') +
-
-      '</div>';
+      html += _ocoLinhaRegraHtml(r, ctxLinha);
     });
 
     html += '</div></div>';
@@ -831,5 +794,205 @@ function _ocoRenderDetalhe(cont, tipos) {
   '</div>';
 
   html += '</div>';
+  cont.innerHTML = html;
+}
+
+// Uma linha de regra (base/qtd/a cada/mín/cargos/segue item) — usada tanto
+// no detalhe de um Tipo de Evento quanto na lista de Itens automáticos
+// (todos os eventos). ctx: { regras, cargos, insumos, orfaosIds, extraNome(r) }.
+function _ocoLinhaRegraHtml(r, ctx) {
+  var regras = ctx.regras, cargos = ctx.cargos, insumosParaRevincular = ctx.insumos, orfaosIds = ctx.orfaosIds || {};
+  var html = '';
+  var ef = _regraBaseEfetiva(r);
+  var cols = 'minmax(160px,1fr) 140px 70px 110px 70px 40px';
+
+  var insumoDaRegra = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(r.item) : null;
+  var semInsumo = !insumoDaRegra;
+  var ehOrfao = !!orfaosIds[r.id];
+
+  html += '<div style="background:var(--bg3);border:1px solid ' + (semInsumo ? 'var(--amber-dim,var(--amber))' : (ehOrfao ? 'var(--amber-dim,var(--amber))' : 'var(--border)')) + ';border-radius:var(--radius);padding:8px 12px;font-size:11px">' +
+    '<div style="display:grid;grid-template-columns:' + cols + ';gap:8px;align-items:end">' +
+
+    '<div><span style="color:var(--text);font-weight:500">' + r.item + '</span>' +
+      (semInsumo
+        ? '<div style="font-size:9px;color:var(--amber);margin-top:2px">⚠️ não bate com nenhum insumo do Cadastro. Incluir (revincular):' +
+            '<select onchange="ocoRevincular(\'' + r.id + '\',this.value)" style="display:block;margin-top:3px;width:100%;font-size:10px;padding:2px 4px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">' +
+              '<option value="">— escolher insumo —</option>' +
+              insumosParaRevincular.map(function(n) { return '<option value="' + n.replace(/"/g, '&quot;') + '">' + n + '</option>'; }).join('') +
+            '</select>' +
+            '<span style="display:block;margin-top:2px">ou <a href="#" onclick="ocoRemoverItem(\'' + r.id + '\');return false" style="color:var(--red)">excluir este item</a></span>' +
+          '</div>'
+        : (ehOrfao ? '<div style="font-size:9px;color:var(--amber);margin-top:2px">⚠️ não está em nenhum coquetel associado atualmente</div>' : '')) +
+      (ctx.extraNome ? ctx.extraNome(r) : '') +
+    '</div>' +
+
+    '<div><div style="font-size:9px;color:var(--text3);margin-bottom:2px">BASE</div>' +
+      '<select onchange="ocoRegraSet(\'' + r.id + '\',\'base\',this.value)" style="width:100%;font-size:10px;padding:3px 4px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">' +
+        OCO_BASE_OPCOES.map(function(o) { return '<option value="' + o[0] + '"' + (ef.base === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') +
+      '</select>' +
+    '</div>' +
+
+    '<div><div style="font-size:9px;color:var(--text3);margin-bottom:2px">' + (ef.base === 'associado' ? 'QUANTOS' : 'QTD') + '</div>' +
+      '<input type="number" value="' + ef.valor + '" min="0" step="0.1" onchange="ocoRegraSet(\'' + r.id + '\',\'valor\',this.value)" style="width:100%;font-size:11px;padding:3px 5px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:center">' +
+    '</div>' +
+
+    '<div><div style="font-size:9px;color:var(--text3);margin-bottom:2px">' + (ef.base === 'fixo' ? '—' : 'A CADA') + '</div>' +
+      '<input type="number" value="' + ef.ref + '" min="1" ' + (ef.base === 'fixo' ? 'disabled' : '') + ' onchange="ocoRegraSet(\'' + r.id + '\',\'ref\',this.value)" style="width:100%;font-size:11px;padding:3px 5px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:center' + (ef.base === 'fixo' ? ';opacity:.4' : '') + '">' +
+    '</div>' +
+
+    '<div><div style="font-size:9px;color:var(--text3);margin-bottom:2px">MÍN.</div>' +
+      '<input type="number" value="' + (r.min || 0) + '" min="0" onchange="ocoRegraSet(\'' + r.id + '\',\'min\',this.value)" style="width:100%;font-size:11px;padding:3px 5px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:center">' +
+    '</div>' +
+
+    '<div style="text-align:center"><button class="btn-sm btn-red" onclick="ocoRemoverItem(\'' + r.id + '\')" style="padding:2px 6px">×</button></div>' +
+
+    '</div>' +
+
+    (ef.base === 'cargo'
+      ? '<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border2);display:flex;flex-wrap:wrap;gap:8px;align-items:center">' +
+          '<span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Cargos:</span>' +
+          (cargos.length ? cargos.map(function(c) {
+            var m = (r.cargos || []).indexOf(c.key) !== -1;
+            return '<label style="display:flex;align-items:center;gap:4px;font-size:10px;cursor:pointer;background:' + (m ? 'var(--green-bg)' : 'var(--bg)') + ';border:1px solid ' + (m ? 'var(--green-dim)' : 'var(--border2)') + ';padding:2px 8px;border-radius:12px">' +
+              '<input type="checkbox" ' + (m ? 'checked' : '') + ' onchange="ocoToggleCargo(\'' + r.id + '\',\'' + c.key + '\',this.checked)"> ' + c.nome + '</label>';
+          }).join('') : '<span style="font-size:10px;color:var(--amber)">Nenhum cargo no Cadastro Central → Cargos</span>') +
+        '</div>'
+      : '') +
+
+    (ef.base === 'associado'
+      ? '<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border2);display:flex;flex-wrap:wrap;gap:6px;align-items:center">' +
+          '<span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Segue o item:</span>' +
+          '<select onchange="ocoRegraSet(\'' + r.id + '\',\'principal\',this.value)" style="font-size:10px;padding:2px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);max-width:240px">' +
+            '<option value="">— escolher —</option>' +
+            regras.filter(function(x) { return x.id !== r.id; }).map(function(x) { return '<option value="' + x.item.replace(/"/g, '&quot;') + '"' + (ef.principal === x.item ? ' selected' : '') + '>' + x.item + '</option>'; }).join('') +
+          '</select>' +
+          '<span style="font-size:9px;color:var(--text3)">— ' + ef.valor + ' a cada ' + ef.ref + ' do principal</span>' +
+          (!ef.principal ? '<span style="font-size:9px;color:var(--amber)">⚠️ escolha o item principal</span>' : '') +
+        '</div>'
+      : '') +
+
+  '</div>';
+  return html;
+}
+
+// ─── ITENS AUTOMÁTICOS (TODOS OS EVENTOS) ───────────────────────────────────
+// Lista única, na ordem em que ela cadastra (sem agrupar por categoria nem
+// puxar de coquetel/Tipo de Evento). Cada item:
+// - "só com cardápio" DESMARCADO → entra sozinho em todo orçamento (gelo,
+//   seguro quebra, lanche...) — ver _sincronizarItensAutoGlobais (orcamento.js).
+// - "só com cardápio" MARCADO → não entra sozinho; só dá a quantidade quando
+//   um coquetel do cardápio do orçamento usa esse item (calcQtdItemOrcamento).
+
+// Item que aparece em alguma Ficha de Coquetel = ingrediente → por padrão
+// "só com cardápio" (não cobrar vodka em festa sem coquetel de vodka).
+function _ocoItemEmAlgumaFicha(nome) {
+  var n = _ocoNorm(nome);
+  return (D.fichas || []).some(function(f) {
+    return (f.itens || []).some(function(it) { return _ocoNorm(it.nome) === n; });
+  });
+}
+
+function ocoTodosSetCardapio(id, checked) {
+  var r = _ocoRegras(OCO_LISTA_TODOS).find(function(x) { return x.id === id; });
+  if (!r) return;
+  r.soSeCardapio = !!checked;
+  rOrcCalculos();
+}
+
+// Copia as regras marcadas AUTO ORÇ. em Folha de Separação → Cálculos (com
+// as mesmas quantidades) pra cá — só as que ainda não estão na lista.
+function ocoTrazerDaSeparacao() {
+  var regrasSep = (typeof getRegrasItens === 'function' ? getRegrasItens() : []).filter(function(r) { return r.autoOrcamento; });
+  var lista = _ocoRegras(OCO_LISTA_TODOS);
+  var existe = {};
+  lista.forEach(function(r) { existe[_ocoNorm(r.item)] = true; });
+  var novos = regrasSep.filter(function(r) { return !existe[_ocoNorm(r.item)]; });
+  if (!novos.length) { alert('Todos os itens marcados AUTO ORÇ. na Separação já estão nesta lista.'); return; }
+  if (!confirm('Trazer ' + novos.length + ' item(ns) marcados AUTO ORÇ. na Folha de Separação (com as mesmas quantidades)?\n\n' + novos.map(function(r) { return r.item; }).join(', '))) return;
+  novos.forEach(function(r) {
+    var ef = _regraBaseEfetiva(r);
+    lista.push({
+      id: _gerarId('OC'), item: r.item, cat: r.cat || 'OUTROS', base: ef.base, valor: ef.valor, ref: ef.ref,
+      min: parseFloat(r.min) || 0, cargos: (ef.cargos || r.cargos || []).slice(), principal: ef.principal || '',
+      soSeCardapio: false,
+    });
+  });
+  D.calculosOrcamento[OCO_LISTA_TODOS] = lista;
+  rOrcCalculos();
+}
+
+function _ocoRenderTodos(cont) {
+  var regras = _ocoRegras(OCO_LISTA_TODOS);
+  var norm = _ocoNorm;
+  var insumos = (typeof getInsumos === 'function' ? getInsumos() : []);
+  var insumosNomes = insumos.map(function(i) { return i.nome; }).filter(Boolean)
+    .sort(function(a, b) { return a.localeCompare(b, 'pt-BR'); });
+  var esc = function(s) { return String(s).replace(/"/g, '&quot;'); };
+  var moeda = function(v) { return (typeof fR === 'function') ? fR(v) : 'R$ ' + Number(v || 0).toFixed(2); };
+
+  var ctx = {
+    regras: regras, cargos: _cargosDisponiveis(), insumos: insumosNomes, orfaosIds: {},
+    // Embaixo do nome: preço do Cadastro + "só com cardápio"
+    extraNome: function(r) {
+      var preco = (typeof _orcPrecoInsumoComTemporada === 'function') ? _orcPrecoInsumoComTemporada(r.item, 'baixa') : { valor: 0 };
+      return '<div style="font-size:9px;margin-top:3px;color:' + (preco.valor ? 'var(--text3)' : 'var(--amber)') + '">' +
+          (preco.valor ? moeda(preco.valor) + ' / un no Cadastro' : '⚠️ sem preço no Cadastro de Insumos (entra com R$ 0)') +
+        '</div>' +
+        '<label style="display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:500;color:var(--text2);margin:4px 0 0;cursor:pointer;text-transform:none;letter-spacing:0;width:auto" ' +
+          'title="Marcado: só entra quando um coquetel do cardápio usa este item. Desmarcado: entra sozinho em todo orçamento.">' +
+          '<input type="checkbox" style="width:auto;margin:0" ' + (r.soSeCardapio ? 'checked' : '') + ' onchange="ocoTodosSetCardapio(\'' + r.id + '\',this.checked)"> só com cardápio' +
+        '</label>';
+    },
+  };
+
+  var html = '<div style="padding:20px 24px;max-width:1100px">' +
+    '<div style="margin-bottom:16px">' +
+      '<div style="font-size:18px;font-weight:700;color:var(--text)">Cálculos do Orçamento</div>' +
+      '<div style="font-size:12px;color:var(--text3);margin-top:2px">Quantidade de cada item no orçamento — vale para todos os eventos. O preço vem do Cadastro de Insumos.</div>' +
+    '</div>' +
+    _ocoTopTabsHtml() +
+    '<div style="font-size:12px;color:var(--text3);margin-bottom:14px;line-height:1.6">' +
+      '<strong style="color:var(--text2)">"Só com cardápio" desmarcado</strong>: entra sozinho em todo orçamento (ex.: gelo, seguro quebra, lanche).<br>' +
+      '<strong style="color:var(--text2)">"Só com cardápio" marcado</strong>: só entra quando um coquetel do cardápio usa o item, com a quantidade daqui.<br>' +
+      'Fixo = sempre a mesma quantidade · Por convidado / equipe / cargo = quantidade a cada X pessoas · Segue outro item = a quantidade vem de outro item.' +
+    '</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">' +
+      '<button class="btn" onclick="ocoTrazerDaSeparacao()" title="Copia os itens marcados AUTO ORÇ. em Folha de Separação → Cálculos">Trazer itens AUTO ORÇ. da Separação</button>' +
+      '<button class="btn" style="background:var(--green);font-weight:700;margin-left:auto" onclick="ocoSalvar()">💾 Salvar</button>' +
+    '</div>';
+
+  html += regras.length
+    ? '<div style="display:grid;gap:6px">' + regras.map(function(r) { return _ocoLinhaRegraHtml(r, ctx); }).join('') + '</div>'
+    : '<div style="text-align:center;color:var(--text3);padding:28px;border:1px dashed var(--border2);border-radius:var(--radius)">Nenhum item ainda — adicione abaixo, na ordem que quiser.</div>';
+
+  var existentes = {};
+  regras.forEach(function(r) { existentes[norm(r.item)] = true; });
+  var porCat = {};
+  insumos.forEach(function(i) {
+    if (!i.nome || existentes[norm(i.nome)]) return;
+    var c = i.categoria || 'SEM CATEGORIA';
+    (porCat[c] = porCat[c] || []).push(i.nome);
+  });
+
+  html += '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-top:12px">' +
+    '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">+ Adicionar item do Cadastro de Insumos</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">' +
+      '<div style="flex:1;min-width:240px"><label class="lbl">Item</label>' +
+        '<select id="oco-item-add" class="inp" style="width:100%"><option value="">— escolher —</option>' +
+          Object.keys(porCat).sort().map(function(cat) {
+            return '<optgroup label="' + esc(cat) + '">' +
+              porCat[cat].sort(function(a, b) { return a.localeCompare(b, 'pt-BR'); }).map(function(n) {
+                return '<option value="' + esc(n) + '" data-cat="' + esc(cat) + '">' + n + '</option>';
+              }).join('') +
+            '</optgroup>';
+          }).join('') +
+        '</select></div>' +
+      '<button class="btn" onclick="ocoAdicionarItem()" style="background:var(--blue);white-space:nowrap">+ Adicionar</button>' +
+      '<button class="btn" onclick="go(\'cadastro\')" style="white-space:nowrap" title="Item que ainda não existe (ex.: Seguro Quebra) — cadastre lá com o preço e volte aqui">Cadastrar insumo novo</button>' +
+    '</div>' +
+  '</div>' +
+  '<div style="margin:16px 0 20px"><button class="btn" style="background:var(--green);font-weight:700;padding:10px 24px" onclick="ocoSalvar()">💾 Salvar</button></div>' +
+  '</div>';
+
   cont.innerHTML = html;
 }
