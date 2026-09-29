@@ -485,8 +485,14 @@ function _orcCalcResumo(orc) {
   // segurança/lucro, são somados direto no total depois. Sem nenhum item
   // viaRevenda (todo orçamento anterior a essa funcionalidade), o cálculo é
   // idêntico ao de sempre.
-  const insumosCusto   = insumos.filter(i => !i.viaRevenda);
-  const insumosRevenda = insumos.filter(i => i.viaRevenda);
+  // MATERIAL (kit base) e DESCARTÁVEIS não têm valor direto no orçamento:
+  // Material ela só quer poder ver/abrir, sem pesar no custo; Descartáveis
+  // já é cobrado pelo item automático "Descartáveis (por convidado)" desta
+  // mesma função (builtin 'desc' abaixo) — contar nome a nome de novo
+  // cobraria em dobro (ver _orcCatSemValorDireto em orcamento.js).
+  const _semValorDireto = i => (typeof _orcCatSemValorDireto === 'function') && _orcCatSemValorDireto(i.cat);
+  const insumosCusto   = insumos.filter(i => !i.viaRevenda && !_semValorDireto(i));
+  const insumosRevenda = insumos.filter(i => i.viaRevenda && !_semValorDireto(i));
   const custoInsumos = insumosCusto.reduce((s, i) => s + (i.total || 0), 0);
   const valorInsumosRevenda = insumosRevenda.reduce((s, i) => s + (i.total || 0), 0);
 
@@ -793,14 +799,16 @@ function rOrcCalc() {
     const itensCat  = insumosPorCat[cat];
     const totalCat  = itensCat.reduce((s, i) => s + (i.total || 0), 0);
     const cor       = CAT_COR_INSUMO[cat] || '#F97316';
+    const semValor  = (typeof _orcCatSemValorDireto === 'function') && _orcCatSemValorDireto(cat);
+    const motivo    = (typeof _orcMotivoSemValor === 'function') ? _orcMotivoSemValor(cat) : 'sem valor no orçamento';
     return `
-      <div style="background:var(--bg2);border:1px solid var(--border);border-left:3px solid ${cor};border-radius:var(--radius);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;padding:10px 14px;cursor:pointer"
+      <div style="background:var(--bg2);border:1px solid var(--border);border-left:3px solid ${cor};border-radius:var(--radius);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;padding:10px 14px;cursor:pointer${semValor?';opacity:.75':''}"
         onclick="setOrcTab('cardapio')">
         <div>
           <span style="font-size:12px;font-weight:700;color:${cor}">${cat}</span>
-          <span style="font-size:10px;color:var(--text3);margin-left:8px">${itensCat.length} item(ns) &middot; clique para gerenciar</span>
+          <span style="font-size:10px;color:var(--text3);margin-left:8px">${itensCat.length} item(ns) &middot; ${semValor ? motivo : 'clique para gerenciar'}</span>
         </div>
-        <span style="font-size:13px;font-weight:700;font-family:var(--mono);color:${cor}">${fR(totalCat)}</span>
+        ${semValor ? '' : `<span style="font-size:13px;font-weight:700;font-family:var(--mono);color:${cor}">${fR(totalCat)}</span>`}
       </div>`;
   }).join('') : `
     <div style="background:var(--bg2);border:1px dashed var(--border);border-radius:var(--radius);margin-bottom:10px;padding:12px 14px;cursor:pointer;opacity:.7"

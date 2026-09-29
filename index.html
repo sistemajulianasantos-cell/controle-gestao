@@ -2426,15 +2426,15 @@
 <script src="js/insumos.js?v=20260901e"></script>
 <script src="js/estoqueSeparacao.js?v=20260901d"></script>
 <script src="js/cargos.js?v=20260713b"></script>
-<script src="js/regras.js?v=20260915b"></script>
+<script src="js/regras.js?v=20260922a"></script>
 <script src="js/opcionais.js?v=20260908a"></script>
 <script src="js/associacoes.js?v=20260901a"></script>
 <script src="js/fichaTecnica.js?v=20260915b"></script>
 <script src="js/separacao.js?v=20260921c"></script>
 <script src="js/equipe.js?v=20260805e"></script>
 <script src="js/solicitacaoOrcamento.js?v=20260803f"></script>
-<script src="js/orcamento.js?v=20260915b"></script>
-<script src="js/orcCalc.js?v=20260915b"></script>
+<script src="js/orcamento.js?v=20260922b"></script>
+<script src="js/orcCalc.js?v=20260922b"></script>
 <script src="js/orcCalculos.js?v=20260914k"></script>
 <script src="js/orcProposta.js?v=20260915a"></script>
 <script src="js/_refConsumoData.js?v=20260610z"></script>
@@ -2443,7 +2443,7 @@
 
 <script type="module">
 import { initializeApp }    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, deleteDoc, writeBatch }
+import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, deleteDoc, writeBatch, onSnapshot }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, signInAnonymously }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -2720,6 +2720,33 @@ window.restaurarBackupFinanceiroAno = async function(ano) {
   }
 };
 
+// ─── ORÇAMENTOS EM TEMPO REAL ───────────────────────────────────────────────
+// sv('orcamentos') sobrescreve o array inteiro de orçamentos a cada
+// gravação (ver svFirebase acima) — sem isso, dois acessos abertos ao mesmo
+// tempo (ex: Juliana e outra pessoa criando orçamentos diferentes em duas
+// telas) cada um só enxerga os orçamentos que existiam no momento em que
+// SUA aba carregou a página; se uma salvar depois da outra, a gravação mais
+// recente sobrescreve o array com uma lista desatualizada e o orçamento da
+// outra pessoa some silenciosamente do banco. onSnapshot mantém D.orcamentos
+// sincronizado com o Firestore em tempo real pra toda aba aberta — além de
+// resolver o "não aparece", isso faz o array já vir atualizado na hora de
+// salvar, então a sobrescrita deixa de apagar orçamento alheio. Só força
+// re-render da tela quando ela está na Lista (não mexe se estiver no meio de
+// uma edição na tela de Detalhe, pra não resetar um campo digitado e ainda
+// não salvo).
+function _ouvirOrcamentosEmTempoReal() {
+  onSnapshot(doc(db, "dados", "orcamentos"), (snap) => {
+    if (!window._dadosCarregados) return;
+    D.orcamentos = (snap.data() || {}).valor || [];
+    try {
+      const pa = document.querySelector('.page.active');
+      if (pa && pa.id === 'page-orcamento' && typeof orcView !== 'undefined' && orcView === 'lista' && typeof rOrcamento === 'function') {
+        rOrcamento();
+      }
+    } catch (e) {}
+  }, (e) => console.error('Erro no listener de orçamentos:', e));
+}
+
 // ─── CARREGAR ────────────────────────────────────────────────────────────────
 async function carregarDados() {
   try {
@@ -2856,6 +2883,8 @@ async function carregarDados() {
         }
       } catch(e) {}
     }, 300);
+
+    _ouvirOrcamentosEmTempoReal();
 
   } catch(e) {
     window._erroCarregamento = true;

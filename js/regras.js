@@ -782,17 +782,12 @@ function rFormFicha(fichaExistente) {
   });
 
   html += '</div>' +
-    '<div style="margin-top:8px">' +
-      '<label class="lbl" style="display:block;margin-bottom:4px">Item personalizado</label>' +
-      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">' +
-        '<select id="fc-custom-cat" class="inp" style="width:180px">' +
-          Object.keys(getItensFicha()).map(function(cat){return '<option value="'+cat+'">'+cat+'</option>';}).join('') +
-        '</select>' +
-        '<input class="inp" id="fc-custom-nome" type="text" placeholder="Nome do item" style="flex:1;min-width:150px">' +
-        '<button class="btn" onclick="adicionarItemCustom()" style="background:var(--blue)">+ Adicionar</button>' +
-      '</div>' +
-      '<div id="fc-custom-lista" style="display:flex;flex-wrap:wrap;gap:6px"></div>' +
-    '</div>' +
+    // Item sempre escolhido do Cadastro de Insumos, nunca digitado do zero —
+    // um nome digitado diferente do cadastrado vira um item "órfão" que não
+    // bate com nenhum insumo e duplica no Orçamento quando outra ficha usa a
+    // grafia certa do mesmo produto (pedido 2026-09-22, mesmo motivo já
+    // resolvido nas Regras de Proporção via regraKitAdd()).
+    '<div style="margin-top:8px;font-size:11px;color:var(--text3)">Não achou o item na lista acima? <a href="#" onclick="go(\'cadastro\');return false" style="color:var(--blue)">Cadastre em Cadastro de Insumos</a> primeiro — ele aparece aqui automaticamente.</div>' +
     // Itens extras (já na ficha mas fora da lista atual)
     (itensExtras.length ? 
       '<div style="margin-top:14px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);padding:10px 12px">' +
@@ -817,7 +812,6 @@ function rFormFicha(fichaExistente) {
     '</div></div></div>';
 
   cont.innerHTML = html;
-  window._customItens = [];
   // Os itens "fora das categorias padrão" (itensExtras, acima) já aparecem
   // como checkbox marcado nesta mesma tela — não pré-popular de novo aqui
   // como tag customizada, senão o mesmo item é salvo duas vezes em
@@ -858,7 +852,6 @@ function _fcSyncMedidas() {
   document.querySelectorAll('#regras-view-nova-ficha input[type="checkbox"]:checked').forEach(function(cb) {
     if (cb.dataset.nome) sel.push({ cat: cb.dataset.cat, nome: cb.dataset.nome });
   });
-  (window._customItens || []).forEach(function(i) { sel.push({ cat: i.cat, nome: i.nome }); });
   var vistos = {};
   sel = sel.filter(function(x) { var k = x.cat + '|' + x.nome; if (vistos[k]) return false; vistos[k] = 1; return true; });
 
@@ -931,40 +924,11 @@ function filtrarItensFicha(v) {
   var dica = document.getElementById('fc-itens-dica');
   if (dica) {
     var msg = '';
-    if (termo && totalVisivel === 0) msg = 'Nenhum item encontrado. Se não estiver no Cadastro de Insumos, use "Item personalizado" abaixo.';
+    if (termo && totalVisivel === 0) msg = 'Nenhum item encontrado. Se não estiver no Cadastro de Insumos, cadastre lá primeiro.';
     else if (!termo && totalMarcados === 0) msg = 'Nenhum item marcado ainda — busque pelo nome acima para adicionar.';
     dica.textContent = msg;
     dica.style.display = msg ? '' : 'none';
   }
-}
-
-if (!window._customItens) window._customItens = [];
-
-function adicionarItemCustom() {
-  var cat = document.getElementById('fc-custom-cat')?.value;
-  var nome = (document.getElementById('fc-custom-nome')?.value||'').trim().toUpperCase();
-  if (!nome) return;
-  adicionarTagCustom(cat, nome);
-  document.getElementById('fc-custom-nome').value = '';
-}
-
-function adicionarTagCustom(cat, nome) {
-  var id = 'cx'+Date.now()+Math.random().toString(36).slice(2);
-  window._customItens.push({id:id, cat:cat, nome:nome});
-  var cont = document.getElementById('fc-custom-lista');
-  if (!cont) return;
-  var tag = document.createElement('span');
-  tag.style.cssText = 'display:inline-flex;align-items:center;gap:5px;background:var(--blue-bg);border:1px solid var(--blue-dim);color:var(--blue);padding:3px 10px;border-radius:20px;font-size:11px';
-  tag.dataset.id = id;
-  tag.innerHTML = cat + ': ' + nome + ' <span style="cursor:pointer;font-weight:700" onclick="removerCustom(\'' + id + '\',this.parentElement)">×</span>';
-  cont.appendChild(tag);
-  if (typeof _fcSyncMedidas === 'function') _fcSyncMedidas();
-}
-
-function removerCustom(id, el) {
-  window._customItens = (window._customItens||[]).filter(function(x){return x.id!==id;});
-  if (typeof _fcSyncMedidas === 'function') setTimeout(_fcSyncMedidas, 0);
-  if (el) el.remove();
 }
 
 function salvarFicha(idExistente) {
@@ -1013,7 +977,6 @@ function salvarFicha(idExistente) {
   document.querySelectorAll('#regras-view-nova-ficha input[type="checkbox"]:checked').forEach(function(cb){
     if (cb.dataset.nome) addItem(cb.dataset.cat, cb.dataset.nome);
   });
-  (window._customItens||[]).forEach(function(i){ addItem(i.cat, i.nome); });
   // O copo do select "Copo / Serviço" sempre entra como item da ficha (assim
   // ela escolhe o copo num lugar só) — mesmo que o checkbox dele não exista
   // na lista (copo sem categoria / fora de COPOS E TAÇAS).
@@ -1036,7 +999,6 @@ function salvarFicha(idExistente) {
   } else {
     D.fichas.push(ficha);
   }
-  window._customItens = [];
   window._fcMedidas = {};
   sv('fichas');
 
@@ -1047,7 +1009,6 @@ function salvarFicha(idExistente) {
 function editarFicha(id) {
   var f = (D.fichas||[]).find(function(x){return x.id===id;});
   if (!f) return;
-  window._customItens = [];
   setRegrasView('nova-ficha');
   setTimeout(function(){rFormFicha(f);}, 50);
 }
@@ -1063,7 +1024,6 @@ function clonarFicha(id) {
   var clone = JSON.parse(JSON.stringify(f));
   clone.id = '';
   clone.nome = (f.nome || '') + ' (CÓPIA)';
-  window._customItens = [];
   setRegrasView('nova-ficha');
   setTimeout(function(){rFormFicha(clone);}, 50);
 }

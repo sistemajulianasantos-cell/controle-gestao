@@ -720,6 +720,30 @@ function salvarDadosEvento(orcId) {
 // js/categorias.js), editável lá com as setas ▲▼. Categoria sem entrada em
 // D.categorias (ex: nome que não bate exatamente, tipo "MATERIAL
 // (ESPECÍFICO)" vindo de uma ficha) cai no fim, em ordem alfabética.
+// Categorias que ela precisa VER na Folha de Separação (o que separar/levar)
+// mas que não têm valor direto no Orçamento:
+// - MATERIAL: descascador, macerador, garrafa, palito... — igual o Kit Base
+//   da Separação, ela quer poder abrir e ver o que é, sem isso pesar no
+//   custo/preço (pedido 2026-09-22).
+// - DESCARTÁVEIS: copo descartável, pano de prato, guardanapo... — o custo
+//   desses já está embutido no item automático "Descartáveis (por
+//   convidado)" da Calculadora (orcCalc.js, R$/convidado fixo). Contar de
+//   novo o custo de cada um individualmente aqui cobraria em dobro (pedido
+//   2026-09-22: "no orçamento pano de prato não é cobrado por item e sim
+//   como descartáveis").
+// Usado tanto aqui quanto em orcCalc.js.
+function _orcCatSemValorDireto(cat) {
+  const c = (cat || '').toUpperCase().trim();
+  return c === 'MATERIAL' || c === 'MATERIAL (ESPECÍFICO)' || c === 'DESCARTÁVEIS';
+}
+
+// Texto do resumo colapsado por categoria, explicando o motivo específico.
+function _orcMotivoSemValor(cat) {
+  return (cat || '').toUpperCase().trim() === 'DESCARTÁVEIS'
+    ? 'cobrado como "Descartáveis por convidado" na Calculadora, não por item'
+    : 'kit base, sem valor no orçamento';
+}
+
 function _orcOrdenarCats(cats) {
   // Garante que D.categorias já tem `ordem` mesmo se ela nunca abriu a tela
   // Cadastro Central → Categorias (onde essa migração normalmente roda) —
@@ -742,7 +766,7 @@ function rOrcCardapio(orc) {
   if (!el) return;
   const insumos      = orc.insumos || [];
   const p            = orc.calcParams || {};
-  const custoInsumos = insumos.reduce((s,i) => s + (i.total||0), 0);
+  const custoInsumos = insumos.filter(i => !_orcCatSemValorDireto(i.cat)).reduce((s,i) => s + (i.total||0), 0);
 
   const grupoLabel = (buscarTipoEventoPorId(p.tipoEvento||'outros')||{}).nome || (p.tipoEvento||'outros');
 
@@ -801,9 +825,9 @@ function rOrcCardapio(orc) {
               const cat = item.cat || 'OUTROS';
               (porCat[cat] = porCat[cat]||[]).push({...item, idx});
             });
-            return _orcOrdenarCats(Object.keys(porCat)).map(cat => `
-              <div style="padding:5px 12px;background:var(--bg4,var(--bg3));font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--border)">${cat}</div>
-              ${porCat[cat].map(item=>`
+            return _orcOrdenarCats(Object.keys(porCat)).map(cat => {
+              const catLabel = `<div style="padding:5px 12px;background:var(--bg4,var(--bg3));font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--border)">${cat}</div>`;
+              const rows = porCat[cat].map(item=>`
                 <div style="display:grid;grid-template-columns:1fr 120px;gap:8px;align-items:center;padding:6px 12px;border-bottom:1px solid var(--border)">
                   <div>
                     <span style="font-weight:500;color:var(--text)">${item.nome}</span>
@@ -815,7 +839,15 @@ function rOrcCardapio(orc) {
                       style="width:55px;text-align:center;font-size:12px;font-weight:700;padding:3px 5px;border-radius:4px;border:1px solid ${item.qtd>0?'var(--green-dim)':'var(--border2)'};background:var(--bg);color:${item.qtd>0?'var(--green)':'var(--text3)'};font-family:var(--mono)">
                     <span style="font-size:9px;color:var(--text3)">${item.cat==='COPOS E TAÇAS'?'uni':'garrafas'}</span>
                   </div>
-                </div>`).join('')}`).join('');
+                </div>`).join('');
+              if (_orcCatSemValorDireto(cat)) {
+                return `<details>
+                  <summary style="padding:5px 12px;background:var(--bg4,var(--bg3));font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--border);cursor:pointer;user-select:none">${cat} <span style="font-weight:400;text-transform:none;opacity:.8">(${porCat[cat].length} item(ns) · ${_orcMotivoSemValor(cat)})</span></summary>
+                  ${rows}
+                </details>`;
+              }
+              return catLabel + rows;
+            }).join('');
           })()}
         </div>
         <div style="margin-top:10px;display:flex;gap:8px">
@@ -849,9 +881,9 @@ function rOrcCardapio(orc) {
         ${(() => {
           const porCat = {};
           insumos.forEach(ins => { const cat = ins.cat || 'OUTROS'; (porCat[cat] = porCat[cat]||[]).push(ins); });
-          return _orcOrdenarCats(Object.keys(porCat)).map(cat => `
-            <div style="padding:5px 10px;background:var(--bg4,var(--bg3));font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--border)">${cat}</div>
-            ${porCat[cat].map(ins => `
+          return _orcOrdenarCats(Object.keys(porCat)).map(cat => {
+            const catLabel = `<div style="padding:5px 10px;background:var(--bg4,var(--bg3));font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--border)">${cat}</div>`;
+            const rows = porCat[cat].map(ins => `
               <div style="display:grid;grid-template-columns:${_insCols};align-items:center;gap:0;padding:6px 10px;border-bottom:1px solid var(--border);font-size:12px">
                 <div>
                   <span style="font-weight:500;color:var(--text)">${ins.nome}</span>
@@ -868,7 +900,15 @@ function rOrcCardapio(orc) {
                 <div style="text-align:center">
                   <span onclick="calcRemoveInsumo('${ins.id}')" style="cursor:pointer;color:var(--red);font-size:15px;line-height:1" title="Remover">×</span>
                 </div>
-              </div>`).join('')}`).join('');
+              </div>`).join('');
+            if (_orcCatSemValorDireto(cat)) {
+              return `<details>
+                <summary style="padding:5px 10px;background:var(--bg4,var(--bg3));font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--border);cursor:pointer;user-select:none">${cat} <span style="font-weight:400;text-transform:none;opacity:.8">(${porCat[cat].length} item(ns) · ${_orcMotivoSemValor(cat)})</span></summary>
+                ${rows}
+              </details>`;
+            }
+            return catLabel + rows;
+          }).join('');
         })()}` : `
           <div style="padding:24px;text-align:center;color:var(--text3);font-size:12px">
             Nenhum insumo adicionado. Selecione um cardápio acima ou adicione manualmente abaixo.
