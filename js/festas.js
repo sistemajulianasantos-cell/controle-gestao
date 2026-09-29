@@ -16,6 +16,7 @@ function addIF(){
 function rNFItens(){
   const c=document.getElementById('nf-itens');
   const ct=document.getElementById('nf-count');
+  if(!c)return; // bloco "Novo evento" saiu do index.html (06-22) — sem isso quebrava carregarDados
   if(!nfItens.length){c.innerHTML='<div style="font-size:11px;color:var(--text3);padding:12px 14px">Nenhum produto adicionado</div>';if(ct)ct.textContent='';return;}
   c.innerHTML=`<div style="display:grid;grid-template-columns:1fr 80px 100px 28px;gap:8px;padding:8px 14px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg4);z-index:1">
     <span style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase">Produto</span>

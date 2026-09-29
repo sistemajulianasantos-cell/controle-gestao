@@ -129,8 +129,10 @@ async function tentarLogin() {
 
   // O login fica por cima do "Carregando..." — antes de carregarDados()
   // terminar, D.senhas ainda não existe e toda senha daria "incorreta"
-  // (e contaria pro bloqueio). Espera os dados chegarem em vez de recusar.
-  if (!window._dadosCarregados) {
+  // (e contaria pro bloqueio). Espera as senhas chegarem em vez de recusar.
+  // Só depende das senhas — um erro de tela depois disso no carregamento
+  // não pode travar o login.
+  if (!window._senhasCarregadas) {
     const erroEl = document.getElementById('login-erro');
     const msgCarga = document.getElementById('loading-msg');
     if (window._erroCarregamento) {
@@ -141,7 +143,7 @@ async function tentarLogin() {
     if (!window._loginAguardando) {
       window._loginAguardando = true;
       const esperar = () => {
-        if (window._dadosCarregados) { window._loginAguardando = false; tentarLogin(); }
+        if (window._senhasCarregadas) { window._loginAguardando = false; tentarLogin(); }
         else if (window._erroCarregamento) { window._loginAguardando = false; tentarLogin(); }
         else setTimeout(esperar, 300);
       };
@@ -245,6 +247,9 @@ function fazerLogout() {
   _mfaPendente = null;
   window._contratosInited = false;
   document.getElementById('login-senha').value = '';
+  document.getElementById('login-senha').type = 'password';
+  const btnVer = document.getElementById('login-senha-ver');
+  if (btnVer) btnVer.textContent = 'Mostrar';
   document.getElementById('login-erro').textContent = '';
   document.getElementById('login-overlay').style.display = 'flex';
 }
