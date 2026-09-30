@@ -778,7 +778,7 @@ function rFormFicha(fichaExistente) {
       itens.map(function(item) {
         var checked = itensIds.has(cat+'|'+item) ? 'checked' : '';
         return '<label class="fc-item-label" data-busca="' + item.toLowerCase() + '" style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;background:var(--bg3);padding:3px 8px;border-radius:var(--radius);border:1px solid var(--border)">' +
-          '<input type="checkbox" data-cat="' + cat + '" data-nome="' + item + '" ' + checked + ' onchange="_fcSyncMedidas();filtrarItensFicha((document.getElementById(\'fc-item-busca\')||{}).value||\'\')" style="cursor:pointer"> ' + item + '</label>';
+          '<input type="checkbox" data-cat="' + cat + '" data-nome="' + item + '" ' + checked + ' onchange="_fcItemMudou(this);filtrarItensFicha((document.getElementById(\'fc-item-busca\')||{}).value||\'\')" style="cursor:pointer"> ' + item + '</label>';
       }).join('') +
       '</div></div>';
   });
@@ -797,7 +797,7 @@ function rFormFicha(fichaExistente) {
         '<div style="display:flex;flex-wrap:wrap;gap:6px">' +
         itensExtras.map(function(item) {
           return '<label style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;background:var(--bg4);padding:3px 8px;border-radius:var(--radius);border:1px solid var(--blue-dim)">' +
-            '<input type="checkbox" data-cat="' + item.cat + '" data-nome="' + item.nome + '" checked onchange="_fcSyncMedidas()" style="cursor:pointer"> ' +
+            '<input type="checkbox" data-cat="' + item.cat + '" data-nome="' + item.nome + '" checked onchange="_fcItemMudou(this)" style="cursor:pointer"> ' +
             '<span style="color:var(--text3)">' + item.cat + ':</span> ' + item.nome + '</label>';
         }).join('') +
         '</div>' +
@@ -898,6 +898,23 @@ function _fcMarcarCheckboxCopo(novo, anterior) {
     if (A && nome === A && nome !== N) cb.checked = false;
     if (N && nome === N) cb.checked = true;
   });
+}
+
+// Desmarcar no checklist o item que está no select "Copo / Serviço" tem que
+// tirar ele do select também — senão salvarFicha() re-adiciona o copo do
+// select como item e o desmarcado "volta" (pedido 09-30, TAÇA XTRAR). O
+// select passa pro outro copo que continuar marcado (COPOS E TAÇAS), ou vazio.
+function _fcItemMudou(cb) {
+  var sel = document.getElementById('fc-copo-id');
+  if (cb && !cb.checked && sel && sel.value && (cb.dataset.nome || '').trim().toUpperCase() === sel.value.trim().toUpperCase()) {
+    var outro = '';
+    document.querySelectorAll('#regras-view-nova-ficha input[type="checkbox"][data-nome]:checked').forEach(function(x) {
+      if (!outro && /COPOS/i.test(x.dataset.cat || '') && Array.from(sel.options).some(function(o) { return o.value === x.dataset.nome; })) outro = x.dataset.nome;
+    });
+    sel.value = outro;
+    sel.dataset.copoAnterior = outro;
+  }
+  _fcSyncMedidas();
 }
 
 function _fcCopoMudou(sel) {
