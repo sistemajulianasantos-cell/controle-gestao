@@ -1,5 +1,5 @@
 // ─── LOGIN / AUTENTICAÇÃO ─────────────────────────────────────────────────────
-// D.senhas: { hash → 'perfil' } (legado) ou { hash → { p:'perfil', mfa:'BASE32' } }
+// D.senhas: { hash → 'perfil' } (legado) ou { hash → { p:'perfil', n:'nome do usuário', mfa:'BASE32' } }
 // ══════════════════════════════════════════════════════════════════════════════
 
 var ACESSO = {
@@ -9,6 +9,7 @@ var ACESSO = {
 };
 
 var perfilAtual = null;
+var senhaHashAtual = null; // hash da senha usada no login — diz QUEM está logado (nome em D.senhas[hash].n)
 
 // ── SHA-256 ───────────────────────────────────────────────────────────────────
 async function hashSenha(s) {
@@ -167,7 +168,7 @@ async function tentarLogin() {
   const mfaSecret  = typeof entry === 'object' ? (entry.mfa || null) : null;
 
   if (mfaSecret) {
-    _mfaPendente = { perfil, secret: mfaSecret };
+    _mfaPendente = { perfil, secret: mfaSecret, hash };
     document.getElementById('login-step-senha').style.display = 'none';
     document.getElementById('login-step-mfa').style.display  = '';
     document.getElementById('login-mfa-input').value = '';
@@ -175,7 +176,7 @@ async function tentarLogin() {
     document.getElementById('login-erro').textContent = '';
     return;
   }
-  _concluirLogin(perfil);
+  _concluirLogin(perfil, hash);
 }
 
 async function tentarLoginMFA() {
@@ -192,8 +193,9 @@ async function tentarLoginMFA() {
     return;
   }
   const perfil = _mfaPendente.perfil;
+  const hashLogin = _mfaPendente.hash;
   _mfaPendente = null;
-  _concluirLogin(perfil);
+  _concluirLogin(perfil, hashLogin);
 }
 
 function cancelarMFA() {
@@ -205,9 +207,10 @@ function cancelarMFA() {
   document.getElementById('login-mfa-erro').textContent = '';
 }
 
-function _concluirLogin(perfil) {
+function _concluirLogin(perfil, hash) {
   _bfReset();
   perfilAtual = perfil;
+  senhaHashAtual = hash || null;
   document.getElementById('login-overlay').style.display = 'none';
   document.getElementById('login-step-senha').style.display = '';
   document.getElementById('login-step-mfa').style.display  = 'none';
@@ -234,7 +237,14 @@ function aplicarPerfil(p) {
   }
   const labels = { admin: 'Administrador', financeiro: 'Financeiro', operacional: 'Operacional' };
   const el = document.getElementById('perfil-label');
-  if (el) el.textContent = labels[p] || p;
+  const nome = nomeUsuarioDaSenha(senhaHashAtual);
+  if (el) el.textContent = (nome ? nome + ' · ' : '') + (labels[p] || p);
+}
+
+// Nome do usuário gravado junto da senha (Segurança → Senhas cadastradas)
+function nomeUsuarioDaSenha(hash) {
+  const entry = hash ? (D.senhas || {})[hash] : null;
+  return (entry && typeof entry === 'object' && entry.n) ? entry.n : '';
 }
 
 // ── Logout ────────────────────────────────────────────────────────────────────
@@ -243,6 +253,7 @@ function fazerLogout() {
   clearTimeout(_timerTimeout);
   sessionStorage.removeItem('perfil');
   perfilAtual = null;
+  senhaHashAtual = null;
   _mfaPendente = null;
   window._contratosInited = false;
   document.getElementById('login-senha').value = '';
