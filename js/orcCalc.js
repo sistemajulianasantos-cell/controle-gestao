@@ -242,6 +242,139 @@ function _mk(id, secao, nome, qtd, preco) {
   };
 }
 
+// ─── TAXAS E ADICIONAIS ───────────────────────────────────────────────────────
+// Imposto/NF, Comissão, Cerimônia no local e Hora extra. Os valores padrão
+// ficam em D.orcPrecos.adicionais (Regras e Cálculos → Preços do Orçamento →
+// "Taxas e adicionais"); ao CRIAR um orçamento eles são copiados pra dentro
+// dele (orc.calcParams.adic) — mudar o padrão depois não mexe em orçamento
+// já feito/enviado. Dentro do orçamento cada valor pode ser trocado à mão.
+// "Pausado" = orçamento novo vem com o item desligado.
+//
+// Conta (por pacote): base = valor com margens →
+//   + Cerimônia (valor × colaboradores) + Hora extra (horas × (valor ×
+//   colaboradores + % × base)) = subtotal → + Imposto % e Comissão % sobre
+//   o subtotal (os dois sobre o mesmo subtotal, sem um incidir no outro).
+var ORC_ADICIONAIS_PADRAO = {
+  imposto:   { pct: 10, ativo: true },
+  comissao:  { pct: 0,  ativo: true },
+  cerimonia: { valor: 45, ativo: true },
+  horaExtra: { valorColab: 45, pct: 10, opcoesPct: [10, 20], ativo: true },
+};
+
+function getOrcAdicionais() {
+  var salvo = (D.orcPrecos && D.orcPrecos.adicionais) || {};
+  var out = {};
+  Object.keys(ORC_ADICIONAIS_PADRAO).forEach(function(k) {
+    out[k] = Object.assign({}, ORC_ADICIONAIS_PADRAO[k], salvo[k] || {});
+  });
+  return out;
+}
+
+// Valores iniciais de um orçamento novo. `resp` = respostas do formulário de
+// Novo Orçamento (inclui* / horas / pct); sem resposta, segue o padrão ativo.
+function _orcAdicInicial(resp) {
+  resp = resp || {};
+  var a = getOrcAdicionais();
+  var sim = function(v, def) { return v == null ? def : !!v; };
+  return {
+    imposto:   { inclui: sim(resp.imposto, a.imposto.ativo),   pct: Number(a.imposto.pct) || 0 },
+    comissao:  { inclui: sim(resp.comissao, a.comissao.ativo), pct: Number(a.comissao.pct) || 0 },
+    cerimonia: { inclui: sim(resp.cerimonia, false),           valor: Number(a.cerimonia.valor) || 0 },
+    horaExtra: { horas: Number(resp.horas) || 0, pct: resp.pctHora != null ? Number(resp.pctHora) : (Number(a.horaExtra.pct) || 0),
+                 valorColab: Number(a.horaExtra.valorColab) || 0 },
+  };
+}
+
+// Orçamento antigo (sem calcParams.adic) = tudo desligado, pra não mudar o
+// valor de orçamento que já existia.
+function _orcGetAdic(orc) {
+  var p = orc.calcParams || (orc.calcParams = {});
+  if (!p.adic) {
+    var ini = _orcAdicInicial({ imposto: false, comissao: false, cerimonia: false, horas: 0 });
+    return ini; // não grava: só vira dado quando ela mexer (calcSetAdic)
+  }
+  return p.adic;
+}
+
+function _orcColaboradores(orc) {
+  var p = orc.calcParams || {};
+  var autoS = _calcAutoStaff(orc.convidados || 0);
+  return (p.bartender != null ? Number(p.bartender) : autoS.bt)
+    + (p.barback != null ? Number(p.barback) : autoS.bb)
+    + (p.head    != null ? Number(p.head)    : autoS.hb)
+    + (p.coord   != null ? Number(p.coord)   : autoS.cd)
+    + (p.copeiro != null ? Number(p.copeiro) : 0);
+}
+
+function _orcAplicarAdicionais(adic, base, colab) {
+  var r2 = function(v) { return Math.round(v * 100) / 100; };
+  var cerimonia = adic.cerimonia.inclui ? (Number(adic.cerimonia.valor) || 0) * colab : 0;
+  var horas = Number(adic.horaExtra.horas) || 0;
+  var horaExtra = horas > 0 ? horas * ((Number(adic.horaExtra.valorColab) || 0) * colab + base * (Number(adic.horaExtra.pct) || 0) / 100) : 0;
+  var subtotal = base + cerimonia + horaExtra;
+  var imposto  = adic.imposto.inclui  ? subtotal * (Number(adic.imposto.pct)  || 0) / 100 : 0;
+  var comissao = adic.comissao.inclui ? subtotal * (Number(adic.comissao.pct) || 0) / 100 : 0;
+  return { base: base, cerimonia: r2(cerimonia), horaExtra: r2(horaExtra), subtotal: r2(subtotal),
+           imposto: r2(imposto), comissao: r2(comissao), total: r2(subtotal + imposto + comissao) };
+}
+
+function calcSetAdic(grupo, campo, valor) {
+  var orc = _calcGetOrc();
+  if (!orc) return;
+  if (!orc.calcParams) orc.calcParams = {};
+  if (!orc.calcParams.adic) orc.calcParams.adic = _orcGetAdic(orc);
+  orc.calcParams.adic[grupo][campo] = (campo === 'inclui') ? !!valor : (parseFloat(valor) || 0);
+  sv('orcamentos');
+  rOrcCalc();
+}
+
+// Traz de volta o valor do cadastro (Preços do Orçamento) pra este orçamento.
+function calcAdicUsarPadrao(grupo) {
+  var orc = _calcGetOrc();
+  if (!orc) return;
+  if (!orc.calcParams.adic) orc.calcParams.adic = _orcGetAdic(orc);
+  var a = getOrcAdicionais()[grupo];
+  var alvo = orc.calcParams.adic[grupo];
+  ['pct', 'valor', 'valorColab'].forEach(function(c) { if (c in alvo && a[c] != null) alvo[c] = Number(a[c]) || 0; });
+  sv('orcamentos');
+  rOrcCalc();
+}
+
+function _orcAdicPainelHtml(orc, colab) {
+  var adic = _orcGetAdic(orc);
+  var pad = getOrcAdicionais();
+  var inp = function(grupo, campo, v, w, step) {
+    return '<input type="number" min="0" step="' + (step || '0.01') + '" value="' + (v != null ? v : 0) + '" ' +
+      'onchange="calcSetAdic(\'' + grupo + '\',\'' + campo + '\',this.value)" ' +
+      'style="width:' + (w || 70) + 'px;font-size:12px;padding:4px 6px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono);text-align:right">';
+  };
+  var chk = function(grupo, on, label) {
+    return '<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text);cursor:pointer;min-width:170px">' +
+      '<input type="checkbox"' + (on ? ' checked' : '') + ' onchange="calcSetAdic(\'' + grupo + '\',\'inclui\',this.checked)"> ' + label + '</label>';
+  };
+  var difPadrao = function(grupo, campo) {
+    var v = Number(adic[grupo][campo]) || 0, d = Number(pad[grupo][campo]) || 0;
+    return v !== d ? '<a href="#" onclick="calcAdicUsarPadrao(\'' + grupo + '\');return false" style="font-size:10px;color:var(--blue)" title="Valor do cadastro: ' + d + '">usar padrão (' + d + ')</a>' : '';
+  };
+  var linha = function(conteudo) { return '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--border)">' + conteudo + '</div>'; };
+  var t = function(s) { return '<span style="font-size:11px;color:var(--text3)">' + s + '</span>'; };
+  var opcoesPct = (pad.horaExtra.opcoesPct || [10, 20]).slice();
+  var pctAtual = Number(adic.horaExtra.pct) || 0;
+  if (opcoesPct.indexOf(pctAtual) === -1) opcoesPct.push(pctAtual);
+
+  return '<div style="border-top:1px solid var(--border);padding-top:12px;margin-bottom:12px">' +
+    '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:6px">Taxas e adicionais <span style="font-weight:400;text-transform:none">— ' + colab + ' colaborador(es) na equipe</span></div>' +
+    linha(chk('imposto', adic.imposto.inclui, 'Imposto / NF') + inp('imposto', 'pct', adic.imposto.pct, 60) + t('% sobre o valor total') + difPadrao('imposto', 'pct')) +
+    linha(chk('comissao', adic.comissao.inclui, 'Comissão') + inp('comissao', 'pct', adic.comissao.pct, 60) + t('% sobre o valor total') + difPadrao('comissao', 'pct')) +
+    linha(chk('cerimonia', adic.cerimonia.inclui, 'Cerimônia no local') + t('R$') + inp('cerimonia', 'valor', adic.cerimonia.valor, 70) + t('por colaborador') + difPadrao('cerimonia', 'valor')) +
+    linha('<span style="font-size:12px;color:var(--text);min-width:170px">Horas extras (antecipadas)</span>' + inp('horaExtra', 'horas', adic.horaExtra.horas, 55, '1') + t('h × (R$') +
+      inp('horaExtra', 'valorColab', adic.horaExtra.valorColab, 70) + t('por colaborador +') +
+      '<select onchange="calcSetAdic(\'horaExtra\',\'pct\',this.value)" style="font-size:12px;padding:4px 6px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px">' +
+        opcoesPct.map(function(o) { return '<option value="' + o + '"' + (o === pctAtual ? ' selected' : '') + '>' + o + '%</option>'; }).join('') +
+      '</select>' + t('do valor, por hora)') + difPadrao('horaExtra', 'valorColab')) +
+  '</div>';
+}
+
 // ─── RECALCULAR AUTOMÁTICOS ───────────────────────────────────────────────────
 
 function recalcularAutos() {
@@ -513,8 +646,7 @@ function _orcCalcResumo(orc) {
   const margSeg = Number(p.margemSeguranca != null ? p.margemSeguranca : 10);
   const margLuc = Number(p.margemLucro     != null ? p.margemLucro     : 30);
   const custoEst  = custoPresente * (1 + margSeg / 100);
-  const valorTotal = custoEst * (1 + margLuc / 100) + valorInsumosRevenda;
-  const porPessoa  = pax > 0 ? valorTotal / pax : 0;
+  const valorBase = custoEst * (1 + margLuc / 100) + valorInsumosRevenda;
 
   // Pacote Essencial = mesmo cálculo (custo → +margem segurança → +margem
   // lucro), só que sem o custo das Bebidas Alcoólicas do Cardápio/Insumos —
@@ -528,13 +660,25 @@ function _orcCalcResumo(orc) {
   const valorBebidasAlcRevenda = insumosRevenda.filter(_ehBebidaAlc).reduce((s, i) => s + (i.total || 0), 0);
   const custoPresenteEssencial = custoPresente - custoBebidasAlc;
   const custoEstEssencial  = custoPresenteEssencial * (1 + margSeg / 100);
-  const valorTotalEssencial = custoEstEssencial * (1 + margLuc / 100) + (valorInsumosRevenda - valorBebidasAlcRevenda);
+  const valorBaseEssencial = custoEstEssencial * (1 + margLuc / 100) + (valorInsumosRevenda - valorBebidasAlcRevenda);
+
+  // Taxas e adicionais (Imposto/NF, Comissão, Cerimônia, Hora extra) entram
+  // por cima do valor com margens, em cada pacote. valorTotal/
+  // valorTotalEssencial já saem com eles — lista, Proposta etc. pegam certo.
+  const colab = _orcColaboradores(orc);
+  const adic = _orcGetAdic(orc);
+  const adicCompleto  = _orcAplicarAdicionais(adic, valorBase, colab);
+  const adicEssencial = _orcAplicarAdicionais(adic, valorBaseEssencial, colab);
+  const valorTotal = adicCompleto.total;
+  const valorTotalEssencial = adicEssencial.total;
+  const porPessoa  = pax > 0 ? valorTotal / pax : 0;
   const porPessoaEssencial  = pax > 0 ? valorTotalEssencial / pax : 0;
 
   return {
     pax, autoS, itens, insumos, custoInsumos, custoPresente, margSeg, margLuc,
     custoEst, valorTotal, porPessoa, custoBebidasAlc, custoPresenteEssencial,
     custoEstEssencial, valorTotalEssencial, porPessoaEssencial, valorInsumosRevenda,
+    valorBase, valorBaseEssencial, colab, adicCompleto, adicEssencial,
   };
 }
 
@@ -550,7 +694,7 @@ function rOrcCalc() {
   const {
     pax, autoS, itens, insumos, custoInsumos, custoPresente, margSeg, margLuc,
     custoEst, valorTotal, porPessoa, custoBebidasAlc,
-    valorTotalEssencial, porPessoaEssencial,
+    valorTotalEssencial, porPessoaEssencial, valorBase, colab, adicCompleto,
   } = _orcCalcResumo(orc);
 
   const localKey = _migrarLocalOrcamento(p);
@@ -631,6 +775,7 @@ function rOrcCalc() {
         </div>
       </div>
 
+      ${_orcAdicPainelHtml(orc, colab)}
       <div style="border-top:1px solid var(--border);padding-top:12px;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
         <div>
           <label style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:3px">Margem segurança %</label>
@@ -721,8 +866,23 @@ function rOrcCalc() {
 
         <div style="padding:8px 10px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);border-radius:6px;margin-bottom:12px">
           <div style="font-size:10px;color:var(--green);margin-bottom:2px">+ Margem lucro (${margLuc}%)</div>
-          <div style="font-size:14px;font-family:var(--mono);color:var(--green);font-weight:600">+ ${fR(valorTotal - custoEst)}</div>
+          <div style="font-size:14px;font-family:var(--mono);color:var(--green);font-weight:600">+ ${fR(valorBase - custoEst)}</div>
         </div>
+
+        ${(() => {
+          const a = adicCompleto;
+          const linhas = [
+            ['Cerimônia no local', a.cerimonia],
+            ['Hora extra', a.horaExtra],
+            ['Imposto / NF', a.imposto],
+            ['Comissão', a.comissao],
+          ].filter(l => l[1] > 0);
+          if (!linhas.length) return '';
+          return `<div style="padding:8px 10px;background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.25);border-radius:6px;margin-bottom:12px">
+            <div style="font-size:10px;color:#8B5CF6;margin-bottom:4px">Taxas e adicionais <span style="opacity:.7">(Pacote Completo)</span></div>
+            ${linhas.map(l => `<div style="display:flex;justify-content:space-between;font-size:11px;font-family:var(--mono);color:#8B5CF6"><span>+ ${l[0]}</span><span>${fR(l[1])}</span></div>`).join('')}
+          </div>`;
+        })()}
 
         <div style="border-top:2px solid var(--border2);padding-top:12px;margin-bottom:10px">
           <div style="font-size:10px;color:#4F8EF7;margin-bottom:2px">🍹 Pacote Essencial <span style="opacity:.7">(sem bebidas alcoólicas)</span></div>

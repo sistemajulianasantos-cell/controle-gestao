@@ -331,6 +331,24 @@ function abrirModalNovoOrcamento() {
   }
   const num = document.getElementById('orc-m-numero');
   if (num) num.value = typeof _solProximoNumero === 'function' ? _solProximoNumero() : '';
+  // Perguntas de Taxas e adicionais — resposta padrão vem do cadastro
+  // (Preços do Orçamento → Taxas e adicionais; pausado = vem "Não").
+  const adEl = document.getElementById('orc-m-adic');
+  if (adEl && typeof getOrcAdicionais === 'function') {
+    const a = getOrcAdicionais();
+    const simNao = (id, label, sim) => `<div><label class="lbl">${label}</label>
+      <select id="${id}" class="inp"><option value="1"${sim ? ' selected' : ''}>Sim</option><option value="0"${sim ? '' : ' selected'}>Não</option></select></div>`;
+    const pcts = (a.horaExtra.opcoesPct || [10, 20]);
+    adEl.innerHTML =
+      simNao('orc-m-imposto',   `Inclui imposto / NF? (${a.imposto.pct}%)`, a.imposto.ativo) +
+      simNao('orc-m-comissao',  `Inclui comissão? (${a.comissao.pct}%)`, a.comissao.ativo) +
+      simNao('orc-m-cerimonia', `Cerimônia no local? (+R$ ${a.cerimonia.valor}/colaborador)`, false) +
+      `<div><label class="lbl">Horas extras contratadas</label>
+        <div style="display:flex;gap:6px"><input id="orc-m-horas" class="inp" type="number" min="0" step="1" value="0" style="flex:1">
+        <select id="orc-m-pcthora" class="inp" style="width:90px" title="% sobre o valor, por hora">
+          ${pcts.map(p => `<option value="${p}"${Number(p) === Number(a.horaExtra.pct) ? ' selected' : ''}>${p}%</option>`).join('')}
+        </select></div></div>`;
+  }
   document.getElementById('m-novo-orc').style.display = 'flex';
 }
 
@@ -367,6 +385,13 @@ function criarOrcamento() {
       cfPerda:  'padrao',
       margemSeguranca: 10,
       margemLucro:     30,
+      adic: (typeof _orcAdicInicial === 'function') ? _orcAdicInicial({
+        imposto:   document.getElementById('orc-m-imposto')?.value === '1',
+        comissao:  document.getElementById('orc-m-comissao')?.value === '1',
+        cerimonia: document.getElementById('orc-m-cerimonia')?.value === '1',
+        horas:     document.getElementById('orc-m-horas')?.value,
+        pctHora:   document.getElementById('orc-m-pcthora')?.value,
+      }) : null,
     }
   });
   sv('orcamentos');

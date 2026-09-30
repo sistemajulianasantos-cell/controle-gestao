@@ -1362,8 +1362,11 @@ function adicionarItemRegra() { regraKitAdd(); }
 // getOrcPrecos() (definida em orcCalc.js) mescla D.orcPrecos por cima dos padrões.
 
 function _ensureOrcPrecos() {
-  if (!D.orcPrecos || !Object.keys(D.orcPrecos).length) {
+  // Semeia quando ainda não tem os preços (pode já ter só "adicionais").
+  if (!D.orcPrecos || !D.orcPrecos.locais) {
+    var adicionais = D.orcPrecos && D.orcPrecos.adicionais;
     D.orcPrecos = JSON.parse(JSON.stringify(getOrcPrecos()));
+    if (adicionais) D.orcPrecos.adicionais = adicionais;
   }
   return D.orcPrecos;
 }
@@ -1394,7 +1397,8 @@ function salvarPrecosOrcamento() {
 
 function resetarPrecosOrcamento() {
   if (!confirm('Restaurar todos os preços do orçamento para o padrão?')) return;
-  D.orcPrecos = {};
+  // Taxas e adicionais têm botão próprio de pausa — não entram no reset.
+  D.orcPrecos = (D.orcPrecos && D.orcPrecos.adicionais) ? { adicionais: D.orcPrecos.adicionais } : {};
   sv('orcPrecos');
   rPrecosOrcamento();
 }
@@ -1532,11 +1536,62 @@ function rPrecosOrcamento() {
 
   cont.innerHTML =
     '<div style="font-size:12px;color:var(--text3);margin-bottom:14px">Esses valores preenchem automaticamente os itens do orçamento (Bartender, Carregamento, Seguro etc.) conforme o Local, Tipo de Evento e Complexidade escolhidos na Calculadora de Orçamento. Use as setas ▲▼ pra mudar a ordem — o nome de cada categoria é editável, e dá pra criar novas categorias no fim da lista.</div>' +
+    _htmlAdicionaisOrcamento() +
     corpoOrdenado + htmlNovaCategoria +
     '<div style="display:flex;gap:8px">' +
       '<button class="btn" onclick="salvarPrecosOrcamento()" style="background:var(--green)">💾 Salvar Preços</button>' +
       '<button class="btn" onclick="resetarPrecosOrcamento()" style="background:var(--red-dim);color:var(--red)">↺ Restaurar Padrão</button>' +
     '</div>';
+}
+
+// ── Taxas e adicionais (Imposto/NF, Comissão, Cerimônia, Hora extra) ──
+// Padrão copiado pra cada orçamento NOVO (ver _orcAdicInicial em orcCalc.js);
+// orçamento já criado não muda quando o padrão muda. Pausado = orçamento
+// novo vem com o item desligado. Grava direto (sem precisar de "Salvar").
+function _htmlAdicionaisOrcamento() {
+  if (typeof getOrcAdicionais !== 'function') return '';
+  var a = getOrcAdicionais();
+  var inp = function(grupo, campo, v, w) {
+    return '<input type="number" min="0" step="0.01" value="' + (v != null ? v : 0) + '" onchange="atualizarAdicionalOrc(\'' + grupo + '\',\'' + campo + '\',this.value)" ' +
+      'style="width:' + (w || 80) + 'px;font-size:12px;padding:5px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">';
+  };
+  var btnPausa = function(grupo) {
+    var pausado = !a[grupo].ativo;
+    return (pausado ? '<span style="background:var(--bg3);color:var(--text3);font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;white-space:nowrap">PAUSADO</span>' : '') +
+      '<button class="btn-sm" style="white-space:nowrap;background:' + (pausado ? 'var(--green)' : 'var(--bg3)') + ';color:' + (pausado ? '#fff' : 'var(--text)') + '" onclick="atualizarAdicionalOrc(\'' + grupo + '\',\'ativo\',' + pausado + ')" ' +
+      'title="' + (pausado ? 'Voltar a incluir nos orçamentos novos' : 'Orçamentos novos passam a vir sem este item (dá pra ligar dentro do orçamento)') + '">' + (pausado ? 'Reativar' : 'Pausar') + '</button>';
+  };
+  var linha = function(titulo, corpo, grupo) {
+    return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--border)' + (grupo && !a[grupo].ativo ? ';opacity:.6' : '') + '">' +
+      '<span style="font-size:12px;font-weight:600;color:var(--text);min-width:170px">' + titulo + '</span>' + corpo +
+      (grupo ? '<span style="margin-left:auto;display:flex;gap:6px;align-items:center">' + btnPausa(grupo) + '</span>' : '') + '</div>';
+  };
+  var t = function(s) { return '<span style="font-size:11px;color:var(--text3)">' + s + '</span>'; };
+  return '<div class="sec" style="margin-bottom:14px">' +
+    '<div class="sec-head"><span class="sec-title">Taxas e adicionais</span></div>' +
+    '<div style="padding:8px 16px 12px">' +
+      '<div style="font-size:11px;color:var(--text3);margin-bottom:6px">Entram automaticamente em todo orçamento novo (e são perguntados ao criar). Dentro do orçamento dá pra ligar/desligar e trocar o valor só daquele orçamento. Mudar aqui não altera orçamentos já criados.</div>' +
+      linha('Imposto / NF', inp('imposto', 'pct', a.imposto.pct, 70) + t('% sobre o valor total do serviço'), 'imposto') +
+      linha('Comissão', inp('comissao', 'pct', a.comissao.pct, 70) + t('% sobre o valor total do serviço'), 'comissao') +
+      linha('Cerimônia no local', t('R$') + inp('cerimonia', 'valor', a.cerimonia.valor) + t('a mais por colaborador'), null) +
+      linha('Hora extra (por hora)', t('R$') + inp('horaExtra', 'valorColab', a.horaExtra.valorColab) + t('por colaborador +') +
+        inp('horaExtra', 'pct', a.horaExtra.pct, 60) + t('% do valor (padrão) · opções:') +
+        '<input type="text" value="' + (a.horaExtra.opcoesPct || []).join(', ') + '" onchange="atualizarAdicionalOrc(\'horaExtra\',\'opcoesPct\',this.value)" title="Porcentagens que aparecem pra escolher no orçamento, separadas por vírgula" ' +
+          'style="width:90px;font-size:12px;padding:5px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">' + t('%'), null) +
+    '</div></div>';
+}
+
+function atualizarAdicionalOrc(grupo, campo, valor) {
+  var p = _ensureOrcPrecos();
+  if (!p.adicionais) p.adicionais = {};
+  if (!p.adicionais[grupo]) p.adicionais[grupo] = {};
+  if (campo === 'ativo') p.adicionais[grupo].ativo = !!valor;
+  else if (campo === 'opcoesPct') {
+    var lista = String(valor).split(/[,;\s]+/).map(function(x) { return parseFloat(x.replace(',', '.')); }).filter(function(x) { return !isNaN(x) && x >= 0; });
+    p.adicionais[grupo].opcoesPct = lista.length ? lista : [10, 20];
+  } else p.adicionais[grupo][campo] = parseFloat(valor) || 0;
+  sv('orcPrecos');
+  rPrecosOrcamento();
 }
 
 function pausarOrcFator(id, pausar) {

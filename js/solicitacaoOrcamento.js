@@ -512,6 +512,9 @@ function _solGerarOrcamento(id) {
       cfPerda: 'padrao',
       margemSeguranca: 10,
       margemLucro: 30,
+      // Imposto/Comissão seguem o padrão do cadastro; Cerimônia/Hora extra
+      // começam desligados — ajuste na Calculadora.
+      adic: (typeof _orcAdicInicial === 'function') ? _orcAdicInicial() : null,
     }
   });
 
