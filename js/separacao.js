@@ -161,6 +161,62 @@ function _sepInsumoDoItem(nome) {
   }) || null;
 }
 
+// ── Nome da folha = nome do Cadastro de Insumos (2026-09-30) ────────────────
+// A folha montava os nomes a partir das regras/fichas — se alguma guardou
+// nome antigo, apelido ou grafia sem acento, saía esse texto (ex.: "ÁGUA
+// TÔNICA" em vez do nome cadastrado) e o import no Sistema Separação não
+// batia. Agora todo nome que casa com um insumo (nome, acento/caixa ou
+// apelido — _sepInsumoDoItem) vira o nome oficial do Cadastro, na tela, ao
+// salvar e na impressão. Nome que não casa com nada fica como está.
+function _sepNomeCadastro(nome) {
+  var ins = _sepInsumoDoItem(nome);
+  return (ins && ins.nome) ? ins.nome : nome;
+}
+
+// Linhas montadas ({cat: [{item, qtd, coqueteis, doCardapio...}]}): renomeia
+// pro nome do Cadastro e junta duas linhas que eram o mesmo insumo.
+function _sepCanonizarLinhas(todosItens) {
+  if (!todosItens) return;
+  Object.keys(todosItens).forEach(function(cat) {
+    if (cat === 'EQUIPE') return;
+    var porNome = {};
+    todosItens[cat] = (todosItens[cat] || []).filter(function(l) {
+      if (!l || !l.item) return true;
+      l.item = _sepNomeCadastro(l.item);
+      var k = _sepNormNome(l.item);
+      var ja = porNome[k];
+      if (!ja) { porNome[k] = l; return true; }
+      ja.qtd = (ja.qtd || 0) + (l.qtd || 0);
+      (l.coqueteis || []).forEach(function(c) { if (!ja.coqueteis) ja.coqueteis = []; if (ja.coqueteis.indexOf(c) === -1) ja.coqueteis.push(c); });
+      if (l.doCardapio) ja.doCardapio = true;
+      return false;
+    });
+  });
+}
+
+// Aviso na linha cujo nome não casa com nenhum insumo — é o que ainda daria
+// divergência no import do Sistema Separação (corrigir o nome na regra/ficha
+// ou cadastrar o insumo).
+function _sepBadgeSemCadastro(nome) {
+  if (_sepInsumoDoItem(nome)) return '';
+  return ' <span title="Esse nome não bate com nenhum insumo do Cadastro de Insumos — vai divergir no import do Sistema Separação. Corrija o nome na regra/ficha ou cadastre o insumo." ' +
+    'style="font-size:9px;font-weight:700;color:var(--amber);border:1px solid var(--amber);border-radius:3px;padding:0 4px;margin-left:4px">fora do Cadastro</span>';
+}
+
+// Folha salva ({cat: {nome: qtd}}): mesma coisa, devolve um objeto novo.
+function _sepCanonizarItensObj(itens) {
+  var out = {};
+  Object.keys(itens || {}).forEach(function(cat) {
+    out[cat] = {};
+    Object.keys(itens[cat] || {}).forEach(function(nome) {
+      var n = cat === 'EQUIPE' ? nome : _sepNomeCadastro(nome);
+      var v = itens[cat][nome];
+      out[cat][n] = (typeof v === 'number' && typeof out[cat][n] === 'number') ? out[cat][n] + v : v;
+    });
+  });
+  return out;
+}
+
 // Tamanho da caixa/fardo de um item — a "Qtd por embalagem (caixa/fardo)" do
 // Cadastro de Insumos. > 1 = sai em caixa fechada; 0/1 = sai avulso.
 function _sepTamCaixa(nome) {
@@ -415,7 +471,10 @@ function sepCarregarProducao(prodId) {
       if (c === 'EQUIPE') return;
       Object.keys(sepExistente.itens[c]).forEach(function(n) {
         var v = sepExistente.itens[c][n];
-        if (v != null) _sepSalvoPorNome[_sepNormNome(n)] = v;
+        // Chave = nome do Cadastro: folha salva antes da correção de nomes
+        // (nome antigo/apelido) continua achando a quantidade na linha que
+        // agora aparece com o nome do Cadastro, e vice-versa.
+        if (v != null) _sepSalvoPorNome[_sepNormNome(_sepNomeCadastro(n))] = v;
       });
     });
   }
@@ -425,12 +484,16 @@ function sepCarregarProducao(prodId) {
       return sepExistente.itens[cat][item];
     }
     if (cat !== 'EQUIPE') {
-      var byName = _sepSalvoPorNome[_sepNormNome(item)];
+      var byName = _sepSalvoPorNome[_sepNormNome(_sepNomeCadastro(item))];
       if (byName != null) return byName;
     }
     return null;
   }
   function fornecedorSalvo(cat, item) {
+    var fornCanon = sepExistente && sepExistente.fornecedores ? _sepCanonizarItensObj(sepExistente.fornecedores) : null;
+    if (fornCanon && fornCanon[cat] && fornCanon[cat][_sepNomeCadastro(item)] != null) {
+      return fornCanon[cat][_sepNomeCadastro(item)];
+    }
     if (sepExistente && sepExistente.fornecedores && sepExistente.fornecedores[cat] && sepExistente.fornecedores[cat][item] != null) {
       return sepExistente.fornecedores[cat][item];
     }
@@ -600,6 +663,9 @@ function sepCarregarProducao(prodId) {
   // tem a quantidade calculada (pela regra do item ORIGINAL), aqui só muda
   // a identidade/rótulo dela pro item escolhido no evento.
   _sepAplicarBebidasOverride(todosItens, _trocasItens);
+
+  // Nome de cada linha = nome do Cadastro de Insumos (junta duplicata)
+  _sepCanonizarLinhas(todosItens);
 
   var equipeHtml = equipe.length
     ? equipe.map(function(e){return '<span style="margin-right:10px">'+e.qtd+' '+e.cargo+'</span>';}).join('')
@@ -847,7 +913,7 @@ function sepCarregarProducao(prodId) {
         '</select>';
       }
       html += '<div style="display:grid;grid-template-columns:' + cols + ';gap:8px;align-items:center;padding:4px 14px;border-bottom:1px solid var(--border)">' +
-        '<div style="font-size:12px;color:var(--text)">' + it.item + badge + _sepBadgeAssoc(it) + _sepBadgeCaixa(it) + _sepUnReadoutSpan(it.item, qtdConf) +
+        '<div style="font-size:12px;color:var(--text)">' + it.item + _sepBadgeSemCadastro(it.item) + badge + _sepBadgeAssoc(it) + _sepBadgeCaixa(it) + _sepUnReadoutSpan(it.item, qtdConf) +
           (it.obs ? '<span style="font-size:10px;color:var(--text3);margin-left:6px">' + it.obs + '</span>' : '') +
         '</div>' +
         fornHtml +
@@ -884,7 +950,7 @@ function sepCarregarProducao(prodId) {
       var salvoKit = qtdSalva(cat, it.item);
       if (salvoKit != null && !it.travado) qtdKit = salvoKit;
       html += '<div style="display:grid;grid-template-columns:1fr 100px;gap:8px;align-items:center;padding:4px 14px;border-bottom:1px solid var(--border)">' +
-        '<span style="font-size:12px;color:var(--text2)">' + it.item + _sepBadgeAssoc(it) + _sepBadgeCaixa(it) + _sepUnReadoutSpan(it.item, qtdKit) +
+        '<span style="font-size:12px;color:var(--text2)">' + it.item + _sepBadgeSemCadastro(it.item) + _sepBadgeAssoc(it) + _sepBadgeCaixa(it) + _sepUnReadoutSpan(it.item, qtdKit) +
           (it.obs ? '<span style="font-size:10px;color:var(--text3);margin-left:6px">' + it.obs + '</span>' : '') +
         '</span>' +
         _sepQtdCell(it, cat.replace(/"/g,''), it.item.replace(/"/g,''), qtdKit, 'var(--text2)') +
@@ -1188,8 +1254,9 @@ function salvarSeparacao() {
     equipeTexto: p.equipeTexto||'',
     bartenders: bt,
     totalEquipe: teq,
-    itens: itensFinais,
-    fornecedores: fornecedoresFinais,
+    // Nome do Cadastro de Insumos — é isso que o Sistema Separação importa
+    itens: _sepCanonizarItensObj(itensFinais),
+    fornecedores: _sepCanonizarItensObj(fornecedoresFinais),
     coqueteis: document.getElementById('sep-coqueteis')?.value||'',
     coqueteisIds: (window._sepCoqueteisMap && window._sepCoqueteisMap[prodId]) ? window._sepCoqueteisMap[prodId].slice() : [],
     opcionais: (window._sepOpcionaisMap && window._sepOpcionaisMap[prodId]) ? window._sepOpcionaisMap[prodId].slice() : [],
@@ -1262,11 +1329,15 @@ function imprimirSeparacao(id) {
 
   var FORN_LABEL = { romero: 'Romero', consignado: 'Consignado', cliente: 'Cliente' };
   if (s.itens) {
-    Object.entries(s.itens).forEach(function(entry) {
+    // Folha salva antes da correção de nomes (2026-09-30) ainda pode ter
+    // nome antigo — imprime já com o nome do Cadastro.
+    var itensImp = _sepCanonizarItensObj(s.itens);
+    var fornImp  = _sepCanonizarItensObj(s.fornecedores || {});
+    Object.entries(itensImp).forEach(function(entry) {
       var cat = entry[0]; var itens = entry[1];
       var linhas = Object.entries(itens).filter(function(e){return e[1]>0;});
       if (!linhas.length) return;
-      var fornMap = (s.fornecedores && s.fornecedores[cat]) || {};
+      var fornMap = fornImp[cat] || {};
       grupos += '<div class="grp"><div class="st">' + cat + '</div>' +
         '<table>' + col + thead + '<tbody>' +
         linhas.map(function(e){
