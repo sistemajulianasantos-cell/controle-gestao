@@ -1032,24 +1032,50 @@ function _orcCatTrocavel(cat) {
   return _ORC_CATS_TROCAVEIS.some(x => _orcNormNome(x) === c);
 }
 
+const _orcEsc = s => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
 function _orcTrocaSelectHtml(ins) {
   if (ins.autoGlobal || ins.autoRegra || !_orcCatTrocavel(ins.cat)) return '';
+  const ehCopo = _orcNormNome(ins.cat) === _orcNormNome('COPOS E TAÇAS');
+  return `<div style="margin-top:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+    <div style="position:relative">
+      <input type="text" autocomplete="off" placeholder="Trocar ${ehCopo ? 'copo' : 'destilado'} — digite pra buscar..."
+        title="Vale só para este orçamento"
+        oninput="orcFiltrarTroca('${ins.id}',this.value)" onfocus="orcFiltrarTroca('${ins.id}',this.value)"
+        onblur="setTimeout(()=>{const dd=document.getElementById('orc-troca-dd-${ins.id}');if(dd)dd.style.display='none';},150)"
+        style="width:240px;font-size:10px;padding:3px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">
+      <div id="orc-troca-dd-${ins.id}" style="display:none;position:absolute;top:24px;left:0;width:300px;max-height:220px;overflow-y:auto;
+        background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius);z-index:500;box-shadow:0 6px 24px rgba(0,0,0,.55)"></div>
+    </div>
+    ${ins.nomeOriginal ? `<span style="font-size:9px;color:var(--text3)">(padrão: ${_orcEsc(ins.nomeOriginal)})</span>` : ''}
+  </div>`;
+}
+
+// Lista do campo "Trocar": só insumos da mesma categoria cujo nome contém
+// o que foi digitado (sem diferenciar acento/maiúscula).
+function orcFiltrarTroca(insId, busca) {
+  const dd = document.getElementById('orc-troca-dd-' + insId);
+  const orc = _calcGetOrc();
+  const ins = orc && (orc.insumos || []).find(i => i.id === insId);
+  if (!dd || !ins) return;
   const cat = _orcNormNome(ins.cat);
-  const opcoes = (typeof getInsumos === 'function' ? getInsumos() : (D.insumos || []))
+  const b = _orcNormNome(busca);
+  const original = ins.nomeOriginal || ins.nome;
+  const lista = (typeof getInsumos === 'function' ? getInsumos() : (D.insumos || []))
     .filter(i => _orcNormNome(i.categoria) === cat)
     .map(i => i.nome)
-    .sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  const original = ins.nomeOriginal || ins.nome;
-  const esc = s => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-  const ehCopo = cat === _orcNormNome('COPOS E TAÇAS');
-  return `<div style="margin-top:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-    <select onchange="orcTrocarInsumo('${ins.id}',this.value)" title="Vale só para este orçamento"
-      style="font-size:10px;padding:2px 5px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);max-width:260px">
-      <option value="">— ${ehCopo ? 'copo' : 'destilado'} padrão da ficha —</option>
-      ${opcoes.filter(n => _orcNormNome(n) !== _orcNormNome(original)).map(n => `<option value="${esc(n)}"${ins.nomeOriginal && n === ins.nome ? ' selected' : ''}>${esc(n)}</option>`).join('')}
-    </select>
-    ${ins.nomeOriginal ? `<span style="font-size:9px;color:var(--text3)">(padrão: ${esc(ins.nomeOriginal)})</span>` : ''}
-  </div>`;
+    .filter(n => _orcNormNome(n) !== _orcNormNome(ins.nome))
+    .filter(n => !b || _orcNormNome(n).includes(b))
+    .sort((a, b2) => a.localeCompare(b2, 'pt-BR'));
+  const item = (nome, rotulo) => `<div data-nome="${_orcEsc(nome)}" onmousedown="orcTrocarInsumo('${insId}',this.dataset.nome)"
+      style="padding:7px 12px;cursor:pointer;font-size:11px;color:var(--text);border-bottom:1px solid var(--border)"
+      onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">${rotulo}</div>`;
+  let html = '';
+  if (ins.nomeOriginal) html += item('', `Voltar ao padrão da ficha: ${_orcEsc(original)}`);
+  html += lista.length ? lista.map(n => item(n, _orcEsc(n))).join('')
+    : '<div style="padding:8px 12px;color:var(--text3);font-size:11px">Nenhum item com esse nome nessa categoria.</div>';
+  dd.innerHTML = html;
+  dd.style.display = 'block';
 }
 
 function orcTrocarInsumo(insId, novoNome) {
