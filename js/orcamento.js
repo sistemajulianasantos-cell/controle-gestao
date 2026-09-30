@@ -942,6 +942,7 @@ function rOrcCardapio(orc) {
                   <span style="font-weight:500;color:var(--text)">${ins.nome}</span>
                   ${ins.viaRevenda ? `<span style="font-size:8px;font-weight:600;color:var(--green);background:rgba(34,197,94,.14);padding:1px 6px;border-radius:8px;white-space:nowrap;margin-left:4px" title="Preço final de revenda (${(orc.calcParams&&orc.calcParams.temporada)==='alta'?'Alta':'Baixa'} Temporada) — não recebe margem de segurança/lucro">💲 Revenda</span>` : ''}
                   ${(ins.coqueteis&&ins.coqueteis.length) ? `<div style="margin-top:2px;display:flex;gap:3px;flex-wrap:wrap">${ins.coqueteis.map(c=>`<span style="font-size:8px;font-weight:600;color:#4F8EF7;background:rgba(79,142,247,.14);padding:1px 6px;border-radius:8px;white-space:nowrap">🍹 ${c}</span>`).join('')}</div>` : ''}
+                  ${_orcTrocaSelectHtml(ins)}
                 </div>
                 <div style="text-align:right">${typeof _calcInsumoQtdCell==='function' ? _calcInsumoQtdCell(ins) : `<input type="number" value="${ins.qtdGarrafas}" min="0" step="1" onchange="calcUpdateInsumo('${ins.id}','qtdGarrafas',this.value)" style="width:65px;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono)">`}</div>
                 <div style="text-align:right">
@@ -1017,6 +1018,69 @@ function orcExcluirCoquetel(orcId, nomeCoquetel) {
   sv('orcamentos');
   alert2(`🗑️ "${nomeCoquetel}" removido${removidos ? ' · ' + removidos + ' insumo(s) exclusivo(s) excluído(s)' : ''}.`);
   rOrcCardapio(orc);
+}
+
+// Troca de copo / destilado só neste orçamento — mesma ideia de "Copos da
+// Ficha Técnica" / "Bebidas da Ficha Técnica" da Folha de Separação. A linha
+// mantém a quantidade e os coquetéis; muda o nome e re-busca o custo no
+// Cadastro de Insumos. nomeOriginal guarda o item da ficha pra poder voltar
+// ("— padrão da ficha —") e pra re-aplicar a ficha não duplicar a linha.
+const _ORC_CATS_TROCAVEIS = ['COPOS E TAÇAS', 'BEBIDAS ALCOÓLICAS'];
+
+function _orcCatTrocavel(cat) {
+  const c = _orcNormNome(cat);
+  return _ORC_CATS_TROCAVEIS.some(x => _orcNormNome(x) === c);
+}
+
+function _orcTrocaSelectHtml(ins) {
+  if (ins.autoGlobal || ins.autoRegra || !_orcCatTrocavel(ins.cat)) return '';
+  const cat = _orcNormNome(ins.cat);
+  const opcoes = (typeof getInsumos === 'function' ? getInsumos() : (D.insumos || []))
+    .filter(i => _orcNormNome(i.categoria) === cat)
+    .map(i => i.nome)
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const original = ins.nomeOriginal || ins.nome;
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  const ehCopo = cat === _orcNormNome('COPOS E TAÇAS');
+  return `<div style="margin-top:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+    <select onchange="orcTrocarInsumo('${ins.id}',this.value)" title="Vale só para este orçamento"
+      style="font-size:10px;padding:2px 5px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);max-width:260px">
+      <option value="">— ${ehCopo ? 'copo' : 'destilado'} padrão da ficha —</option>
+      ${opcoes.filter(n => _orcNormNome(n) !== _orcNormNome(original)).map(n => `<option value="${esc(n)}"${ins.nomeOriginal && n === ins.nome ? ' selected' : ''}>${esc(n)}</option>`).join('')}
+    </select>
+    ${ins.nomeOriginal ? `<span style="font-size:9px;color:var(--text3)">(padrão: ${esc(ins.nomeOriginal)})</span>` : ''}
+  </div>`;
+}
+
+function orcTrocarInsumo(insId, novoNome) {
+  const orc = _calcGetOrc();
+  if (!orc) return;
+  const ins = (orc.insumos || []).find(i => i.id === insId);
+  if (!ins) return;
+  const original = ins.nomeOriginal || ins.nome;
+  const destino = novoNome || original;
+  if (destino === ins.nome) return;
+
+  // Se a marca/copo novo já tem linha própria, soma nela (mesmo que a Folha faz)
+  const outra = orc.insumos.find(i => i !== ins && !i.autoGlobal && !i.autoRegra && _orcNormNome(i.nome) === _orcNormNome(destino));
+  if (outra) {
+    if (!confirm(`"${destino}" já está na lista. Somar a quantidade de "${ins.nome}" nessa linha?`)) { rOrcCardapio(orc); return; }
+    outra.qtdGarrafas = (outra.qtdGarrafas || 0) + (ins.qtdGarrafas || 0);
+    outra.coqueteis = [...new Set([...(outra.coqueteis || []), ...(ins.coqueteis || [])])];
+    if (!outra.nomeOriginal && destino !== original) outra.nomeOriginal = original;
+    outra.total = Math.round((outra.qtdGarrafas || 0) * (outra.custoGarrafa || 0) * 100) / 100;
+    orc.insumos = orc.insumos.filter(i => i !== ins);
+  } else {
+    const temporada = (orc.calcParams && orc.calcParams.temporada) || 'baixa';
+    const p = _orcPrecoInsumoComTemporada(destino, temporada);
+    ins.nome = destino;
+    if (destino === original) delete ins.nomeOriginal; else ins.nomeOriginal = original;
+    ins.custoGarrafa = p.valor;
+    ins.viaRevenda = p.viaRevenda;
+    ins.total = Math.round((ins.qtdGarrafas || 0) * (p.valor || 0) * 100) / 100;
+  }
+  sv('orcamentos');
+  _rTabContent();
 }
 
 function orcFiltrarFichaCardapio(busca) {
@@ -1285,7 +1349,9 @@ function _orcMergeItensCardapio(orc, items, fichaNome, temporada) {
     // duas marcas diferentes (ex: dois gins) fundiam numa linha só.
     const nome = item.nome;
     const qtd  = item.qtd;
-    const existing = orc.insumos.find(i => i.nome === nome);
+    // nomeOriginal: linha cujo copo/destilado foi trocado neste orçamento
+    // (orcTrocarInsumo) — re-aplicar a ficha soma na troca, não duplica.
+    const existing = orc.insumos.find(i => i.nome === nome) || orc.insumos.find(i => i.nomeOriginal === nome);
     if (existing) {
       existing.qtdGarrafas = qtd;
       // Backfill: só preenche se ainda estiver zerado (nunca sobrescreve um
