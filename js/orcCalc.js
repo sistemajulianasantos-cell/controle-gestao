@@ -941,21 +941,30 @@ function _rcMapFichaItemToRC(nome) {
   return null;
 }
 
+// Unidade da quantidade vem do Cadastro de Insumos (unidadeCompra). Item de
+// caixa/fardo/pacote com "Qtd por embalagem" > 1 é contado em unidade solta
+// (mesma regra da Folha de Separação), então o rótulo é "un".
+const _ORC_UNID_CAIXA = ['CX', 'FARDO', 'PCT'];
+
 function _orcGetUnit(nome) {
-  const cat = (typeof RC_ITEM_CAT !== 'undefined') ? RC_ITEM_CAT[nome] : null;
-  if (cat === 'COPOS E TAÇAS') return 'uni';
-  if (['Espuma de Gengibre','Espuma de Siciliano','Suco de Limão','Xarope de Açucar',
-       'Ginger Ale','Grapefruit','Mix Frutas Vermelhas','Agua gasosa','Agua Tônica'].includes(nome)) return 'und';
-  return 'garrafas';
+  const insumo = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(nome) : null;
+  if (!insumo) return 'sem cadastro';
+  const u = (insumo.unidadeCompra || 'UN').toUpperCase();
+  if (_ORC_UNID_CAIXA.includes(u) && Number(insumo.tamanhoEmbalagem) > 1) return 'un';
+  return u.toLowerCase();
 }
 
 function _getEmbalagemProduto(nome) {
+  const insumo = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(nome) : null;
+  if (insumo && Number(insumo.tamanhoEmbalagem) > 1) return Number(insumo.tamanhoEmbalagem);
   const p = (D.produtos||[]).find(x => (x.nome||'').toUpperCase() === nome.toUpperCase());
   return (p && p.tamanhoEmbalagem > 1) ? p.tamanhoEmbalagem : 1;
 }
 
 function _calcInsumoQtdCell(ins) {
-  const isCopo = (typeof RC_ITEM_CAT !== 'undefined') && RC_ITEM_CAT[ins.nome] === 'COPOS E TAÇAS';
+  const insumo = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(ins.nome) : null;
+  const catNorm = s => (typeof _orcNormNome === 'function') ? _orcNormNome(s) : String(s || '').toUpperCase();
+  const isCopo = catNorm((insumo && insumo.categoria) || ins.cat) === catNorm('COPOS E TAÇAS');
   const emb    = isCopo ? _getEmbalagemProduto(ins.nome) : 1;
   if (emb > 1) {
     const cx = Math.ceil((ins.qtdGarrafas||0) / emb);
@@ -973,7 +982,7 @@ function _calcInsumoQtdCell(ins) {
     <input type="number" value="${ins.qtdGarrafas}" min="0" step="1"
       onchange="calcUpdateInsumo('${ins.id}','qtdGarrafas',this.value)"
       style="width:60px;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono)">
-    <span style="font-size:9px;color:var(--text3);white-space:nowrap;display:inline-block;width:34px;text-align:left">${_orcGetUnit(ins.nome)}</span>
+    <span style="font-size:9px;color:${insumo ? 'var(--text3)' : 'var(--red)'};white-space:nowrap;display:inline-block;min-width:34px;text-align:left">${_orcGetUnit(ins.nome)}</span>
   </div>`;
 }
 

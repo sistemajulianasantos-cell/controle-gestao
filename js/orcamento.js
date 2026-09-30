@@ -933,7 +933,7 @@ function rOrcCardapio(orc) {
         </div>
         ${(() => {
           const porCat = {};
-          insumos.forEach(ins => { const cat = ins.cat || 'OUTROS'; (porCat[cat] = porCat[cat]||[]).push(ins); });
+          insumos.forEach(ins => { const cat = _orcCatDoInsumo(ins); (porCat[cat] = porCat[cat]||[]).push(ins); });
           return _orcOrdenarCats(Object.keys(porCat)).map(cat => {
             const catLabel = `<div style="padding:5px 10px;background:var(--bg4,var(--bg3));font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--border)">${cat}</div>`;
             const rows = porCat[cat].map(ins => `
@@ -1034,13 +1034,28 @@ function _orcCatTrocavel(cat) {
 
 const _orcEsc = s => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
+// Categoria da linha = a do Cadastro de Insumos (fonte da verdade); a
+// gravada na linha (vinda da ficha) só vale se o item não estiver cadastrado.
+function _orcCatDoInsumo(ins) {
+  if (ins.autoGlobal) return ins.cat || 'ITENS AUTOMÁTICOS';
+  const insumo = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(ins.nome) : null;
+  return (insumo && insumo.categoria) || ins.cat || 'OUTROS';
+}
+
 function _orcTrocaSelectHtml(ins) {
-  if (ins.autoGlobal || ins.autoRegra || !_orcCatTrocavel(ins.cat)) return '';
-  const ehCopo = _orcNormNome(ins.cat) === _orcNormNome('COPOS E TAÇAS');
+  if (ins.autoGlobal || ins.autoRegra) return '';
+  const cadastrado = (typeof buscarInsumoPorNome === 'function') ? !!buscarInsumoPorNome(ins.nome) : true;
+  const cat = _orcCatDoInsumo(ins);
+  if (cadastrado && !_orcCatTrocavel(cat)) return '';
+  const ehCopo = _orcNormNome(cat) === _orcNormNome('COPOS E TAÇAS');
+  const placeholder = cadastrado
+    ? `Trocar ${ehCopo ? 'copo' : 'destilado'} — digite pra buscar...`
+    : 'Vincular ao Cadastro — digite pra buscar...';
   return `<div style="margin-top:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+    ${cadastrado ? '' : `<span style="font-size:9px;font-weight:600;color:var(--red)" title="Esse nome veio da ficha e não existe no Cadastro de Insumos — sem custo nem unidade. Vincule ao item cadastrado certo.">Não está no Cadastro</span>`}
     <div style="position:relative">
-      <input type="text" autocomplete="off" placeholder="Trocar ${ehCopo ? 'copo' : 'destilado'} — digite pra buscar..."
-        title="Vale só para este orçamento"
+      <input type="text" autocomplete="off" placeholder="${placeholder}"
+        title="${cadastrado ? 'Vale só para este orçamento' : 'Escolha o item do Cadastro de Insumos que corresponde a este'}"
         oninput="orcFiltrarTroca('${ins.id}',this.value)" onfocus="orcFiltrarTroca('${ins.id}',this.value)"
         onblur="setTimeout(()=>{const dd=document.getElementById('orc-troca-dd-${ins.id}');if(dd)dd.style.display='none';},150)"
         style="width:240px;font-size:10px;padding:3px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">
@@ -1058,32 +1073,49 @@ function orcFiltrarTroca(insId, busca) {
   const orc = _calcGetOrc();
   const ins = orc && (orc.insumos || []).find(i => i.id === insId);
   if (!dd || !ins) return;
-  const cat = _orcNormNome(ins.cat);
+  // Item fora do Cadastro: busca em TODO o Cadastro (pra vincular); item
+  // cadastrado: só a mesma categoria (troca de copo/destilado).
+  const cadastrado = (typeof buscarInsumoPorNome === 'function') ? !!buscarInsumoPorNome(ins.nome) : true;
+  const cat = _orcNormNome(_orcCatDoInsumo(ins));
   const b = _orcNormNome(busca);
   const original = ins.nomeOriginal || ins.nome;
   const lista = (typeof getInsumos === 'function' ? getInsumos() : (D.insumos || []))
-    .filter(i => _orcNormNome(i.categoria) === cat)
-    .map(i => i.nome)
-    .filter(n => _orcNormNome(n) !== _orcNormNome(ins.nome))
-    .filter(n => !b || _orcNormNome(n).includes(b))
-    .sort((a, b2) => a.localeCompare(b2, 'pt-BR'));
-  const item = (nome, rotulo) => `<div data-nome="${_orcEsc(nome)}" onmousedown="orcTrocarInsumo('${insId}',this.dataset.nome)"
-      style="padding:7px 12px;cursor:pointer;font-size:11px;color:var(--text);border-bottom:1px solid var(--border)"
+    .filter(i => !cadastrado || _orcNormNome(i.categoria) === cat)
+    .filter(i => _orcNormNome(i.nome) !== _orcNormNome(ins.nome))
+    .filter(i => !b || _orcNormNome(i.nome).includes(b))
+    .sort((a, b2) => (a.nome || '').localeCompare(b2.nome || '', 'pt-BR'));
+  const item = (nome, rotulo) => `<div data-nome="${_orcEsc(nome)}" onmousedown="orcTrocarInsumo('${insId}',this.dataset.nome${cadastrado ? '' : ',true'})"
+      style="padding:7px 12px;cursor:pointer;font-size:11px;color:var(--text);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:8px"
       onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">${rotulo}</div>`;
   let html = '';
   if (ins.nomeOriginal) html += item('', `Voltar ao padrão da ficha: ${_orcEsc(original)}`);
-  html += lista.length ? lista.map(n => item(n, _orcEsc(n))).join('')
-    : '<div style="padding:8px 12px;color:var(--text3);font-size:11px">Nenhum item com esse nome nessa categoria.</div>';
+  html += lista.length
+    ? lista.map(i => item(i.nome, `<span>${_orcEsc(i.nome)}</span>${cadastrado ? '' : `<span style="color:var(--text3);font-size:9px">${_orcEsc(i.categoria || '')}</span>`}`)).join('')
+    : `<div style="padding:8px 12px;color:var(--text3);font-size:11px">Nenhum item com esse nome ${cadastrado ? 'nessa categoria' : 'no Cadastro de Insumos'}.</div>`;
   dd.innerHTML = html;
   dd.style.display = 'block';
 }
 
-function orcTrocarInsumo(insId, novoNome) {
+// vincular=true: a linha tinha um nome solto (da ficha, fora do Cadastro) e
+// passa a ser o insumo cadastrado — não é "troca", então não guarda
+// nomeOriginal; o nome solto vai pra nomesFicha só pra re-aplicar a ficha
+// cair nesta linha em vez de recriar a solta.
+function orcTrocarInsumo(insId, novoNome, vincular) {
   const orc = _calcGetOrc();
   if (!orc) return;
   const ins = (orc.insumos || []).find(i => i.id === insId);
   if (!ins) return;
-  const original = ins.nomeOriginal || ins.nome;
+  if (vincular) {
+    if (!novoNome) return;
+    ins.nomesFicha = [...new Set([...(ins.nomesFicha || []), ins.nome])];
+    const insumoCad = buscarInsumoPorNome(novoNome);
+    if (insumoCad && insumoCad.categoria) ins.cat = insumoCad.categoria;
+    const outraV = orc.insumos.find(i => i !== ins && !i.autoGlobal && !i.autoRegra && _orcNormNome(i.nome) === _orcNormNome(novoNome));
+    if (outraV) {
+      outraV.nomesFicha = [...new Set([...(outraV.nomesFicha || []), ...ins.nomesFicha])];
+    }
+  }
+  const original = vincular ? novoNome : (ins.nomeOriginal || ins.nome);
   const destino = novoNome || original;
   if (destino === ins.nome) return;
 
@@ -1377,7 +1409,8 @@ function _orcMergeItensCardapio(orc, items, fichaNome, temporada) {
     const qtd  = item.qtd;
     // nomeOriginal: linha cujo copo/destilado foi trocado neste orçamento
     // (orcTrocarInsumo) — re-aplicar a ficha soma na troca, não duplica.
-    const existing = orc.insumos.find(i => i.nome === nome) || orc.insumos.find(i => i.nomeOriginal === nome);
+    const existing = orc.insumos.find(i => i.nome === nome) || orc.insumos.find(i => i.nomeOriginal === nome)
+      || orc.insumos.find(i => (i.nomesFicha || []).includes(nome));
     if (existing) {
       existing.qtdGarrafas = qtd;
       // Backfill: só preenche se ainda estiver zerado (nunca sobrescreve um
