@@ -820,16 +820,45 @@ function orcSetCabecalho(orcId, campo, valor) {
 //   2026-09-22: "no orçamento pano de prato não é cobrado por item e sim
 //   como descartáveis").
 // Usado tanto aqui quanto em orcCalc.js.
+// 2026-10-01: virou configurável por categoria (Cálculos do Orçamento →
+// Ordem na Calculadora), em D.orcPrecos.modoCategorias[NOME NORMALIZADO]:
+//   'cardapio' — itens vêm dos coquetéis escolhidos, cada um soma (padrão)
+//   'fixo'     — todo item da categoria entra em todo orçamento; quantidade
+//                em Itens automáticos (ex.: GELO)
+//   'teto'     — itens só pra consulta (abre e vê), sem valor por item; o
+//                valor vem de uma categoria de preço (ex.: Descartáveis por
+//                convidado) — `fator` = id dessa categoria de preço
+// MATERIAL e DESCARTÁVEIS continuam 'teto' por padrão (como antes).
+const ORC_MODO_CAT_PADRAO = { 'MATERIAL': 'teto', 'MATERIAL (ESPECIFICO)': 'teto', 'DESCARTAVEIS': 'teto' };
+const ORC_FATOR_TETO_PADRAO = { 'DESCARTAVEIS': 'desc' };
+
+function _orcCfgCat(cat) {
+  const n = _orcNormNome(cat);
+  const cfg = ((D.orcPrecos && D.orcPrecos.modoCategorias) || {})[n] || {};
+  return {
+    modo: cfg.modo || ORC_MODO_CAT_PADRAO[n] || 'cardapio',
+    fator: cfg.fator != null ? cfg.fator : (ORC_FATOR_TETO_PADRAO[n] || ''),
+  };
+}
+function _orcModoCat(cat) { return _orcCfgCat(cat).modo; }
+
 function _orcCatSemValorDireto(cat) {
-  const c = (cat || '').toUpperCase().trim();
-  return c === 'MATERIAL' || c === 'MATERIAL (ESPECÍFICO)' || c === 'DESCARTÁVEIS';
+  return _orcModoCat(cat) === 'teto';
+}
+
+// Item que NÃO soma no orçamento: categoria em "valor teto". Item de Itens
+// automáticos sempre soma (é regra explícita dela, com quantidade).
+function _orcInsumoSemValor(ins) {
+  return !ins.autoGlobal && _orcCatSemValorDireto(_orcCatDoInsumo(ins));
 }
 
 // Texto do resumo colapsado por categoria, explicando o motivo específico.
 function _orcMotivoSemValor(cat) {
-  return (cat || '').toUpperCase().trim() === 'DESCARTÁVEIS'
-    ? 'cobrado como "Descartáveis por convidado" na Calculadora, não por item'
-    : 'kit base, sem valor no orçamento';
+  const f = _orcCfgCat(cat).fator;
+  const fator = f && typeof buscarOrcFatorPorId === 'function' ? buscarOrcFatorPorId(f) : null;
+  return fator
+    ? 'valor teto: "' + fator.nome.replace(/\s*\([^)]*\)\s*$/, '') + '" na Calculadora, não por item'
+    : 'só consulta, sem valor por item';
 }
 
 function _orcOrdenarCats(cats) {
@@ -854,7 +883,7 @@ function rOrcCardapio(orc) {
   if (!el) return;
   const insumos      = orc.insumos || [];
   const p            = orc.calcParams || {};
-  const custoInsumos = insumos.filter(i => !_orcCatSemValorDireto(i.cat)).reduce((s,i) => s + (i.total||0), 0);
+  const custoInsumos = insumos.filter(i => !_orcInsumoSemValor(i)).reduce((s,i) => s + (i.total||0), 0);
 
   const grupoLabel = (buscarTipoEventoPorId(p.tipoEvento||'outros')||{}).nome || (p.tipoEvento||'outros');
 
@@ -1072,8 +1101,10 @@ const _orcEsc = s => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').re
 // Categoria da linha = a do Cadastro de Insumos (fonte da verdade); a
 // gravada na linha (vinda da ficha) só vale se o item não estiver cadastrado.
 function _orcCatDoInsumo(ins) {
-  if (ins.autoGlobal) return ins.cat || 'ITENS AUTOMÁTICOS';
   const insumo = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(ins.nome) : null;
+  // Item automático aparece no bloco da categoria dele (ex.: GELO), não num
+  // bloco "ITENS AUTOMÁTICOS" separado (10-01).
+  if (ins.autoGlobal) return (insumo && insumo.categoria) || 'ITENS AUTOMÁTICOS';
   return (insumo && insumo.categoria) || ins.cat || 'OUTROS';
 }
 
@@ -1390,15 +1421,15 @@ function _orcNomesListaGlobal() {
 
 // Itens da lista única (Cálculos do Orçamento → Itens automáticos) SEM "só
 // com cardápio" entram sozinhos em todo orçamento: quantidade da regra ×
-// preço do Cadastro de Insumos. Ficam num bloco próprio "ITENS AUTOMÁTICOS"
-// (não na categoria original) porque MATERIAL/DESCARTÁVEIS não somam no
-// orçamento e o gelo, por exemplo, é MATERIAL mas tem que cobrar. Marcados
+// preço do Cadastro de Insumos. Sempre somam, mesmo em categoria "valor teto"
+// (_orcInsumoSemValor). Aparecem no bloco da categoria do Cadastro (10-01).
+// Regra "pendente" (criada sozinha por categoria Fixa, sem quantidade ainda) não entra. Marcados
 // autoGlobal:true — só esses são mexidos aqui.
 function _sincronizarItensAutoGlobais(orc, conv, bartenders, equipeTotal, cargoCounts) {
   if (!orc.insumos) orc.insumos = [];
   const temporada = (orc.calcParams && orc.calcParams.temporada) || 'baixa';
   const lista = (D.calculosOrcamento && typeof OCO_LISTA_TODOS !== 'undefined' && D.calculosOrcamento[OCO_LISTA_TODOS]) || [];
-  const ativos = lista.filter(r => !r.soSeCardapio);
+  const ativos = lista.filter(r => !r.soSeCardapio && !r.pendente);
   const nomesAtivos = new Set();
 
   ativos.forEach(regra => {
@@ -1415,7 +1446,8 @@ function _sincronizarItensAutoGlobais(orc, conv, bartenders, equipeTotal, cargoC
       item = { id: 'ins-glob-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5), nome: regra.item, autoGlobal: true };
       orc.insumos.push(item);
     }
-    item.cat = 'ITENS AUTOMÁTICOS';
+    const insCad = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(regra.item) : null;
+    item.cat = (insCad && insCad.categoria) || 'ITENS AUTOMÁTICOS';
     item.qtdGarrafas = qtd;
     item.custoGarrafa = preco.valor;
     item.viaRevenda = preco.viaRevenda;

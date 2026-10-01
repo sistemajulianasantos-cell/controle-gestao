@@ -727,7 +727,7 @@ function _orcCalcResumo(orc) {
   // já é cobrado pelo item automático "Descartáveis (por convidado)" desta
   // mesma função (builtin 'desc' abaixo) — contar nome a nome de novo
   // cobraria em dobro (ver _orcCatSemValorDireto em orcamento.js).
-  const _semValorDireto = i => (typeof _orcCatSemValorDireto === 'function') && _orcCatSemValorDireto(i.cat);
+  const _semValorDireto = i => (typeof _orcInsumoSemValor === 'function') && _orcInsumoSemValor(i);
   const insumosCusto   = insumos.filter(i => !i.viaRevenda && !_semValorDireto(i));
   const insumosRevenda = insumos.filter(i => i.viaRevenda && !_semValorDireto(i));
   const custoInsumos = insumosCusto.reduce((s, i) => s + (i.total || 0), 0);
@@ -1058,9 +1058,11 @@ function rOrcCalc() {
 
   const insumosHtmlArr = catsInsumos.map(cat => {
     const itensCat  = insumosPorCat[cat];
-    const totalCat  = itensCat.reduce((s, i) => s + (i.total || 0), 0);
+    // Valor teto: só soma o que é item automático (regra dela); o resto é consulta
+    const itensCobrados = itensCat.filter(i => !(typeof _orcInsumoSemValor === 'function' && _orcInsumoSemValor(i)));
+    const totalCat  = itensCobrados.reduce((s, i) => s + (i.total || 0), 0);
     const cor       = CAT_COR_INSUMO[cat] || '#F97316';
-    const semValor  = (typeof _orcCatSemValorDireto === 'function') && _orcCatSemValorDireto(cat);
+    const semValor  = !itensCobrados.length && (typeof _orcCatSemValorDireto === 'function') && _orcCatSemValorDireto(cat);
     const motivo    = (typeof _orcMotivoSemValor === 'function') ? _orcMotivoSemValor(cat) : 'sem valor no orçamento';
     return `
       <div style="background:var(--bg2);border:1px solid var(--border);border-left:3px solid ${cor};border-radius:var(--radius);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;padding:10px 14px;cursor:pointer${semValor?';opacity:.75':''}"
