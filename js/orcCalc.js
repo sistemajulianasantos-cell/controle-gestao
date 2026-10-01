@@ -264,7 +264,7 @@ var ORC_ADICIONAIS_PADRAO = {
   imposto:   { pct: 10, ativo: true },
   comissao:  { pct: 0,  ativo: true },
   cerimonia: { valor: 45, ativo: true },
-  horaExtra: { valorColab: 45, pct: 10, opcoesPct: [10, 20], ativo: true },
+  horaExtra: { valorColab: 45, pct: 10, opcoesPct: [10, 20], duracaoPadrao: 7, ativo: true },
 };
 
 function getOrcAdicionais() {
@@ -308,7 +308,9 @@ function _orcGetAdic(orc) {
     cerimonia: { inclui: !!g('cerimonia').inclui, valor: Number(a.cerimonia.valor) || 0 },
     horaExtra: { horas: Number(g('horaExtra').horas) || 0,
                  pct: g('horaExtra').pct != null ? Number(g('horaExtra').pct) : (Number(a.horaExtra.pct) || 0),
-                 valorColab: Number(a.horaExtra.valorColab) || 0 },
+                 valorColab: Number(a.horaExtra.valorColab) || 0,
+                 // Horas de serviço já previstas no contrato (padrão da regra, editável no orçamento)
+                 duracao: g('horaExtra').duracao != null ? Number(g('horaExtra').duracao) : (Number(a.horaExtra.duracaoPadrao) || 0) },
   };
 }
 
@@ -357,48 +359,54 @@ function _orcAdicPainelHtml(orc, colab) {
   var adic = _orcGetAdic(orc);
   var pad = getOrcAdicionais();
   var fmt = function(v) { return (typeof fR === 'function') ? fR(v) : 'R$ ' + Number(v || 0).toFixed(2); };
-  // Valor da regra, só leitura
-  var valorRegra = function(txt) {
-    return '<div style="font-size:15px;font-weight:700;font-family:var(--mono);color:var(--text);padding:4px 0">' + txt + '</div>';
+  var rot = function(s) { return '<div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:3px">' + s + '</div>'; };
+  var campoStyle = 'width:100%;font-size:13px;padding:6px 8px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius);box-sizing:border-box';
+
+  // Card compacto (mesma altura dos campos de parâmetro): caixa + título à
+  // esquerda, valor da regra à direita, detalhe numa linha pequena embaixo.
+  var cardTaxa = function(grupo, on, titulo, valor, detalhe) {
+    return '<label style="display:block;margin:0;cursor:pointer;text-transform:none;letter-spacing:0;width:auto;background:var(--bg3);border:1px solid ' + (on ? '#8B5CF6' : 'var(--border2)') + ';border-radius:var(--radius);padding:6px 10px">' +
+      '<div style="display:flex;align-items:center;gap:8px">' +
+        '<input type="checkbox"' + (on ? ' checked' : '') + ' onchange="calcSetAdic(\'' + grupo + '\',\'inclui\',this.checked)" style="width:auto;margin:0;cursor:pointer">' +
+        '<span style="flex:1;font-size:11px;font-weight:700;color:' + (on ? 'var(--text)' : 'var(--text3)') + ';text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + titulo + '</span>' +
+        '<span style="font-size:13px;font-weight:700;font-family:var(--mono);color:' + (on ? 'var(--text)' : 'var(--text3)') + ';white-space:nowrap">' + valor + '</span>' +
+      '</div>' +
+      '<div style="font-size:10px;color:var(--text3);margin-top:2px;padding-left:22px">' + detalhe + '</div>' +
+    '</label>';
   };
-  var dica = function(s) { return '<div style="font-size:10px;color:var(--text3);margin-top:2px">' + s + '</div>'; };
-  var card = function(ligado, cabecalho, corpo) {
-    return '<div style="background:var(--bg3);border:1px solid ' + (ligado ? '#8B5CF6' : 'var(--border2)') + ';border-radius:var(--radius);padding:10px 12px' + (ligado ? '' : ';opacity:.75') + '">' +
-      cabecalho + corpo + '</div>';
-  };
-  var cabChk = function(grupo, on, titulo) {
-    return '<label style="display:flex;align-items:center;gap:8px;margin:0 0 6px;cursor:pointer;text-transform:none;letter-spacing:0;width:auto">' +
-      '<input type="checkbox"' + (on ? ' checked' : '') + ' onchange="calcSetAdic(\'' + grupo + '\',\'inclui\',this.checked)" style="width:auto;margin:0;cursor:pointer">' +
-      '<span style="font-size:11px;font-weight:700;color:' + (on ? 'var(--text)' : 'var(--text3)') + ';text-transform:uppercase">' + titulo + '</span></label>';
-  };
+
   var opcoesPct = (pad.horaExtra.opcoesPct || [10, 20]).slice();
   var pctAtual = Number(adic.horaExtra.pct) || 0;
   if (opcoesPct.indexOf(pctAtual) === -1) opcoesPct.push(pctAtual);
   var horas = Number(adic.horaExtra.horas) || 0;
-  var campoStyle = 'width:100%;font-size:13px;padding:6px 8px;background:var(--bg2);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius);box-sizing:border-box';
+  var duracao = Number(adic.horaExtra.duracao) || 0;
+  var totalHoras = duracao + horas;
 
   return '<div style="border-top:1px solid var(--border);padding-top:12px;margin-bottom:12px">' +
-    '<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:10px">' +
+    '<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:8px">' +
       '<span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase">Taxas e adicionais</span>' +
       '<span style="font-size:10px;color:var(--text3)">' + colab + ' colaborador(es) na equipe · valores da regra —</span>' +
       '<a href="#" onclick="calcIrParaRegraTaxas();return false" style="font-size:10px;color:var(--blue)">alterar em Cálculos do Orçamento</a>' +
     '</div>' +
-    '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">' +
-      card(adic.imposto.inclui, cabChk('imposto', adic.imposto.inclui, 'Imposto / NF'),
-        valorRegra(adic.imposto.pct + '%') + dica('sobre o valor total do serviço')) +
-      card(adic.comissao.inclui, cabChk('comissao', adic.comissao.inclui, 'Comissão'),
-        valorRegra(adic.comissao.pct + '%') + dica('sobre o valor total do serviço')) +
-      card(adic.cerimonia.inclui, cabChk('cerimonia', adic.cerimonia.inclui, 'Cerimônia no local'),
-        valorRegra(fmt(adic.cerimonia.valor)) + dica('por colaborador · ' + colab + ' = ' + fmt(adic.cerimonia.valor * colab))) +
-      card(horas > 0, '<div style="font-size:11px;font-weight:700;color:' + (horas > 0 ? 'var(--text)' : 'var(--text3)') + ';text-transform:uppercase;margin-bottom:6px">Horas extras (antecipadas)</div>',
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">' +
-          '<div><div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Horas</div>' +
-            '<input type="number" min="0" step="1" value="' + horas + '" onchange="calcSetAdic(\'horaExtra\',\'horas\',this.value)" style="' + campoStyle + ';font-family:var(--mono)"></div>' +
-          '<div><div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:3px">% do valor</div>' +
-            '<select onchange="calcSetAdic(\'horaExtra\',\'pct\',this.value)" style="' + campoStyle + '">' +
-              opcoesPct.map(function(o) { return '<option value="' + o + '"' + (o === pctAtual ? ' selected' : '') + '>' + o + '%</option>'; }).join('') +
-            '</select></div>' +
-        '</div>' + dica('Por hora: ' + fmt(adic.horaExtra.valorColab) + ' por colaborador + % do valor')) +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:10px">' +
+      cardTaxa('imposto', adic.imposto.inclui, 'Imposto / NF', adic.imposto.pct + '%', 'sobre o valor total') +
+      cardTaxa('comissao', adic.comissao.inclui, 'Comissão', adic.comissao.pct + '%', 'sobre o valor total') +
+      cardTaxa('cerimonia', adic.cerimonia.inclui, 'Cerimônia no local', fmt(adic.cerimonia.valor), 'por colaborador · ' + colab + ' = ' + fmt(adic.cerimonia.valor * colab)) +
+    '</div>' +
+    // Horas: duração já prevista + horas extras = total de festa
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;align-items:end">' +
+      '<div>' + rot('Duração prevista (h)') +
+        '<input type="number" min="0" step="0.5" value="' + duracao + '" onchange="calcSetAdic(\'horaExtra\',\'duracao\',this.value)" title="Horas de serviço já incluídas no orçamento (padrão da regra: ' + (pad.horaExtra.duracaoPadrao || 0) + 'h)" style="' + campoStyle + ';font-family:var(--mono)"></div>' +
+      '<div>' + rot('+ Horas extras') +
+        '<input type="number" min="0" step="1" value="' + horas + '" onchange="calcSetAdic(\'horaExtra\',\'horas\',this.value)" style="' + campoStyle + ';font-family:var(--mono);border-color:' + (horas > 0 ? '#8B5CF6' : 'var(--border2)') + '"></div>' +
+      '<div>' + rot('% do valor por hora') +
+        '<select onchange="calcSetAdic(\'horaExtra\',\'pct\',this.value)" style="' + campoStyle + '">' +
+          opcoesPct.map(function(o) { return '<option value="' + o + '"' + (o === pctAtual ? ' selected' : '') + '>' + o + '%</option>'; }).join('') +
+        '</select></div>' +
+      '<div>' + rot('Total de festa') +
+        '<div style="' + campoStyle + ';border-style:dashed;font-family:var(--mono);font-weight:700;color:' + (horas > 0 ? '#8B5CF6' : 'var(--text)') + '" title="Por hora extra: ' + fmt(adic.horaExtra.valorColab) + ' por colaborador + % do valor">' +
+          (horas > 0 ? duracao + 'h + ' + horas + 'h = ' + totalHoras + 'h' : duracao + 'h') +
+        '</div></div>' +
     '</div>' +
   '</div>';
 }

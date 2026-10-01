@@ -419,9 +419,16 @@ function _propostaMontarHtml(orc) {
     if (_propostaValor(orc, 'inv_pagamento')) invBlocos.push(
       '<h3 class="prop-h3 prop-under">Forma de pagamento</h3>' +
       '<p class="prop-p">20% na contratação e 80% até 7 dias antes do evento. Eventuais quebras de materiais são cobradas após o evento, com transparência e alinhamento prévio.</p>');
+    // Duração vem do orçamento (Calculadora → Taxas e adicionais: prevista +
+    // horas extras antecipadas); antes era texto fixo "7 horas". Os 20% são
+    // da hora extra pedida na hora, não mudam.
+    var _he = (typeof _orcGetAdic === 'function') ? _orcGetAdic(orc).horaExtra : { duracao: 7, horas: 0, pct: 20 };
+    var _durTotal = (Number(_he.duracao) || 0) + (Number(_he.horas) || 0);
     if (_propostaValor(orc, 'inv_tempoFesta')) invBlocos.push(
       '<h3 class="prop-h3 prop-under">Tempo de festa</h3>' +
-      '<p class="prop-p">Serviço de recepção tem duração de 7 (sete) horas. O valor da hora extra é de 20% do total do orçamento.</p>');
+      '<p class="prop-p">Serviço de recepção tem duração de ' + _durTotal + ' horas' +
+        (Number(_he.horas) > 0 ? ' (já incluídas ' + _he.horas + ' hora' + (Number(_he.horas) > 1 ? 's' : '') + ' extra' + (Number(_he.horas) > 1 ? 's' : '') + ' contratada' + (Number(_he.horas) > 1 ? 's' : '') + ')' : '') +
+        '. O valor da hora extra é de 20% do total do orçamento.</p>');
     paginas.push(
       '<div class="prop-page">' +
         '<div class="prop-corner tl">r.</div><div class="prop-corner tr">r.</div>' +

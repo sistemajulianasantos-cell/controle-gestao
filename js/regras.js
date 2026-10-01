@@ -1611,6 +1611,7 @@ function _htmlAdicionaisOrcamento() {
         inp('horaExtra', 'pct', a.horaExtra.pct, 60) + t('% do valor (padrão) · opções:') +
         '<input type="text" value="' + (a.horaExtra.opcoesPct || []).join(', ') + '" onchange="atualizarAdicionalOrc(\'horaExtra\',\'opcoesPct\',this.value)" title="Porcentagens que aparecem pra escolher no orçamento, separadas por vírgula" ' +
           'style="width:90px;font-size:12px;padding:5px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">' + t('%'), null) +
+      linha('Duração padrão do serviço', inp('horaExtra', 'duracaoPadrao', a.horaExtra.duracaoPadrao, 70) + t('horas já incluídas no orçamento (a hora extra soma em cima disso; dá pra mudar em cada orçamento)'), null) +
     '</div></div>';
 }
 
