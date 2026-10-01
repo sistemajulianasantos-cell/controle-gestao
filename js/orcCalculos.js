@@ -585,8 +585,10 @@ function _ocoBlocosCalculadora() {
   var cats = (typeof getCategorias === 'function' ? getCategorias() : []).slice();
   if (cats.indexOf('ITENS AUTOMÁTICOS') === -1) cats.push('ITENS AUTOMÁTICOS');
   if (typeof _orcOrdenarCats === 'function') cats = _orcOrdenarCats(cats);
-  cats.forEach(function(c) { add(_orcChaveCat(c), c, 'Insumos'); });
-  _orcSecoesCalc().forEach(function(s) { add('sec:' + s.id, s.label.replace(/^[^\wÀ-ÿ]+\s*/, ''), s.proprio ? 'Categoria de preço' : 'Seção'); });
+  // Tipo bem explícito: "GELO" de insumo (Cardápio/Itens automáticos) e
+  // "Gelo" de categoria de preço são blocos diferentes na Calculadora.
+  cats.forEach(function(c) { add(_orcChaveCat(c), c, 'Insumos do Cardápio / Itens automáticos'); });
+  _orcSecoesCalc().forEach(function(s) { add('sec:' + s.id, s.label.replace(/^[^\wÀ-ÿ]+\s*/, ''), s.proprio ? 'Categoria de preço (Preços, Equipe e Taxas)' : 'Seção da Calculadora'); });
   var ordenadas = _orcOrdenarBlocos(blocos.map(function(b) { return b.k; }));
   return ordenadas.map(function(k) { return blocos.find(function(b) { return b.k === k; }); });
 }
@@ -599,6 +601,25 @@ function ocoMoverBloco(k, dir) {
   var p = (typeof _ensureOrcPrecos === 'function') ? _ensureOrcPrecos() : (D.orcPrecos = D.orcPrecos || {});
   p.ordemCalculadora = ordem;
   sv('orcPrecos');
+  rOrcCalculos();
+}
+
+// Embaixo de cada seção fixa: as categorias de preço que caem dentro dela;
+// as criadas por ela ganham link pra virar bloco próprio.
+function _ocoFatoresDaSecaoHtml(k) {
+  if (k.indexOf('sec:') !== 0) return '';
+  var secId = k.slice(4);
+  var fatores = getOrcFatores().filter(function(f) { return !f.pausado && (f.secao || 'custos') === secId && f.secao !== f.id; });
+  if (!fatores.length) return '';
+  return '<span style="display:block;font-size:10px;font-weight:400;color:var(--text3);margin-top:2px">inclui: ' +
+    fatores.map(function(f) {
+      var nome = f.nome.replace(/\s*\([^)]*\)\s*$/, '');
+      return f.builtin ? nome : nome + ' (<a href="#" onclick="ocoSepararFator(\'' + f.id + '\');return false" style="color:var(--blue)">separar em bloco próprio</a>)';
+    }).join(', ') + '</span>';
+}
+
+function ocoSepararFator(id) {
+  if (typeof setSecaoOrcFator === 'function') setSecaoOrcFator(id, '_proprio');
   rOrcCalculos();
 }
 
@@ -618,7 +639,7 @@ function _ocoRenderOrdem(cont) {
       return '<div style="display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:6px 10px">' +
         '<span style="font-size:11px;font-family:var(--mono);color:var(--text3);width:22px;text-align:right">' + (i + 1) + '</span>' +
         '<span style="display:flex;flex-direction:column;gap:1px">' + btn(b.k, -1, i === 0) + btn(b.k, 1, i === blocos.length - 1) + '</span>' +
-        '<span style="flex:1;font-size:12px;font-weight:600;color:var(--text)">' + b.nome + '</span>' +
+        '<span style="flex:1;font-size:12px;font-weight:600;color:var(--text)">' + b.nome + _ocoFatoresDaSecaoHtml(b.k) + '</span>' +
         '<span style="font-size:10px;color:var(--text3)">' + b.tipo + '</span>' +
       '</div>';
     }).join('') +

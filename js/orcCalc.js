@@ -124,7 +124,8 @@ function migrarOrcFatores() {
   // escolha — passa pra bloco próprio (uma vez; depois vale o que ela escolher).
   var mudouSecao = false;
   D.orcFatores.forEach(function(f) {
-    if (!f.builtin && f.secao === 'custos' && !f.secaoEscolhida) { f.secao = f.id; f.secaoEscolhida = true; mudouSecao = true; }
+    // (sem seção gravada também conta — o orçamento tratava como 'custos')
+    if (!f.builtin && (!f.secao || f.secao === 'custos') && !f.secaoEscolhida) { f.secao = f.id; f.secaoEscolhida = true; mudouSecao = true; }
   });
   if (mudouSecao) sv('orcFatores');
   var faltantes = D.orcFatores.map(function(f) { return f.id; })
