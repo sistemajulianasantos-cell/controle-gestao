@@ -91,6 +91,9 @@ function abrirOrcDetalhe(id) {
   orcView = 'detalhe';
   orcAtualId = id;
   orcDetTab  = 'calc';
+  // Abre já com os valores atuais dos cadastros/regras (sem botão "Atualizar")
+  try { _orcAtualizarValores((D.orcamentos || []).find(o => o.id === id)); }
+  catch (e) { console.error('Erro ao atualizar valores do orçamento:', e); }
   rOrcDetalhe();
 }
 
@@ -796,8 +799,8 @@ function orcSetCabecalho(orcId, campo, valor) {
   // Calculadora — recalcula na hora (recalcularAutos desenha a Calculadora,
   // então redesenha a aba que estiver aberta depois).
   if (campo === 'convidados') {
-    if (typeof recalcularAutos === 'function') recalcularAutos();
-    if (orcDetTab !== 'calc') _rTabContent();
+    _orcAtualizarValores(orc);
+    _rTabContent();
   }
 }
 
@@ -983,7 +986,7 @@ function rOrcCardapio(orc) {
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);gap:10px">
         <span style="font-size:12px;font-weight:700;color:#F97316">🍾 Insumos / Bebidas</span>
         <div style="display:flex;align-items:center;gap:10px">
-          ${insumos.length ? `<button onclick="atualizarValoresOrcamento('${orc.id}')" style="background:transparent;border:1px solid #F97316;color:#F97316;border-radius:var(--radius);font-size:10px;padding:4px 8px;cursor:pointer" title="Recalcula custo e quantidade de cada insumo (Cadastro de Insumos/Regras de Proporção) e os itens automáticos da Calculadora">🔄 Atualizar valores</button>` : ''}
+
           <span style="font-size:13px;font-weight:700;font-family:var(--mono);color:#F97316">${fR(custoInsumos)}</span>
         </div>
       </div>
@@ -1325,7 +1328,7 @@ function _orcPrecoInsumoComTemporada(nome, temporada) {
   return { valor: _orcPrecoInsumo(nome), viaRevenda: false };
 }
 
-// Botão "🔄 Atualizar valores" (aba Calculadora e aba Cardápio) — traz pra
+// (Antigo botão "Atualizar valores" — removido 10-01, ver _orcAtualizarValores.) Traz pra
 // dentro deste orçamento específico os valores atuais dos cadastros, sem
 // precisar excluir/re-incluir item por item: recalcula os itens automáticos
 // da Calculadora (recalcularAutos, já existente) e, pra cada insumo já
@@ -1334,14 +1337,21 @@ function _orcPrecoInsumoComTemporada(nome, temporada) {
 // também a quantidade (calcQtdItem). Sobrescreve ajustes manuais feitos
 // nesses valores dentro deste orçamento — por isso pede confirmação antes.
 // Não afeta nenhum outro orçamento.
+// 10-01: o botão saiu — isto roda sozinho ao abrir o orçamento e a cada
+// mudança de parâmetro/convidados/equipe (sem pergunta nem aviso). Valor
+// marcado "ajustado à mão" nunca é sobrescrito.
 function atualizarValoresOrcamento(orcId) {
   const orc = (D.orcamentos||[]).find(o => o.id === orcId);
   if (!orc) return;
-  // 10-01: valor ajustado à mão (marcado "ajustado à mão") NÃO é mais
-  // sobrescrito — só o que ainda está no automático é atualizado.
-  if (!confirm('Atualizar com os valores atuais dos cadastros e das Regras do Orçamento?\n\nO que você ajustou à mão neste orçamento continua como está.')) return;
+  _orcAtualizarValores(orc);
+  _rTabContent();
+}
 
-  recalcularAutos();
+// Traz os valores atuais dos cadastros/Regras do Orçamento pra dentro do
+// orçamento aberto (orcAtualId) sem redesenhar nada.
+function _orcAtualizarValores(orc) {
+  if (!orc || orc.id !== orcAtualId) return;
+  recalcularAutos({ semRender: true });
 
   const p = orc.calcParams || {};
   const conv = orc.convidados || 0;
@@ -1370,8 +1380,6 @@ function atualizarValoresOrcamento(orcId) {
   });
 
   sv('orcamentos');
-  alert2('Valores atualizados!');
-  _rTabContent();
 }
 
 // Garante que orc.insumos tem uma entrada pra cada Regra de Proporção

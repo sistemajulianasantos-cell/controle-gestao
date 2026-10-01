@@ -1635,7 +1635,7 @@ function renomearItemLocalOrc(campo, nome) {
   if (nome) p.nomesLocais[campo] = nome; else delete p.nomesLocais[campo];
   sv('orcPrecos');
   rPrecosOrcamento();
-  alert2('Nome atualizado — vale pros orçamentos ao clicar em "Atualizar valores" ou mudar algum parâmetro.');
+  alert2('Nome atualizado — os orçamentos mostram o nome novo ao serem abertos.');
 }
 
 function atualizarPrecoCargoOrc(cargoKey, regiaoKey, valor) {

@@ -473,7 +473,9 @@ function _orcAdicPainelHtml(orc, colab) {
 
 // ─── RECALCULAR AUTOMÁTICOS ───────────────────────────────────────────────────
 
-function recalcularAutos() {
+// opts.semRender: só recalcula (usado por _orcAtualizarValores, que pode rodar
+// com outra aba aberta — rOrcCalc escreveria a Calculadora por cima dela).
+function recalcularAutos(opts) {
   const orc = _calcGetOrc();
   if (!orc) return;
 
@@ -557,7 +559,7 @@ function recalcularAutos() {
   if (typeof _sincronizarItensAutoGlobais === 'function') _sincronizarItensAutoGlobais(orc, pax, qt.bt, eqTotal, qt);
 
   sv('orcamentos');
-  rOrcCalc();
+  if (!(opts && opts.semRender)) rOrcCalc();
 }
 
 // Preço de equipe (o que cobra do cliente) por cargo/faixa — vem do Cadastro
@@ -576,12 +578,11 @@ function calcSetParam(chave, valor) {
   if (!orc.calcParams) orc.calcParams = {};
   orc.calcParams[chave] = valor;
   sv('orcamentos');
-  // 'local'/'tipoEvento' + qualquer seletor de fator (cfCond/cfCI/cfPerda/
-  // cfVas legados, ou cf_<id> de fatores novos — ver _orcFatorParamKey)
-  // exigem recalcular os itens automáticos; o resto só redesenha a tela.
-  const disparaRecalc = chave === 'local' || chave === 'tipoEvento' || chave.indexOf('cf') === 0;
-  if (disparaRecalc) recalcularAutos();
-  else rOrcCalc();
+  // 10-01: qualquer parâmetro (equipe, local, tipo, temporada, fatores…)
+  // recalcula na hora — só as margens dispensam (entram no resumo direto).
+  const soMargem = chave === 'margemSeguranca' || chave === 'margemLucro';
+  if (!soMargem && typeof _orcAtualizarValores === 'function') _orcAtualizarValores(orc);
+  rOrcCalc();
 }
 
 // ─── ITENS ────────────────────────────────────────────────────────────────────
@@ -947,7 +948,6 @@ function rOrcCalc() {
             onchange="calcSetParam('margemLucro', Number(this.value))"
             style="width:100px;font-size:13px;padding:6px 8px;background:var(--bg3);border:1px solid var(--border2);color:var(--green);border-radius:var(--radius);font-family:var(--mono)">
         </div>
-        <button onclick="atualizarValoresOrcamento('${orc.id}')" class="btn btn-primary" style="padding:8px 20px" title="Recalcula os itens automáticos da Calculadora e o custo/quantidade dos insumos do Cardápio a partir dos cadastros atuais">🔄 Atualizar valores</button>
       </div>
     </div>`;
 
@@ -983,7 +983,7 @@ function rOrcCalc() {
                   <td style="padding:6px 10px;color:var(--text);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
                     ${item.nome}
                     ${(item.manualQtd || item.manualPreco)
-                      ? `<span style="font-size:9px;color:var(--amber);font-weight:600;margin-left:4px" title="Valor que você mudou neste orçamento — o Atualizar valores não mexe">ajustado à mão</span> <a href="#" onclick="calcVoltarAutomatico('${item.id}',false);return false" style="font-size:9px;color:var(--blue);font-weight:400">voltar ao automático</a>`
+                      ? `<span style="font-size:9px;color:var(--amber);font-weight:600;margin-left:4px" title="Valor que você mudou neste orçamento — o recálculo automático não mexe">ajustado à mão</span> <a href="#" onclick="calcVoltarAutomatico('${item.id}',false);return false" style="font-size:9px;color:var(--blue);font-weight:400">voltar ao automático</a>`
                       : (item.auto ? `<span style="font-size:9px;color:var(--text3);font-weight:400;margin-left:4px">auto</span>` : '')}
                   </td>
                   <td style="padding:4px 6px;text-align:right">
@@ -1144,7 +1144,7 @@ function rOrcCalc() {
     (ins.coqueteis || []).forEach(c => tags.push(_etiqueta(c, '#4F8EF7', 'rgba(79,142,247,.14)', 'Vem do coquetel ' + c)));
     if (!ins.autoGlobal && !(ins.coqueteis || []).length) tags.push(_etiqueta('manual', 'var(--text3)', 'var(--bg3)', 'Adicionado à mão na aba Cardápio'));
     if (ins.viaRevenda) tags.push(_etiqueta('revenda', 'var(--green)', 'rgba(34,197,94,.14)', 'Preço final de revenda — não recebe margem'));
-    if (ins.manualQtd || ins.manualPreco) tags.push(_etiqueta('ajustado à mão', 'var(--amber)', 'rgba(247,168,79,.14)', 'Valor que você mudou neste orçamento — o Atualizar valores não mexe') +
+    if (ins.manualQtd || ins.manualPreco) tags.push(_etiqueta('ajustado à mão', 'var(--amber)', 'rgba(247,168,79,.14)', 'Valor que você mudou neste orçamento — o recálculo automático não mexe') +
       ` <a href="#" onclick="calcVoltarAutomatico('${ins.id}',true);return false" style="font-size:9px;color:var(--blue)">voltar ao automático</a>`);
     return `<div style="margin-top:2px;display:flex;gap:3px;flex-wrap:wrap">${tags.join('')}</div>`;
   };
@@ -1230,7 +1230,7 @@ function rOrcCalc() {
   const qtdRemovidos = (orc.autosRemovidos || []).length;
   const avisoRemovidos = qtdRemovidos ? `
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;padding:6px 10px;border:1px dashed var(--border2);border-radius:var(--radius)">
-      ${qtdRemovidos} item(ns) automático(s) removido(s) deste orçamento — não voltam no "Atualizar valores".
+      ${qtdRemovidos} item(ns) automático(s) removido(s) deste orçamento — não voltam sozinhos.
       <a href="#" onclick="calcRestaurarRemovidos();return false" style="color:var(--blue)">restaurar</a>
     </div>` : '';
   const blocosOrdenados = avisoRemovidos + _orcOrdenarBlocos(Object.keys(blocoHtml)).map(k => blocoHtml[k]).join('');
