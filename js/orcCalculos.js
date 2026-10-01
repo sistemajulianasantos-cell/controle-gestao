@@ -968,7 +968,7 @@ function _ocoLinhaRegraHtml(r, ctx) {
   var regras = ctx.regras, cargos = ctx.cargos, insumosParaRevincular = ctx.insumos, orfaosIds = ctx.orfaosIds || {};
   var html = '';
   var ef = _regraBaseEfetiva(r);
-  var cols = 'minmax(160px,1fr) 140px 70px 110px 70px 40px';
+  var cols = 'minmax(160px,1fr) 140px 70px 110px 70px ' + (ctx.extraColWidth ? ctx.extraColWidth + ' ' : '') + '40px';
 
   var insumoDaRegra = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(r.item) : null;
   var semInsumo = !insumoDaRegra;
@@ -1008,11 +1008,11 @@ function _ocoLinhaRegraHtml(r, ctx) {
       '<input type="number" value="' + (r.min || 0) + '" min="0" onchange="ocoRegraSet(\'' + r.id + '\',\'min\',this.value)" style="width:100%;font-size:11px;padding:3px 5px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:center">' +
     '</div>' +
 
+    (ctx.extraCol ? ctx.extraCol(r) : '') +
+
     '<div style="text-align:center"><button class="btn-sm btn-red" onclick="ocoRemoverItem(\'' + r.id + '\')" style="padding:2px 6px">×</button></div>' +
 
     '</div>' +
-
-    (ctx.extraLinha ? ctx.extraLinha(r) : '') +
 
     (ef.base === 'cargo'
       ? '<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border2);display:flex;flex-wrap:wrap;gap:8px;align-items:center">' +
@@ -1098,30 +1098,31 @@ function _ocoRenderTodos(cont) {
 
   var ctx = {
     regras: regras, cargos: _cargosDisponiveis(), insumos: insumosNomes, orfaosIds: {},
-    // Embaixo do nome: preço do Cadastro + "só com cardápio"
-    // Valores do Cadastro só pra consulta, numa faixa própria embaixo da
-    // linha (extraLinha) — alterar = abre o insumo no Cadastro.
-    extraLinha: function(r) {
+    // Coluna "CADASTRO" ao lado do MÍN.: valores do Cadastro de Insumos só
+    // pra consulta, num card no mesmo padrão dos campos da linha. Clicar no
+    // card (ou em "alterar") abre o insumo no Cadastro.
+    extraColWidth: '210px',
+    extraCol: function(r) {
       var ins = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(r.item) : null;
-      var caixa = function(rot, val, destaque) {
-        return '<div style="min-width:110px"><div style="font-size:9px;color:var(--text3);margin-bottom:2px;text-transform:uppercase">' + rot + '</div>' +
-          '<div style="font-size:12px;font-family:var(--mono);font-weight:600;padding:4px 8px;border-radius:4px;border:1px dashed var(--border2);background:var(--bg2);color:' + (destaque || 'var(--text)') + '">' + val + '</div></div>';
-      };
-      var link = '<a href="#" data-nome="' + esc(r.item) + '" onclick="ocoAbrirCadastroInsumo(this.dataset.nome);return false" class="btn-sm" style="background:var(--bg2);border:1px solid var(--border2);color:var(--blue);text-decoration:none;white-space:nowrap">' + (ins ? 'Alterar no Cadastro' : 'Cadastrar') + '</a>';
-      var corpo;
+      var abrir = 'data-nome="' + esc(r.item) + '" onclick="ocoAbrirCadastroInsumo(this.dataset.nome);return false"';
+      var rotulo = '<div style="font-size:9px;color:var(--text3);margin-bottom:2px;display:flex;justify-content:space-between;gap:6px">' +
+        '<span>CADASTRO</span><a href="#" ' + abrir + ' style="color:var(--blue)">' + (ins ? 'alterar' : 'cadastrar') + '</a></div>';
+      var boxStyle = 'cursor:pointer;font-size:10px;line-height:1.35;padding:3px 8px;border-radius:4px;border:1px dashed var(--border2);background:var(--bg);color:var(--text)';
       if (!ins) {
-        corpo = '<span style="font-size:11px;color:var(--amber)">Não está no Cadastro de Insumos — entra com R$ 0</span>';
-      } else {
-        var custo = (typeof precoEfetivoInsumo === 'function') ? precoEfetivoInsumo(ins) : Number(ins.custoReposicao || 0);
-        corpo = caixa('Custo', custo ? moeda(custo) : 'sem preço', custo ? '' : 'var(--amber)') +
-          caixa('Unidade', (ins.unidadeCompra || 'UN')) +
-          caixa('Revenda baixa temp.', ins.revendaBaixaTemporada ? moeda(ins.revendaBaixaTemporada) : '—', ins.revendaBaixaTemporada ? 'var(--green)' : 'var(--text3)') +
-          caixa('Revenda alta temp.', ins.revendaAltaTemporada ? moeda(ins.revendaAltaTemporada) : '—', ins.revendaAltaTemporada ? 'var(--green)' : 'var(--text3)');
+        return '<div>' + rotulo + '<div ' + abrir + ' title="Cadastrar no Cadastro de Insumos" style="' + boxStyle + ';color:var(--amber)">Sem cadastro — entra com R$ 0</div></div>';
       }
-      return '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border2);display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">' +
-        '<span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;align-self:center">Cadastro (consulta):</span>' +
-        corpo + '<span style="margin-left:auto">' + link + '</span>' +
-      '</div>';
+      var custo = (typeof precoEfetivoInsumo === 'function') ? precoEfetivoInsumo(ins) : Number(ins.custoReposicao || 0);
+      var un = (ins.unidadeCompra || 'UN').toLowerCase();
+      var temRevenda = ins.revendaBaixaTemporada || ins.revendaAltaTemporada;
+      return '<div>' + rotulo +
+        '<div ' + abrir + ' title="Valores do Cadastro de Insumos (só consulta) — clique pra alterar" style="' + boxStyle + '">' +
+          '<div><span style="color:var(--text3)">Custo</span> <strong style="font-family:var(--mono);color:' + (custo ? 'var(--text)' : 'var(--amber)') + '">' + (custo ? moeda(custo) : 'sem preço') + '</strong> <span style="color:var(--text3)">/ ' + un + '</span></div>' +
+          (temRevenda
+            ? '<div><span style="color:var(--text3)">Revenda</span> <span style="font-family:var(--mono);color:var(--green)">' +
+                (ins.revendaBaixaTemporada ? moeda(ins.revendaBaixaTemporada) : '—') + ' / ' + (ins.revendaAltaTemporada ? moeda(ins.revendaAltaTemporada) : '—') +
+              '</span> <span style="color:var(--text3)">baixa/alta</span></div>'
+            : '<div style="color:var(--text3)">Sem revenda cadastrada</div>') +
+        '</div></div>';
     },
     // Embaixo do nome: "só com cardápio"
     extraNome: function(r) {
