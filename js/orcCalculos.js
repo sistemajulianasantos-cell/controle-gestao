@@ -635,6 +635,7 @@ function _ocoRenderCatalogo(cont) {
     it._temAviso = grafias.length > 1 || !it._temInsumo;
   });
   var totalAvisos = todosItens.filter(function(it) { return it._temAviso; }).length;
+  window._ocoSemCadastro = [];
   var itensFiltrados = _ocoSoAvisos ? todosItens.filter(function(it) { return it._temAviso; }) : todosItens;
 
   var porCatCatalogo = {};
@@ -667,12 +668,29 @@ function _ocoRenderCatalogo(cont) {
               it._grafias.map(function(g) { return '"' + g + '" (' + it.grafias[g].join(', ') + ')'; }).join(' · ') +
               ' — corrija a ficha errada pra usar sempre o mesmo nome</div>'
           : (!it._temInsumo ? '<div style="font-size:9px;color:var(--amber);margin-top:2px">⚠️ esse nome não bate com nenhum insumo do Cadastro — confira se é apelido/nome digitado diferente</div>' : '');
+        // Sem cadastro: vincular a um produto já cadastrado (renomeia nas
+        // fichas/regras) ou criar o produto novo no Cadastro.
+        var acoes = '';
+        if (!it._temInsumo) {
+          var idx = window._ocoSemCadastro.push({ nome: it.nome, cat: it.cat, grafias: it._grafias }) - 1;
+          acoes = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px">' +
+            '<div style="position:relative">' +
+              '<input type="text" autocomplete="off" placeholder="Vincular a produto do Cadastro — digite pra buscar..." ' +
+                'oninput="ocoFiltrarVinculo(' + idx + ',this.value)" onfocus="ocoFiltrarVinculo(' + idx + ',this.value)" ' +
+                'onblur="setTimeout(function(){var d=document.getElementById(\'oco-vinc-dd-' + idx + '\');if(d)d.style.display=\'none\';},150)" ' +
+                'style="width:300px;font-size:11px;padding:4px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">' +
+              '<div id="oco-vinc-dd-' + idx + '" style="display:none;position:absolute;top:28px;left:0;width:360px;max-height:240px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius);z-index:500;box-shadow:0 6px 24px rgba(0,0,0,.55)"></div>' +
+            '</div>' +
+            '<span style="font-size:10px;color:var(--text3)">ou</span>' +
+            '<button class="btn-sm" style="background:var(--green);color:#fff" onclick="ocoCriarInsumoDoCatalogo(' + idx + ')">Criar produto novo</button>' +
+          '</div>';
+        }
         return '<div style="background:var(--bg3);border:1px solid ' + (it._temAviso ? 'var(--amber-dim,var(--amber))' : 'var(--border)') + ';border-radius:var(--radius);padding:6px 12px;font-size:11px">' +
           '<div style="display:flex;align-items:center;gap:10px">' +
             '<span style="flex:1;color:var(--text);font-weight:500">' + it.nome + '</span>' +
             '<span style="font-size:10px;color:var(--text3)">' + it.fichas.join(', ') + '</span>' +
           '</div>' +
-          avisoGrafia +
+          avisoGrafia + acoes +
         '</div>';
       }).join('') +
       '</div></div>';
@@ -680,6 +698,91 @@ function _ocoRenderCatalogo(cont) {
 
   html += '</div>';
   cont.innerHTML = html;
+}
+
+// ─── Catálogo: item de ficha sem cadastro ──────────────────────────────────
+function ocoFiltrarVinculo(idx, busca) {
+  var dd = document.getElementById('oco-vinc-dd-' + idx);
+  var item = (window._ocoSemCadastro || [])[idx];
+  if (!dd || !item) return;
+  var b = _ocoNorm(busca);
+  var esc = function(s) { return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); };
+  var lista = (typeof getInsumos === 'function' ? getInsumos() : (D.insumos || []))
+    .filter(function(i) { return !b || _ocoNorm(i.nome).indexOf(b) !== -1; })
+    .sort(function(a, c) { return (a.nome || '').localeCompare(c.nome || '', 'pt-BR'); });
+  dd.innerHTML = lista.length ? lista.map(function(i) {
+    return '<div data-nome="' + esc(i.nome) + '" onmousedown="ocoVincularItemCatalogo(' + idx + ',this.dataset.nome)" ' +
+      'style="padding:7px 12px;cursor:pointer;font-size:11px;color:var(--text);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:8px" ' +
+      'onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'\'">' +
+      '<span>' + esc(i.nome) + '</span><span style="color:var(--text3);font-size:9px">' + esc(i.categoria) + '</span></div>';
+  }).join('') : '<div style="padding:8px 12px;color:var(--text3);font-size:11px">Nenhum produto com esse nome no Cadastro.</div>';
+  dd.style.display = 'block';
+}
+
+// Troca o nome solto pelo produto cadastrado em TODO lugar que guarda o nome
+// (fichas, copo da ficha, Regras de Separação, Associações — via
+// _propagarRenomeInsumo — e as listas de Cálculos do Orçamento). O nome
+// antigo vira apelido do produto, pra histórico/importação continuar casando.
+function ocoVincularItemCatalogo(idx, nomeAlvo) {
+  var item = (window._ocoSemCadastro || [])[idx];
+  var alvo = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(nomeAlvo) : null;
+  if (!item || !alvo) return;
+  var grafias = (item.grafias && item.grafias.length) ? item.grafias : [item.nome];
+  if (!confirm('Trocar "' + grafias.join('" / "') + '" por "' + alvo.nome + '" em todas as Fichas de Coquetel e regras?\n\n"' + grafias.join('", "') + '" vira apelido de "' + alvo.nome + '" no Cadastro.')) return;
+
+  var normGrafias = grafias.map(_ocoNorm);
+  // Fichas: casa sem acento/caixa (o _propagarRenomeInsumo casa só exato) e
+  // já ajusta a categoria pra do Cadastro.
+  var mudouFichas = false;
+  (D.fichas || []).forEach(function(f) {
+    (f.itens || []).forEach(function(it) {
+      if (normGrafias.indexOf(_ocoNorm(it.nome)) !== -1) { it.nome = alvo.nome; if (alvo.categoria) it.cat = alvo.categoria; mudouFichas = true; }
+    });
+    if (f.copo && normGrafias.indexOf(_ocoNorm(f.copo)) !== -1) { f.copo = alvo.nome; mudouFichas = true; }
+  });
+  if (mudouFichas) sv('fichas');
+  if (typeof _propagarRenomeInsumo === 'function') grafias.forEach(function(g) { _propagarRenomeInsumo(g, alvo.nome); });
+
+  var mudouCalc = false;
+  Object.keys(D.calculosOrcamento || {}).forEach(function(k) {
+    var lista = D.calculosOrcamento[k];
+    if (!Array.isArray(lista)) return;
+    lista.forEach(function(r) {
+      if (r.item && normGrafias.indexOf(_ocoNorm(r.item)) !== -1) { r.item = alvo.nome; mudouCalc = true; }
+      if (r.principal && normGrafias.indexOf(_ocoNorm(r.principal)) !== -1) { r.principal = alvo.nome; mudouCalc = true; }
+    });
+  });
+  if (mudouCalc) sv('calculosOrcamento');
+
+  if (!alvo.aliases) alvo.aliases = [];
+  grafias.forEach(function(g) {
+    var gU = (g || '').trim().toUpperCase();
+    if (gU && gU !== (alvo.nome || '').toUpperCase() && alvo.aliases.map(function(a) { return (a || '').toUpperCase(); }).indexOf(gU) === -1) alvo.aliases.push(gU);
+  });
+  sv('insumos');
+
+  alert2('"' + grafias.join('" / "') + '" agora é "' + alvo.nome + '" nas fichas.');
+  rOrcCalculos();
+}
+
+// Abre o formulário de produto novo no Cadastro já com o nome/categoria do
+// item; salvar/cancelar volta pra cá (window._cadVoltarPara).
+function ocoCriarInsumoDoCatalogo(idx) {
+  var item = (window._ocoSemCadastro || [])[idx];
+  if (!item) return;
+  go('cadastro');
+  setTimeout(function() {
+    window._cadVoltarPara = 'orcCalculos';
+    if (typeof setCadastroView === 'function') setCadastroView('form');
+    if (typeof rFormInsumo === 'function') rFormInsumo();
+    var nomeEl = document.getElementById('cad-nome');
+    if (nomeEl) nomeEl.value = item.nome;
+    var catEl = document.getElementById('cad-categoria');
+    if (catEl) {
+      var opt = Array.from(catEl.options).find(function(o) { return _ocoNorm(o.value) === _ocoNorm(item.cat); });
+      if (opt) catEl.value = opt.value;
+    }
+  }, 80);
 }
 
 // ─── DETALHE (quantidades de um Tipo de Evento) ────────────────────────────
