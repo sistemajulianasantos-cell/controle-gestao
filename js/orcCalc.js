@@ -1063,22 +1063,85 @@ function rOrcCalc() {
   });
   const catsInsumos = (typeof _orcOrdenarCats === 'function') ? _orcOrdenarCats(Object.keys(insumosPorCat)) : Object.keys(insumosPorCat);
 
+  // Cada categoria de insumo vira um bloco igual aos de Equipe/Custos
+  // variáveis: um item por linha (qtd · valor unitário · total) e uma
+  // etiqueta de onde ele veio — "fixo" (Regras do Orçamento), o(s)
+  // coquetel(is) do cardápio, ou "manual" (pedido 10-01).
+  const _escI = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  const _etiqueta = (txt, cor, bg, titulo) => `<span title="${_escI(titulo || '')}" style="font-size:9px;font-weight:600;color:${cor};background:${bg};padding:1px 6px;border-radius:8px;white-space:nowrap">${_escI(txt)}</span>`;
+  const _origemHtml = ins => {
+    const tags = [];
+    if (ins.autoGlobal) tags.push(_etiqueta('fixo', '#8B5CF6', 'rgba(139,92,246,.14)', 'Entra sempre — regra em Cálculos do Orçamento → Regras do Orçamento'));
+    (ins.coqueteis || []).forEach(c => tags.push(_etiqueta(c, '#4F8EF7', 'rgba(79,142,247,.14)', 'Vem do coquetel ' + c)));
+    if (!ins.autoGlobal && !(ins.coqueteis || []).length) tags.push(_etiqueta('manual', 'var(--text3)', 'var(--bg3)', 'Adicionado à mão na aba Cardápio'));
+    if (ins.viaRevenda) tags.push(_etiqueta('revenda', 'var(--green)', 'rgba(34,197,94,.14)', 'Preço final de revenda — não recebe margem'));
+    return `<div style="margin-top:2px;display:flex;gap:3px;flex-wrap:wrap">${tags.join('')}</div>`;
+  };
+  const _inpStyle = 'width:100%;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono);box-sizing:border-box';
+
   const insumosHtmlArr = catsInsumos.map(cat => {
-    const itensCat  = insumosPorCat[cat];
+    const itensCat  = insumosPorCat[cat].slice().sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'));
     // Valor teto: só soma o que é item automático (regra dela); o resto é consulta
-    const itensCobrados = itensCat.filter(i => !(typeof _orcInsumoSemValor === 'function' && _orcInsumoSemValor(i)));
+    const semValorItem = i => (typeof _orcInsumoSemValor === 'function') && _orcInsumoSemValor(i);
+    const itensCobrados = itensCat.filter(i => !semValorItem(i));
     const totalCat  = itensCobrados.reduce((s, i) => s + (i.total || 0), 0);
     const cor       = CAT_COR_INSUMO[cat] || '#F97316';
     const semValor  = !itensCobrados.length && (typeof _orcCatSemValorDireto === 'function') && _orcCatSemValorDireto(cat);
     const motivo    = (typeof _orcMotivoSemValor === 'function') ? _orcMotivoSemValor(cat) : 'sem valor no orçamento';
+
+    const linhas = itensCat.map(ins => {
+      const consulta = semValorItem(ins);
+      const unid = (typeof _orcGetUnit === 'function') ? _orcGetUnit(ins.nome) : '';
+      return `
+        <tr style="border-bottom:1px solid var(--border)${consulta ? ';opacity:.6' : ''}">
+          <td style="padding:6px 10px;color:var(--text);font-weight:500;overflow:hidden">
+            <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_escI(ins.nome)}</div>
+            ${_origemHtml(ins)}
+          </td>
+          <td style="padding:4px 6px;text-align:right" title="${_escI(unid)}">
+            ${consulta ? `<span style="font-family:var(--mono);color:var(--text3)">${ins.qtdGarrafas || 0}</span>`
+              : `<input type="number" value="${ins.qtdGarrafas || 0}" min="0" step="1" onchange="calcUpdateInsumo('${ins.id}','qtdGarrafas',this.value)" style="${_inpStyle}">`}
+          </td>
+          <td style="padding:4px 6px;text-align:right">
+            ${consulta ? `<span style="font-family:var(--mono);color:var(--text3)">${Number(ins.custoGarrafa || 0).toFixed(2)}</span>`
+              : `<input type="number" value="${Number(ins.custoGarrafa || 0).toFixed(2)}" min="0" step="0.01" onchange="calcUpdateInsumo('${ins.id}','custoGarrafa',this.value)" style="${_inpStyle}">`}
+          </td>
+          <td style="padding:6px 8px;text-align:right;font-family:var(--mono);font-weight:700;color:${consulta ? 'var(--text3)' : cor};white-space:nowrap">${consulta ? '—' : fR(ins.total || 0)}</td>
+          <td style="padding:6px 8px;text-align:center">
+            <span onclick="calcRemoveInsumo('${ins.id}')" style="cursor:pointer;color:var(--red);font-size:15px;line-height:1" title="Remover">×</span>
+          </td>
+        </tr>`;
+    }).join('');
+
+    const tabela = `
+      <table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed">
+        <colgroup><col><col style="width:80px"><col style="width:105px"><col style="width:100px"><col style="width:30px"></colgroup>
+        <tbody>${linhas}</tbody>
+      </table>`;
+
+    const cabecalho = `
+        <span style="font-size:12px;font-weight:700;color:${cor}">${_escI(cat)}</span>
+        <span style="font-size:10px;color:var(--text3);margin-left:8px">${itensCat.length} item(ns)${semValor ? ' &middot; ' + motivo : ''}</span>`;
+
+    // Valor teto: fechado por padrão (é só consulta), abre pra ver os itens
+    if (semValor) {
+      return `
+      <details style="background:var(--bg2);border:1px solid var(--border);border-left:3px solid ${cor};border-radius:var(--radius);margin-bottom:10px;opacity:.85">
+        <summary style="padding:10px 14px;cursor:pointer;user-select:none">${cabecalho}</summary>
+        <div style="border-top:1px solid var(--border)">${tabela}</div>
+      </details>`;
+    }
     return `
-      <div style="background:var(--bg2);border:1px solid var(--border);border-left:3px solid ${cor};border-radius:var(--radius);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;padding:10px 14px;cursor:pointer${semValor?';opacity:.75':''}"
-        onclick="setOrcTab('cardapio')">
-        <div>
-          <span style="font-size:12px;font-weight:700;color:${cor}">${cat}</span>
-          <span style="font-size:10px;color:var(--text3);margin-left:8px">${itensCat.length} item(ns) &middot; ${semValor ? motivo : 'clique para gerenciar'}</span>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-left:3px solid ${cor};border-radius:var(--radius);margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)">
+          <div>${cabecalho}</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span style="font-size:13px;font-weight:700;font-family:var(--mono);color:${cor}">${fR(totalCat)}</span>
+            <button onclick="setOrcTab('cardapio')" title="Trocar copo/destilado, vincular ao Cadastro, adicionar insumo"
+              style="background:transparent;border:1px solid ${cor};color:${cor};border-radius:var(--radius);font-size:10px;padding:3px 8px;cursor:pointer">gerenciar</button>
+          </div>
         </div>
-        ${semValor ? '' : `<span style="font-size:13px;font-weight:700;font-family:var(--mono);color:${cor}">${fR(totalCat)}</span>`}
+        ${tabela}
       </div>`;
   });
   const semInsumoHtml = catsInsumos.length ? '' : `
