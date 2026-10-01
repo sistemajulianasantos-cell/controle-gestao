@@ -539,6 +539,7 @@ function _ocoTopTabsHtml() {
     '<button class="sort-btn ' + (emTipos ? 'active' : '') + '" onclick="ocoSetView(\'overview\')">📊 Tipos de Evento</button>' +
     '<button class="sort-btn ' + (_ocoView === 'catalogo' ? 'active' : '') + '" onclick="ocoSetView(\'catalogo\')">📖 Catálogo de Insumos (todas as Fichas)</button>' +
     '<button class="sort-btn ' + (_ocoView === 'precos' ? 'active' : '') + '" onclick="ocoSetView(\'precos\')">💰 Preços, Equipe e Taxas</button>' +
+    '<button class="sort-btn ' + (_ocoView === 'ordem' ? 'active' : '') + '" onclick="ocoSetView(\'ordem\')">Ordem na Calculadora</button>' +
   '</div>';
 }
 
@@ -566,10 +567,62 @@ function rOrcCalculos() {
     if (typeof rPrecosOrcamento === 'function') rPrecosOrcamento();
     return;
   }
+  if (_ocoView === 'ordem') { _ocoRenderOrdem(cont); return; }
   if (_ocoView === 'todos') _ocoRenderTodos(cont);
   else if (_ocoView === 'catalogo') _ocoRenderCatalogo(cont);
   else if (_ocoView === 'detalhe') _ocoRenderDetalhe(cont, tipos);
   else _ocoRenderOverview(cont, tipos);
+}
+
+// ─── ORDEM NA CALCULADORA ───────────────────────────────────────────────────
+// Ordem dos blocos da Calculadora do orçamento (categorias de insumo +
+// Equipe/Logística/... + categorias de preço com bloco próprio). Guardada em
+// D.orcPrecos.ordemCalculadora (lida por _orcOrdenarBlocos, js/orcCalc.js).
+function _ocoBlocosCalculadora() {
+  var blocos = [];
+  var vistos = {};
+  var add = function(k, nome, tipo) { if (vistos[k]) return; vistos[k] = true; blocos.push({ k: k, nome: nome, tipo: tipo }); };
+  var cats = (typeof getCategorias === 'function' ? getCategorias() : []).slice();
+  if (cats.indexOf('ITENS AUTOMÁTICOS') === -1) cats.push('ITENS AUTOMÁTICOS');
+  if (typeof _orcOrdenarCats === 'function') cats = _orcOrdenarCats(cats);
+  cats.forEach(function(c) { add(_orcChaveCat(c), c, 'Insumos'); });
+  _orcSecoesCalc().forEach(function(s) { add('sec:' + s.id, s.label.replace(/^[^\wÀ-ÿ]+\s*/, ''), s.proprio ? 'Categoria de preço' : 'Seção'); });
+  var ordenadas = _orcOrdenarBlocos(blocos.map(function(b) { return b.k; }));
+  return ordenadas.map(function(k) { return blocos.find(function(b) { return b.k === k; }); });
+}
+
+function ocoMoverBloco(k, dir) {
+  var ordem = _ocoBlocosCalculadora().map(function(b) { return b.k; });
+  var i = ordem.indexOf(k), j = i + dir;
+  if (i === -1 || j < 0 || j >= ordem.length) return;
+  var tmp = ordem[i]; ordem[i] = ordem[j]; ordem[j] = tmp;
+  var p = (typeof _ensureOrcPrecos === 'function') ? _ensureOrcPrecos() : (D.orcPrecos = D.orcPrecos || {});
+  p.ordemCalculadora = ordem;
+  sv('orcPrecos');
+  rOrcCalculos();
+}
+
+function _ocoRenderOrdem(cont) {
+  var blocos = _ocoBlocosCalculadora();
+  var btn = function(k, dir, off) {
+    return '<button class="btn-sm" style="padding:0 7px;line-height:1.5;background:var(--bg2)" ' + (off ? 'disabled' : '') + ' onclick="ocoMoverBloco(\'' + k.replace(/'/g, "\\'") + '\',' + dir + ')" title="' + (dir < 0 ? 'Subir' : 'Descer') + '">' + (dir < 0 ? '▲' : '▼') + '</button>';
+  };
+  cont.innerHTML = '<div style="padding:20px 24px;max-width:1100px">' +
+    '<div style="margin-bottom:16px">' +
+      '<div style="font-size:18px;font-weight:700;color:var(--text)">Cálculos do Orçamento</div>' +
+      '<div style="font-size:12px;color:var(--text3);margin-top:2px">Ordem em que os blocos aparecem na Calculadora do orçamento. Bloco sem item naquele orçamento não aparece.</div>' +
+    '</div>' +
+    _ocoTopTabsHtml() +
+    '<div style="display:grid;gap:4px;max-width:620px">' +
+    blocos.map(function(b, i) {
+      return '<div style="display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:6px 10px">' +
+        '<span style="font-size:11px;font-family:var(--mono);color:var(--text3);width:22px;text-align:right">' + (i + 1) + '</span>' +
+        '<span style="display:flex;flex-direction:column;gap:1px">' + btn(b.k, -1, i === 0) + btn(b.k, 1, i === blocos.length - 1) + '</span>' +
+        '<span style="flex:1;font-size:12px;font-weight:600;color:var(--text)">' + b.nome + '</span>' +
+        '<span style="font-size:10px;color:var(--text3)">' + b.tipo + '</span>' +
+      '</div>';
+    }).join('') +
+    '</div></div>';
 }
 
 // ─── VISÃO GERAL ────────────────────────────────────────────────────────────

@@ -52,6 +52,53 @@ var ORC_FATORES_PADRAO = [
 
 var ORC_BLOCOS_ORDEM_PADRAO = ['equipe', 'locais', 'cond', 'desc', 'ci', 'perda', 'seg', 'vas'];
 
+// ─── BLOCOS DA CALCULADORA (seções + categorias de insumo) ─────────────────
+// Seções fixas dos itens automáticos/manuais. Categoria de preço (fator) pode
+// cair numa delas ou ter BLOCO PRÓPRIO (fator.secao === fator.id) — antes
+// toda categoria nova ia pra "Custos variáveis" (ex.: Gelo, 10-01).
+var ORC_SECOES_PADRAO = [
+  { id:'equipe',    label:'👥 Equipe',             cor:'#4F8EF7' },
+  { id:'logistica', label:'🚚 Logística',           cor:'#F7A84F' },
+  { id:'custos',    label:'💸 Custos variáveis',    cor:'#8B5CF6' },
+  { id:'seguro',    label:'🛡️ Seguro',              cor:'#EC4899' },
+  { id:'copos',     label:'🥂 Vasilhames',          cor:'#14B8A6' },
+  { id:'extras',    label:'➕ Extras',               cor:'#94A3B8' },
+];
+var _ORC_CORES_BLOCO_PROPRIO = ['#0EA5E9', '#F43F5E', '#84CC16', '#EAB308', '#A855F7', '#22C55E'];
+
+function _orcSecoesCalc() {
+  var out = ORC_SECOES_PADRAO.slice();
+  getOrcFatores().forEach(function(f, i) {
+    if (f.pausado || !f.secao || out.some(function(s) { return s.id === f.secao; })) return;
+    out.push({ id: f.secao, label: f.nome.replace(/\s*\([^)]*\)\s*$/, ''), cor: _ORC_CORES_BLOCO_PROPRIO[i % _ORC_CORES_BLOCO_PROPRIO.length], proprio: true });
+  });
+  return out;
+}
+
+// Item automático de categoria de preço segue a seção ATUAL da categoria
+// (mudar a seção não exige recalcular cada orçamento).
+function _orcSecaoDoItem(item) {
+  if (item && item.auto && typeof item.id === 'string' && item.id.indexOf('auto-') === 0) {
+    var f = buscarOrcFatorPorId(item.id.slice(5));
+    if (f && f.secao) return f.secao;
+  }
+  return item.secao;
+}
+
+function _orcChaveCat(cat) {
+  var n = (typeof _orcNormNome === 'function') ? _orcNormNome(cat) : String(cat || '').toUpperCase();
+  return 'cat:' + n;
+}
+
+// Ordem dos blocos na Calculadora (Cálculos do Orçamento → Ordem na
+// Calculadora). `chaves` = blocos presentes; os que ela ainda não ordenou vão
+// pro fim, na ordem padrão (categorias de insumo e depois seções).
+function _orcOrdenarBlocos(chaves) {
+  var salvo = (D.orcPrecos && D.orcPrecos.ordemCalculadora) || [];
+  var pos = function(k) { var i = salvo.indexOf(k); return i === -1 ? 100000 + chaves.indexOf(k) : i; };
+  return chaves.slice().sort(function(a, b) { return pos(a) - pos(b); });
+}
+
 // Semeia D.orcFatores/D.orcBlocosOrdem uma única vez (idempotente) — depois
 // disso ela é livre pra renomear/adicionar/reordenar sem nunca ser resetada.
 // Note que os VALORES continuam guardados só em D.orcPrecos (getOrcPrecos()),
@@ -73,6 +120,13 @@ function migrarOrcFatores() {
     D.orcBlocosOrdem = ORC_BLOCOS_ORDEM_PADRAO.slice();
     sv('orcBlocosOrdem');
   }
+  // Categoria criada por ela antes de 10-01 caía em "Custos variáveis" sem
+  // escolha — passa pra bloco próprio (uma vez; depois vale o que ela escolher).
+  var mudouSecao = false;
+  D.orcFatores.forEach(function(f) {
+    if (!f.builtin && f.secao === 'custos' && !f.secaoEscolhida) { f.secao = f.id; f.secaoEscolhida = true; mudouSecao = true; }
+  });
+  if (mudouSecao) sv('orcFatores');
   var faltantes = D.orcFatores.map(function(f) { return f.id; })
     .filter(function(id) { return D.orcBlocosOrdem.indexOf(id) === -1; });
   if (faltantes.length) { D.orcBlocosOrdem = D.orcBlocosOrdem.concat(faltantes); sv('orcBlocosOrdem'); }
@@ -735,14 +789,7 @@ function rOrcCalc() {
 
   const localKey = _migrarLocalOrcamento(p);
 
-  const secoes = [
-    { id:'equipe',    label:'👥 Equipe',             cor:'#4F8EF7' },
-    { id:'logistica', label:'🚚 Logística',           cor:'#F7A84F' },
-    { id:'custos',    label:'💸 Custos variáveis',    cor:'#8B5CF6' },
-    { id:'seguro',    label:'🛡️ Seguro',              cor:'#EC4899' },
-    { id:'copos',     label:'🥂 Vasilhames',          cor:'#14B8A6' },
-    { id:'extras',    label:'➕ Extras',               cor:'#94A3B8' },
-  ];
+  const secoes = _orcSecoesCalc();
 
   // ── Parâmetros ──────────────────────────────────────────────────────────────
   const paramHtml = `
@@ -830,8 +877,11 @@ function rOrcCalc() {
     </div>`;
 
   // ── Seções + Resumo ─────────────────────────────────────────────────────────
-  const secoesHtml = secoes.map(sec => {
-    const sItens = itens.filter(i => i.secao === sec.id);
+  // Um bloco por seção (html guardado por id, montado na ordem escolhida lá embaixo)
+  const secoesHtmlArr = secoes.map(sec => {
+    const sItens = itens.filter(i => _orcSecaoDoItem(i) === sec.id);
+    // Seção de bloco próprio sem item (categoria pausada/zerada) não aparece
+    if (sec.proprio && !sItens.length) return '';
     const sTotal = sItens.reduce((s, i) => s + (i.total || 0), 0);
     return `
       <div style="background:var(--bg2);border:1px solid var(--border);border-left:3px solid ${sec.cor};border-radius:var(--radius);margin-bottom:10px">
@@ -878,7 +928,7 @@ function rOrcCalc() {
           </table>` : `
           <div style="padding:12px 14px;font-size:11px;color:var(--text3)">Nenhum item — clique em "+ item" para adicionar.</div>`}
       </div>`;
-  }).join('');
+  });
 
   const resumoHtml = `
     <div style="position:sticky;top:16px">
@@ -946,13 +996,13 @@ function rOrcCalc() {
       <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px">
         <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:10px">Breakdown</div>
         ${secoes.map(sec => {
-          const t = itens.filter(i => i.secao === sec.id).reduce((s, i) => s + (i.total || 0), 0);
+          const t = itens.filter(i => _orcSecaoDoItem(i) === sec.id).reduce((s, i) => s + (i.total || 0), 0);
           if (!t) return '';
           const pct = Math.min(100, Math.round(t / custoPresente * 100));
           return `
             <div style="margin-bottom:8px">
               <div style="display:flex;justify-content:space-between;margin-bottom:3px">
-                <span style="font-size:10px;color:${sec.cor}">${sec.label.replace(/^\S+\s/, '')}</span>
+                <span style="font-size:10px;color:${sec.cor}">${sec.proprio ? sec.label : sec.label.replace(/^\S+\s/, '')}</span>
                 <span style="font-size:10px;font-family:var(--mono);color:var(--text3)">${fR(t)} · ${pct}%</span>
               </div>
               <div style="height:4px;background:var(--bg3);border-radius:2px">
@@ -997,14 +1047,15 @@ function rOrcCalc() {
     'MATERIAL (ESPECÍFICO)': '#78716C',
     'KIT BARTENDER':       '#EAB308',
   };
+  // Agrupa pela categoria do Cadastro de Insumos (mesma da aba Cardápio)
   const insumosPorCat = {};
   insumos.forEach(i => {
-    const cat = i.cat || 'OUTROS';
+    const cat = (typeof _orcCatDoInsumo === 'function') ? _orcCatDoInsumo(i) : (i.cat || 'OUTROS');
     (insumosPorCat[cat] = insumosPorCat[cat] || []).push(i);
   });
   const catsInsumos = (typeof _orcOrdenarCats === 'function') ? _orcOrdenarCats(Object.keys(insumosPorCat)) : Object.keys(insumosPorCat);
 
-  const insumosHtml = catsInsumos.length ? catsInsumos.map(cat => {
+  const insumosHtmlArr = catsInsumos.map(cat => {
     const itensCat  = insumosPorCat[cat];
     const totalCat  = itensCat.reduce((s, i) => s + (i.total || 0), 0);
     const cor       = CAT_COR_INSUMO[cat] || '#F97316';
@@ -1019,16 +1070,24 @@ function rOrcCalc() {
         </div>
         ${semValor ? '' : `<span style="font-size:13px;font-weight:700;font-family:var(--mono);color:${cor}">${fR(totalCat)}</span>`}
       </div>`;
-  }).join('') : `
+  });
+  const semInsumoHtml = catsInsumos.length ? '' : `
     <div style="background:var(--bg2);border:1px dashed var(--border);border-radius:var(--radius);margin-bottom:10px;padding:12px 14px;cursor:pointer;opacity:.7"
       onclick="setOrcTab('cardapio')">
       <span style="font-size:12px;color:var(--text3)">Nenhum insumo &mdash; <u>ir para aba Cardapio</u></span>
     </div>
     `;
 
+  // Monta os blocos (categorias de insumo + seções) na ordem de Cálculos do
+  // Orçamento → Ordem na Calculadora.
+  const blocoHtml = {};
+  catsInsumos.forEach((cat, i) => { blocoHtml[_orcChaveCat(cat)] = insumosHtmlArr[i]; });
+  secoes.forEach((sec, i) => { blocoHtml['sec:' + sec.id] = secoesHtmlArr[i]; });
+  const blocosOrdenados = _orcOrdenarBlocos(Object.keys(blocoHtml)).map(k => blocoHtml[k]).join('');
+
   el.innerHTML = paramHtml + `
     <div style="display:grid;grid-template-columns:1fr 270px;gap:14px;align-items:start">
-      <div>${insumosHtml}${secoesHtml}</div>
+      <div>${semInsumoHtml}${blocosOrdenados}</div>
       ${resumoHtml}
     </div>`;
 }

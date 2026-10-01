@@ -1539,6 +1539,16 @@ function rPrecosOrcamento() {
     var tituloEditavel = '<input type="text" value="' + fator.nome + '" onchange="renomearOrcFator(\'' + fator.id + '\',this.value)" ' +
       'style="font-size:13px;font-weight:600;background:transparent;border:none;border-bottom:1px dashed var(--border2);color:var(--text);padding:2px 0;flex:1;min-width:180px">';
     var pausado = !!fator.pausado;
+    // Onde aparece na Calculadora: numa das seções fixas ou em bloco próprio
+    var secaoAtual = fator.secao === fator.id ? '_proprio' : (fator.secao || 'custos');
+    var selSecao = '<div style="padding:0 16px 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+      '<span style="font-size:10px;color:var(--text3);text-transform:uppercase">Aparece no orçamento em</span>' +
+      '<select onchange="setSecaoOrcFator(\'' + fator.id + '\',this.value)" style="font-size:11px;padding:4px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">' +
+        '<option value="_proprio"' + (secaoAtual === '_proprio' ? ' selected' : '') + '>Bloco próprio ("' + fator.nome.replace(/\s*\([^)]*\)\s*$/, '').replace(/"/g, '&quot;') + '")</option>' +
+        (typeof ORC_SECOES_PADRAO !== 'undefined' ? ORC_SECOES_PADRAO : []).map(function(s) {
+          return '<option value="' + s.id + '"' + (secaoAtual === s.id ? ' selected' : '') + '>' + s.label.replace(/^\S+\s/, '') + '</option>';
+        }).join('') +
+      '</select></div>';
     return '<div class="sec" style="margin-bottom:14px' + (pausado ? ';border-style:dashed' : '') + '">' +
       '<div class="sec-head">' + _ordArrows(fator.id) + tituloEditavel +
         (pausado ? '<span style="background:var(--bg3);color:var(--text3);font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;margin-left:8px;white-space:nowrap">PAUSADO</span>' : '') +
@@ -1547,7 +1557,7 @@ function rPrecosOrcamento() {
         (!fator.builtin ? '<button class="btn-sm btn-red" style="margin-left:8px" onclick="excluirOrcFator(\'' + fator.id + '\')" title="Excluir categoria">🗑️</button>' : '') +
       '</div>' +
       (pausado ? '<div style="padding:8px 16px 0;font-size:11px;color:var(--text3)">Pausado: não aparece nem soma em nenhum orçamento (Calculadora, lista e Proposta). Os valores abaixo ficam guardados para quando reativar.</div>' : '') +
-      '<div style="padding:12px 16px' + (pausado ? ';opacity:.5' : '') + '">' + corpo + '</div></div>';
+      '<div style="padding:12px 16px' + (pausado ? ';opacity:.5' : '') + '">' + corpo + '</div>' + selSecao + '</div>';
   }
 
   var htmlPorId = { equipe: htmlPrecoEquipe, locais: htmlLocais };
@@ -1655,6 +1665,15 @@ function atualizarAdicionalOrc(grupo, campo, valor) {
   rPrecosOrcamento();
 }
 
+function setSecaoOrcFator(id, valor) {
+  var f = buscarOrcFatorPorId(id);
+  if (!f) return;
+  f.secao = valor === '_proprio' ? f.id : valor;
+  f.secaoEscolhida = true;
+  sv('orcFatores');
+  rPrecosOrcamento();
+}
+
 function pausarOrcFator(id, pausar) {
   var f = buscarOrcFatorPorId(id);
   if (!f) return;
@@ -1682,7 +1701,8 @@ function adicionarOrcFator() {
   var id = 'fat' + Date.now() + Math.random().toString(36).slice(2, 5);
   D.orcFatores.push({
     id: id, nome: nome, tipoValor: tipoValor, unicoValor: false,
-    opcoesFonte: null, secao: 'custos', builtin: false, chavePadrao: 'padrao',
+    // Categoria nova ganha bloco próprio na Calculadora (antes caía em Custos variáveis)
+    opcoesFonte: null, secao: id, secaoEscolhida: true, builtin: false, chavePadrao: 'padrao',
     opcoes: [{ chave: 'padrao', label: 'Padrão' }],
   });
   sv('orcFatores');
