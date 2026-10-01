@@ -1012,6 +1012,8 @@ function _ocoLinhaRegraHtml(r, ctx) {
 
     '</div>' +
 
+    (ctx.extraLinha ? ctx.extraLinha(r) : '') +
+
     (ef.base === 'cargo'
       ? '<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border2);display:flex;flex-wrap:wrap;gap:8px;align-items:center">' +
           '<span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Cargos:</span>' +
@@ -1097,23 +1099,33 @@ function _ocoRenderTodos(cont) {
   var ctx = {
     regras: regras, cargos: _cargosDisponiveis(), insumos: insumosNomes, orfaosIds: {},
     // Embaixo do nome: preço do Cadastro + "só com cardápio"
-    // Valores do Cadastro só pra consulta — alterar = abre o insumo no Cadastro.
-    extraNome: function(r) {
+    // Valores do Cadastro só pra consulta, numa faixa própria embaixo da
+    // linha (extraLinha) — alterar = abre o insumo no Cadastro.
+    extraLinha: function(r) {
       var ins = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(r.item) : null;
-      var valores;
+      var caixa = function(rot, val, destaque) {
+        return '<div style="min-width:110px"><div style="font-size:9px;color:var(--text3);margin-bottom:2px;text-transform:uppercase">' + rot + '</div>' +
+          '<div style="font-size:12px;font-family:var(--mono);font-weight:600;padding:4px 8px;border-radius:4px;border:1px dashed var(--border2);background:var(--bg2);color:' + (destaque || 'var(--text)') + '">' + val + '</div></div>';
+      };
+      var link = '<a href="#" data-nome="' + esc(r.item) + '" onclick="ocoAbrirCadastroInsumo(this.dataset.nome);return false" class="btn-sm" style="background:var(--bg2);border:1px solid var(--border2);color:var(--blue);text-decoration:none;white-space:nowrap">' + (ins ? 'Alterar no Cadastro' : 'Cadastrar') + '</a>';
+      var corpo;
       if (!ins) {
-        valores = '<span style="color:var(--amber)">Não está no Cadastro de Insumos (entra com R$ 0)</span>';
+        corpo = '<span style="font-size:11px;color:var(--amber)">Não está no Cadastro de Insumos — entra com R$ 0</span>';
       } else {
-        var un = (ins.unidadeCompra || 'UN').toLowerCase();
         var custo = (typeof precoEfetivoInsumo === 'function') ? precoEfetivoInsumo(ins) : Number(ins.custoReposicao || 0);
-        var partes = ['Custo: ' + (custo ? moeda(custo) + ' / ' + un : '<span style="color:var(--amber)">sem preço</span>')];
-        if (ins.revendaBaixaTemporada) partes.push('Revenda baixa: ' + moeda(ins.revendaBaixaTemporada));
-        if (ins.revendaAltaTemporada)  partes.push('Revenda alta: ' + moeda(ins.revendaAltaTemporada));
-        valores = partes.join(' · ');
+        corpo = caixa('Custo', custo ? moeda(custo) : 'sem preço', custo ? '' : 'var(--amber)') +
+          caixa('Unidade', (ins.unidadeCompra || 'UN')) +
+          caixa('Revenda baixa temp.', ins.revendaBaixaTemporada ? moeda(ins.revendaBaixaTemporada) : '—', ins.revendaBaixaTemporada ? 'var(--green)' : 'var(--text3)') +
+          caixa('Revenda alta temp.', ins.revendaAltaTemporada ? moeda(ins.revendaAltaTemporada) : '—', ins.revendaAltaTemporada ? 'var(--green)' : 'var(--text3)');
       }
-      return '<div style="font-size:9px;margin-top:3px;color:var(--text3)">' + valores +
-          ' · <a href="#" data-nome="' + esc(r.item) + '" onclick="ocoAbrirCadastroInsumo(this.dataset.nome);return false" style="color:var(--blue)">' + (ins ? 'Alterar no Cadastro' : 'Cadastrar') + '</a>' +
-        '</div>' +
+      return '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border2);display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">' +
+        '<span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;align-self:center">Cadastro (consulta):</span>' +
+        corpo + '<span style="margin-left:auto">' + link + '</span>' +
+      '</div>';
+    },
+    // Embaixo do nome: "só com cardápio"
+    extraNome: function(r) {
+      return '' +
         '<label style="display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:500;color:var(--text2);margin:4px 0 0;cursor:pointer;text-transform:none;letter-spacing:0;width:auto" ' +
           'title="Marcado: só entra quando um coquetel do cardápio usa este item. Desmarcado: entra sozinho em todo orçamento.">' +
           '<input type="checkbox" style="width:auto;margin:0" ' + (r.soSeCardapio ? 'checked' : '') + ' onchange="ocoTodosSetCardapio(\'' + r.id + '\',this.checked)"> só com cardápio' +
