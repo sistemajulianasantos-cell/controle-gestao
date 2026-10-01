@@ -1201,6 +1201,7 @@ function orcTrocarInsumo(insId, novoNome, vincular) {
     if (destino === original) delete ins.nomeOriginal; else ins.nomeOriginal = original;
     ins.custoGarrafa = p.valor;
     ins.viaRevenda = p.viaRevenda;
+    delete ins.manualPreco; // produto novo → preço do Cadastro dele
     ins.total = Math.round((ins.qtdGarrafas || 0) * (p.valor || 0) * 100) / 100;
   }
   sv('orcamentos');
@@ -1336,7 +1337,9 @@ function _orcPrecoInsumoComTemporada(nome, temporada) {
 function atualizarValoresOrcamento(orcId) {
   const orc = (D.orcamentos||[]).find(o => o.id === orcId);
   if (!orc) return;
-  if (!confirm('Isso vai recalcular os valores automáticos da Calculadora e re-buscar custo e quantidade de cada insumo do Cardápio a partir dos cadastros atuais (Cálculos do Orçamento).\n\nQualquer ajuste manual que você já tenha feito nesses valores, dentro deste orçamento, será substituído. Itens manuais da Calculadora e insumos sem regra correspondente não são afetados na quantidade. Continuar?')) return;
+  // 10-01: valor ajustado à mão (marcado "ajustado à mão") NÃO é mais
+  // sobrescrito — só o que ainda está no automático é atualizado.
+  if (!confirm('Atualizar com os valores atuais dos cadastros e das Regras do Orçamento?\n\nO que você ajustou à mão neste orçamento continua como está.')) return;
 
   recalcularAutos();
 
@@ -1354,10 +1357,12 @@ function atualizarValoresOrcamento(orcId) {
 
   (orc.insumos||[]).forEach(ins => {
     if (ins.autoGlobal) return; // já recalculado por recalcularAutos (Itens automáticos)
-    const preco = _orcPrecoInsumoComTemporada(ins.nome, temporada);
-    ins.custoGarrafa = preco.valor;
-    ins.viaRevenda = preco.viaRevenda;
-    const qtd = (typeof calcQtdItemOrcamento === 'function')
+    if (!ins.manualPreco) {
+      const preco = _orcPrecoInsumoComTemporada(ins.nome, temporada);
+      ins.custoGarrafa = preco.valor;
+      ins.viaRevenda = preco.viaRevenda;
+    }
+    const qtd = (!ins.manualQtd && typeof calcQtdItemOrcamento === 'function')
       ? calcQtdItemOrcamento(tipoEvento, ins.nome, conv, bartenders, equipeTotal)
       : null;
     if (qtd != null) ins.qtdGarrafas = qtd;
@@ -1432,11 +1437,14 @@ function _sincronizarItensAutoGlobais(orc, conv, bartenders, equipeTotal, cargoC
   const ativos = lista.filter(r => !r.soSeCardapio && !r.pendente);
   const nomesAtivos = new Set();
 
+  // Item fixo que ela removeu (×) deste orçamento não volta sozinho
+  const removidos = orc.autosRemovidos || [];
   ativos.forEach(regra => {
     const qtd = calcQtdItemOrcamento(OCO_LISTA_TODOS, regra.item, conv, bartenders, equipeTotal, cargoCounts) || 0;
     const chave = _orcNormNome(regra.item);
+    if (removidos.indexOf('glob:' + chave) !== -1) return;
     let item = orc.insumos.find(i => i.autoGlobal && _orcNormNome(i.nome) === chave);
-    if (qtd <= 0) {
+    if (qtd <= 0 && !(item && item.manualQtd)) {
       if (item) orc.insumos = orc.insumos.filter(i => i !== item);
       return;
     }
@@ -1448,14 +1456,15 @@ function _sincronizarItensAutoGlobais(orc, conv, bartenders, equipeTotal, cargoC
     }
     const insCad = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(regra.item) : null;
     item.cat = (insCad && insCad.categoria) || 'ITENS AUTOMÁTICOS';
-    item.qtdGarrafas = qtd;
-    item.custoGarrafa = preco.valor;
-    item.viaRevenda = preco.viaRevenda;
-    item.total = Math.round(qtd * preco.valor * 100) / 100;
+    // Valor ajustado à mão neste orçamento fica (manualQtd/manualPreco)
+    if (!item.manualQtd) item.qtdGarrafas = qtd;
+    if (!item.manualPreco) { item.custoGarrafa = preco.valor; item.viaRevenda = preco.viaRevenda; }
+    item.total = Math.round((item.qtdGarrafas || 0) * (item.custoGarrafa || 0) * 100) / 100;
   });
 
   // Tira o que saiu da lista (ou virou "só com cardápio")
   orc.insumos = orc.insumos.filter(i => !i.autoGlobal || nomesAtivos.has(_orcNormNome(i.nome)));
+  orc.insumos = orc.insumos.filter(i => !i.autoGlobal || removidos.indexOf('glob:' + _orcNormNome(i.nome)) === -1);
   // Mesmo item que antes vinha do AUTO ORÇ. da Separação sai de lá
   orc.insumos = orc.insumos.filter(i => !i.autoRegra || !_orcNomesListaGlobal().has(_orcNormNome(i.nome)));
 }
@@ -1479,7 +1488,7 @@ function _orcMergeItensCardapio(orc, items, fichaNome, temporada) {
     const existing = orc.insumos.find(i => i.nome === nome) || orc.insumos.find(i => i.nomeOriginal === nome)
       || orc.insumos.find(i => (i.nomesFicha || []).includes(nome));
     if (existing) {
-      existing.qtdGarrafas = qtd;
+      if (!existing.manualQtd) existing.qtdGarrafas = qtd; // ajuste à mão fica
       // Backfill: só preenche se ainda estiver zerado (nunca sobrescreve um
       // custo que ela já tenha ajustado manualmente na tabela do orçamento).
       if (!existing.custoGarrafa) {

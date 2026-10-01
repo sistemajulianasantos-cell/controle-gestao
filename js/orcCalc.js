@@ -529,10 +529,24 @@ function recalcularAutos() {
       var nomeCurto = fator.nome.replace(/\s*\([^)]*\)\s*$/, '');
       return _mk('auto-' + fator.id, fator.secao || 'custos', nomeCurto, qtd, valor);
     }),
-  ].filter(i => i.qtd > 0);
+  ];
+
+  // 10-01: ajuste à mão sobrevive ao recálculo — qtd/preço marcados
+  // (manualQtd/manualPreco) ficam como ela deixou, e item automático que ela
+  // removeu (orc.autosRemovidos) não volta sozinho.
+  const anteriores = {};
+  (orc.calcItens || []).forEach(i => { if (i.auto) anteriores[i.id] = i; });
+  const removidos = orc.autosRemovidos || [];
+  const autosFinais = autos.filter(i => removidos.indexOf(i.id) === -1).map(i => {
+    const ant = anteriores[i.id];
+    if (ant && ant.manualQtd)   { i.qtd = ant.qtd; i.manualQtd = true; }
+    if (ant && ant.manualPreco) { i.preco = ant.preco; i.manualPreco = true; }
+    i.total = Math.round(i.qtd * i.preco * 100) / 100;
+    return i;
+  }).filter(i => i.qtd > 0);
 
   const manuais = (orc.calcItens || []).filter(i => !i.auto);
-  orc.calcItens = [...autos, ...manuais];
+  orc.calcItens = [...autosFinais, ...manuais];
 
   // 10-01: item automático vem SÓ de Cálculos do Orçamento → Regras do
   // Orçamento. O caminho antigo (regra marcada AUTO ORÇ. na Separação,
@@ -578,6 +592,9 @@ function calcUpdateItem(itemId, campo, valor) {
   const item = (orc.calcItens || []).find(i => i.id === itemId);
   if (!item) return;
   item[campo] = parseFloat(valor) || 0;
+  // Automático editado à mão: marca pra o recálculo não sobrescrever
+  if (item.auto && campo === 'qtd')   item.manualQtd = true;
+  if (item.auto && campo === 'preco') item.manualPreco = true;
   item.total  = Math.round(item.qtd * item.preco * 100) / 100;
   sv('orcamentos');
   rOrcCalc();
@@ -586,9 +603,50 @@ function calcUpdateItem(itemId, campo, valor) {
 function calcRemoveItem(itemId) {
   const orc = _calcGetOrc();
   if (!orc) return;
+  const item = (orc.calcItens || []).find(i => i.id === itemId);
+  // Automático removido: lembra, senão o recálculo traz de volta
+  if (item && item.auto) {
+    orc.autosRemovidos = (orc.autosRemovidos || []).filter(x => x !== itemId).concat([itemId]);
+  }
   orc.calcItens = (orc.calcItens || []).filter(i => i.id !== itemId);
   sv('orcamentos');
   rOrcCalc();
+}
+
+// "voltar ao automático": tira a marcação de ajuste à mão e recalcula
+function calcVoltarAutomatico(itemId, ehInsumo) {
+  const orc = _calcGetOrc();
+  if (!orc) return;
+  const lista = ehInsumo ? (orc.insumos || []) : (orc.calcItens || []);
+  const item = lista.find(i => i.id === itemId);
+  if (!item) return;
+  delete item.manualQtd;
+  delete item.manualPreco;
+  if (ehInsumo && !item.autoGlobal && typeof _orcPrecoInsumoComTemporada === 'function') {
+    const pr = orc.calcParams || {};
+    const p = _orcPrecoInsumoComTemporada(item.nome, pr.temporada || 'baixa');
+    item.custoGarrafa = p.valor;
+    item.viaRevenda = p.viaRevenda;
+    // quantidade da regra (mesma conta do "Atualizar valores")
+    const autoS = _calcAutoStaff(orc.convidados || 0);
+    const bt = pr.bartender != null ? Number(pr.bartender) : autoS.bt;
+    const qtd = (typeof calcQtdItemOrcamento === 'function')
+      ? calcQtdItemOrcamento(pr.tipoEvento || 'outros', item.nome, orc.convidados || 0, bt, _orcColaboradores(orc)) : null;
+    if (qtd != null) item.qtdGarrafas = qtd;
+    item.total = Math.round((item.qtdGarrafas || 0) * (item.custoGarrafa || 0) * 100) / 100;
+  }
+  sv('orcamentos');
+  recalcularAutos();
+  if (typeof _rTabContent === 'function') _rTabContent();
+}
+
+// Traz de volta os itens automáticos que ela tinha removido deste orçamento
+function calcRestaurarRemovidos() {
+  const orc = _calcGetOrc();
+  if (!orc) return;
+  orc.autosRemovidos = [];
+  sv('orcamentos');
+  recalcularAutos();
 }
 
 function calcAddItemPrompt(secao) {
@@ -698,6 +756,9 @@ function calcUpdateInsumo(itemId, campo, valor) {
   const item = (orc.insumos || []).find(i => i.id === itemId);
   if (!item) return;
   item[campo] = parseFloat(valor) || 0;
+  // Ajuste à mão: "Atualizar valores"/recálculo não mexe mais nesse valor
+  if (campo === 'qtdGarrafas')  item.manualQtd = true;
+  if (campo === 'custoGarrafa') item.manualPreco = true;
   item.total  = Math.round(item.qtdGarrafas * item.custoGarrafa * 100) / 100;
   sv('orcamentos');
   _rTabContent();
@@ -706,6 +767,12 @@ function calcUpdateInsumo(itemId, campo, valor) {
 function calcRemoveInsumo(itemId) {
   const orc = _calcGetOrc();
   if (!orc) return;
+  const ins = (orc.insumos || []).find(i => i.id === itemId);
+  // Item fixo (Regras do Orçamento) removido: lembra, senão volta no recálculo
+  if (ins && ins.autoGlobal) {
+    const k = 'glob:' + (typeof _orcNormNome === 'function' ? _orcNormNome(ins.nome) : String(ins.nome || '').toUpperCase());
+    orc.autosRemovidos = (orc.autosRemovidos || []).filter(x => x !== k).concat([k]);
+  }
   orc.insumos = (orc.insumos || []).filter(i => i.id !== itemId);
   sv('orcamentos');
   _rTabContent();
@@ -915,17 +982,19 @@ function rOrcCalc() {
                 <tr style="border-bottom:1px solid var(--border)">
                   <td style="padding:6px 10px;color:var(--text);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
                     ${item.nome}
-                    ${item.auto ? `<span style="font-size:9px;color:var(--text3);font-weight:400;margin-left:4px">auto</span>` : ''}
+                    ${(item.manualQtd || item.manualPreco)
+                      ? `<span style="font-size:9px;color:var(--amber);font-weight:600;margin-left:4px" title="Valor que você mudou neste orçamento — o Atualizar valores não mexe">ajustado à mão</span> <a href="#" onclick="calcVoltarAutomatico('${item.id}',false);return false" style="font-size:9px;color:var(--blue);font-weight:400">voltar ao automático</a>`
+                      : (item.auto ? `<span style="font-size:9px;color:var(--text3);font-weight:400;margin-left:4px">auto</span>` : '')}
                   </td>
                   <td style="padding:4px 6px;text-align:right">
                     <input type="number" value="${item.qtd}" min="0" step="0.01"
                       onchange="calcUpdateItem('${item.id}','qtd',this.value)"
-                      style="width:100%;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono);box-sizing:border-box">
+                      style="width:100%;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid ${item.manualQtd ? 'var(--amber)' : 'var(--border2)'};color:var(--text);border-radius:4px;font-family:var(--mono);box-sizing:border-box">
                   </td>
                   <td style="padding:4px 6px;text-align:right">
                     <input type="number" value="${Number(item.preco).toFixed(4)}" min="0" step="0.01"
                       onchange="calcUpdateItem('${item.id}','preco',this.value)"
-                      style="width:100%;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono);box-sizing:border-box">
+                      style="width:100%;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid ${item.manualPreco ? 'var(--amber)' : 'var(--border2)'};color:var(--text);border-radius:4px;font-family:var(--mono);box-sizing:border-box">
                   </td>
                   <td style="padding:6px 8px;text-align:right;font-family:var(--mono);font-weight:700;color:${sec.cor};white-space:nowrap">${fR(item.total || 0)}</td>
                   <td style="padding:6px 8px;text-align:center">
@@ -1075,6 +1144,8 @@ function rOrcCalc() {
     (ins.coqueteis || []).forEach(c => tags.push(_etiqueta(c, '#4F8EF7', 'rgba(79,142,247,.14)', 'Vem do coquetel ' + c)));
     if (!ins.autoGlobal && !(ins.coqueteis || []).length) tags.push(_etiqueta('manual', 'var(--text3)', 'var(--bg3)', 'Adicionado à mão na aba Cardápio'));
     if (ins.viaRevenda) tags.push(_etiqueta('revenda', 'var(--green)', 'rgba(34,197,94,.14)', 'Preço final de revenda — não recebe margem'));
+    if (ins.manualQtd || ins.manualPreco) tags.push(_etiqueta('ajustado à mão', 'var(--amber)', 'rgba(247,168,79,.14)', 'Valor que você mudou neste orçamento — o Atualizar valores não mexe') +
+      ` <a href="#" onclick="calcVoltarAutomatico('${ins.id}',true);return false" style="font-size:9px;color:var(--blue)">voltar ao automático</a>`);
     return `<div style="margin-top:2px;display:flex;gap:3px;flex-wrap:wrap">${tags.join('')}</div>`;
   };
   const _inpStyle = 'width:100%;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono);box-sizing:border-box';
@@ -1100,11 +1171,11 @@ function rOrcCalc() {
           </td>
           <td style="padding:4px 6px;text-align:right" title="${_escI(unid)}">
             ${consulta ? `<span style="font-family:var(--mono);color:var(--text3)">${ins.qtdGarrafas || 0}</span>`
-              : `<input type="number" value="${ins.qtdGarrafas || 0}" min="0" step="1" onchange="calcUpdateInsumo('${ins.id}','qtdGarrafas',this.value)" style="${_inpStyle}">`}
+              : `<input type="number" value="${ins.qtdGarrafas || 0}" min="0" step="1" onchange="calcUpdateInsumo('${ins.id}','qtdGarrafas',this.value)" style="${_inpStyle}${ins.manualQtd ? ';border-color:var(--amber)' : ''}">`}
           </td>
           <td style="padding:4px 6px;text-align:right">
             ${consulta ? `<span style="font-family:var(--mono);color:var(--text3)">${Number(ins.custoGarrafa || 0).toFixed(2)}</span>`
-              : `<input type="number" value="${Number(ins.custoGarrafa || 0).toFixed(2)}" min="0" step="0.01" onchange="calcUpdateInsumo('${ins.id}','custoGarrafa',this.value)" style="${_inpStyle}">`}
+              : `<input type="number" value="${Number(ins.custoGarrafa || 0).toFixed(2)}" min="0" step="0.01" onchange="calcUpdateInsumo('${ins.id}','custoGarrafa',this.value)" style="${_inpStyle}${ins.manualPreco ? ';border-color:var(--amber)' : ''}">`}
           </td>
           <td style="padding:6px 8px;text-align:right;font-family:var(--mono);font-weight:700;color:${consulta ? 'var(--text3)' : cor};white-space:nowrap">${consulta ? '—' : fR(ins.total || 0)}</td>
           <td style="padding:6px 8px;text-align:center">
@@ -1156,7 +1227,13 @@ function rOrcCalc() {
   const blocoHtml = {};
   catsInsumos.forEach((cat, i) => { blocoHtml[_orcChaveCat(cat)] = insumosHtmlArr[i]; });
   secoes.forEach((sec, i) => { blocoHtml['sec:' + sec.id] = secoesHtmlArr[i]; });
-  const blocosOrdenados = _orcOrdenarBlocos(Object.keys(blocoHtml)).map(k => blocoHtml[k]).join('');
+  const qtdRemovidos = (orc.autosRemovidos || []).length;
+  const avisoRemovidos = qtdRemovidos ? `
+    <div style="font-size:11px;color:var(--text3);margin-bottom:10px;padding:6px 10px;border:1px dashed var(--border2);border-radius:var(--radius)">
+      ${qtdRemovidos} item(ns) automático(s) removido(s) deste orçamento — não voltam no "Atualizar valores".
+      <a href="#" onclick="calcRestaurarRemovidos();return false" style="color:var(--blue)">restaurar</a>
+    </div>` : '';
+  const blocosOrdenados = avisoRemovidos + _orcOrdenarBlocos(Object.keys(blocoHtml)).map(k => blocoHtml[k]).join('');
 
   el.innerHTML = paramHtml + `
     <div style="display:grid;grid-template-columns:1fr 270px;gap:14px;align-items:start">
