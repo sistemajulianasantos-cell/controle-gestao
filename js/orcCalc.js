@@ -529,10 +529,12 @@ function recalcularAutos() {
   const manuais = (orc.calcItens || []).filter(i => !i.auto);
   orc.calcItens = [...autos, ...manuais];
 
-  // Itens "sempre tem" que não vêm de Ficha de Coquetel (ex: Gelo) — Regra
-  // de Proporção marcada "autoOrcamento" (Regras e Cálculos → Proporções).
-  if (typeof _sincronizarInsumosAutoRegra === 'function') _sincronizarInsumosAutoRegra(orc, pax, qt.bt, eqTotal);
-  // Lista única de Cálculos do Orçamento → Itens automáticos (todos os eventos)
+  // 10-01: item automático vem SÓ de Cálculos do Orçamento → Regras do
+  // Orçamento. O caminho antigo (regra marcada AUTO ORÇ. na Separação,
+  // _sincronizarInsumosAutoRegra) foi desligado — as linhas que ele tinha
+  // criado (autoRegra) saem do orçamento no próximo recálculo.
+  orc.insumos = (orc.insumos || []).filter(i => !i.autoRegra);
+  // Regras do Orçamento (lista única)
   if (typeof _sincronizarItensAutoGlobais === 'function') _sincronizarItensAutoGlobais(orc, pax, qt.bt, eqTotal, qt);
 
   sv('orcamentos');

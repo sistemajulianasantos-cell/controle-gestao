@@ -23,7 +23,9 @@
 // Cardápio) — por enquanto só a tela de configuração em si.
 
 var _ocoTipoAtual = '';
-var _ocoView      = 'todos';       // 'todos' (itens automáticos, todos os eventos) | 'overview' (todos os tipos) | 'detalhe' (um tipo) | 'catalogo' (referência global)
+// 'ordem' = Regras do Orçamento (tela principal, 10-01) | 'overview'/'detalhe' (Tipos de Evento) | 'precos'.
+// 'todos' e 'catalogo' (abas removidas a pedido dela) caem em 'ordem'.
+var _ocoView      = 'ordem';
 
 // Lista ÚNICA de itens automáticos, que vale pra todo evento (2026-09-29) —
 // gelo, seguro quebra, lanche, uniforme... cada um com base/qtd/a cada/mín,
@@ -538,11 +540,9 @@ function ocoSetView(v) {
 function _ocoTopTabsHtml() {
   var emTipos = (_ocoView === 'overview' || _ocoView === 'detalhe');
   return '<div style="display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap">' +
-    '<button class="sort-btn ' + (_ocoView === 'todos' ? 'active' : '') + '" onclick="ocoSetView(\'todos\')">Itens automáticos (todos os eventos)</button>' +
+    '<button class="sort-btn ' + (_ocoView === 'ordem' ? 'active' : '') + '" onclick="ocoSetView(\'ordem\')">Regras do Orçamento</button>' +
     '<button class="sort-btn ' + (emTipos ? 'active' : '') + '" onclick="ocoSetView(\'overview\')">📊 Tipos de Evento</button>' +
-    '<button class="sort-btn ' + (_ocoView === 'catalogo' ? 'active' : '') + '" onclick="ocoSetView(\'catalogo\')">📖 Catálogo de Insumos (todas as Fichas)</button>' +
     '<button class="sort-btn ' + (_ocoView === 'precos' ? 'active' : '') + '" onclick="ocoSetView(\'precos\')">💰 Preços, Equipe e Taxas</button>' +
-    '<button class="sort-btn ' + (_ocoView === 'ordem' ? 'active' : '') + '" onclick="ocoSetView(\'ordem\')">Ordem na Calculadora</button>' +
   '</div>';
 }
 
@@ -570,7 +570,7 @@ function rOrcCalculos() {
     if (typeof rPrecosOrcamento === 'function') rPrecosOrcamento();
     return;
   }
-  if (_ocoView === 'ordem') { _ocoRenderOrdem(cont); return; }
+  if (_ocoView === 'ordem' || _ocoView === 'todos' || _ocoView === 'catalogo') { _ocoView = 'ordem'; _ocoRenderOrdem(cont); return; }
   if (_ocoView === 'todos') _ocoRenderTodos(cont);
   else if (_ocoView === 'catalogo') _ocoRenderCatalogo(cont);
   else if (_ocoView === 'detalhe') _ocoRenderDetalhe(cont, tipos);
@@ -722,6 +722,24 @@ function _ocoCatConteudoHtml(cat, ctx) {
   }).join('') + '</div>';
 }
 
+// Regras de quantidade cujo produto não cai em nenhuma categoria da lista
+// (não está no Cadastro, ou está sem categoria) — com a aba Itens
+// automáticos removida, é aqui que elas continuam visíveis pra ajustar/excluir.
+function _ocoRegrasSemCategoriaHtml(blocos, ctx) {
+  var catsLista = {};
+  blocos.forEach(function(b) { if (b.cat) catsLista[_orcNormNome(b.cat)] = true; });
+  var soltas = _ocoRegras(OCO_LISTA_TODOS).filter(function(r) {
+    var ins = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(r.item) : null;
+    return !ins || !ins.categoria || !catsLista[_orcNormNome(ins.categoria)];
+  });
+  if (!soltas.length) return '';
+  return '<div style="margin-top:16px;background:var(--bg2);border:1px dashed var(--amber-dim,var(--amber));border-radius:var(--radius);padding:10px 12px;overflow-x:auto">' +
+    '<div style="font-size:11px;font-weight:700;color:var(--amber);text-transform:uppercase;margin-bottom:4px">Itens sem categoria (' + soltas.length + ')</div>' +
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">Têm regra de quantidade mas o produto não está no Cadastro de Insumos ou está sem categoria. Continuam entrando no orçamento — vincule/cadastre o produto ou exclua a regra.</div>' +
+    '<div style="display:grid;gap:6px">' + soltas.map(function(r) { return _ocoLinhaRegraHtml(r, ctx); }).join('') + '</div>' +
+  '</div>';
+}
+
 function _ocoRenderOrdem(cont) {
   var blocos = _ocoBlocosCalculadora();
   var ctx = _ocoCtxTodos();
@@ -732,7 +750,7 @@ function _ocoRenderOrdem(cont) {
   cont.innerHTML = '<div style="padding:20px 24px;max-width:1100px">' +
     '<div style="margin-bottom:16px">' +
       '<div style="font-size:18px;font-weight:700;color:var(--text)">Cálculos do Orçamento</div>' +
-      '<div style="font-size:12px;color:var(--text3);margin-top:2px">Ordem em que os blocos aparecem na Calculadora do orçamento. Clique numa categoria de insumos pra ver os produtos dela e definir as quantidades.</div>' +
+      '<div style="font-size:12px;color:var(--text3);margin-top:2px">Regras do Orçamento: ordem dos blocos na Calculadora, como cada categoria entra e a quantidade de cada produto. Clique numa categoria de insumos pra ver os produtos dela.</div>' +
     '</div>' +
     _ocoTopTabsHtml() +
     '<div style="position:sticky;top:0;z-index:30;display:flex;justify-content:flex-end;margin-bottom:8px">' +
@@ -751,13 +769,13 @@ function _ocoRenderOrdem(cont) {
         '<div style="display:flex;align-items:center;gap:10px;padding:6px 10px' + (b.cat ? ';cursor:pointer' : '') + '"' + (b.cat ? ' onclick="ocoToggleCatOrdem(\'' + b.k.replace(/'/g, "\\'") + '\')"' : '') + '>' +
           '<span style="font-size:11px;font-family:var(--mono);color:var(--text3);width:22px;text-align:right">' + (i + 1) + '</span>' +
           '<span style="display:flex;flex-direction:column;gap:1px">' + btn(b.k, -1, i === 0) + btn(b.k, 1, i === blocos.length - 1) + '</span>' +
-          '<span style="flex:1;font-size:12px;font-weight:600;color:var(--text)">' + (b.cat ? (aberta ? '▾ ' : '▸ ') : '') + b.nome + resumoCat + _ocoFatoresDaSecaoHtml(b.k) + '</span>' +
-          '<span style="font-size:10px;color:var(--text3)">' + b.tipo + '</span>' +
+          '<span style="flex:1;min-width:0;font-size:12px;font-weight:600;color:var(--text)">' + (b.cat ? (aberta ? '▾ ' : '▸ ') : '') + b.nome + resumoCat + _ocoFatoresDaSecaoHtml(b.k) + '</span>' +
+          (b.cat ? '' : '<span style="font-size:10px;color:var(--text3);white-space:nowrap">' + b.tipo + '</span>') +
         '</div>' +
-        (aberta ? '<div style="padding:10px 12px 12px;border-top:1px solid var(--border)">' + _ocoCatConteudoHtml(b.cat, ctx) + '</div>' : '') +
+        (aberta ? '<div style="padding:10px 12px 12px;border-top:1px solid var(--border);overflow-x:auto">' + _ocoCatConteudoHtml(b.cat, ctx) + '</div>' : '') +
       '</div>';
     }).join('') +
-    '</div></div>';
+    '</div>' + _ocoRegrasSemCategoriaHtml(blocos, ctx) + '</div>';
 }
 
 // ─── VISÃO GERAL ────────────────────────────────────────────────────────────
@@ -1158,7 +1176,8 @@ function _ocoLinhaRegraHtml(r, ctx) {
   var ef = _regraBaseEfetiva(r);
   // Com as colunas do Cadastro (Itens automáticos) as outras encolhem um pouco pra caber.
   var cols = ctx.extraColWidth
-    ? 'minmax(140px,1fr) 125px 60px 80px 60px ' + ctx.extraColWidth + ' 34px'
+    // colunas elásticas (encolhem até um mínimo) pra caber em tela menor
+    ? 'minmax(110px,1.4fr) minmax(100px,1fr) minmax(50px,.5fr) minmax(60px,.6fr) minmax(50px,.5fr) ' + ctx.extraColWidth + ' 28px'
     : 'minmax(160px,1fr) 140px 70px 110px 70px 40px';
 
   var insumoDaRegra = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(r.item) : null;
@@ -1270,7 +1289,7 @@ function _ocoCtxTodos() {
     // Depois do MÍN.: um card por valor do Cadastro de Insumos (Custo,
     // Revenda baixa, Revenda alta) — só consulta, mesmo tamanho dos campos
     // da linha. Clicar em qualquer um abre o insumo no Cadastro.
-    extraColWidth: '82px 82px 82px',
+    extraColWidth: 'minmax(62px,.7fr) minmax(62px,.7fr) minmax(62px,.7fr)',
     extraCol: function(r) {
       var ins = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(r.item) : null;
       var abrir = 'data-nome="' + esc(r.item) + '" onclick="ocoAbrirCadastroInsumo(this.dataset.nome);return false" title="Valor do Cadastro de Insumos (só consulta) — clique pra alterar"';
