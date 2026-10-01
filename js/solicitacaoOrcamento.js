@@ -290,7 +290,7 @@ function _solBuildLista() {
           '<td style="padding:8px 12px;font-size:11px;color:var(--text3)">' + (s.bonificacaoCerimonial || '—') + '</td>' +
           '<td style="padding:8px 12px;white-space:nowrap">' +
             '<button class="btn-sm" style="background:var(--blue)" onclick="_solEditar(\'' + s.id + '\')" title="Editar">✏️</button> ' +
-            (s.orcamentoId
+            (_orcSolTemOrc(s)
               ? '<button class="btn-sm" style="background:var(--green)" onclick="_solAbrirOrcamento(\'' + s.id + '\')" title="Abrir orçamento gerado">📋 Orçamento</button> '
               : '<button class="btn-sm" style="background:var(--green)" onclick="_solGerarOrcamento(\'' + s.id + '\')" title="Gerar orçamento a partir desta solicitação">📋 Gerar Orçamento</button> ') +
             '<button class="btn-sm btn-red" onclick="_solExcluir(\'' + s.id + '\')" title="Excluir">✕</button>' +
@@ -528,6 +528,14 @@ function _solGerarOrcamento(id) {
 function _solAbrirOrcamento(id) {
   var s = _solBuscar(id);
   if (!s || !s.orcamentoId) return;
+  // Orçamento foi excluído: solta o vínculo e deixa gerar de novo
+  if (typeof _orcSolTemOrc === 'function' && !_orcSolTemOrc(s)) {
+    s.orcamentoId = '';
+    sv('solicitacoesOrcamento');
+    alert('O orçamento desta solicitação foi excluído — agora dá pra gerar um novo.');
+    if (typeof rSolicitacao === 'function') rSolicitacao();
+    return;
+  }
   go('orcamento');
   setTimeout(function() { if (typeof abrirOrcDetalhe === 'function') abrirOrcDetalhe(s.orcamentoId); }, 50);
 }

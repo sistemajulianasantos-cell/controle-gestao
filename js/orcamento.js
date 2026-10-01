@@ -113,12 +113,12 @@ function rOrcDetalhe() {
   const sol = _orcSolVinculada(orc);
   // Achou pelo Nº (sem vínculo gravado) → grava o vínculo, senão a
   // solicitação continuaria oferecendo "Gerar Orçamento" e duplicaria.
-  if (sol && !sol.orcamentoId) { sol.orcamentoId = orc.id; sv('solicitacoesOrcamento'); }
+  if (sol && sol.orcamentoId !== orc.id && !_orcSolTemOrc(sol)) { sol.orcamentoId = orc.id; sv('solicitacoesOrcamento'); }
   const nomeSolicitante = _orcNomeSolicitante(orc);
   const info = c => esc(_orcInfo(orc, c));
   // Sem solicitação vinculada: lista as que ainda não têm orçamento, pra ela
   // escolher a certa (mais recentes primeiro).
-  const solsLivres = sol ? [] : (D.solicitacoesOrcamento || []).filter(s => !s.orcamentoId)
+  const solsLivres = sol ? [] : (D.solicitacoesOrcamento || []).filter(s => !_orcSolTemOrc(s))
     .sort((a, b) => ((typeof _solChaveNumero === 'function' ? _solChaveNumero(b.numero) : 0) || 0) - ((typeof _solChaveNumero === 'function' ? _solChaveNumero(a.numero) : 0) || 0));
   const rotuloSol = s => [s.numero, s.cliente || s.solicitadoPor, s.tipoEvento, s.dataEvento ? fd(s.dataEvento) : '', s.pax ? s.pax + ' pax' : ''].filter(Boolean).join(' · ');
   const txt = (c, rotulo, ph, largo) => `
@@ -542,6 +542,10 @@ function excluirOrc(id) {
   if (!confirm('Excluir este orçamento e todos os seus itens?')) return;
   D.orcamentos = (D.orcamentos||[]).filter(o => o.id !== id);
   sv('orcamentos');
+  // Solicitação que gerou este orçamento volta a ficar livre ("Gerar Orçamento")
+  let soltou = false;
+  (D.solicitacoesOrcamento || []).forEach(s => { if (s.orcamentoId === id) { s.orcamentoId = ''; soltou = true; } });
+  if (soltou) sv('solicitacoesOrcamento');
   rOrcLista();
 }
 
@@ -701,6 +705,12 @@ function _rTabContent() {
 // solicitação, em `orcamentoId`), ou null se o orçamento foi criado direto.
 // Orçamento criado pelo "+ Novo orçamento" (sem vínculo) mas com o mesmo Nº
 // de uma solicitação ainda sem orçamento → é a mesma proposta: usa essa.
+// Solicitação com orçamento DE VERDADE: o vínculo aponta pra um orçamento
+// que ainda existe. Vínculo pra orçamento excluído = solicitação livre.
+function _orcSolTemOrc(s) {
+  return !!(s && s.orcamentoId && (D.orcamentos || []).some(o => o.id === s.orcamentoId));
+}
+
 function _orcSolVinculada(orc) {
   const sols = D.solicitacoesOrcamento || [];
   const direta = sols.find(s => s.orcamentoId === orc.id);
@@ -708,7 +718,7 @@ function _orcSolVinculada(orc) {
   const norm = n => (typeof _solNumeroTexto === 'function' ? _solNumeroTexto(n) : String(n || '').trim());
   const num = norm(orc.numeroProposta);
   if (!num) return null;
-  return sols.find(s => !s.orcamentoId && norm(s.numero) === num) || null;
+  return sols.find(s => !_orcSolTemOrc(s) && norm(s.numero) === num) || null;
 }
 
 // Nome de quem pediu (cliente da solicitação ou, sem ele, quem solicitou)
@@ -723,7 +733,7 @@ function orcVincularSolicitacao(orcId, solId) {
   const orc = (D.orcamentos||[]).find(o => o.id === orcId);
   const sol = (D.solicitacoesOrcamento||[]).find(s => s.id === solId);
   if (!orc || !sol) return;
-  if (sol.orcamentoId && sol.orcamentoId !== orc.id) { alert2('Essa solicitação já tem outro orçamento.', 'error'); return; }
+  if (_orcSolTemOrc(sol) && sol.orcamentoId !== orc.id) { alert2('Essa solicitação já tem outro orçamento.', 'error'); return; }
   sol.orcamentoId = orc.id;
   if (sol.numero) orc.numeroProposta = typeof _solNumeroTexto === 'function' ? _solNumeroTexto(sol.numero) : sol.numero;
   if (!orc.telefone) orc.telefone = sol.celular || sol.telefoneFixo || '';
