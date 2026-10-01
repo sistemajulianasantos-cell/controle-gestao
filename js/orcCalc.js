@@ -343,35 +343,55 @@ function calcAdicUsarPadrao(grupo) {
 function _orcAdicPainelHtml(orc, colab) {
   var adic = _orcGetAdic(orc);
   var pad = getOrcAdicionais();
-  var inp = function(grupo, campo, v, w, step) {
+  // Mesmo visual dos outros parâmetros (rótulo em cima, campo largo), cada
+  // item num card próprio; card ligado ganha borda colorida.
+  var campo = function(grupo, nome, v, step) {
     return '<input type="number" min="0" step="' + (step || '0.01') + '" value="' + (v != null ? v : 0) + '" ' +
-      'onchange="calcSetAdic(\'' + grupo + '\',\'' + campo + '\',this.value)" ' +
-      'style="width:' + (w || 70) + 'px;font-size:12px;padding:4px 6px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono);text-align:right">';
+      'onchange="calcSetAdic(\'' + grupo + '\',\'' + nome + '\',this.value)" ' +
+      'style="width:100%;font-size:13px;padding:6px 8px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius);font-family:var(--mono);box-sizing:border-box">';
   };
-  var chk = function(grupo, on, label) {
-    return '<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text);cursor:pointer;min-width:170px">' +
-      '<input type="checkbox"' + (on ? ' checked' : '') + ' onchange="calcSetAdic(\'' + grupo + '\',\'inclui\',this.checked)"> ' + label + '</label>';
+  var rot = function(s) { return '<div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:3px">' + s + '</div>'; };
+  var dica = function(s) { return '<div style="font-size:10px;color:var(--text3);margin-top:4px">' + s + '</div>'; };
+  var difPadrao = function(grupo, nome) {
+    var v = Number(adic[grupo][nome]) || 0, d = Number(pad[grupo][nome]) || 0;
+    return v !== d ? ' · <a href="#" onclick="calcAdicUsarPadrao(\'' + grupo + '\');return false" style="color:var(--blue)" title="Valor do cadastro: ' + d + '">usar padrão (' + d + ')</a>' : '';
   };
-  var difPadrao = function(grupo, campo) {
-    var v = Number(adic[grupo][campo]) || 0, d = Number(pad[grupo][campo]) || 0;
-    return v !== d ? '<a href="#" onclick="calcAdicUsarPadrao(\'' + grupo + '\');return false" style="font-size:10px;color:var(--blue)" title="Valor do cadastro: ' + d + '">usar padrão (' + d + ')</a>' : '';
+  var card = function(ligado, cabecalho, corpo) {
+    return '<div style="background:var(--bg3);border:1px solid ' + (ligado ? '#8B5CF6' : 'var(--border2)') + ';border-radius:var(--radius);padding:10px 12px">' +
+      cabecalho + corpo + '</div>';
   };
-  var linha = function(conteudo) { return '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--border)">' + conteudo + '</div>'; };
-  var t = function(s) { return '<span style="font-size:11px;color:var(--text3)">' + s + '</span>'; };
+  var cabChk = function(grupo, on, titulo) {
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' +
+      '<input type="checkbox"' + (on ? ' checked' : '') + ' onchange="calcSetAdic(\'' + grupo + '\',\'inclui\',this.checked)" style="width:auto;margin:0;cursor:pointer">' +
+      '<span style="font-size:11px;font-weight:700;color:' + (on ? 'var(--text)' : 'var(--text3)') + ';text-transform:uppercase">' + titulo + '</span></div>';
+  };
+  var cabSimples = function(titulo, on) {
+    return '<div style="font-size:11px;font-weight:700;color:' + (on ? 'var(--text)' : 'var(--text3)') + ';text-transform:uppercase;margin-bottom:8px">' + titulo + '</div>';
+  };
   var opcoesPct = (pad.horaExtra.opcoesPct || [10, 20]).slice();
   var pctAtual = Number(adic.horaExtra.pct) || 0;
   if (opcoesPct.indexOf(pctAtual) === -1) opcoesPct.push(pctAtual);
+  var horas = Number(adic.horaExtra.horas) || 0;
 
   return '<div style="border-top:1px solid var(--border);padding-top:12px;margin-bottom:12px">' +
-    '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:6px">Taxas e adicionais <span style="font-weight:400;text-transform:none">— ' + colab + ' colaborador(es) na equipe</span></div>' +
-    linha(chk('imposto', adic.imposto.inclui, 'Imposto / NF') + inp('imposto', 'pct', adic.imposto.pct, 60) + t('% sobre o valor total') + difPadrao('imposto', 'pct')) +
-    linha(chk('comissao', adic.comissao.inclui, 'Comissão') + inp('comissao', 'pct', adic.comissao.pct, 60) + t('% sobre o valor total') + difPadrao('comissao', 'pct')) +
-    linha(chk('cerimonia', adic.cerimonia.inclui, 'Cerimônia no local') + t('R$') + inp('cerimonia', 'valor', adic.cerimonia.valor, 70) + t('por colaborador') + difPadrao('cerimonia', 'valor')) +
-    linha('<span style="font-size:12px;color:var(--text);min-width:170px">Horas extras (antecipadas)</span>' + inp('horaExtra', 'horas', adic.horaExtra.horas, 55, '1') + t('h × (R$') +
-      inp('horaExtra', 'valorColab', adic.horaExtra.valorColab, 70) + t('por colaborador +') +
-      '<select onchange="calcSetAdic(\'horaExtra\',\'pct\',this.value)" style="font-size:12px;padding:4px 6px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px">' +
-        opcoesPct.map(function(o) { return '<option value="' + o + '"' + (o === pctAtual ? ' selected' : '') + '>' + o + '%</option>'; }).join('') +
-      '</select>' + t('do valor, por hora)') + difPadrao('horaExtra', 'valorColab')) +
+    '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:10px">Taxas e adicionais <span style="font-weight:400;text-transform:none">— ' + colab + ' colaborador(es) na equipe</span></div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">' +
+      card(adic.imposto.inclui, cabChk('imposto', adic.imposto.inclui, 'Imposto / NF'),
+        rot('% sobre o valor total') + campo('imposto', 'pct', adic.imposto.pct) + dica('Sobre o valor do serviço' + difPadrao('imposto', 'pct'))) +
+      card(adic.comissao.inclui, cabChk('comissao', adic.comissao.inclui, 'Comissão'),
+        rot('% sobre o valor total') + campo('comissao', 'pct', adic.comissao.pct) + dica('Sobre o valor do serviço' + difPadrao('comissao', 'pct'))) +
+      card(adic.cerimonia.inclui, cabChk('cerimonia', adic.cerimonia.inclui, 'Cerimônia no local'),
+        rot('R$ por colaborador') + campo('cerimonia', 'valor', adic.cerimonia.valor) + dica(colab + ' colaborador(es)' + difPadrao('cerimonia', 'valor'))) +
+      card(horas > 0, cabSimples('Horas extras (antecipadas)', horas > 0),
+        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">' +
+          '<div>' + rot('Horas') + campo('horaExtra', 'horas', adic.horaExtra.horas, '1') + '</div>' +
+          '<div>' + rot('R$/colab.') + campo('horaExtra', 'valorColab', adic.horaExtra.valorColab) + '</div>' +
+          '<div>' + rot('% valor') +
+            '<select onchange="calcSetAdic(\'horaExtra\',\'pct\',this.value)" style="width:100%;font-size:13px;padding:6px 4px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius);box-sizing:border-box">' +
+              opcoesPct.map(function(o) { return '<option value="' + o + '"' + (o === pctAtual ? ' selected' : '') + '>' + o + '%</option>'; }).join('') +
+            '</select></div>' +
+        '</div>' + dica('Por hora: R$ por colaborador + % do valor' + difPadrao('horaExtra', 'valorColab'))) +
+    '</div>' +
   '</div>';
 }
 
