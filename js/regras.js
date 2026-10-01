@@ -1564,23 +1564,26 @@ function rPrecosOrcamento() {
   getOrcFatores().forEach(function(f) { htmlPorId[f.id] = blocoFator(f); });
   var corpoOrdenado = ordem.map(function(id) { return htmlPorId[id] || ''; }).join('');
 
-  var htmlNovaCategoria = '<div class="sec" style="margin-bottom:14px;border-style:dashed">' +
-    '<div class="sec-head"><span class="sec-title">➕ Nova categoria de preço</span></div>' +
-    '<div style="padding:12px 16px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">' +
+  // Barra fixa no topo (sticky): criar categoria nova + Salvar Preços sempre
+  // à mão, sem rolar até o fim da lista (pedido 10-01).
+  var htmlNovaCategoria = '<div style="position:sticky;top:0;z-index:30;background:var(--bg2);border:1px dashed var(--border2);border-radius:var(--radius);padding:10px 14px;margin-bottom:14px;box-shadow:0 6px 16px rgba(0,0,0,.35)">' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">' +
+      '<div style="font-size:12px;font-weight:700;color:var(--text);align-self:center;margin-right:6px">Nova categoria de preço</div>' +
       '<div><label style="font-size:9px;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:3px">Nome</label>' +
-        '<input class="inp" id="pfat-nome" type="text" placeholder="Ex: Locação de Gelo" style="width:220px"></div>' +
+        '<input class="inp" id="pfat-nome" type="text" placeholder="Ex: Locação de Gelo" style="width:220px" onkeydown="if(event.key===\'Enter\')adicionarOrcFator()"></div>' +
       '<div><label style="font-size:9px;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:3px">Tipo de valor</label>' +
         '<select class="inp" id="pfat-tipo" style="width:160px">' +
           '<option value="porConvidado">Por convidado</option>' +
           '<option value="fixo">Valor fixo</option>' +
         '</select></div>' +
       '<button class="btn" style="background:var(--green)" onclick="adicionarOrcFator()">+ Adicionar categoria</button>' +
+      '<button class="btn" onclick="salvarPrecosOrcamento()" style="background:var(--green);margin-left:auto">Salvar Preços</button>' +
     '</div></div>';
 
-  cont.innerHTML =
-    '<div style="font-size:12px;color:var(--text3);margin-bottom:14px">Esses valores preenchem automaticamente os itens do orçamento (Bartender, Carregamento, Seguro etc.) conforme o Local, Tipo de Evento e Complexidade escolhidos na Calculadora de Orçamento. Use as setas ▲▼ pra mudar a ordem — o nome de cada categoria é editável, e dá pra criar novas categorias no fim da lista.</div>' +
+  cont.innerHTML = htmlNovaCategoria +
+    '<div style="font-size:12px;color:var(--text3);margin-bottom:14px">Esses valores preenchem automaticamente os itens do orçamento (Bartender, Carregamento, Seguro etc.) conforme o Local, Tipo de Evento e Complexidade escolhidos na Calculadora de Orçamento. Use as setas ▲▼ pra mudar a ordem — o nome de cada categoria é editável, e categoria nova entra no fim da lista.</div>' +
     _htmlAdicionaisOrcamento() +
-    corpoOrdenado + htmlNovaCategoria +
+    corpoOrdenado +
     '<div style="display:flex;gap:8px">' +
       '<button class="btn" onclick="salvarPrecosOrcamento()" style="background:var(--green)">💾 Salvar Preços</button>' +
       '<button class="btn" onclick="resetarPrecosOrcamento()" style="background:var(--red-dim);color:var(--red)">↺ Restaurar Padrão</button>' +
@@ -1588,8 +1591,8 @@ function rPrecosOrcamento() {
 }
 
 // ── Taxas e adicionais (Imposto/NF, Comissão, Cerimônia, Hora extra) ──
-// Padrão copiado pra cada orçamento NOVO (ver _orcAdicInicial em orcCalc.js);
-// orçamento já criado não muda quando o padrão muda. Pausado = orçamento
+// Valores valem ao vivo pra todo orçamento (ver _orcGetAdic em orcCalc.js);
+// o orçamento só guarda se inclui ou não. Pausado = orçamento
 // novo vem com o item desligado. Grava direto (sem precisar de "Salvar").
 function _htmlAdicionaisOrcamento() {
   if (typeof getOrcAdicionais !== 'function') return '';
@@ -1709,6 +1712,10 @@ function adicionarOrcFator() {
   getOrcBlocosOrdem(); // migrarOrcFatores() detecta o id novo e já acrescenta ele ao fim da ordem
   document.getElementById('pfat-nome').value = '';
   rPrecosOrcamento();
+  // A categoria nova entra no fim da lista — rola até ela pra preencher os valores
+  var cont = document.getElementById('oco-precos-view') || document.getElementById('regras-view-precos');
+  var secs = cont ? cont.querySelectorAll('.sec') : [];
+  if (secs.length) secs[secs.length - 1].scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function excluirOrcFator(id) {
