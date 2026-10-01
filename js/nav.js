@@ -82,6 +82,8 @@ function go(page){
     return;
   }
   if(page==='nova-festa'){go('festas');setFestaView('novo');return;}
+  // Saiu do Cadastro por outro caminho: esquece o "voltar para" (ver ocoAbrirCadastroInsumo)
+  if(page!=='cadastro') window._cadVoltarPara=null;
   const navItem=document.querySelector(`.nav-item[data-page="${page}"]`);
   const modulo=navItem&&navItem.getAttribute('data-modulo');
   if(modulo && typeof ACESSO!=='undefined' && perfilAtual && !(ACESSO[perfilAtual]||[]).includes(modulo)) return;

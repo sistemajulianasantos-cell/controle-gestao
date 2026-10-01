@@ -464,6 +464,24 @@ var OCO_BASE_OPCOES = [
   ['associado', 'Segue outro item'],
 ];
 
+// Abre o insumo no Cadastro de Insumos; ao salvar/cancelar volta pra cá
+// (window._cadVoltarPara, tratado em setCadastroView de js/insumos.js).
+function ocoAbrirCadastroInsumo(nome) {
+  var ins = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(nome) : null;
+  go('cadastro');
+  setTimeout(function() {
+    window._cadVoltarPara = 'orcCalculos';
+    if (ins && typeof editarInsumo === 'function') editarInsumo(ins.id);
+    else if (typeof setCadastroView === 'function') {
+      // Insumo novo: abre o formulário vazio
+      var listaEl = document.getElementById('cad-view-lista'), formEl = document.getElementById('cad-view-form');
+      if (listaEl) listaEl.style.display = 'none';
+      if (formEl) formEl.style.display = '';
+      if (typeof rFormInsumo === 'function') rFormInsumo();
+    }
+  }, 80);
+}
+
 function ocoSetView(v) {
   _ocoView = v;
   rOrcCalculos();
@@ -942,10 +960,22 @@ function _ocoRenderTodos(cont) {
   var ctx = {
     regras: regras, cargos: _cargosDisponiveis(), insumos: insumosNomes, orfaosIds: {},
     // Embaixo do nome: preço do Cadastro + "só com cardápio"
+    // Valores do Cadastro só pra consulta — alterar = abre o insumo no Cadastro.
     extraNome: function(r) {
-      var preco = (typeof _orcPrecoInsumoComTemporada === 'function') ? _orcPrecoInsumoComTemporada(r.item, 'baixa') : { valor: 0 };
-      return '<div style="font-size:9px;margin-top:3px;color:' + (preco.valor ? 'var(--text3)' : 'var(--amber)') + '">' +
-          (preco.valor ? moeda(preco.valor) + ' / un no Cadastro' : '⚠️ sem preço no Cadastro de Insumos (entra com R$ 0)') +
+      var ins = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(r.item) : null;
+      var valores;
+      if (!ins) {
+        valores = '<span style="color:var(--amber)">Não está no Cadastro de Insumos (entra com R$ 0)</span>';
+      } else {
+        var un = (ins.unidadeCompra || 'UN').toLowerCase();
+        var custo = (typeof precoEfetivoInsumo === 'function') ? precoEfetivoInsumo(ins) : Number(ins.custoReposicao || 0);
+        var partes = ['Custo: ' + (custo ? moeda(custo) + ' / ' + un : '<span style="color:var(--amber)">sem preço</span>')];
+        if (ins.revendaBaixaTemporada) partes.push('Revenda baixa: ' + moeda(ins.revendaBaixaTemporada));
+        if (ins.revendaAltaTemporada)  partes.push('Revenda alta: ' + moeda(ins.revendaAltaTemporada));
+        valores = partes.join(' · ');
+      }
+      return '<div style="font-size:9px;margin-top:3px;color:var(--text3)">' + valores +
+          ' · <a href="#" data-nome="' + esc(r.item) + '" onclick="ocoAbrirCadastroInsumo(this.dataset.nome);return false" style="color:var(--blue)">' + (ins ? 'Alterar no Cadastro' : 'Cadastrar') + '</a>' +
         '</div>' +
         '<label style="display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:500;color:var(--text2);margin:4px 0 0;cursor:pointer;text-transform:none;letter-spacing:0;width:auto" ' +
           'title="Marcado: só entra quando um coquetel do cardápio usa este item. Desmarcado: entra sozinho em todo orçamento.">' +

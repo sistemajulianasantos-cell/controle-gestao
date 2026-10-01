@@ -39,6 +39,14 @@ function initCadastro() {
 }
 
 function setCadastroView(v) {
+  // Veio de outra tela pra editar um insumo (ex.: Cálculos do Orçamento →
+  // "Alterar no Cadastro"): Salvar/Cancelar/Voltar devolve pra lá.
+  if (v === 'lista' && window._cadVoltarPara) {
+    var destino = window._cadVoltarPara;
+    window._cadVoltarPara = null;
+    go(destino);
+    return;
+  }
   ['lista','form'].forEach(function(x) {
     var el = document.getElementById('cad-view-' + x);
     if (el) el.style.display = x === v ? '' : 'none';
