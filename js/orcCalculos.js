@@ -1068,27 +1068,6 @@ function ocoTodosSetCardapio(id, checked) {
   rOrcCalculos();
 }
 
-// Copia as regras marcadas AUTO ORÇ. em Folha de Separação → Cálculos (com
-// as mesmas quantidades) pra cá — só as que ainda não estão na lista.
-function ocoTrazerDaSeparacao() {
-  var regrasSep = (typeof getRegrasItens === 'function' ? getRegrasItens() : []).filter(function(r) { return r.autoOrcamento; });
-  var lista = _ocoRegras(OCO_LISTA_TODOS);
-  var existe = {};
-  lista.forEach(function(r) { existe[_ocoNorm(r.item)] = true; });
-  var novos = regrasSep.filter(function(r) { return !existe[_ocoNorm(r.item)]; });
-  if (!novos.length) { alert('Todos os itens marcados AUTO ORÇ. na Separação já estão nesta lista.'); return; }
-  if (!confirm('Trazer ' + novos.length + ' item(ns) marcados AUTO ORÇ. na Folha de Separação (com as mesmas quantidades)?\n\n' + novos.map(function(r) { return r.item; }).join(', '))) return;
-  novos.forEach(function(r) {
-    var ef = _regraBaseEfetiva(r);
-    lista.push({
-      id: _gerarId('OC'), item: r.item, cat: r.cat || 'OUTROS', base: ef.base, valor: ef.valor, ref: ef.ref,
-      min: parseFloat(r.min) || 0, cargos: (ef.cargos || r.cargos || []).slice(), principal: ef.principal || '',
-      soSeCardapio: false,
-    });
-  });
-  D.calculosOrcamento[OCO_LISTA_TODOS] = lista;
-  rOrcCalculos();
-}
 
 function _ocoRenderTodos(cont) {
   var regras = _ocoRegras(OCO_LISTA_TODOS);
@@ -1139,10 +1118,6 @@ function _ocoRenderTodos(cont) {
       '<strong style="color:var(--text2)">"Só com cardápio" desmarcado</strong>: entra sozinho em todo orçamento (ex.: gelo, seguro quebra, lanche).<br>' +
       '<strong style="color:var(--text2)">"Só com cardápio" marcado</strong>: só entra quando um coquetel do cardápio usa o item, com a quantidade daqui.<br>' +
       'Fixo = sempre a mesma quantidade · Por convidado / equipe / cargo = quantidade a cada X pessoas · Segue outro item = a quantidade vem de outro item.' +
-    '</div>' +
-    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">' +
-      '<button class="btn" onclick="ocoTrazerDaSeparacao()" title="Copia os itens marcados AUTO ORÇ. em Folha de Separação → Cálculos">Trazer itens AUTO ORÇ. da Separação</button>' +
-      '<button class="btn" style="background:var(--green);font-weight:700;margin-left:auto" onclick="ocoSalvar()">💾 Salvar</button>' +
     '</div>';
 
   html += regras.length
