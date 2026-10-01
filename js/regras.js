@@ -1603,7 +1603,7 @@ function _htmlAdicionaisOrcamento() {
   return '<div class="sec" style="margin-bottom:14px">' +
     '<div class="sec-head"><span class="sec-title">Taxas e adicionais</span></div>' +
     '<div style="padding:8px 16px 12px">' +
-      '<div style="font-size:11px;color:var(--text3);margin-bottom:6px">Entram automaticamente em todo orçamento novo (e são perguntados ao criar). Dentro do orçamento dá pra ligar/desligar e trocar o valor só daquele orçamento. Mudar aqui não altera orçamentos já criados.</div>' +
+      '<div style="font-size:11px;color:var(--text3);margin-bottom:6px">Os valores daqui valem pra todos os orçamentos — no orçamento só se marca se inclui ou não (perguntado ao criar). Mudou aqui, muda nos orçamentos. Pausado = orçamento novo vem desmarcado.</div>' +
       linha('Imposto / NF', inp('imposto', 'pct', a.imposto.pct, 70) + t('% sobre o valor total do serviço'), 'imposto') +
       linha('Comissão', inp('comissao', 'pct', a.comissao.pct, 70) + t('% sobre o valor total do serviço'), 'comissao') +
       linha('Cerimônia no local', t('R$') + inp('cerimonia', 'valor', a.cerimonia.valor) + t('a mais por colaborador'), null) +

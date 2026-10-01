@@ -251,12 +251,10 @@ function _mk(id, secao, nome, qtd, preco) {
 }
 
 // ─── TAXAS E ADICIONAIS ───────────────────────────────────────────────────────
-// Imposto/NF, Comissão, Cerimônia no local e Hora extra. Os valores padrão
-// ficam em D.orcPrecos.adicionais (Regras e Cálculos → Preços do Orçamento →
-// "Taxas e adicionais"); ao CRIAR um orçamento eles são copiados pra dentro
-// dele (orc.calcParams.adic) — mudar o padrão depois não mexe em orçamento
-// já feito/enviado. Dentro do orçamento cada valor pode ser trocado à mão.
-// "Pausado" = orçamento novo vem com o item desligado.
+// Imposto/NF, Comissão, Cerimônia no local e Hora extra. Os valores ficam
+// em D.orcPrecos.adicionais (Cálculos do Orçamento → Preços, Equipe e
+// Taxas) e valem pra todo orçamento; o orçamento só guarda se inclui ou não
+// (ver _orcGetAdic). "Pausado" = orçamento novo vem com o item desligado.
 //
 // Conta (por pacote): base = valor com margens →
 //   + Cerimônia (valor × colaboradores) + Hora extra (horas × (valor ×
@@ -293,15 +291,25 @@ function _orcAdicInicial(resp) {
   };
 }
 
-// Orçamento antigo (sem calcParams.adic) = tudo desligado, pra não mudar o
-// valor de orçamento que já existia.
+// O que o orçamento guarda é só a ESCOLHA (inclui sim/não, nº de horas e o %
+// da hora extra, 10 ou 20). Os VALORES (% de imposto, % de comissão, R$ da
+// cerimônia, R$ por colaborador da hora extra) vêm sempre da regra em
+// Cálculos do Orçamento → Preços, Equipe e Taxas — pedido dela 09-30: "são
+// valores fixos até que mude na regra, o orçamento puxa direto".
+// Orçamento antigo (sem calcParams.adic) = tudo desligado.
 function _orcGetAdic(orc) {
   var p = orc.calcParams || (orc.calcParams = {});
-  if (!p.adic) {
-    var ini = _orcAdicInicial({ imposto: false, comissao: false, cerimonia: false, horas: 0 });
-    return ini; // não grava: só vira dado quando ela mexer (calcSetAdic)
-  }
-  return p.adic;
+  var a = getOrcAdicionais();
+  var s = p.adic || {};
+  var g = function(k) { return s[k] || {}; };
+  return {
+    imposto:   { inclui: !!g('imposto').inclui,   pct: Number(a.imposto.pct) || 0 },
+    comissao:  { inclui: !!g('comissao').inclui,  pct: Number(a.comissao.pct) || 0 },
+    cerimonia: { inclui: !!g('cerimonia').inclui, valor: Number(a.cerimonia.valor) || 0 },
+    horaExtra: { horas: Number(g('horaExtra').horas) || 0,
+                 pct: g('horaExtra').pct != null ? Number(g('horaExtra').pct) : (Number(a.horaExtra.pct) || 0),
+                 valorColab: Number(a.horaExtra.valorColab) || 0 },
+  };
 }
 
 function _orcColaboradores(orc) {
@@ -326,79 +334,71 @@ function _orcAplicarAdicionais(adic, base, colab) {
            imposto: r2(imposto), comissao: r2(comissao), total: r2(subtotal + imposto + comissao) };
 }
 
+// Só grava a escolha do orçamento: inclui (imposto/comissao/cerimonia),
+// horas e pct da hora extra. O valor é sempre o da regra.
 function calcSetAdic(grupo, campo, valor) {
   var orc = _calcGetOrc();
   if (!orc) return;
   if (!orc.calcParams) orc.calcParams = {};
-  if (!orc.calcParams.adic) orc.calcParams.adic = _orcGetAdic(orc);
-  orc.calcParams.adic[grupo][campo] = (campo === 'inclui') ? !!valor : (parseFloat(valor) || 0);
+  var p = orc.calcParams;
+  if (!p.adic) p.adic = {};
+  if (!p.adic[grupo]) p.adic[grupo] = {};
+  p.adic[grupo][campo] = (campo === 'inclui') ? !!valor : (parseFloat(valor) || 0);
   sv('orcamentos');
   rOrcCalc();
 }
 
-// Traz de volta o valor do cadastro (Preços do Orçamento) pra este orçamento.
-function calcAdicUsarPadrao(grupo) {
-  var orc = _calcGetOrc();
-  if (!orc) return;
-  if (!orc.calcParams.adic) orc.calcParams.adic = _orcGetAdic(orc);
-  var a = getOrcAdicionais()[grupo];
-  var alvo = orc.calcParams.adic[grupo];
-  ['pct', 'valor', 'valorColab'].forEach(function(c) { if (c in alvo && a[c] != null) alvo[c] = Number(a[c]) || 0; });
-  sv('orcamentos');
-  rOrcCalc();
+function calcIrParaRegraTaxas() {
+  if (typeof _ocoView !== 'undefined') _ocoView = 'precos';
+  go('orcCalculos');
 }
 
 function _orcAdicPainelHtml(orc, colab) {
   var adic = _orcGetAdic(orc);
   var pad = getOrcAdicionais();
-  // Mesmo visual dos outros parâmetros (rótulo em cima, campo largo), cada
-  // item num card próprio; card ligado ganha borda colorida.
-  var campo = function(grupo, nome, v, step) {
-    return '<input type="number" min="0" step="' + (step || '0.01') + '" value="' + (v != null ? v : 0) + '" ' +
-      'onchange="calcSetAdic(\'' + grupo + '\',\'' + nome + '\',this.value)" ' +
-      'style="width:100%;font-size:13px;padding:6px 8px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius);font-family:var(--mono);box-sizing:border-box">';
+  var fmt = function(v) { return (typeof fR === 'function') ? fR(v) : 'R$ ' + Number(v || 0).toFixed(2); };
+  // Valor da regra, só leitura
+  var valorRegra = function(txt) {
+    return '<div style="font-size:15px;font-weight:700;font-family:var(--mono);color:var(--text);padding:4px 0">' + txt + '</div>';
   };
-  var rot = function(s) { return '<div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:3px">' + s + '</div>'; };
-  var dica = function(s) { return '<div style="font-size:10px;color:var(--text3);margin-top:4px">' + s + '</div>'; };
-  var difPadrao = function(grupo, nome) {
-    var v = Number(adic[grupo][nome]) || 0, d = Number(pad[grupo][nome]) || 0;
-    return v !== d ? ' · <a href="#" onclick="calcAdicUsarPadrao(\'' + grupo + '\');return false" style="color:var(--blue)" title="Valor do cadastro: ' + d + '">usar padrão (' + d + ')</a>' : '';
-  };
+  var dica = function(s) { return '<div style="font-size:10px;color:var(--text3);margin-top:2px">' + s + '</div>'; };
   var card = function(ligado, cabecalho, corpo) {
-    return '<div style="background:var(--bg3);border:1px solid ' + (ligado ? '#8B5CF6' : 'var(--border2)') + ';border-radius:var(--radius);padding:10px 12px">' +
+    return '<div style="background:var(--bg3);border:1px solid ' + (ligado ? '#8B5CF6' : 'var(--border2)') + ';border-radius:var(--radius);padding:10px 12px' + (ligado ? '' : ';opacity:.75') + '">' +
       cabecalho + corpo + '</div>';
   };
   var cabChk = function(grupo, on, titulo) {
-    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' +
+    return '<label style="display:flex;align-items:center;gap:8px;margin:0 0 6px;cursor:pointer;text-transform:none;letter-spacing:0;width:auto">' +
       '<input type="checkbox"' + (on ? ' checked' : '') + ' onchange="calcSetAdic(\'' + grupo + '\',\'inclui\',this.checked)" style="width:auto;margin:0;cursor:pointer">' +
-      '<span style="font-size:11px;font-weight:700;color:' + (on ? 'var(--text)' : 'var(--text3)') + ';text-transform:uppercase">' + titulo + '</span></div>';
-  };
-  var cabSimples = function(titulo, on) {
-    return '<div style="font-size:11px;font-weight:700;color:' + (on ? 'var(--text)' : 'var(--text3)') + ';text-transform:uppercase;margin-bottom:8px">' + titulo + '</div>';
+      '<span style="font-size:11px;font-weight:700;color:' + (on ? 'var(--text)' : 'var(--text3)') + ';text-transform:uppercase">' + titulo + '</span></label>';
   };
   var opcoesPct = (pad.horaExtra.opcoesPct || [10, 20]).slice();
   var pctAtual = Number(adic.horaExtra.pct) || 0;
   if (opcoesPct.indexOf(pctAtual) === -1) opcoesPct.push(pctAtual);
   var horas = Number(adic.horaExtra.horas) || 0;
+  var campoStyle = 'width:100%;font-size:13px;padding:6px 8px;background:var(--bg2);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius);box-sizing:border-box';
 
   return '<div style="border-top:1px solid var(--border);padding-top:12px;margin-bottom:12px">' +
-    '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:10px">Taxas e adicionais <span style="font-weight:400;text-transform:none">— ' + colab + ' colaborador(es) na equipe</span></div>' +
+    '<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:10px">' +
+      '<span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase">Taxas e adicionais</span>' +
+      '<span style="font-size:10px;color:var(--text3)">' + colab + ' colaborador(es) na equipe · valores da regra —</span>' +
+      '<a href="#" onclick="calcIrParaRegraTaxas();return false" style="font-size:10px;color:var(--blue)">alterar em Cálculos do Orçamento</a>' +
+    '</div>' +
     '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">' +
       card(adic.imposto.inclui, cabChk('imposto', adic.imposto.inclui, 'Imposto / NF'),
-        rot('% sobre o valor total') + campo('imposto', 'pct', adic.imposto.pct) + dica('Sobre o valor do serviço' + difPadrao('imposto', 'pct'))) +
+        valorRegra(adic.imposto.pct + '%') + dica('sobre o valor total do serviço')) +
       card(adic.comissao.inclui, cabChk('comissao', adic.comissao.inclui, 'Comissão'),
-        rot('% sobre o valor total') + campo('comissao', 'pct', adic.comissao.pct) + dica('Sobre o valor do serviço' + difPadrao('comissao', 'pct'))) +
+        valorRegra(adic.comissao.pct + '%') + dica('sobre o valor total do serviço')) +
       card(adic.cerimonia.inclui, cabChk('cerimonia', adic.cerimonia.inclui, 'Cerimônia no local'),
-        rot('R$ por colaborador') + campo('cerimonia', 'valor', adic.cerimonia.valor) + dica(colab + ' colaborador(es)' + difPadrao('cerimonia', 'valor'))) +
-      card(horas > 0, cabSimples('Horas extras (antecipadas)', horas > 0),
-        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">' +
-          '<div>' + rot('Horas') + campo('horaExtra', 'horas', adic.horaExtra.horas, '1') + '</div>' +
-          '<div>' + rot('R$/colab.') + campo('horaExtra', 'valorColab', adic.horaExtra.valorColab) + '</div>' +
-          '<div>' + rot('% valor') +
-            '<select onchange="calcSetAdic(\'horaExtra\',\'pct\',this.value)" style="width:100%;font-size:13px;padding:6px 4px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius);box-sizing:border-box">' +
+        valorRegra(fmt(adic.cerimonia.valor)) + dica('por colaborador · ' + colab + ' = ' + fmt(adic.cerimonia.valor * colab))) +
+      card(horas > 0, '<div style="font-size:11px;font-weight:700;color:' + (horas > 0 ? 'var(--text)' : 'var(--text3)') + ';text-transform:uppercase;margin-bottom:6px">Horas extras (antecipadas)</div>',
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">' +
+          '<div><div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Horas</div>' +
+            '<input type="number" min="0" step="1" value="' + horas + '" onchange="calcSetAdic(\'horaExtra\',\'horas\',this.value)" style="' + campoStyle + ';font-family:var(--mono)"></div>' +
+          '<div><div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:3px">% do valor</div>' +
+            '<select onchange="calcSetAdic(\'horaExtra\',\'pct\',this.value)" style="' + campoStyle + '">' +
               opcoesPct.map(function(o) { return '<option value="' + o + '"' + (o === pctAtual ? ' selected' : '') + '>' + o + '%</option>'; }).join('') +
             '</select></div>' +
-        '</div>' + dica('Por hora: R$ por colaborador + % do valor' + difPadrao('horaExtra', 'valorColab'))) +
+        '</div>' + dica('Por hora: ' + fmt(adic.horaExtra.valorColab) + ' por colaborador + % do valor')) +
     '</div>' +
   '</div>';
 }
