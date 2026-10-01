@@ -968,7 +968,10 @@ function _ocoLinhaRegraHtml(r, ctx) {
   var regras = ctx.regras, cargos = ctx.cargos, insumosParaRevincular = ctx.insumos, orfaosIds = ctx.orfaosIds || {};
   var html = '';
   var ef = _regraBaseEfetiva(r);
-  var cols = 'minmax(160px,1fr) 140px 70px 110px 70px ' + (ctx.extraColWidth ? ctx.extraColWidth + ' ' : '') + '40px';
+  // Com as colunas do Cadastro (Itens automáticos) as outras encolhem um pouco pra caber.
+  var cols = ctx.extraColWidth
+    ? 'minmax(140px,1fr) 125px 60px 80px 60px ' + ctx.extraColWidth + ' 34px'
+    : 'minmax(160px,1fr) 140px 70px 110px 70px 40px';
 
   var insumoDaRegra = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(r.item) : null;
   var semInsumo = !insumoDaRegra;
@@ -1098,31 +1101,23 @@ function _ocoRenderTodos(cont) {
 
   var ctx = {
     regras: regras, cargos: _cargosDisponiveis(), insumos: insumosNomes, orfaosIds: {},
-    // Coluna "CADASTRO" ao lado do MÍN.: valores do Cadastro de Insumos só
-    // pra consulta, num card no mesmo padrão dos campos da linha. Clicar no
-    // card (ou em "alterar") abre o insumo no Cadastro.
-    extraColWidth: '210px',
+    // Depois do MÍN.: um card por valor do Cadastro de Insumos (Custo,
+    // Revenda baixa, Revenda alta) — só consulta, mesmo tamanho dos campos
+    // da linha. Clicar em qualquer um abre o insumo no Cadastro.
+    extraColWidth: '82px 82px 82px',
     extraCol: function(r) {
       var ins = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(r.item) : null;
-      var abrir = 'data-nome="' + esc(r.item) + '" onclick="ocoAbrirCadastroInsumo(this.dataset.nome);return false"';
-      var rotulo = '<div style="font-size:9px;color:var(--text3);margin-bottom:2px;display:flex;justify-content:space-between;gap:6px">' +
-        '<span>CADASTRO</span><a href="#" ' + abrir + ' style="color:var(--blue)">' + (ins ? 'alterar' : 'cadastrar') + '</a></div>';
-      var boxStyle = 'cursor:pointer;font-size:10px;line-height:1.35;padding:3px 8px;border-radius:4px;border:1px dashed var(--border2);background:var(--bg);color:var(--text)';
-      if (!ins) {
-        return '<div>' + rotulo + '<div ' + abrir + ' title="Cadastrar no Cadastro de Insumos" style="' + boxStyle + ';color:var(--amber)">Sem cadastro — entra com R$ 0</div></div>';
-      }
+      var abrir = 'data-nome="' + esc(r.item) + '" onclick="ocoAbrirCadastroInsumo(this.dataset.nome);return false" title="Valor do Cadastro de Insumos (só consulta) — clique pra alterar"';
+      var num = function(v) { return v ? Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'; };
+      var card = function(rot, val, cor) {
+        return '<div><div style="font-size:9px;color:var(--text3);margin-bottom:2px;white-space:nowrap">' + rot + '</div>' +
+          '<div ' + abrir + ' style="cursor:pointer;width:100%;box-sizing:border-box;font-size:11px;font-family:var(--mono);padding:3px 5px;border-radius:4px;border:1px dashed var(--border2);background:var(--bg);text-align:center;color:' + (cor || 'var(--text)') + '">' + val + '</div></div>';
+      };
+      if (!ins) return card('CUSTO', 'sem cad.', 'var(--amber)') + card('REV. BAIXA', '—', 'var(--text3)') + card('REV. ALTA', '—', 'var(--text3)');
       var custo = (typeof precoEfetivoInsumo === 'function') ? precoEfetivoInsumo(ins) : Number(ins.custoReposicao || 0);
-      var un = (ins.unidadeCompra || 'UN').toLowerCase();
-      var temRevenda = ins.revendaBaixaTemporada || ins.revendaAltaTemporada;
-      return '<div>' + rotulo +
-        '<div ' + abrir + ' title="Valores do Cadastro de Insumos (só consulta) — clique pra alterar" style="' + boxStyle + '">' +
-          '<div><span style="color:var(--text3)">Custo</span> <strong style="font-family:var(--mono);color:' + (custo ? 'var(--text)' : 'var(--amber)') + '">' + (custo ? moeda(custo) : 'sem preço') + '</strong> <span style="color:var(--text3)">/ ' + un + '</span></div>' +
-          (temRevenda
-            ? '<div><span style="color:var(--text3)">Revenda</span> <span style="font-family:var(--mono);color:var(--green)">' +
-                (ins.revendaBaixaTemporada ? moeda(ins.revendaBaixaTemporada) : '—') + ' / ' + (ins.revendaAltaTemporada ? moeda(ins.revendaAltaTemporada) : '—') +
-              '</span> <span style="color:var(--text3)">baixa/alta</span></div>'
-            : '<div style="color:var(--text3)">Sem revenda cadastrada</div>') +
-        '</div></div>';
+      return card('CUSTO / ' + (ins.unidadeCompra || 'UN').toLowerCase(), num(custo), custo ? '' : 'var(--amber)') +
+        card('REV. BAIXA', num(ins.revendaBaixaTemporada), ins.revendaBaixaTemporada ? 'var(--green)' : 'var(--text3)') +
+        card('REV. ALTA', num(ins.revendaAltaTemporada), ins.revendaAltaTemporada ? 'var(--green)' : 'var(--text3)');
     },
     // Embaixo do nome: "só com cardápio"
     extraNome: function(r) {
