@@ -401,12 +401,51 @@ function ocoToggleCargo(id, cargoKey, checked) {
   else if (!checked && i !== -1) r.cargos.splice(i, 1);
 }
 
+// Campo de busca do "+ Adicionar item": digita e só aparece o que contém o
+// texto (sem acento/maiúscula). O item escolhido fica no hidden
+// #oco-item-add (data-cat = categoria) — digitar de novo limpa a escolha,
+// então só entra item clicado na lista.
+function _ocoBuscaItemHtml(opcoes) {
+  window._ocoItemAddOpcoes = opcoes.slice().sort(function(a, b) { return (a.nome || '').localeCompare(b.nome || '', 'pt-BR'); });
+  return '<input type="hidden" id="oco-item-add" value="" data-cat="">' +
+    '<div style="position:relative">' +
+      '<input id="oco-item-busca" class="inp" type="text" autocomplete="off" placeholder="Digite pra buscar o item..." style="width:100%" ' +
+        'oninput="ocoFiltrarItemAdd(this.value,true)" onfocus="ocoFiltrarItemAdd(this.value)" ' +
+        'onblur="setTimeout(function(){var d=document.getElementById(\'oco-item-add-dd\');if(d)d.style.display=\'none\';},150)">' +
+      '<div id="oco-item-add-dd" style="display:none;position:absolute;top:100%;left:0;right:0;margin-top:2px;max-height:260px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius);z-index:500;box-shadow:0 6px 24px rgba(0,0,0,.55)"></div>' +
+    '</div>';
+}
+
+function ocoFiltrarItemAdd(busca, digitou) {
+  var dd = document.getElementById('oco-item-add-dd');
+  if (!dd) return;
+  if (digitou) { var h = document.getElementById('oco-item-add'); if (h) { h.value = ''; h.dataset.cat = ''; } }
+  var b = _ocoNorm(busca);
+  var esc = function(s) { return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); };
+  var lista = (window._ocoItemAddOpcoes || []).filter(function(o) { return !b || _ocoNorm(o.nome).indexOf(b) !== -1; });
+  dd.innerHTML = lista.length ? lista.map(function(o) {
+    return '<div data-nome="' + esc(o.nome) + '" data-cat="' + esc(o.cat) + '" onmousedown="ocoEscolherItemAdd(this.dataset.nome,this.dataset.cat)" ' +
+      'style="padding:7px 12px;cursor:pointer;font-size:12px;color:var(--text);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:8px" ' +
+      'onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'\'">' +
+      '<span>' + esc(o.nome) + '</span><span style="color:var(--text3);font-size:10px">' + esc(o.cat) + '</span></div>';
+  }).join('') : '<div style="padding:8px 12px;color:var(--text3);font-size:12px">Nenhum item com esse nome.</div>';
+  dd.style.display = 'block';
+}
+
+function ocoEscolherItemAdd(nome, cat) {
+  var h = document.getElementById('oco-item-add');
+  var busca = document.getElementById('oco-item-busca');
+  if (h) { h.value = nome; h.dataset.cat = cat || ''; }
+  if (busca) busca.value = nome;
+  var dd = document.getElementById('oco-item-add-dd');
+  if (dd) dd.style.display = 'none';
+}
+
 function ocoAdicionarItem() {
   var sel = document.getElementById('oco-item-add');
   var nome = sel && sel.value;
-  if (!nome) { alert('Escolha um item.'); return; }
-  var opt = sel.options[sel.selectedIndex];
-  var cat = opt ? opt.getAttribute('data-cat') : 'OUTROS';
+  if (!nome) { alert('Digite e escolha um item da lista.'); return; }
+  var cat = (sel.dataset && sel.dataset.cat) || 'OUTROS';
   var norm = _ocoNorm;
   var lista = _ocoRegras(_ocoListaId());
   if (lista.some(function(r) { return norm(r.item) === norm(nome); })) {
@@ -905,15 +944,10 @@ function _ocoRenderDetalhe(cont, tipos) {
     '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">+ Adicionar item (só neste Tipo de Evento)</div>' +
     '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">' +
       '<div style="flex:1;min-width:240px"><label class="lbl">Item</label>' +
-        '<select id="oco-item-add" class="inp" style="width:100%">' +
-          Object.keys(_bib).sort().map(function(cat) {
-            var opts = (_bib[cat] || []).filter(function(it) { return !itensExistentes[norm(it)]; });
-            if (!opts.length) return '';
-            return '<optgroup label="' + cat.replace(/"/g, '&quot;') + '">' +
-              opts.map(function(it) { return '<option value="' + it.replace(/"/g, '&quot;') + '" data-cat="' + cat.replace(/"/g, '&quot;') + '">' + it + '</option>'; }).join('') +
-              '</optgroup>';
-          }).join('') +
-        '</select></div>' +
+        _ocoBuscaItemHtml(Object.keys(_bib).reduce(function(acc, cat) {
+          (_bib[cat] || []).forEach(function(it) { if (!itensExistentes[norm(it)]) acc.push({ nome: it, cat: cat }); });
+          return acc;
+        }, [])) + '</div>' +
       '<button class="btn" onclick="ocoAdicionarItem()" style="background:var(--blue);white-space:nowrap">+ Adicionar</button>' +
     '</div>' +
     (disponiveis.length ? '' : '<div style="font-size:10px;color:var(--text3);margin-top:6px">Todos os itens da Biblioteca já estão na lista deste Tipo de Evento.</div>') +
@@ -1120,15 +1154,10 @@ function _ocoRenderTodos(cont) {
     '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">+ Adicionar item do Cadastro de Insumos</div>' +
     '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">' +
       '<div style="flex:1;min-width:240px"><label class="lbl">Item</label>' +
-        '<select id="oco-item-add" class="inp" style="width:100%"><option value="">— escolher —</option>' +
-          Object.keys(porCat).sort().map(function(cat) {
-            return '<optgroup label="' + esc(cat) + '">' +
-              porCat[cat].sort(function(a, b) { return a.localeCompare(b, 'pt-BR'); }).map(function(n) {
-                return '<option value="' + esc(n) + '" data-cat="' + esc(cat) + '">' + n + '</option>';
-              }).join('') +
-            '</optgroup>';
-          }).join('') +
-        '</select></div>' +
+        _ocoBuscaItemHtml(Object.keys(porCat).reduce(function(acc, cat) {
+          porCat[cat].forEach(function(n) { acc.push({ nome: n, cat: cat }); });
+          return acc;
+        }, [])) + '</div>' +
       '<button class="btn" onclick="ocoAdicionarItem()" style="background:var(--blue);white-space:nowrap">+ Adicionar</button>' +
       '<button class="btn" onclick="go(\'cadastro\')" style="white-space:nowrap" title="Item que ainda não existe (ex.: Seguro Quebra) — cadastre lá com o preço e volte aqui">Cadastrar insumo novo</button>' +
     '</div>' +
