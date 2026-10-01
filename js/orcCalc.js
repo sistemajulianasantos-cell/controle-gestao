@@ -67,7 +67,12 @@ var ORC_SECOES_PADRAO = [
 var _ORC_CORES_BLOCO_PROPRIO = ['#0EA5E9', '#F43F5E', '#84CC16', '#EAB308', '#A855F7', '#22C55E'];
 
 function _orcSecoesCalc() {
-  var out = ORC_SECOES_PADRAO.slice();
+  // Nome das seções fixas é editável (Regras do Orçamento → "renomear"),
+  // guardado em D.orcPrecos.nomesSecoes[id]; renomeada fica sem o ícone.
+  var nomes = (D.orcPrecos && D.orcPrecos.nomesSecoes) || {};
+  var out = ORC_SECOES_PADRAO.map(function(s) {
+    return nomes[s.id] ? Object.assign({}, s, { label: nomes[s.id], semIcone: true }) : s;
+  });
   getOrcFatores().forEach(function(f, i) {
     if (f.pausado || !f.secao || out.some(function(s) { return s.id === f.secao; })) return;
     out.push({ id: f.secao, label: f.nome.replace(/\s*\([^)]*\)\s*$/, ''), cor: _ORC_CORES_BLOCO_PROPRIO[i % _ORC_CORES_BLOCO_PROPRIO.length], proprio: true });
@@ -1005,7 +1010,7 @@ function rOrcCalc() {
           return `
             <div style="margin-bottom:8px">
               <div style="display:flex;justify-content:space-between;margin-bottom:3px">
-                <span style="font-size:10px;color:${sec.cor}">${sec.proprio ? sec.label : sec.label.replace(/^\S+\s/, '')}</span>
+                <span style="font-size:10px;color:${sec.cor}">${(sec.proprio || sec.semIcone) ? sec.label : sec.label.replace(/^\S+\s/, '')}</span>
                 <span style="font-size:10px;font-family:var(--mono);color:var(--text3)">${fR(t)} · ${pct}%</span>
               </div>
               <div style="height:4px;background:var(--bg3);border-radius:2px">

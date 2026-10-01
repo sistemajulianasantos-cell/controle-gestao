@@ -674,15 +674,110 @@ function ocoCriarRegraItem(nome, cat) {
   rOrcCalculos();
 }
 
-function _ocoCatConteudoHtml(cat, ctx) {
+// ─── Busca, ocultar e renomear (Regras do Orçamento, 10-01) ─────────────────
+window._ocoBusca = window._ocoBusca || '';
+window._ocoMostrarOcultos = window._ocoMostrarOcultos || false;
+window._ocoCatTodos = window._ocoCatTodos || {};   // categoria → mostrar todos os produtos (não só os em uso)
+
+function ocoBuscarRegras(v) {
+  window._ocoBusca = v || '';
+  rOrcCalculos();
+  // re-render recria o campo: devolve o foco com o cursor no fim
+  var el = document.getElementById('oco-busca-regras');
+  if (el) { el.focus(); var L = el.value.length; try { el.setSelectionRange(L, L); } catch (e) {} }
+}
+
+function _ocoOcultos() {
+  return (D.orcPrecos && D.orcPrecos.ocultosRegras) || [];
+}
+
+// Esconde um bloco da lista de Regras do Orçamento (só da lista: o que tiver
+// regra continua valendo no orçamento).
+function ocoOcultarBloco(k, ocultar) {
+  var p = (typeof _ensureOrcPrecos === 'function') ? _ensureOrcPrecos() : (D.orcPrecos = D.orcPrecos || {});
+  var lista = (p.ocultosRegras || []).filter(function(x) { return x !== k; });
+  if (ocultar) lista.push(k);
+  p.ocultosRegras = lista;
+  sv('orcPrecos');
+  rOrcCalculos();
+}
+
+function ocoToggleMostrarOcultos() {
+  window._ocoMostrarOcultos = !window._ocoMostrarOcultos;
+  rOrcCalculos();
+}
+
+function ocoToggleCatTodos(k) {
+  window._ocoCatTodos[k] = !window._ocoCatTodos[k];
+  rOrcCalculos();
+}
+
+// Renomear: seção fixa (Equipe, Vasilhames...) → nome guardado em
+// D.orcPrecos.nomesSecoes; categoria de preço → nome da categoria de preço;
+// categoria de insumos → renomeia no Cadastro de Categorias (vale pro sistema
+// todo: produtos, fichas, regras), levando junto a ordem/modo/ocultar daqui.
+function ocoRenomearBloco(k) {
+  var bloco = _ocoBlocosCalculadora().find(function(b) { return b.k === k; });
+  if (!bloco) return;
+  var novo = prompt(bloco.cat
+    ? 'Novo nome da categoria "' + bloco.nome + '" (muda no Cadastro de Categorias e em todo o sistema):'
+    : 'Novo nome do bloco "' + bloco.nome + '" (deixe vazio pra voltar ao nome padrão):', bloco.nome);
+  if (novo === null) return;
+  novo = novo.trim();
+  var p = (typeof _ensureOrcPrecos === 'function') ? _ensureOrcPrecos() : (D.orcPrecos = D.orcPrecos || {});
+
+  if (bloco.cat) {
+    if (!novo) return;
+    var catObj = (D.categorias || []).find(function(c) { return _orcNormNome(c.nome) === _orcNormNome(bloco.cat); });
+    if (!catObj || typeof renomearCategoria !== 'function') { alert('Essa categoria não está no Cadastro de Categorias — renomeie em Cadastro → Categorias.'); return; }
+    var kNovo = _orcChaveCat(novo);
+    var nVelho = _orcNormNome(bloco.cat), nNovo = _orcNormNome(novo);
+    renomearCategoria(catObj.id, novo);
+    if (p.ordemCalculadora) p.ordemCalculadora = p.ordemCalculadora.map(function(x) { return x === k ? kNovo : x; });
+    if (p.ocultosRegras) p.ocultosRegras = p.ocultosRegras.map(function(x) { return x === k ? kNovo : x; });
+    if (p.modoCategorias && p.modoCategorias[nVelho] && !p.modoCategorias[nNovo]) { p.modoCategorias[nNovo] = p.modoCategorias[nVelho]; delete p.modoCategorias[nVelho]; }
+    if (window._ocoCatsAbertas[k]) { window._ocoCatsAbertas[kNovo] = true; delete window._ocoCatsAbertas[k]; }
+    sv('orcPrecos');
+    rOrcCalculos();
+    return;
+  }
+
+  var secId = k.slice(4);
+  var fator = buscarOrcFatorPorId(secId);
+  if (fator && fator.secao === fator.id) {
+    if (!novo) return;
+    fator.nome = novo;
+    sv('orcFatores');
+  } else {
+    if (!p.nomesSecoes) p.nomesSecoes = {};
+    if (novo) p.nomesSecoes[secId] = novo; else delete p.nomesSecoes[secId];
+    sv('orcPrecos');
+  }
+  rOrcCalculos();
+}
+
+// Produto "em uso": tem regra de quantidade ou aparece em alguma Ficha de Coquetel
+function _ocoProdutoEmUso(nome, regras) {
+  var n = _ocoNorm(nome);
+  return regras.some(function(r) { return _ocoNorm(r.item) === n; }) || _ocoItemEmAlgumaFicha(nome);
+}
+
+function _ocoCatConteudoHtml(cat, ctx, k, busca) {
   var cfg = _orcCfgCat(cat);
   var n = _orcNormNome(cat);
   var esc = function(s) { return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); };
   var moeda = function(v) { return (typeof fR === 'function') ? fR(v) : 'R$ ' + Number(v || 0).toFixed(2); };
-  var itens = (typeof getInsumos === 'function' ? getInsumos() : (D.insumos || []))
+  var regras = _ocoRegras(OCO_LISTA_TODOS);
+  var todosDaCat = (typeof getInsumos === 'function' ? getInsumos() : (D.insumos || []))
     .filter(function(i) { return _orcNormNome(i.categoria) === n; })
     .sort(function(a, b) { return (a.nome || '').localeCompare(b.nome || '', 'pt-BR'); });
-  var regras = _ocoRegras(OCO_LISTA_TODOS);
+  // Com busca: só os que batem. Sem busca: só os em uso, a não ser que ela
+  // peça "mostrar todos".
+  var mostrarTodos = !!window._ocoCatTodos[k];
+  var itens = busca
+    ? todosDaCat.filter(function(i) { return _ocoNorm(i.nome).indexOf(busca) !== -1 || _ocoNorm(cat).indexOf(busca) !== -1; })
+    : (mostrarTodos ? todosDaCat : todosDaCat.filter(function(i) { return _ocoProdutoEmUso(i.nome, regras); }));
+  var escondidos = todosDaCat.length - itens.length;
   var selStyle = 'font-size:11px;padding:4px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)';
 
   var html = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">' +
@@ -700,7 +795,15 @@ function _ocoCatConteudoHtml(cat, ctx) {
   }
   html += '</div>';
 
-  if (!itens.length) return html + '<div style="font-size:11px;color:var(--text3)">Nenhum produto cadastrado nessa categoria no Cadastro de Insumos.</div>';
+  if (!todosDaCat.length) return html + '<div style="font-size:11px;color:var(--text3)">Nenhum produto cadastrado nessa categoria no Cadastro de Insumos.</div>';
+
+  // Rodapé: quantos ficaram de fora e o botão pra ver todos / só os em uso
+  var kEsc = k.replace(/'/g, "\\'");
+  var rodape = busca ? '' : (mostrarTodos
+    ? '<div style="margin-top:8px"><a href="#" onclick="ocoToggleCatTodos(\'' + kEsc + '\');return false" style="font-size:11px;color:var(--blue)">Mostrar só os produtos em uso</a></div>'
+    : (escondidos > 0 ? '<div style="margin-top:8px;font-size:11px;color:var(--text3)">' + escondidos + ' produto(s) sem uso (sem quantidade e fora das fichas) escondido(s) · <a href="#" onclick="ocoToggleCatTodos(\'' + kEsc + '\');return false" style="color:var(--blue)">mostrar todos os ' + todosDaCat.length + '</a></div>' : ''));
+
+  if (!itens.length) return html + '<div style="font-size:11px;color:var(--text3)">' + (busca ? 'Nenhum produto dessa categoria com esse nome.' : 'Nenhum produto em uso nessa categoria.') + '</div>' + rodape;
 
   if (cfg.modo === 'teto') {
     // Só consulta: o que tem dentro e quanto custa cada um
@@ -708,7 +811,7 @@ function _ocoCatConteudoHtml(cat, ctx) {
       var custo = (typeof precoEfetivoInsumo === 'function') ? precoEfetivoInsumo(i) : Number(i.custoReposicao || 0);
       return '<div style="display:flex;justify-content:space-between;gap:10px;font-size:11px;padding:4px 10px;background:var(--bg);border:1px solid var(--border);border-radius:4px">' +
         '<span style="color:var(--text)">' + esc(i.nome) + '</span><span style="font-family:var(--mono);color:var(--text3)">' + (custo ? moeda(custo) : '—') + '</span></div>';
-    }).join('') + '</div>';
+    }).join('') + '</div>' + rodape;
   }
 
   return html + '<div style="display:grid;gap:6px">' + itens.map(function(i) {
@@ -719,7 +822,7 @@ function _ocoCatConteudoHtml(cat, ctx) {
       '<span style="color:var(--text3)">sem quantidade definida</span>' +
       '<button class="btn-sm" style="background:var(--blue);color:#fff" data-nome="' + esc(i.nome) + '" data-cat="' + esc(cat) + '" onclick="ocoCriarRegraItem(this.dataset.nome,this.dataset.cat)">Definir quantidade</button>' +
     '</div>';
-  }).join('') + '</div>';
+  }).join('') + '</div>' + rodape;
 }
 
 // Regras de quantidade cujo produto não cai em nenhuma categoria da lista
@@ -741,41 +844,71 @@ function _ocoRegrasSemCategoriaHtml(blocos, ctx) {
 }
 
 function _ocoRenderOrdem(cont) {
-  var blocos = _ocoBlocosCalculadora();
+  var todos = _ocoBlocosCalculadora();
   var ctx = _ocoCtxTodos();
+  var ocultos = _ocoOcultos();
+  var busca = _ocoNorm(window._ocoBusca);
+  var regras = _ocoRegras(OCO_LISTA_TODOS);
+
+  // Com busca: bloco aparece se o nome dele bate ou (categoria) algum produto
+  // dela bate — e categoria com produto achado abre sozinha.
+  var produtoBate = function(cat) {
+    var n = _orcNormNome(cat);
+    return (D.insumos || []).some(function(i) { return _orcNormNome(i.categoria) === n && _ocoNorm(i.nome).indexOf(busca) !== -1; });
+  };
+  var blocos = todos.filter(function(b) {
+    if (busca) return _ocoNorm(b.nome).indexOf(busca) !== -1 || (b.cat && produtoBate(b.cat));
+    return window._ocoMostrarOcultos || ocultos.indexOf(b.k) === -1;
+  });
+  var qtdOcultos = todos.filter(function(b) { return ocultos.indexOf(b.k) !== -1; }).length;
+
   var btn = function(k, dir, off) {
     return '<button class="btn-sm" style="padding:0 7px;line-height:1.5;background:var(--bg2)" ' + (off ? 'disabled' : '') + ' onclick="event.stopPropagation();ocoMoverBloco(\'' + k.replace(/'/g, "\\'") + '\',' + dir + ')" title="' + (dir < 0 ? 'Subir' : 'Descer') + '">' + (dir < 0 ? '▲' : '▼') + '</button>';
   };
+  var link = function(txt, onclick, cor) {
+    return '<a href="#" onclick="event.stopPropagation();' + onclick + ';return false" style="font-size:10px;color:' + (cor || 'var(--blue)') + ';white-space:nowrap">' + txt + '</a>';
+  };
   var modoTxt = { cardapio: 'conforme o cardápio', fixo: 'sempre entra', teto: 'valor teto' };
+  var escVal = String(window._ocoBusca || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
   cont.innerHTML = '<div style="padding:20px 24px;max-width:1100px">' +
     '<div style="margin-bottom:16px">' +
       '<div style="font-size:18px;font-weight:700;color:var(--text)">Cálculos do Orçamento</div>' +
       '<div style="font-size:12px;color:var(--text3);margin-top:2px">Regras do Orçamento: ordem dos blocos na Calculadora, como cada categoria entra e a quantidade de cada produto. Clique numa categoria de insumos pra ver os produtos dela.</div>' +
     '</div>' +
     _ocoTopTabsHtml() +
-    '<div style="position:sticky;top:0;z-index:30;display:flex;justify-content:flex-end;margin-bottom:8px">' +
+    '<div style="position:sticky;top:0;z-index:30;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px;padding:8px 0;background:var(--bg)">' +
+      '<input id="oco-busca-regras" class="inp" type="text" autocomplete="off" placeholder="Pesquisar categoria ou produto..." value="' + escVal + '" oninput="ocoBuscarRegras(this.value)" style="flex:1;min-width:200px">' +
+      (qtdOcultos && !busca ? '<a href="#" onclick="ocoToggleMostrarOcultos();return false" style="font-size:11px;color:var(--blue);white-space:nowrap">' + (window._ocoMostrarOcultos ? 'Esconder os ocultos' : 'Mostrar ocultos (' + qtdOcultos + ')') + '</a>' : '') +
       '<button class="btn" style="background:var(--green);font-weight:700" onclick="ocoSalvar()">Salvar</button>' +
     '</div>' +
+    (busca && !blocos.length ? '<div style="padding:24px;text-align:center;color:var(--text3);font-size:12px">Nada encontrado com "' + escVal + '".</div>' : '') +
     '<div style="display:grid;gap:4px">' +
-    blocos.map(function(b, i) {
-      var aberta = b.cat && window._ocoCatsAbertas[b.k];
+    blocos.map(function(b) {
+      var i = todos.indexOf(b);
+      var oculto = ocultos.indexOf(b.k) !== -1;
+      var aberta = b.cat && (window._ocoCatsAbertas[b.k] || (busca && produtoBate(b.cat)));
       var resumoCat = '';
       if (b.cat) {
         var n = _orcNormNome(b.cat);
-        var qtdItens = (D.insumos || []).filter(function(x) { return _orcNormNome(x.categoria) === n; }).length;
-        resumoCat = '<span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:8px">' + qtdItens + ' produto(s) · ' + modoTxt[_orcModoCat(b.cat)] + '</span>';
+        var daCat = (D.insumos || []).filter(function(x) { return _orcNormNome(x.categoria) === n; });
+        var emUso = daCat.filter(function(x) { return _ocoProdutoEmUso(x.nome, regras); }).length;
+        resumoCat = '<span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:8px">' + emUso + ' em uso de ' + daCat.length + ' produto(s) · ' + modoTxt[_orcModoCat(b.cat)] + '</span>';
       }
-      return '<div style="background:var(--bg3);border:1px solid ' + (aberta ? 'var(--blue-dim,var(--border2))' : 'var(--border)') + ';border-radius:var(--radius)">' +
-        '<div style="display:flex;align-items:center;gap:10px;padding:6px 10px' + (b.cat ? ';cursor:pointer' : '') + '"' + (b.cat ? ' onclick="ocoToggleCatOrdem(\'' + b.k.replace(/'/g, "\\'") + '\')"' : '') + '>' +
+      var kEsc = b.k.replace(/'/g, "\\'");
+      return '<div style="background:var(--bg3);border:1px solid ' + (aberta ? 'var(--blue-dim,var(--border2))' : 'var(--border)') + ';border-radius:var(--radius)' + (oculto ? ';opacity:.55;border-style:dashed' : '') + '">' +
+        '<div style="display:flex;align-items:center;gap:10px;padding:6px 10px' + (b.cat ? ';cursor:pointer' : '') + '"' + (b.cat ? ' onclick="ocoToggleCatOrdem(\'' + kEsc + '\')"' : '') + '>' +
           '<span style="font-size:11px;font-family:var(--mono);color:var(--text3);width:22px;text-align:right">' + (i + 1) + '</span>' +
-          '<span style="display:flex;flex-direction:column;gap:1px">' + btn(b.k, -1, i === 0) + btn(b.k, 1, i === blocos.length - 1) + '</span>' +
+          '<span style="display:flex;flex-direction:column;gap:1px">' + btn(b.k, -1, i === 0) + btn(b.k, 1, i === todos.length - 1) + '</span>' +
           '<span style="flex:1;min-width:0;font-size:12px;font-weight:600;color:var(--text)">' + (b.cat ? (aberta ? '▾ ' : '▸ ') : '') + b.nome + resumoCat + _ocoFatoresDaSecaoHtml(b.k) + '</span>' +
           (b.cat ? '' : '<span style="font-size:10px;color:var(--text3);white-space:nowrap">' + b.tipo + '</span>') +
+          link('renomear', 'ocoRenomearBloco(\'' + kEsc + '\')') +
+          link(oculto ? 'mostrar' : 'ocultar', 'ocoOcultarBloco(\'' + kEsc + '\',' + !oculto + ')', 'var(--text3)') +
         '</div>' +
-        (aberta ? '<div style="padding:10px 12px 12px;border-top:1px solid var(--border);overflow-x:auto">' + _ocoCatConteudoHtml(b.cat, ctx) + '</div>' : '') +
+        (aberta ? '<div style="padding:10px 12px 12px;border-top:1px solid var(--border);overflow-x:auto">' + _ocoCatConteudoHtml(b.cat, ctx, b.k, busca) + '</div>' : '') +
       '</div>';
     }).join('') +
-    '</div>' + _ocoRegrasSemCategoriaHtml(blocos, ctx) + '</div>';
+    '</div>' + (busca ? '' : _ocoRegrasSemCategoriaHtml(todos, ctx)) + '</div>';
 }
 
 // ─── VISÃO GERAL ────────────────────────────────────────────────────────────
