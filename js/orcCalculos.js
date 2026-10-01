@@ -481,6 +481,7 @@ function _ocoTopTabsHtml() {
     '<button class="sort-btn ' + (_ocoView === 'todos' ? 'active' : '') + '" onclick="ocoSetView(\'todos\')">Itens automáticos (todos os eventos)</button>' +
     '<button class="sort-btn ' + (emTipos ? 'active' : '') + '" onclick="ocoSetView(\'overview\')">📊 Tipos de Evento</button>' +
     '<button class="sort-btn ' + (_ocoView === 'catalogo' ? 'active' : '') + '" onclick="ocoSetView(\'catalogo\')">📖 Catálogo de Insumos (todas as Fichas)</button>' +
+    '<button class="sort-btn ' + (_ocoView === 'precos' ? 'active' : '') + '" onclick="ocoSetView(\'precos\')">💰 Preços, Equipe e Taxas</button>' +
   '</div>';
 }
 
@@ -500,6 +501,14 @@ function rOrcCalculos() {
   }
   if (!_ocoTipoAtual || !tipos.some(function(t) { return t.id === _ocoTipoAtual; })) _ocoTipoAtual = tipos[0].id;
 
+  // Preços, Equipe e Taxas: a tela que antes ficava em Regras e Cálculos →
+  // Preços do Orçamento (rPrecosOrcamento, js/regras.js) — tudo que entra
+  // sozinho no orçamento fica configurado aqui, num lugar só.
+  if (_ocoView === 'precos') {
+    cont.innerHTML = _ocoTopTabsHtml() + '<div id="oco-precos-view"></div>';
+    if (typeof rPrecosOrcamento === 'function') rPrecosOrcamento();
+    return;
+  }
   if (_ocoView === 'todos') _ocoRenderTodos(cont);
   else if (_ocoView === 'catalogo') _ocoRenderCatalogo(cont);
   else if (_ocoView === 'detalhe') _ocoRenderDetalhe(cont, tipos);

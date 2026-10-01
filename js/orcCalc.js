@@ -219,6 +219,14 @@ function _migrarLocalOrcamento(calcParams) {
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
+// Nome (editável em Cálculos do Orçamento → Preços, Equipe e Taxas) dos itens
+// automáticos por local: rf/la/ca.
+var _ORC_NOMES_LOCAIS_PADRAO = { rf: 'Refrigério equipe', la: 'Limpeza equipe', ca: 'Carregamento' };
+function _orcNomeItemLocal(campo) {
+  var n = D.orcPrecos && D.orcPrecos.nomesLocais && D.orcPrecos.nomesLocais[campo];
+  return n || _ORC_NOMES_LOCAIS_PADRAO[campo] || campo;
+}
+
 function _calcGetOrc() {
   return (D.orcamentos || []).find(o => o.id === orcAtualId);
 }
@@ -436,9 +444,9 @@ function recalcularAutos() {
     _mk('auto-cd',   'equipe',    'Coordenador',         qt.cd,    _precoCargo('cd', localKey)),
     _mk('auto-cp',   'equipe',    'Copeiro',             qt.cp,    _precoCargo('cp', localKey)),
     _mk('auto-bonus-head', 'equipe', 'Bônus Head Bartender/Coordenador', bonusHeadValor > 0 ? 1 : 0, bonusHeadValor),
-    _mk('auto-ca',   'logistica', 'Carregamento',        1,        loc.ca),
-    _mk('auto-rf',   'logistica', 'Refrigério equipe',   eqTotal,  loc.rf),
-    _mk('auto-la',   'logistica', 'Limpeza equipe',      eqTotal,  loc.la),
+    _mk('auto-ca',   'logistica', _orcNomeItemLocal('ca'), 1,       loc.ca),
+    _mk('auto-rf',   'logistica', _orcNomeItemLocal('rf'), eqTotal, loc.rf),
+    _mk('auto-la',   'logistica', _orcNomeItemLocal('la'), eqTotal, loc.la),
     ...getOrcFatores().map(function(fator) {
       var qtd = fator.tipoValor === 'porConvidado' ? pax : 1;
       var valor;

@@ -1421,24 +1421,27 @@ function resetarPrecosOrcamento() {
 }
 
 function rPrecosOrcamento() {
-  var cont = document.getElementById('regras-view-precos');
+  // Mora em Comercial → Cálculos do Orçamento → "Preços, Equipe e Taxas" (09-30);
+  // regras-view-precos é o lugar antigo (Regras e Cálculos), mantido como fallback.
+  var cont = document.getElementById('oco-precos-view') || document.getElementById('regras-view-precos');
   if (!cont) return;
   var precos = getOrcPrecos();
 
   // bt/bb/hb/cd/cp (preço de equipe) saíram daqui — vêm do Cadastro de
   // Cargos agora. Só Refrigério/Limpeza/Carregamento continuam editáveis
   // nesta tela (não fazem parte do Cadastro de Cargos).
-  var colsLocais = [
-    ['rf','Refrigério'],['la','Limpeza'],['ca','Carregamento'],
-  ];
+  // Nome de cada item é editável (vira o nome da linha na Calculadora).
+  var colsLocais = ['rf', 'la', 'ca'].map(function(k) { return [k, _orcNomeItemLocal(k)]; });
 
   var htmlLocais = '<div class="sec" style="margin-bottom:14px">' +
-    '<div class="sec-head"><span class="sec-title">📍 Preços por Local (Refrigério, Limpeza, Carregamento)</span></div>' +
+    '<div class="sec-head"><span class="sec-title">📍 Preços por Local (' + colsLocais.map(function(c) { return c[1]; }).join(', ') + ')</span></div>' +
     '<div style="padding:12px 16px;overflow-x:auto">' +
+    '<div style="font-size:10px;color:var(--text3);margin-bottom:8px">Clique no nome da coluna pra renomear o item. ' + _orcNomeItemLocal('rf') + ' e ' + _orcNomeItemLocal('la') + ' são por colaborador; ' + _orcNomeItemLocal('ca') + ' é por evento.</div>' +
     '<table style="width:100%;border-collapse:collapse;font-size:11px">' +
     '<thead><tr style="color:var(--text3);text-transform:uppercase;font-size:9px">' +
       '<th style="text-align:left;padding:4px 8px">Local</th>' +
-      colsLocais.map(function(c){ return '<th style="text-align:center;padding:4px 6px">'+c[1]+'</th>'; }).join('') +
+      colsLocais.map(function(c){ return '<th style="text-align:center;padding:4px 6px"><input type="text" value="' + c[1].replace(/"/g, '&quot;') + '" onchange="renomearItemLocalOrc(\'' + c[0] + '\',this.value)" title="Renomear" ' +
+        'style="width:100px;text-align:center;font-size:9px;font-weight:700;text-transform:uppercase;background:transparent;border:none;border-bottom:1px dashed var(--border2);color:var(--text3);padding:2px 0"></th>'; }).join('') +
     '</tr></thead><tbody>' +
     Object.entries(precos.locais).map(function(entry) {
       var key = entry[0], v = entry[1];
@@ -1457,13 +1460,15 @@ function rPrecosOrcamento() {
     }).join('') +
     '</tbody></table></div></div>';
 
-  // Preço de equipe (bt/bb/hb/cd/cp) — somente leitura, vem do Cadastro de Cargos.
+  // Preço de equipe (bt/bb/hb/cd/cp) — editável aqui, grava direto no
+  // Cadastro de Cargos (mesma fonte: precoOrcamento de cada faixa). Bônus do
+  // Head Bartender = D.regrasEquipe.bonusConvidados.hb (o mesmo de Equipe →
+  // Regras de Pagamento).
+  var _bonusHb = (D.regrasEquipe && D.regrasEquipe.bonusConvidados && D.regrasEquipe.bonusConvidados.hb) || 0;
   var htmlPrecoEquipe = '<div class="sec" style="margin-bottom:14px">' +
-    '<div class="sec-head"><span class="sec-title">👥 Preço de Equipe por Local</span>' +
-      '<button class="btn-sm" style="margin-left:auto;background:var(--blue)" onclick="go(\'cargos\')">✏️ Editar em Cadastro → Cargos</button>' +
-    '</div>' +
+    '<div class="sec-head"><span class="sec-title">👥 Preço de Equipe por Local (o que cobra do cliente)</span></div>' +
     '<div style="padding:12px 16px;overflow-x:auto">' +
-    '<div style="font-size:10px;color:var(--text3);margin-bottom:8px">Somente leitura — para alterar, use o Cadastro → Cargos.</div>' +
+    '<div style="font-size:10px;color:var(--text3);margin-bottom:8px">Grava direto no Cadastro de Cargos (mesmo valor de lá) — o custo (o que paga ao colaborador) continua em Cadastro → Cargos.</div>' +
     '<table style="width:100%;border-collapse:collapse;font-size:11px">' +
     '<thead><tr style="color:var(--text3);text-transform:uppercase;font-size:9px">' +
       '<th style="text-align:left;padding:4px 8px">Local</th>' +
@@ -1475,11 +1480,22 @@ function rPrecosOrcamento() {
         _CARGOS_DEF.map(function(c) {
           var cargo = (typeof buscarCargoPorKey === 'function') ? buscarCargoPorKey(c.key) : null;
           var pr = (cargo && cargo.porRegiao && cargo.porRegiao[r.key]) || {};
-          return '<td style="padding:4px 6px;text-align:center;font-family:var(--mono);color:var(--text2)">' + (pr.precoOrcamento ? fR(pr.precoOrcamento) : '—') + '</td>';
+          return '<td style="padding:4px 4px;text-align:center">' + (cargo
+            ? '<input type="number" min="0" step="1" value="' + (pr.precoOrcamento || 0) + '" onchange="atualizarPrecoCargoOrc(\'' + c.key + '\',\'' + r.key + '\',this.value)" ' +
+              'style="width:80px;text-align:right;font-size:11px;padding:3px 5px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">'
+            : '<span style="color:var(--text3)">—</span>') + '</td>';
         }).join('') +
       '</tr>';
     }).join('') : '') +
-    '</tbody></table></div></div>';
+    '</tbody></table>' +
+    '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">' +
+      '<span style="font-size:12px;font-weight:600;color:var(--text)">Bônus Head Bartender / Coordenador</span>' +
+      '<span style="font-size:11px;color:var(--text3)">R$</span>' +
+      '<input type="number" min="0" step="1" value="' + _bonusHb + '" onchange="atualizarBonusHeadOrc(this.value)" ' +
+        'style="width:90px;text-align:right;font-size:12px;padding:4px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">' +
+      '<span style="font-size:11px;color:var(--text3)">por evento, × convidados/100 (mínimo 1×) — mesmo valor de Equipe → Regras de Pagamento</span>' +
+    '</div>' +
+    '</div></div>';
 
   var ordem = getOrcBlocosOrdem();
   function _ordArrows(id) {
@@ -1596,6 +1612,33 @@ function _htmlAdicionaisOrcamento() {
         '<input type="text" value="' + (a.horaExtra.opcoesPct || []).join(', ') + '" onchange="atualizarAdicionalOrc(\'horaExtra\',\'opcoesPct\',this.value)" title="Porcentagens que aparecem pra escolher no orçamento, separadas por vírgula" ' +
           'style="width:90px;font-size:12px;padding:5px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">' + t('%'), null) +
     '</div></div>';
+}
+
+function renomearItemLocalOrc(campo, nome) {
+  nome = (nome || '').trim();
+  var p = _ensureOrcPrecos();
+  if (!p.nomesLocais) p.nomesLocais = {};
+  if (nome) p.nomesLocais[campo] = nome; else delete p.nomesLocais[campo];
+  sv('orcPrecos');
+  rPrecosOrcamento();
+  alert2('Nome atualizado — vale pros orçamentos ao clicar em "Atualizar valores" ou mudar algum parâmetro.');
+}
+
+function atualizarPrecoCargoOrc(cargoKey, regiaoKey, valor) {
+  var c = buscarCargoPorKey(cargoKey);
+  if (!c) return;
+  if (!c.porRegiao) c.porRegiao = {};
+  if (!c.porRegiao[regiaoKey]) c.porRegiao[regiaoKey] = {};
+  c.porRegiao[regiaoKey].precoOrcamento = parseFloat(valor) || 0;
+  c.porRegiao[regiaoKey].precoAproximado = false;
+  sv('cargos');
+}
+
+function atualizarBonusHeadOrc(valor) {
+  if (!D.regrasEquipe) D.regrasEquipe = {};
+  if (!D.regrasEquipe.bonusConvidados) D.regrasEquipe.bonusConvidados = {};
+  D.regrasEquipe.bonusConvidados.hb = parseFloat(valor) || 0;
+  sv('regrasEquipe');
 }
 
 function atualizarAdicionalOrc(grupo, campo, valor) {

@@ -29,7 +29,7 @@ var pageInfo={
   despesas:['Análise Financeira','Receita, despesas e KPIs financeiros'],
   equipe:['Equipe','Cadastro e escala de colaboradores'],
   orcamento:['Orçamentos','Cálculo, cardápio, serviços e proposta'],
-  orcCalculos:['Cálculos do Orçamento','Quanto considerar de cada insumo por Tipo de Evento — média real, não a quantidade de levar da Separação'],
+  orcCalculos:['Cálculos do Orçamento','Tudo que entra sozinho no orçamento: insumos, preços, equipe e taxas'],
   refconsumo:['Estimativa de Bebidas','Estimativa de consumo por tipo de evento e número de convidados'],
   seguranca: ['Segurança','Gestão de senhas e autenticação em dois fatores'],
   fornecedores:['Fornecedores','Cadastro e dados dos fornecedores'],
