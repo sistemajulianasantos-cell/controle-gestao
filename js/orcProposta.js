@@ -435,6 +435,31 @@ function _propostaEquipeLista(d) {
 // gratuita conhecida que funcione fora do Node. A foto continua disponível
 // dentro do sistema, só não entra no arquivo gerado.
 
+// Marcação no Word costuma sair com pequenas diferenças (espaço sobrando,
+// minúscula, acento, hífen/espaço no lugar do "_", "DE" no meio). Normaliza
+// antes de procurar: {Tempo de Festa}, { TEMPO-FESTA } e {TEMPO_FESTA} são a
+// mesma coisa. Alguns apelidos óbvios também valem.
+var PROPOSTA_APELIDOS = {
+  TEMPO: 'TEMPO_FESTA_COMPLETO', DURACAO: 'TEMPO_FESTA_COMPLETO', DURACAO_FESTA: 'TEMPO_FESTA_COMPLETO',
+  HORAS_FESTA: 'TEMPO_FESTA_COMPLETO', HORAS: 'TEMPO_FESTA_NUMERO', TEMPO_FESTA_HORAS: 'TEMPO_FESTA_NUMERO',
+  TEMPO_FESTA_POR_EXTENSO: 'TEMPO_FESTA_EXTENSO', NUMERO: 'NUMERO_PROPOSTA', LOCAL: 'LOCAL_EVENTO',
+  DATA: 'DATA_EVENTO', TIPO: 'TIPO_EVENTO', EVENTO: 'TIPO_EVENTO',
+};
+function _propostaNormTag(tag) {
+  var t = String(tag || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().trim()
+    .replace(/[\s\-.]+/g, '_').replace(/_(DE|DA|DO)_/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+  return PROPOSTA_APELIDOS[t] || t;
+}
+function _propostaParserTolerante(tag) {
+  var chave = _propostaNormTag(tag);
+  return { get: function(scope) {
+    if (tag === '.') return scope;
+    if (scope == null || typeof scope !== 'object') return undefined;
+    if (scope[tag] !== undefined) return scope[tag];
+    return scope[chave];
+  } };
+}
+
 function _propostaGerarDocx(orc) {
   if (!window.PizZip || !window.Docxtemplater) {
     alert2('Bibliotecas de geração de Word ainda não carregaram — aguarde e tente novamente.', 'error');
@@ -447,7 +472,7 @@ function _propostaGerarDocx(orc) {
     // Marcação que não existe nos dados sai em branco (e não "undefined").
     // Marcação digitada errado no modelo sai como [NOME?] no documento, pra
     // ela achar e corrigir (antes saía em branco e parecia "não puxou").
-    var docx = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true, nullGetter: function(part) {
+    var docx = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true, parser: _propostaParserTolerante, nullGetter: function(part) {
       return part && !part.module && part.value ? '[' + part.value + '?]' : '';
     } });
 
