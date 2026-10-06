@@ -49,6 +49,66 @@ function _propostaTipoLabel(p) {
   return (t && t.nome) || (p.tipoEvento || 'Evento');
 }
 
+// Campos do cabeçalho do orçamento (Solicitado por, Contato, Local do evento,
+// Hora…) — mesma leitura da tela (_orcInfo, js/orcamento.js), que busca na
+// Solicitação vinculada. Antes a proposta lia a região de preço como "Local"
+// e um telefone separado digitado só na aba Proposta.
+function _propostaInfo(orc, campo) {
+  return (typeof _orcInfo === 'function') ? _orcInfo(orc, campo) : (orc[campo] || '');
+}
+
+function _propostaLocalEvento(orc) {
+  return _propostaInfo(orc, 'localEvento') || _propostaLocalLabel(orc.calcParams || {});
+}
+
+// Valor por extenso em reais: 12500 → "doze mil e quinhentos reais".
+function _propostaExtenso(valor) {
+  var UN = ['', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove', 'dez', 'onze', 'doze',
+    'treze', 'quatorze', 'quinze', 'dezesseis', 'dezessete', 'dezoito', 'dezenove'];
+  var DZ = ['', '', 'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta', 'setenta', 'oitenta', 'noventa'];
+  var CT = ['', 'cento', 'duzentos', 'trezentos', 'quatrocentos', 'quinhentos', 'seiscentos', 'setecentos', 'oitocentos', 'novecentos'];
+  function ate999(n) {
+    if (n === 100) return 'cem';
+    var partes = [], c = Math.floor(n / 100), r = n % 100;
+    if (c) partes.push(CT[c]);
+    if (r) partes.push(r < 20 ? UN[r] : DZ[Math.floor(r / 10)] + (r % 10 ? ' e ' + UN[r % 10] : ''));
+    return partes.join(' e ');
+  }
+  function inteiro(n) {
+    var mi = Math.floor(n / 1e6), mil = Math.floor(n / 1000) % 1000, resto = n % 1000;
+    var grupos = [];
+    if (mi)  grupos.push(mi === 1 ? 'um milhão' : ate999(mi) + ' milhões');
+    if (mil) grupos.push(mil === 1 ? 'mil' : ate999(mil) + ' mil');
+    if (resto) grupos.push(ate999(resto));
+    if (grupos.length < 2) return grupos[0] || 'zero';
+    // "e" antes do último grupo quando ele é redondo ou < 100
+    // (doze mil e quinhentos / doze mil trezentos e cinquenta).
+    var ultimo = grupos.pop();
+    var ultimoN = resto || mil;
+    var usaE = ultimoN < 100 || ultimoN % 100 === 0;
+    return grupos.join(' ') + (usaE ? ' e ' : ' ') + ultimo;
+  }
+  var cents = Math.round((Number(valor) || 0) * 100);
+  var reais = Math.floor(cents / 100), cent = cents % 100;
+  var txtReais = '';
+  if (reais) txtReais = inteiro(reais) + (reais % 1e6 === 0 ? ' de reais' : (reais === 1 ? ' real' : ' reais'));
+  var txtCent = cent ? ate999(cent) + (cent === 1 ? ' centavo' : ' centavos') : '';
+  return [txtReais, txtCent].filter(Boolean).join(' e ') || 'zero reais';
+}
+
+function _propostaValorTexto(v) {
+  return fR(v) + ' (' + _propostaExtenso(v) + ')';
+}
+
+// Tempo de festa: duração prevista + horas extras já contratadas (Calculadora
+// → Taxas e adicionais).
+function _propostaTempoFesta(orc) {
+  var he = (typeof _orcGetAdic === 'function') ? _orcGetAdic(orc).horaExtra : { duracao: 7, horas: 0 };
+  var extras = Number(he.horas) || 0;
+  var total  = (Number(he.duracao) || 0) + extras;
+  return { total: total, extras: extras, texto: total + ' hora' + (total === 1 ? '' : 's') };
+}
+
 // ─── ABA: EDIÇÃO DOS DADOS DA PROPOSTA ───────────────────────────────────────
 
 function rOrcProposta(orc) {
@@ -83,16 +143,28 @@ function rOrcProposta(orc) {
           '<input class="inp" type="text" value="' + _propostaEsc(numeroEfetivo) + '" placeholder="Ex: 0142" ' +
           'onchange="propostaSetCampo(\'' + orc.id + '\',\'numeroProposta\',this.value)">' +
           '<div style="font-size:10px;color:var(--text3);margin-top:2px">Carrega sozinho do Nº da Solicitação de Orçamento vinculada, quando existir.</div></div>' +
-        '<div><label class="lbl">Telefone do cliente</label>' +
-          '<input class="inp" type="text" value="' + _propostaEsc(orc.telefone || '') + '" placeholder="(31) 99999-9999" ' +
-          'onchange="propostaSetCampo(\'' + orc.id + '\',\'telefone\',this.value)"></div>' +
+        '<div style="font-size:11px;color:var(--text3);align-self:center">Cliente, Solicitado por, Contato, Data, Hora, Local e Convidados vêm do cabeçalho do orçamento, lá em cima — corrija lá.</div>' +
       '</div>' +
       '<div>' +
         '<label class="lbl">Cardápio na proposta</label>' +
         '<textarea class="inp" rows="8" readonly style="width:100%;font-family:var(--mono);font-size:12px;resize:vertical;opacity:.85;cursor:default">' + _propostaEsc(cardapioAtual) + '</textarea>' +
-        '<div style="font-size:10px;color:var(--text3);margin-top:2px">Segue automaticamente os coquetéis aplicados na aba Cardápio (e a descrição/copo cadastrados na Ficha de cada um).</div>' +
+        '<div style="font-size:10px;color:var(--text3);margin-top:2px">Segue automaticamente os coquetéis aplicados na aba Cardápio (e a descrição cadastrada na Ficha de cada um).</div>' +
       '</div>' +
     '</div>' +
+
+    '<details style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 20px;max-width:700px;margin-bottom:14px">' +
+      '<summary style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;cursor:pointer">Marcações para o modelo Word</summary>' +
+      '<div style="font-size:11px;color:var(--text3);margin:10px 0">Escreva no modelo .docx a marcação entre chaves, ex.: {LOCAL_EVENTO}. Ao gerar, ela é trocada pelo valor abaixo (deste orçamento).</div>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:11px">' +
+        _propostaMarcacoes(orc).map(function(m) {
+          return '<tr style="border-top:1px solid var(--border)">' +
+            '<td style="padding:5px 8px 5px 0;font-family:var(--mono);color:var(--text);white-space:nowrap;vertical-align:top">{' + m[0] + '}</td>' +
+            '<td style="padding:5px 8px;color:var(--text3);vertical-align:top">' + _propostaEsc(m[1]) + '</td>' +
+            '<td style="padding:5px 0;color:var(--text2);white-space:pre-line;vertical-align:top">' + (m[2] ? _propostaEsc(m[2].length > 160 ? m[2].slice(0, 160) + '…' : m[2]) : '<span style="opacity:.5">(vazio)</span>') + '</td>' +
+          '</tr>';
+        }).join('') +
+      '</table>' +
+    '</details>' +
 
     '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;max-width:700px;margin-bottom:14px">' +
       '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:16px">✅ O que aparece no PDF</div>' +
@@ -162,18 +234,17 @@ function propostaToggleCampo(orcId, campoId, checked) {
 }
 
 // Cardápio da proposta segue direto os coquetéis aplicados na aba Cardápio do
-// orçamento (orc.insumos[].coqueteis), puxando descrição/copo da Ficha de
+// orçamento (orc.insumos[].coqueteis), puxando a descrição da Ficha de
 // cada coquetel (Regras → Fichas de Coquetéis) — sempre calculado na hora,
-// nunca um texto salvo que possa ficar desatualizado.
+// nunca um texto salvo que possa ficar desatualizado. O copo não entra (é
+// informação interna, não vai pro cliente).
 function _propostaCardapioTexto(orc) {
   var nomes = Array.from(new Set((orc.insumos || []).flatMap(function(i) { return i.coqueteis || []; })));
   if (!nomes.length) return '';
   return nomes.map(function(n) {
     var ficha = (D.fichas || []).find(function(f) { return f.nome === n; });
     var desc = (ficha && ficha.descricao) ? ficha.descricao : '';
-    var copo = (ficha && ficha.copo) ? ficha.copo : '';
-    var linha2 = [desc, copo].filter(Boolean).join(' · ');
-    return n + (linha2 ? '\n' + linha2 : '\n(sem descrição/copo cadastrados na Ficha)');
+    return n + (desc ? '\n' + desc : '');
   }).join('\n\n');
 }
 
@@ -181,12 +252,13 @@ function _propostaCardapioTexto(orc) {
 // de Orçamento vinculada (mesmo Nº que já aparece lá) e já deixa salvo no
 // orçamento pra não precisar buscar de novo.
 function _propostaNumeroEfetivo(orc) {
-  if (orc.numeroProposta) return orc.numeroProposta;
+  var fmt = function(n) { return (typeof _solNumeroTexto === 'function') ? _solNumeroTexto(n) : String(n); };
+  if (orc.numeroProposta) return fmt(orc.numeroProposta);
   var sol = (D.solicitacoesOrcamento || []).find(function(s) { return s.orcamentoId === orc.id; });
   if (sol && sol.numero) {
-    orc.numeroProposta = sol.numero;
+    orc.numeroProposta = fmt(sol.numero);
     sv('orcamentos');
-    return sol.numero;
+    return orc.numeroProposta;
   }
   return '';
 }
@@ -226,14 +298,52 @@ function _propostaDadosComputados(orc) {
   return { p: p, resumo: resumo, qBartender: qBartender, qBarback: qBarback, qHead: qHead, qCoord: qCoord, qCopeiro: qCopeiro, destilados: destilados };
 }
 
-function _propostaEquipeTexto(d) {
+// Valores de cada marcação {TAG} do modelo .docx. Os nomes seguem os campos
+// do cabeçalho do orçamento (Cliente, Solicitado por, Contato, Local do
+// evento, Hora…). NOME_CLIENTE/TELEFONE continuam valendo pra modelos antigos.
+// Também alimenta a tabela de referência mostrada na aba Proposta.
+function _propostaMarcacoes(orc) {
+  var d = _propostaDadosComputados(orc);
+  var p = d.p;
+  var v = function(id, valor) { return _propostaValor(orc, id) ? valor : ''; };
+  var tempo   = _propostaTempoFesta(orc);
+  var contato = _propostaInfo(orc, 'contato');
+  var essencial = d.resumo.valorTotalEssencial || 0;
+  var completo  = d.resumo.valorTotal || 0;
+  return [
+    ['NUMERO_PROPOSTA',          'Nº da proposta',            v('capa_numero', _propostaNumeroEfetivo(orc))],
+    ['CLIENTE',                  'Cliente / evento',          orc.nomeCliente || ''],
+    ['NOME_CLIENTE',             'Cliente / evento (mesmo que CLIENTE)', orc.nomeCliente || ''],
+    ['SOLICITADO_POR',           'Solicitado por',            _propostaInfo(orc, 'solicitadoPor')],
+    ['CONTATO',                  'Contato',                   v('capa_telefone', contato)],
+    ['TELEFONE',                 'Contato (mesmo que CONTATO)', v('capa_telefone', contato)],
+    ['TIPO_EVENTO',              'Tipo de evento',            v('capa_tipoEvento', _propostaTipoLabel(p))],
+    ['DATA_EVENTO',              'Data do evento',            (typeof fd === 'function') ? fd(orc.dataEvento) : (orc.dataEvento || '')],
+    ['HORA',                     'Hora',                      _propostaInfo(orc, 'hora')],
+    ['LOCAL_EVENTO',             'Local do evento',           v('capa_local', _propostaLocalEvento(orc))],
+    ['CONVIDADOS',               'Convidados',                v('capa_convidados', String(orc.convidados || ''))],
+    ['CARDAPIO',                 'Cardápio (nome + descrição)', _propostaCardapioTexto(orc)],
+    ['EQUIPE',                   'Equipe (um cargo por linha)', _propostaEquipeLista(d).join('\n')],
+    ['VALOR_ESSENCIAL',          'Valor Essencial + extenso', v('inv_essencial', _propostaValorTexto(essencial))],
+    ['VALOR_ESSENCIAL_NUMERO',   'Valor Essencial só número', v('inv_essencial', fR(essencial))],
+    ['VALOR_ESSENCIAL_EXTENSO',  'Valor Essencial só extenso', v('inv_essencial', _propostaExtenso(essencial))],
+    ['VALOR_COMPLETO',           'Valor Completo + extenso',  v('inv_completo', _propostaValorTexto(completo))],
+    ['VALOR_COMPLETO_NUMERO',    'Valor Completo só número',  v('inv_completo', fR(completo))],
+    ['VALOR_COMPLETO_EXTENSO',   'Valor Completo só extenso', v('inv_completo', _propostaExtenso(completo))],
+    ['DESTILADOS',               'Destilados (Completo)',     v('inv_destilados', d.destilados.join(', '))],
+    ['TEMPO_FESTA',              'Tempo de festa',            v('inv_tempoFesta', tempo.texto)],
+    ['HORAS_EXTRAS',             'Horas extras contratadas',  v('inv_tempoFesta', tempo.extras ? String(tempo.extras) : '')],
+  ];
+}
+
+function _propostaEquipeLista(d) {
   var estrutura = [];
   if (d.qHead)    estrutura.push(d.qHead + ' Head Bartender' + (d.qHead > 1 ? 's' : ''));
   estrutura.push(d.qBartender + ' Bartender' + (d.qBartender !== 1 ? 's' : ''));
   if (d.qBarback) estrutura.push(d.qBarback + ' Bar Back' + (d.qBarback > 1 ? 's' : ''));
   if (d.qCoord)   estrutura.push(d.qCoord + ' Coordenador' + (d.qCoord > 1 ? 'es' : ''));
   if (d.qCopeiro) estrutura.push(d.qCopeiro + ' Copeiro' + (d.qCopeiro > 1 ? 's' : ''));
-  return estrutura.join(', ');
+  return estrutura;
 }
 
 // ─── GERAÇÃO — DOCX (a partir do modelo importado, quando existe) ────────────
@@ -255,25 +365,12 @@ function _propostaGerarDocx(orc) {
     var tpl = D.propostaTemplateDocx;
     var templateBytes = Uint8Array.from(atob(tpl.base64), function(c) { return c.charCodeAt(0); });
     var zip  = new PizZip(templateBytes);
-    var docx = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
+    // Marcação que não existe nos dados sai em branco (e não "undefined").
+    var docx = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true, nullGetter: function() { return ''; } });
 
-    var d = _propostaDadosComputados(orc);
-    var p = d.p;
-
-    docx.setData({
-      NUMERO_PROPOSTA: _propostaValor(orc, 'capa_numero')     ? _propostaNumeroEfetivo(orc) : '',
-      NOME_CLIENTE:    orc.nomeCliente || '',
-      TELEFONE:        _propostaValor(orc, 'capa_telefone')   ? (orc.telefone || '') : '',
-      TIPO_EVENTO:     _propostaValor(orc, 'capa_tipoEvento') ? _propostaTipoLabel(p) : '',
-      DATA_EVENTO:     (typeof fd === 'function') ? fd(orc.dataEvento) : (orc.dataEvento || ''),
-      LOCAL_EVENTO:    _propostaValor(orc, 'capa_local')      ? _propostaLocalLabel(p) : '',
-      CONVIDADOS:      _propostaValor(orc, 'capa_convidados') ? String(orc.convidados || '') : '',
-      CARDAPIO:        _propostaCardapioTexto(orc),
-      EQUIPE:          _propostaEquipeTexto(d),
-      VALOR_ESSENCIAL: _propostaValor(orc, 'inv_essencial')   ? fR(d.resumo.valorTotalEssencial) : '',
-      VALOR_COMPLETO:  _propostaValor(orc, 'inv_completo')    ? fR(d.resumo.valorTotal) : '',
-      DESTILADOS:      _propostaValor(orc, 'inv_destilados')  ? d.destilados.join(', ') : '',
-    });
+    var dados = {};
+    _propostaMarcacoes(orc).forEach(function(m) { dados[m[0]] = m[2]; });
+    docx.setData(dados);
     docx.render();
 
     var blob = new Blob([docx.getZip().generate({ type: 'arraybuffer' })],
@@ -320,7 +417,8 @@ function _propostaMontarHtml(orc) {
   var capaLinhas = [];
   if (_propostaValor(orc, 'capa_numero'))   capaLinhas.push(['Proposta', _propostaNumeroEfetivo(orc) || '—']);
   capaLinhas.push(['Nome', orc.nomeCliente || '—']);
-  if (_propostaValor(orc, 'capa_telefone')) capaLinhas.push(['Telefone', orc.telefone || '—']);
+  if (_propostaInfo(orc, 'solicitadoPor')) capaLinhas.push(['Solicitado por', _propostaInfo(orc, 'solicitadoPor')]);
+  if (_propostaValor(orc, 'capa_telefone')) capaLinhas.push(['Contato', _propostaInfo(orc, 'contato') || '—']);
   paginas.push(
     '<div class="prop-page prop-capa">' +
       '<div class="prop-corner tl">r.</div><div class="prop-corner tr">r.</div>' +
@@ -333,8 +431,9 @@ function _propostaMontarHtml(orc) {
           capaLinhas.map(function(l) { return '<div><strong>' + l[0] + ':</strong> ' + _propostaEsc(l[1]) + '</div>'; }).join('') +
           '<hr class="prop-hr">' +
           '<div><strong>Evento:</strong> ' + (_propostaValor(orc, 'capa_tipoEvento') ? _propostaEsc(_propostaTipoLabel(p)) : '—') + '</div>' +
-          '<div><strong>DATA:</strong> ' + _propostaEsc((typeof fd === 'function') ? fd(orc.dataEvento) : (orc.dataEvento || '—')) + '</div>' +
-          '<div><strong>Local:</strong> ' + (_propostaValor(orc, 'capa_local') ? _propostaEsc(_propostaLocalLabel(p)) : '—') + '</div>' +
+          '<div><strong>Data:</strong> ' + _propostaEsc((typeof fd === 'function') ? fd(orc.dataEvento) : (orc.dataEvento || '—')) + '</div>' +
+          (_propostaInfo(orc, 'hora') ? '<div><strong>Hora:</strong> ' + _propostaEsc(_propostaInfo(orc, 'hora')) + '</div>' : '') +
+          '<div><strong>Local:</strong> ' + (_propostaValor(orc, 'capa_local') ? _propostaEsc(_propostaLocalEvento(orc)) : '—') + '</div>' +
           '<div><strong>N° convidados:</strong> ' + (_propostaValor(orc, 'capa_convidados') ? (orc.convidados || '—') : '—') + '</div>' +
         '</div>' +
       '</div>' +
@@ -378,12 +477,7 @@ function _propostaMontarHtml(orc) {
 
   // ── Página 4: Equipe ─────────────────────────────────────────────────────
   if (_propostaValor(orc, 'pag_equipe')) {
-    var estrutura = [];
-    if (qHead)     estrutura.push(qHead + ' Head Bartender' + (qHead > 1 ? 's' : ''));
-    estrutura.push(qBartender + ' Bartender' + (qBartender !== 1 ? 's' : ''));
-    if (qBarback)  estrutura.push(qBarback + ' Bar Back' + (qBarback > 1 ? 's' : ''));
-    if (qCoord)    estrutura.push(qCoord + ' Coordenador' + (qCoord > 1 ? 'es' : ''));
-    if (qCopeiro)  estrutura.push(qCopeiro + ' Copeiro' + (qCopeiro > 1 ? 's' : ''));
+    var estrutura = _propostaEquipeLista(d);
     paginas.push(
       '<div class="prop-page">' +
         '<div class="prop-corner tl">r.</div><div class="prop-corner tr">r.</div>' +
@@ -410,24 +504,25 @@ function _propostaMontarHtml(orc) {
     if (mostraEssencial) invBlocos.push(
       '<h3 class="prop-h3 prop-under">Essencial</h3>' +
       '<p class="prop-p">Você fornece as bebidas e nós entregamos todo o serviço técnico e a estrutura Romero, garantindo execução impecável.</p>' +
-      '<div class="prop-valor">' + fR(d.resumo.valorTotalEssencial) + '</div>');
+      '<div class="prop-valor">' + fR(d.resumo.valorTotalEssencial) + '</div>' +
+      '<div class="prop-extenso">(' + _propostaExtenso(d.resumo.valorTotalEssencial) + ')</div>');
     if (mostraCompleto) invBlocos.push(
       '<h3 class="prop-h3 prop-under">Completo</h3>' +
       '<p class="prop-p">Seleção de bebidas importadas incluída, com serviço ilimitado e preparo sob medida.' +
       (_propostaValor(orc, 'inv_destilados') && destilados.length ? ' Rótulos como ' + _propostaEsc(destilados.join(', ')) + '.' : '') + '</p>' +
-      '<div class="prop-valor">' + fR(d.resumo.valorTotal) + '</div>');
+      '<div class="prop-valor">' + fR(d.resumo.valorTotal) + '</div>' +
+      '<div class="prop-extenso">(' + _propostaExtenso(d.resumo.valorTotal) + ')</div>');
     if (_propostaValor(orc, 'inv_pagamento')) invBlocos.push(
       '<h3 class="prop-h3 prop-under">Forma de pagamento</h3>' +
       '<p class="prop-p">20% na contratação e 80% até 7 dias antes do evento. Eventuais quebras de materiais são cobradas após o evento, com transparência e alinhamento prévio.</p>');
     // Duração vem do orçamento (Calculadora → Taxas e adicionais: prevista +
     // horas extras antecipadas); antes era texto fixo "7 horas". Os 20% são
     // da hora extra pedida na hora, não mudam.
-    var _he = (typeof _orcGetAdic === 'function') ? _orcGetAdic(orc).horaExtra : { duracao: 7, horas: 0, pct: 20 };
-    var _durTotal = (Number(_he.duracao) || 0) + (Number(_he.horas) || 0);
+    var _tf = _propostaTempoFesta(orc), _sx = _tf.extras > 1 ? 's' : '';
     if (_propostaValor(orc, 'inv_tempoFesta')) invBlocos.push(
       '<h3 class="prop-h3 prop-under">Tempo de festa</h3>' +
-      '<p class="prop-p">Serviço de recepção tem duração de ' + _durTotal + ' horas' +
-        (Number(_he.horas) > 0 ? ' (já incluídas ' + _he.horas + ' hora' + (Number(_he.horas) > 1 ? 's' : '') + ' extra' + (Number(_he.horas) > 1 ? 's' : '') + ' contratada' + (Number(_he.horas) > 1 ? 's' : '') + ')' : '') +
+      '<p class="prop-p">Serviço de recepção tem duração de ' + _tf.texto +
+        (_tf.extras > 0 ? ' (já incluídas ' + _tf.extras + ' hora' + _sx + ' extra' + _sx + ' contratada' + _sx + ')' : '') +
         '. O valor da hora extra é de 20% do total do orçamento.</p>');
     paginas.push(
       '<div class="prop-page">' +
@@ -520,6 +615,7 @@ function _propostaCss() {
     '.prop-cardapio{font-size:13px;line-height:1.7;white-space:pre-wrap;position:relative;z-index:1}',
     '.prop-lista{font-size:13px;line-height:1.8;margin:0 0 10px;padding-left:18px;position:relative;z-index:1}',
     '.prop-valor{font-family:"Playfair Display",serif;font-size:20px;font-weight:700;margin:4px 0 14px;position:relative;z-index:1}',
+    '.prop-extenso{font-size:12px;font-style:italic;margin:-10px 0 14px;position:relative;z-index:1}',
     '.prop-compl{font-size:13px;line-height:1.5;margin-bottom:12px;position:relative;z-index:1}',
     '.prop-contato{display:flex;flex-direction:column;justify-content:center;align-items:center}',
     '.prop-contatos{margin-top:30mm;font-size:13px;line-height:2.2;text-align:center;position:relative;z-index:1}',
