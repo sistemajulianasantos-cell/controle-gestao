@@ -100,13 +100,49 @@ function _propostaValorTexto(v) {
   return fR(v) + ' (' + _propostaExtenso(v) + ')';
 }
 
-// Tempo de festa: duração prevista + horas extras já contratadas (Calculadora
-// → Taxas e adicionais).
+// Campo "Hora" do cabeçalho = duração da festa (ex: 06:00 = 6 horas). Chega
+// em vários formatos (digitado "06:00", "6", ou da planilha "6:00:00 AM").
+function _propostaHoraCabecalho(orc) {
+  var t = String(_propostaInfo(orc, 'hora') || '').trim();
+  var m = /(\d{1,2})(?:\s*[:hH]\s*(\d{2}))?(?::\d{2})?\s*(AM|PM)?/i.exec(t);
+  if (!m) return null;
+  var h = parseInt(m[1], 10), min = parseInt(m[2] || '0', 10);
+  if (m[3] && /pm/i.test(m[3]) && h < 12) h += 12;
+  if (m[3] && /am/i.test(m[3]) && h === 12) h = 0;
+  return { h: h, min: min, texto: String(h).padStart(2, '0') + ':' + String(min).padStart(2, '0') };
+}
+
+// Tempo de festa: a Hora do cabeçalho, quando preenchida (é o que o cliente
+// pediu); senão a duração prevista + horas extras da Calculadora → Taxas e
+// adicionais.
 function _propostaTempoFesta(orc) {
   var he = (typeof _orcGetAdic === 'function') ? _orcGetAdic(orc).horaExtra : { duracao: 7, horas: 0 };
   var extras = Number(he.horas) || 0;
-  var total  = (Number(he.duracao) || 0) + extras;
-  return { total: total, extras: extras, texto: total + ' hora' + (total === 1 ? '' : 's') };
+  var cab = _propostaHoraCabecalho(orc);
+  if (cab && (cab.h || cab.min)) {
+    var txt = cab.h + ' hora' + (cab.h === 1 ? '' : 's') + (cab.min ? ' e ' + cab.min + ' minutos' : '');
+    return { total: cab.h, extras: 0, extrasCalc: extras, texto: txt };
+  }
+  var total = (Number(he.duracao) || 0) + extras;
+  return { total: total, extras: extras, extrasCalc: extras, texto: total + ' hora' + (total === 1 ? '' : 's') };
+}
+
+// Tipo de evento da proposta: tipo da Solicitação (ex: "Aniversário") + o
+// nome do evento do cabeçalho (ex: "16 ANOS") → "Aniversário 16 ANOS". Sem
+// solicitação, cai no tipo da Calculadora.
+function _propostaTipoEvento(orc) {
+  var tipo = _propostaInfo(orc, 'tipoEvento') || _propostaTipoLabel(orc.calcParams || {});
+  var nome = String(orc.nomeCliente || '').trim();
+  var norm = function(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim(); };
+  var solicitante = _propostaInfo(orc, 'solicitadoPor');
+  if (!nome || norm(nome) === norm(solicitante)) return tipo;
+  if (norm(nome).indexOf(norm(tipo)) !== -1) return nome;
+  return (tipo && norm(tipo) !== 'outros' ? tipo + ' ' : '') + nome;
+}
+
+// "Cliente" na proposta = quem solicitou; sem isso, o nome do cabeçalho.
+function _propostaCliente(orc) {
+  return _propostaInfo(orc, 'solicitadoPor') || orc.nomeCliente || '';
 }
 
 // ─── ABA: EDIÇÃO DOS DADOS DA PROPOSTA ───────────────────────────────────────
@@ -312,14 +348,15 @@ function _propostaMarcacoes(orc) {
   var completo  = d.resumo.valorTotal || 0;
   return [
     ['NUMERO_PROPOSTA',          'Nº da proposta',            v('capa_numero', _propostaNumeroEfetivo(orc))],
-    ['CLIENTE',                  'Cliente / evento',          orc.nomeCliente || ''],
-    ['NOME_CLIENTE',             'Cliente / evento (mesmo que CLIENTE)', orc.nomeCliente || ''],
+    ['CLIENTE',                  'Cliente (Solicitado por)',  _propostaCliente(orc)],
+    ['NOME_CLIENTE',             'Cliente (mesmo que CLIENTE)', _propostaCliente(orc)],
+    ['NOME_EVENTO',              'Cliente / evento do cabeçalho', orc.nomeCliente || ''],
     ['SOLICITADO_POR',           'Solicitado por',            _propostaInfo(orc, 'solicitadoPor')],
     ['CONTATO',                  'Contato',                   v('capa_telefone', contato)],
     ['TELEFONE',                 'Contato (mesmo que CONTATO)', v('capa_telefone', contato)],
-    ['TIPO_EVENTO',              'Tipo de evento',            v('capa_tipoEvento', _propostaTipoLabel(p))],
+    ['TIPO_EVENTO',              'Tipo de evento',            v('capa_tipoEvento', _propostaTipoEvento(orc))],
     ['DATA_EVENTO',              'Data do evento',            (typeof fd === 'function') ? fd(orc.dataEvento) : (orc.dataEvento || '')],
-    ['HORA',                     'Hora',                      _propostaInfo(orc, 'hora')],
+    ['HORA',                     'Hora',                      (_propostaHoraCabecalho(orc) || {}).texto || ''],
     ['LOCAL_EVENTO',             'Local do evento',           v('capa_local', _propostaLocalEvento(orc))],
     ['CONVIDADOS',               'Convidados',                v('capa_convidados', String(orc.convidados || ''))],
     ['CARDAPIO',                 'Cardápio (nome + descrição)', _propostaCardapioTexto(orc)],
@@ -332,7 +369,7 @@ function _propostaMarcacoes(orc) {
     ['VALOR_COMPLETO_EXTENSO',   'Valor Completo só extenso', v('inv_completo', _propostaExtenso(completo))],
     ['DESTILADOS',               'Destilados (Completo)',     v('inv_destilados', d.destilados.join(', '))],
     ['TEMPO_FESTA',              'Tempo de festa',            v('inv_tempoFesta', tempo.texto)],
-    ['HORAS_EXTRAS',             'Horas extras contratadas',  v('inv_tempoFesta', tempo.extras ? String(tempo.extras) : '')],
+    ['HORAS_EXTRAS',             'Horas extras contratadas',  v('inv_tempoFesta', tempo.extrasCalc ? String(tempo.extrasCalc) : '')],
   ];
 }
 
@@ -416,8 +453,7 @@ function _propostaMontarHtml(orc) {
   // ── Página 1: Capa ──────────────────────────────────────────────────────
   var capaLinhas = [];
   if (_propostaValor(orc, 'capa_numero'))   capaLinhas.push(['Proposta', _propostaNumeroEfetivo(orc) || '—']);
-  capaLinhas.push(['Nome', orc.nomeCliente || '—']);
-  if (_propostaInfo(orc, 'solicitadoPor')) capaLinhas.push(['Solicitado por', _propostaInfo(orc, 'solicitadoPor')]);
+  capaLinhas.push(['Cliente', _propostaCliente(orc) || '—']);
   if (_propostaValor(orc, 'capa_telefone')) capaLinhas.push(['Contato', _propostaInfo(orc, 'contato') || '—']);
   paginas.push(
     '<div class="prop-page prop-capa">' +
@@ -430,9 +466,8 @@ function _propostaMontarHtml(orc) {
         '<div class="prop-capa-dados">' +
           capaLinhas.map(function(l) { return '<div><strong>' + l[0] + ':</strong> ' + _propostaEsc(l[1]) + '</div>'; }).join('') +
           '<hr class="prop-hr">' +
-          '<div><strong>Evento:</strong> ' + (_propostaValor(orc, 'capa_tipoEvento') ? _propostaEsc(_propostaTipoLabel(p)) : '—') + '</div>' +
+          '<div><strong>Evento:</strong> ' + (_propostaValor(orc, 'capa_tipoEvento') ? _propostaEsc(_propostaTipoEvento(orc)) : '—') + '</div>' +
           '<div><strong>Data:</strong> ' + _propostaEsc((typeof fd === 'function') ? fd(orc.dataEvento) : (orc.dataEvento || '—')) + '</div>' +
-          (_propostaInfo(orc, 'hora') ? '<div><strong>Hora:</strong> ' + _propostaEsc(_propostaInfo(orc, 'hora')) + '</div>' : '') +
           '<div><strong>Local:</strong> ' + (_propostaValor(orc, 'capa_local') ? _propostaEsc(_propostaLocalEvento(orc)) : '—') + '</div>' +
           '<div><strong>N° convidados:</strong> ' + (_propostaValor(orc, 'capa_convidados') ? (orc.convidados || '—') : '—') + '</div>' +
         '</div>' +
