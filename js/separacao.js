@@ -610,6 +610,7 @@ function sepCarregarProducao(prodId) {
     var qtd = calcQtdItem(r, conv, bartenders, equipeTotal, cargoCounts, { semArredondarEmbalagem: true });
     todosItens[r.cat].push({
       item: r.item, qtd: qtd,
+      calcInfo: _sepExplicaRegra(r, conv, equipe, bartenders, equipeTotal, cargoCounts),
       doCardapio: !!itensDoCardapio,
       coqueteis: coquetelDoItem || [],
       soSeCardapio: r.soSeCardapio, obs: r.obs||'',
@@ -952,6 +953,11 @@ function sepCarregarProducao(prodId) {
       html += '<div style="display:grid;grid-template-columns:1fr 100px;gap:8px;align-items:center;padding:4px 14px;border-bottom:1px solid var(--border)">' +
         '<span style="font-size:12px;color:var(--text2)">' + it.item + _sepBadgeSemCadastro(it.item) + _sepBadgeAssoc(it) + _sepBadgeCaixa(it) + _sepUnReadoutSpan(it.item, qtdKit) +
           (it.obs ? '<span style="font-size:10px;color:var(--text3);margin-left:6px">' + it.obs + '</span>' : '') +
+          (it.calcInfo ? '<div style="font-size:10px;color:var(--text3);margin-top:1px">' + it.calcInfo + '</div>' : '') +
+          // Folha já salva guarda a quantidade antiga — avisa quando a regra
+          // de hoje daria outro número.
+          (salvoKit != null && it.calcInfo && Number(salvoKit) !== Number(it.qtd) && !it.travado
+            ? '<div style="font-size:10px;color:var(--amber);margin-top:1px">salvo nesta folha: ' + salvoKit + ' — pela regra de hoje seria ' + it.qtd + '</div>' : '') +
         '</span>' +
         _sepQtdCell(it, cat.replace(/"/g,''), it.item.replace(/"/g,''), qtdKit, 'var(--text2)') +
       '</div>';
@@ -1448,17 +1454,45 @@ function _sepAlertaInsumosPendentes() {
   '</div>';
 }
 
+// Texto curto com a conta que gerou a quantidade de uma regra de Cálculo
+// (ex: "por cargo: Head Bartender 1 + Bartender 3 = 4 pessoas") — mostrado
+// no Kit Base pra ela conferir de onde veio cada número.
+function _sepExplicaRegra(r, conv, equipe, bartenders, equipeTotal, cargoCounts) {
+  var ef = _regraBaseEfetiva(r);
+  var min = parseFloat(r.min) || 0;
+  var prop = (ef.valor || 1) + ' a cada ' + (ef.ref || 1);
+  var txtMin = min ? ', mín. ' + min : '';
+  if (ef.base === 'convidado') return 'por convidado: ' + (conv || 0) + ' convidados, ' + prop + txtMin;
+  if (ef.base === 'equipe')    return 'por equipe: ' + (equipeTotal || 0) + ' pessoas' + (equipe.length ? '' : ' (festa sem equipe — estimativa)') + ', ' + prop + txtMin;
+  if (ef.base === 'cargo') {
+    var nomeCargo = function(k) { var c = (typeof buscarCargoPorKey === 'function') ? buscarCargoPorKey(k) : null; return c ? c.nome : k; };
+    var n = _contarPessoasNosCargos(ef.cargos, cargoCounts, bartenders, equipeTotal);
+    if (!cargoCounts) return 'por cargo: festa sem equipe — estimativa de ' + n + ' pessoas, ' + prop + txtMin;
+    var partes = (ef.cargos || []).filter(function(k) { return cargoCounts[k]; })
+      .map(function(k) { return nomeCargo(k) + ' ' + cargoCounts[k]; });
+    var foraCadastro = Object.keys(cargoCounts).filter(function(k) { return k.indexOf('x_') === 0; })
+      .map(function(k) { return k.slice(2).replace(/_/g, ' ').toUpperCase(); });
+    return 'por cargo: ' + (partes.length ? partes.join(' + ') : 'nenhum dos cargos marcados') + ' = ' + n + ' pessoas, ' + prop + txtMin +
+      (foraCadastro.length ? ' — cargo da equipe fora do Cadastro: ' + foraCadastro.join(', ') : '');
+  }
+  if (ef.base === 'associado') return '';
+  return 'fixo: ' + (ef.valor || 1) + ' por evento' + txtMin;
+}
+
 // Conta as pessoas da equipe do evento por cargo do Cadastro Central → Cargos.
 function _sepCargoCounts(equipe) {
   var counts = {};
   var cargosCad = (typeof getCargos === 'function') ? getCargos() : [];
+  // Compara sem espaço/acento/caixa: "BARBACK" (como vem da Produção) = "Bar Back".
+  var norm = function(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, ''); };
   (equipe || []).forEach(function(e) {
     var nome = (e.cargo || '').trim().toLowerCase();
     var q = parseInt(e.qtd) || 0;
     if (!nome || !q) return;
+    var nn = norm(nome);
     var match = cargosCad.find(function(c) {
-      var cn = (c.nome || '').toLowerCase();
-      return cn && (cn === nome || nome.indexOf(cn) === 0);
+      var cn = norm(c.nome);
+      return cn && (cn === nn || nn.indexOf(cn) === 0);
     });
     var key = match ? match.key : ('x_' + nome.replace(/\s+/g, '_'));
     counts[key] = (counts[key] || 0) + q;
