@@ -135,14 +135,29 @@ function _propostaTipoEvento(orc) {
   var nome = String(orc.nomeCliente || '').trim();
   var norm = function(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim(); };
   var solicitante = _propostaInfo(orc, 'solicitadoPor');
-  if (!nome || norm(nome) === norm(solicitante)) return tipo;
-  if (norm(nome).indexOf(norm(tipo)) !== -1) return nome;
-  return (tipo && norm(tipo) !== 'outros' ? tipo + ' ' : '') + nome;
+  if (!nome || norm(nome) === norm(solicitante)) return _propostaFrase(tipo);
+  if (norm(nome).indexOf(norm(tipo)) !== -1) return _propostaFrase(nome);
+  return _propostaFrase((tipo && norm(tipo) !== 'outros' ? tipo + ' ' : '') + nome);
+}
+
+// Nome de pessoa: "NICOLE CAIAFA PEDROSA" → "Nicole Caiafa Pedrosa"
+// (de/da/do/dos/das/e ficam minúsculos: "Maria da Silva").
+function _propostaNomeProprio(s) {
+  return String(s || "").trim().toLowerCase().split(/\s+/).map(function(p, i) {
+    if (i > 0 && /^(de|da|do|dos|das|e)$/.test(p)) return p;
+    return p.charAt(0).toUpperCase() + p.slice(1);
+  }).join(" ");
+}
+
+// Frase: só a primeira letra maiúscula — "ANIVERSÁRIO 16 ANOS" → "Aniversário 16 anos".
+function _propostaFrase(s) {
+  var t = String(s || "").trim().toLowerCase();
+  return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
 // "Cliente" na proposta = quem solicitou; sem isso, o nome do cabeçalho.
 function _propostaCliente(orc) {
-  return _propostaInfo(orc, 'solicitadoPor') || orc.nomeCliente || '';
+  return _propostaNomeProprio(_propostaInfo(orc, 'solicitadoPor') || orc.nomeCliente || '');
 }
 
 // ─── ABA: EDIÇÃO DOS DADOS DA PROPOSTA ───────────────────────────────────────
@@ -351,7 +366,7 @@ function _propostaMarcacoes(orc) {
     ['CLIENTE',                  'Cliente (Solicitado por)',  _propostaCliente(orc)],
     ['NOME_CLIENTE',             'Cliente (mesmo que CLIENTE)', _propostaCliente(orc)],
     ['NOME_EVENTO',              'Cliente / evento do cabeçalho', orc.nomeCliente || ''],
-    ['SOLICITADO_POR',           'Solicitado por',            _propostaInfo(orc, 'solicitadoPor')],
+    ['SOLICITADO_POR',           'Solicitado por',            _propostaNomeProprio(_propostaInfo(orc, 'solicitadoPor'))],
     ['CONTATO',                  'Contato',                   v('capa_telefone', contato)],
     ['TELEFONE',                 'Contato (mesmo que CONTATO)', v('capa_telefone', contato)],
     ['TIPO_EVENTO',              'Tipo de evento',            v('capa_tipoEvento', _propostaTipoEvento(orc))],
