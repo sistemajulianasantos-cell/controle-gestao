@@ -58,11 +58,11 @@ function _propostaInfo(orc, campo) {
 }
 
 function _propostaLocalEvento(orc) {
-  return _propostaInfo(orc, 'localEvento') || _propostaLocalLabel(orc.calcParams || {});
+  return _propostaFrase(_propostaInfo(orc, 'localEvento') || _propostaLocalLabel(orc.calcParams || {}));
 }
 
-// Valor por extenso em reais: 12500 → "doze mil e quinhentos reais".
-function _propostaExtenso(valor) {
+// Número inteiro por extenso: 6 → "seis", 12500 → "doze mil e quinhentos".
+function _propostaNumExtenso(n) {
   var UN = ['', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove', 'dez', 'onze', 'doze',
     'treze', 'quatorze', 'quinze', 'dezesseis', 'dezessete', 'dezoito', 'dezenove'];
   var DZ = ['', '', 'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta', 'setenta', 'oitenta', 'noventa'];
@@ -88,11 +88,16 @@ function _propostaExtenso(valor) {
     var usaE = ultimoN < 100 || ultimoN % 100 === 0;
     return grupos.join(' ') + (usaE ? ' e ' : ' ') + ultimo;
   }
+  return inteiro(Math.floor(Number(n) || 0));
+}
+
+// Valor por extenso em reais: 12500 → "doze mil e quinhentos reais".
+function _propostaExtenso(valor) {
   var cents = Math.round((Number(valor) || 0) * 100);
   var reais = Math.floor(cents / 100), cent = cents % 100;
   var txtReais = '';
-  if (reais) txtReais = inteiro(reais) + (reais % 1e6 === 0 ? ' de reais' : (reais === 1 ? ' real' : ' reais'));
-  var txtCent = cent ? ate999(cent) + (cent === 1 ? ' centavo' : ' centavos') : '';
+  if (reais) txtReais = _propostaNumExtenso(reais) + (reais % 1e6 === 0 ? ' de reais' : (reais === 1 ? ' real' : ' reais'));
+  var txtCent = cent ? _propostaNumExtenso(cent) + (cent === 1 ? ' centavo' : ' centavos') : '';
   return [txtReais, txtCent].filter(Boolean).join(' e ') || 'zero reais';
 }
 
@@ -119,12 +124,25 @@ function _propostaTempoFesta(orc) {
   var he = (typeof _orcGetAdic === 'function') ? _orcGetAdic(orc).horaExtra : { duracao: 7, horas: 0 };
   var extras = Number(he.horas) || 0;
   var cab = _propostaHoraCabecalho(orc);
-  if (cab && (cab.h || cab.min)) {
-    var txt = cab.h + ' hora' + (cab.h === 1 ? '' : 's') + (cab.min ? ' e ' + cab.min + ' minutos' : '');
-    return { total: cab.h, extras: 0, extrasCalc: extras, texto: txt };
-  }
-  var total = (Number(he.duracao) || 0) + extras;
-  return { total: total, extras: extras, extrasCalc: extras, texto: total + ' hora' + (total === 1 ? '' : 's') };
+  var total, min = 0, extrasTxt = extras;
+  if (cab && (cab.h || cab.min)) { total = cab.h; min = cab.min; extras = 0; }
+  else total = (Number(he.duracao) || 0) + extras;
+  // "hora" é feminino: uma/duas (e vinte e uma, vinte e duas…)
+  var ext = _propostaNumExtenso(total).replace(/\bum$/, 'uma').replace(/\bdois$/, 'duas');
+  var palavra = total === 1 ? 'hora' : 'horas';
+  var txtMin = min ? ' e ' + min + ' minutos' : '';
+  return {
+    total: total, extras: extras, extrasCalc: extrasTxt,
+    numero: String(total), extenso: ext,
+    texto: total + ' ' + palavra + txtMin,                               // "6 horas"
+    completo: total + ' (' + ext + ') ' + palavra + txtMin,              // "6 (seis) horas"
+  };
+}
+
+// Lista de itens (destilados, local…): cada um com só a primeira letra
+// maiúscula e a medida em minúsculo — "GIN BEEFEATER - 750ML" → "Gin beefeater - 750ml".
+function _propostaFrases(lista) {
+  return (lista || []).map(_propostaFrase);
 }
 
 // Tipo de evento da proposta: tipo da Solicitação (ex: "Aniversário") + o
@@ -215,6 +233,12 @@ function rOrcProposta(orc) {
           '</tr>';
         }).join('') +
       '</table>' +
+      '<div style="font-size:11px;color:var(--text3);margin-top:12px;line-height:1.6">' +
+        '<strong>Listas alinhadas (um item por parágrafo):</strong> {EQUIPE} e {CARDAPIO} quebram linha dentro do mesmo parágrafo — se a linha do modelo começa com espaço/tab, só a 1ª linha fica recuada. Pra cada item sair com a mesma formatação, use no modelo, cada marcação numa linha:<br>' +
+        '<span style="font-family:var(--mono);color:var(--text)">{#EQUIPE_LISTA}<br>{CARGO}<br>{/EQUIPE_LISTA}</span><br>' +
+        'e para o cardápio: <span style="font-family:var(--mono);color:var(--text)">{#CARDAPIO_LISTA}<br>{NOME}<br>{DESCRICAO}<br>{/CARDAPIO_LISTA}</span><br>' +
+        'Marcação digitada errado sai no documento como [NOME?], pra achar fácil.' +
+      '</div>' +
     '</details>' +
 
     '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;max-width:700px;margin-bottom:14px">' +
@@ -295,7 +319,7 @@ function _propostaCardapioTexto(orc) {
   return nomes.map(function(n) {
     var ficha = (D.fichas || []).find(function(f) { return f.nome === n; });
     var desc = (ficha && ficha.descricao) ? ficha.descricao : '';
-    return n + (desc ? '\n' + desc : '');
+    return _propostaFrase(n) + (desc ? '\n' + desc : '');
   }).join('\n\n');
 }
 
@@ -382,8 +406,11 @@ function _propostaMarcacoes(orc) {
     ['VALOR_COMPLETO',           'Valor Completo + extenso',  v('inv_completo', _propostaValorTexto(completo))],
     ['VALOR_COMPLETO_NUMERO',    'Valor Completo só número',  v('inv_completo', fR(completo))],
     ['VALOR_COMPLETO_EXTENSO',   'Valor Completo só extenso', v('inv_completo', _propostaExtenso(completo))],
-    ['DESTILADOS',               'Destilados (Completo)',     v('inv_destilados', d.destilados.join(', '))],
+    ['DESTILADOS',               'Destilados (Completo)',     v('inv_destilados', _propostaFrases(d.destilados).join(', '))],
     ['TEMPO_FESTA',              'Tempo de festa',            v('inv_tempoFesta', tempo.texto)],
+    ['TEMPO_FESTA_NUMERO',       'Tempo de festa só número',  v('inv_tempoFesta', tempo.numero)],
+    ['TEMPO_FESTA_EXTENSO',      'Tempo de festa só extenso', v('inv_tempoFesta', tempo.extenso)],
+    ['TEMPO_FESTA_COMPLETO',     'Tempo de festa número + extenso', v('inv_tempoFesta', tempo.completo)],
     ['HORAS_EXTRAS',             'Horas extras contratadas',  v('inv_tempoFesta', tempo.extrasCalc ? String(tempo.extrasCalc) : '')],
   ];
 }
@@ -418,10 +445,22 @@ function _propostaGerarDocx(orc) {
     var templateBytes = Uint8Array.from(atob(tpl.base64), function(c) { return c.charCodeAt(0); });
     var zip  = new PizZip(templateBytes);
     // Marcação que não existe nos dados sai em branco (e não "undefined").
-    var docx = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true, nullGetter: function() { return ''; } });
+    // Marcação digitada errado no modelo sai como [NOME?] no documento, pra
+    // ela achar e corrigir (antes saía em branco e parecia "não puxou").
+    var docx = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true, nullGetter: function(part) {
+      return part && !part.module && part.value ? '[' + part.value + '?]' : '';
+    } });
 
     var dados = {};
     _propostaMarcacoes(orc).forEach(function(m) { dados[m[0]] = m[2]; });
+    // Versões em lista (um parágrafo por item, cada um com a mesma formatação
+    // da linha do modelo): {#EQUIPE_LISTA}{CARGO}{/EQUIPE_LISTA} e
+    // {#CARDAPIO_LISTA}{NOME} / {DESCRICAO}{/CARDAPIO_LISTA}.
+    dados.EQUIPE_LISTA = _propostaEquipeLista(_propostaDadosComputados(orc)).map(function(c) { return { CARGO: c }; });
+    dados.CARDAPIO_LISTA = _propostaCardapioTexto(orc).split('\n\n').filter(Boolean).map(function(bloco) {
+      var linhas = bloco.split('\n');
+      return { NOME: linhas[0], DESCRICAO: linhas.slice(1).join(' ') };
+    });
     docx.setData(dados);
     docx.render();
 
@@ -559,7 +598,7 @@ function _propostaMontarHtml(orc) {
     if (mostraCompleto) invBlocos.push(
       '<h3 class="prop-h3 prop-under">Completo</h3>' +
       '<p class="prop-p">Seleção de bebidas importadas incluída, com serviço ilimitado e preparo sob medida.' +
-      (_propostaValor(orc, 'inv_destilados') && destilados.length ? ' Rótulos como ' + _propostaEsc(destilados.join(', ')) + '.' : '') + '</p>' +
+      (_propostaValor(orc, 'inv_destilados') && destilados.length ? ' Rótulos como ' + _propostaEsc(_propostaFrases(destilados).join(', ')) + '.' : '') + '</p>' +
       '<div class="prop-valor">' + fR(d.resumo.valorTotal) + '</div>' +
       '<div class="prop-extenso">(' + _propostaExtenso(d.resumo.valorTotal) + ')</div>');
     if (_propostaValor(orc, 'inv_pagamento')) invBlocos.push(
