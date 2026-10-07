@@ -64,11 +64,20 @@ function _solProximoNumero() {
 }
 
 // Registros importados antes da correção guardaram a hora como texto de Date
-// ("Sat Dec 30 1899 06:00:00 GMT-0300 ...") — exibe só o HH:MM.
+// ("Sat Dec 30 1899 06:00:00 GMT-0300 ...") ou no formato da planilha
+// ("6:00:00 AM") — exibe só o HH:MM.
 function _solHoraTexto(h) {
   var t = String(h || '');
   var m = /\b\d{4}\b.*?(\d{2}):(\d{2}):\d{2}\s*GMT/.exec(t);
-  return m ? m[1] + ':' + m[2] : t;
+  if (m) return m[1] + ':' + m[2];
+  var a = /^\s*(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)\s*$/i.exec(t);
+  if (a) {
+    var hh = parseInt(a[1], 10);
+    if (/pm/i.test(a[3]) && hh < 12) hh += 12;
+    if (/am/i.test(a[3]) && hh === 12) hh = 0;
+    return String(hh).padStart(2, '0') + ':' + a[2];
+  }
+  return t;
 }
 
 // Tipo de Evento vem do Cadastro de Tipos de Evento (js/tiposEvento.js). A

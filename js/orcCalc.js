@@ -369,9 +369,22 @@ function _orcGetAdic(orc) {
     horaExtra: { horas: Number(g('horaExtra').horas) || 0,
                  pct: g('horaExtra').pct != null ? Number(g('horaExtra').pct) : (Number(a.horaExtra.pct) || 0),
                  valorColab: Number(a.horaExtra.valorColab) || 0,
-                 // Horas de serviço já previstas no contrato (padrão da regra, editável no orçamento)
-                 duracao: g('horaExtra').duracao != null ? Number(g('horaExtra').duracao) : (Number(a.horaExtra.duracaoPadrao) || 0) },
+                 // Horas de serviço já previstas: a Hora do cabeçalho (duração
+                 // pedida na Solicitação, ex: 06:00 = 6h) manda; sem ela, o
+                 // valor digitado aqui; sem nenhum, o padrão da regra.
+                 duracao: _orcHorasCabecalho(orc) != null ? _orcHorasCabecalho(orc)
+                   : (g('horaExtra').duracao != null ? Number(g('horaExtra').duracao) : (Number(a.horaExtra.duracaoPadrao) || 0)) },
   };
+}
+
+// Campo "Hora" do cabeçalho do orçamento = duração da festa. Aceita "06:00",
+// "6", "6h30", "6:00:00 AM" → horas em número (6, 6.5). Vazio → null.
+function _orcHorasCabecalho(orc) {
+  var t = String((typeof _orcInfo === 'function') ? _orcInfo(orc, 'hora') : (orc.hora || '')).trim();
+  var m = /(\d{1,2})(?:\s*[:hH]\s*(\d{2}))?/.exec(t);
+  if (!m) return null;
+  var h = parseInt(m[1], 10) + (parseInt(m[2] || '0', 10) / 60);
+  return h > 0 ? h : null;
 }
 
 function _orcColaboradores(orc) {
@@ -406,6 +419,13 @@ function calcSetAdic(grupo, campo, valor) {
   if (!p.adic) p.adic = {};
   if (!p.adic[grupo]) p.adic[grupo] = {};
   p.adic[grupo][campo] = (campo === 'inclui') ? !!valor : (parseFloat(valor) || 0);
+  // Duração editada aqui vira a Hora do cabeçalho (fonte única) — senão a
+  // Hora do pedido continuaria mandando e a edição não teria efeito.
+  if (grupo === 'horaExtra' && campo === 'duracao' && typeof orcSetInfo === 'function') {
+    var hd = parseFloat(valor) || 0;
+    orcSetInfo(orc.id, 'hora', hd > 0 ? String(Math.floor(hd)).padStart(2, '0') + ':' + String(Math.round((hd % 1) * 60)).padStart(2, '0') : '');
+    return; // orcSetInfo já salva e redesenha a tela
+  }
   sv('orcamentos');
   rOrcCalc();
 }
@@ -456,7 +476,7 @@ function _orcAdicPainelHtml(orc, colab) {
     // Horas: duração já prevista + horas extras = total de festa
     '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;align-items:end">' +
       '<div>' + rot('Duração prevista (h)') +
-        '<input type="number" min="0" step="0.5" value="' + duracao + '" onchange="calcSetAdic(\'horaExtra\',\'duracao\',this.value)" title="Horas de serviço já incluídas no orçamento (padrão da regra: ' + (pad.horaExtra.duracaoPadrao || 0) + 'h)" style="' + campoStyle + ';font-family:var(--mono)"></div>' +
+        '<input type="number" min="0" step="0.5" value="' + duracao + '" onchange="calcSetAdic(\'horaExtra\',\'duracao\',this.value)" title="Horas de serviço já incluídas no orçamento — segue a Hora do pedido (cabeçalho); editar aqui muda a Hora também. Sem Hora: padrão da regra, ' + (pad.horaExtra.duracaoPadrao || 0) + 'h" style="' + campoStyle + ';font-family:var(--mono)"></div>' +
       '<div>' + rot('+ Horas extras') +
         '<input type="number" min="0" step="1" value="' + horas + '" onchange="calcSetAdic(\'horaExtra\',\'horas\',this.value)" style="' + campoStyle + ';font-family:var(--mono);border-color:' + (horas > 0 ? '#8B5CF6' : 'var(--border2)') + '"></div>' +
       '<div>' + rot('% do valor por hora') +

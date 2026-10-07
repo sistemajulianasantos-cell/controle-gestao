@@ -773,6 +773,8 @@ function orcSetInfo(orcId, campo, valor) {
   }
   sv('orcamentos');
   if (sol) sv('solicitacoesOrcamento');
+  // Hora = duração da festa; a Calculadora (Duração prevista) segue ela.
+  if (campo === 'hora') rOrcDetalhe();
 }
 
 function orcSetCabecalho(orcId, campo, valor) {
