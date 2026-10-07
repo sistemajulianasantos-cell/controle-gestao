@@ -508,6 +508,7 @@ function _solGerarOrcamento(id) {
     telefone: s.celular || s.telefoneFixo || '',
     numeroProposta: s.numero || '',
     criadoEm: new Date().toISOString(),
+    criadoPor: (typeof _orcUsuarioAtual === 'function') ? _orcUsuarioAtual() : '',
     itens: [],
     calcItens: [],
     insumos: [],

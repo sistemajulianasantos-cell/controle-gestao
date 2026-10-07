@@ -65,6 +65,7 @@ function rOrcLista() {
                 ${fd(o.dataEvento)||'sem data'}
                 ${o.convidados ? ' · '+o.convidados+' conv.' : ''}
               </div>
+              ${_orcCriadoTexto(o) ? `<div style="font-size:10px;color:var(--text3);margin-top:2px">${_orcCriadoTexto(o)}</div>` : ''}
             </div>
             <div style="text-align:right">
               <div style="font-size:10px;color:#4F8EF7;text-transform:uppercase;margin-bottom:2px">Pacote Completo</div>
@@ -83,6 +84,25 @@ function rOrcLista() {
           </div>`;
       }).join('')}
     </div>`}`;
+}
+
+// Quem está logado (nome cadastrado na senha — Segurança → Senhas; sem nome,
+// o perfil). Gravado em criadoPor ao criar o orçamento.
+function _orcUsuarioAtual() {
+  const nome = (typeof nomeUsuarioDaSenha === 'function' && typeof senhaHashAtual !== 'undefined') ? nomeUsuarioDaSenha(senhaHashAtual) : '';
+  if (nome) return nome;
+  const labels = { admin: 'Administrador', financeiro: 'Financeiro', operacional: 'Operacional' };
+  return (typeof perfilAtual !== 'undefined' && perfilAtual) ? (labels[perfilAtual] || perfilAtual) : '';
+}
+
+// "Criado em 07/10/2026 às 14:32 por Juliana" — orçamento antigo não tem
+// criadoPor (só a data).
+function _orcCriadoTexto(o) {
+  const iso = o.criadoEm || (/^ORC(\d{13})/.test(o.id || '') ? new Date(Number(o.id.slice(3, 16))).toISOString() : '');
+  if (!iso) return '';
+  const d = new Date(iso);
+  const data = d.toLocaleDateString('pt-BR') + ' às ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return 'Criado em ' + data + (o.criadoPor ? ' por ' + o.criadoPor : '');
 }
 
 // ─── DETALHE ─────────────────────────────────────────────────────────────────
@@ -143,6 +163,7 @@ function rOrcDetalhe() {
       <span style="font-weight:600;font-size:15px;color:var(--text)">${esc(orc.nomeCliente||'Sem nome')}</span>
       ${nomeSolicitante && nomeSolicitante !== orc.nomeCliente ? `<span style="font-size:14px;color:var(--text2)">· ${esc(nomeSolicitante)}</span>` : ''}
       ${sol ? `<span style="font-size:11px;color:var(--text3)">(da Solicitação de Orçamento)</span>` : ''}
+      ${_orcCriadoTexto(orc) ? `<span style="font-size:11px;color:var(--text3);margin-left:auto">${esc(_orcCriadoTexto(orc))}</span>` : ''}
     </div>
     ${!sol ? `
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--bg3);border:1px dashed var(--border2);border-radius:var(--radius);padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--text3)">
@@ -374,6 +395,7 @@ function criarOrcamento() {
     numeroProposta: (document.getElementById('orc-m-numero')?.value || '').trim() ||
       (typeof _solProximoNumero === 'function' ? _solProximoNumero() : ''),
     criadoEm:     new Date().toISOString(),
+    criadoPor:    _orcUsuarioAtual(),
     itens:      [],
     calcItens:  [],
     insumos:    [],
