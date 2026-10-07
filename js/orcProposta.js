@@ -222,6 +222,7 @@ function rOrcProposta(orc) {
         '<label class="lbl">Cardápio na proposta</label>' +
         '<textarea class="inp" rows="8" readonly style="width:100%;font-family:var(--mono);font-size:12px;resize:vertical;opacity:.85;cursor:default">' + _propostaEsc(cardapioAtual) + '</textarea>' +
         '<div style="font-size:10px;color:var(--text3);margin-top:2px">Segue automaticamente os coquetéis aplicados na aba Cardápio (e a descrição cadastrada na Ficha de cada um).</div>' +
+        _propostaAvisoFichas(orc) +
       '</div>' +
     '</div>' +
 
@@ -317,11 +318,47 @@ function propostaToggleCampo(orcId, campoId, checked) {
 // cada coquetel (Regras → Fichas de Coquetéis) — sempre calculado na hora,
 // nunca um texto salvo que possa ficar desatualizado. O copo não entra (é
 // informação interna, não vai pro cliente).
+// Fichas com o nome do coquetel, comparando sem acento/caixa/espaço
+// ("GIN TONICA" = "Gin Tônica"). Antes era nome idêntico: ficha renomeada
+// com acento/caixa diferente não era achada e a descrição sumia.
+function _propostaFichasDoNome(nome) {
+  var norm = function(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim(); };
+  var alvo = norm(nome);
+  return (D.fichas || []).filter(function(f) { return norm(f.nome) === alvo; });
+}
+
+// Com mais de uma ficha com o mesmo nome, fica a mais recente que tem
+// descrição (a aba Proposta avisa a duplicidade pra ela apagar a sobrando).
+function _propostaFichaDoCoquetel(nome) {
+  var cands = _propostaFichasDoNome(nome);
+  if (cands.length < 2) return cands[0] || null;
+  var comDesc = cands.filter(function(f) { return String(f.descricao || '').trim(); });
+  if (comDesc.length) return comDesc.slice().sort(function(a, b) { return String(b.criadoEm || '').localeCompare(String(a.criadoEm || '')); })[0];
+  return cands[0];
+}
+
+// Aviso na aba Proposta: coquetel sem ficha, sem descrição ou com ficha
+// duplicada (mais de uma com o mesmo nome em Regras → Fichas de Coquetéis).
+function _propostaAvisoFichas(orc) {
+  var nomes = Array.from(new Set((orc.insumos || []).flatMap(function(i) { return i.coqueteis || []; })));
+  var avisos = [];
+  nomes.forEach(function(n) {
+    var cands = _propostaFichasDoNome(n);
+    var f = _propostaFichaDoCoquetel(n);
+    if (!cands.length) avisos.push(n + ': nenhuma ficha com esse nome');
+    else if (cands.length > 1) avisos.push(n + ': ' + cands.length + ' fichas com esse nome (' + cands.map(function(c) { return '"' + (c.descricao || 'sem descrição') + '"'; }).join(' / ') + ') — usando "' + ((f && f.descricao) || 'sem descrição') + '"');
+    else if (!String(cands[0].descricao || '').trim()) avisos.push(n + ': ficha sem descrição');
+  });
+  if (!avisos.length) return '';
+  return '<div style="font-size:11px;color:var(--amber);margin-top:6px;line-height:1.5">Confira em Regras → Fichas de Coquetéis:<br>' +
+    avisos.map(_propostaEsc).join('<br>') + '</div>';
+}
+
 function _propostaCardapioTexto(orc) {
   var nomes = Array.from(new Set((orc.insumos || []).flatMap(function(i) { return i.coqueteis || []; })));
   if (!nomes.length) return '';
   return nomes.map(function(n) {
-    var ficha = (D.fichas || []).find(function(f) { return f.nome === n; });
+    var ficha = _propostaFichaDoCoquetel(n);
     var desc = (ficha && ficha.descricao) ? ficha.descricao : '';
     return _propostaFrase(n) + (desc ? '\n' + desc : '');
   }).join('\n\n');
