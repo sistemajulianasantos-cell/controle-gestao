@@ -2633,6 +2633,18 @@ window.svFirebase = async function(chave) {
     if (Object.keys(campo).length === 0) return;
     // Cada seção vira seu próprio documento na coleção "dados" (evita estourar o limite de 1MB por documento)
     for (const [k, v] of Object.entries(campo)) {
+      // Backup diário dos cadastros mais trabalhosos: a 1ª gravação de cada
+      // dia guarda como estava ANTES (backups/fichas_AAAA-MM-DD). Dá pra
+      // recuperar uma descrição/regra perdida por gravação ruim.
+      if (k === 'fichas' || k === 'insumos' || k === 'regrasItens') {
+        try {
+          const refBkp = doc(db, "backups", k + "_" + new Date().toISOString().slice(0, 10));
+          if (!(await getDoc(refBkp)).exists()) {
+            const atual = await getDoc(doc(db, "dados", k));
+            if (atual.exists()) await setDoc(refBkp, { valor: atual.data().valor || [], salvoEm: new Date().toISOString() });
+          }
+        } catch (e) { console.error('Erro ao criar backup de ' + k + ':', e); }
+      }
       await setDoc(doc(db, "dados", k), { valor: v });
     }
   } catch(e) {
@@ -2775,6 +2787,28 @@ function _ouvirOrcamentosEmTempoReal() {
   }, (e) => console.error('Erro no listener de orçamentos:', e));
 }
 
+// ─── CADASTROS EM TEMPO REAL ────────────────────────────────────────────────
+// Mesmo problema dos orçamentos (acima), agora nos cadastros: sv('fichas')
+// regrava a lista INTEIRA com o que a aba carregou ao abrir. Uma aba aberta
+// há dias, ao salvar qualquer coisa que grave fichas (salvar uma ficha,
+// renomear categoria/insumo/medida…), voltava TODAS as fichas pra versão
+// antiga — foi assim que descrições já cadastradas sumiram (Gin Tonica,
+// Aurora) e a da Mitra voltou ao texto antigo (10/2026). Com o listener, toda
+// aba fica com a versão mais nova e a gravação não apaga o que outra fez.
+const CADASTROS_TEMPO_REAL = ['fichas', 'insumos', 'regrasItens', 'categorias', 'medidasIngrediente',
+  'cargos', 'servicos', 'opcionais', 'associacoes', 'copos', 'produtos', 'tiposEvento', 'solicitacoesOrcamento'];
+function _ouvirCadastrosEmTempoReal() {
+  CADASTROS_TEMPO_REAL.forEach(chave => {
+    onSnapshot(doc(db, "dados", chave), (snap) => {
+      if (!window._dadosCarregados || !snap.exists()) return;
+      // Gravação desta própria aba ainda não confirmada: o D já é o mais novo.
+      if (snap.metadata && snap.metadata.hasPendingWrites) return;
+      const valor = snap.data().valor;
+      if (valor !== undefined) D[chave] = valor;
+    }, (e) => console.error('Erro no listener de ' + chave + ':', e));
+  });
+}
+
 // ─── CARREGAR ────────────────────────────────────────────────────────────────
 async function carregarDados() {
   try {
@@ -2909,6 +2943,7 @@ async function carregarDados() {
     }, 300);
 
     _ouvirOrcamentosEmTempoReal();
+    _ouvirCadastrosEmTempoReal();
 
   } catch(e) {
     window._erroCarregamento = true;
