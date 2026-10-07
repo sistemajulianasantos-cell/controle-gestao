@@ -157,6 +157,12 @@ function _propostaTipoEvento(orc) {
   var nome = String(orc.nomeCliente || '').trim();
   var norm = function(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim(); };
   var solicitante = _propostaInfo(orc, 'solicitadoPor');
+  // Nome gerado da Solicitação sem cliente vem "TIPO - SOLICITANTE"
+  // ("CASAMENTO - ANA FLAVIA CERIMONIAL") — tira o pedaço de quem solicitou,
+  // que já sai em Cliente; senão o Evento repetia o nome.
+  if (solicitante) {
+    nome = nome.split(/\s+[-–\/|]\s+/).filter(function(parte) { return norm(parte) !== norm(solicitante); }).join(' ').trim();
+  }
   if (!nome || norm(nome) === norm(solicitante)) return _propostaNomeProprio(tipo);
   if (norm(nome).indexOf(norm(tipo)) !== -1) return _propostaNomeProprio(nome);
   return _propostaNomeProprio((tipo && norm(tipo) !== 'outros' ? tipo + ' ' : '') + nome);
