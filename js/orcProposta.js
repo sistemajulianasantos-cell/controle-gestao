@@ -139,10 +139,14 @@ function _propostaTempoFesta(orc) {
   };
 }
 
-// Lista de itens (destilados, local…): cada um com só a primeira letra
-// maiúscula e a medida em minúsculo — "GIN BEEFEATER - 750ML" → "Gin beefeater - 750ml".
-function _propostaFrases(lista) {
-  return (lista || []).map(_propostaFrase);
+// Destilados/rótulos: sem a medida e cada palavra com inicial maiúscula —
+// "GIN BEEFEATER - 750ML" → "Gin Beefeater", "APEROL - 750ML" → "Aperol".
+// Duas medidas do mesmo rótulo viram um só.
+function _propostaRotulos(lista) {
+  return Array.from(new Set((lista || []).map(function(n) {
+    var semMedida = String(n || '').replace(/\s*[-–]?\s*\d+(?:[.,]\d+)?\s*(?:ML|L|LT|LTS|LITROS?|CL)\s*$/i, '').trim();
+    return _propostaNomeProprio(semMedida);
+  }).filter(Boolean)));
 }
 
 // Tipo de evento da proposta: tipo da Solicitação (ex: "Aniversário") + o
@@ -153,16 +157,16 @@ function _propostaTipoEvento(orc) {
   var nome = String(orc.nomeCliente || '').trim();
   var norm = function(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim(); };
   var solicitante = _propostaInfo(orc, 'solicitadoPor');
-  if (!nome || norm(nome) === norm(solicitante)) return _propostaFrase(tipo);
-  if (norm(nome).indexOf(norm(tipo)) !== -1) return _propostaFrase(nome);
-  return _propostaFrase((tipo && norm(tipo) !== 'outros' ? tipo + ' ' : '') + nome);
+  if (!nome || norm(nome) === norm(solicitante)) return _propostaNomeProprio(tipo);
+  if (norm(nome).indexOf(norm(tipo)) !== -1) return _propostaNomeProprio(nome);
+  return _propostaNomeProprio((tipo && norm(tipo) !== 'outros' ? tipo + ' ' : '') + nome);
 }
 
 // Nome de pessoa: "NICOLE CAIAFA PEDROSA" → "Nicole Caiafa Pedrosa"
-// (de/da/do/dos/das/e ficam minúsculos: "Maria da Silva").
+// (de/da/do/dos/das/e/anos ficam minúsculos: "Maria da Silva", "Aniversário 16 anos").
 function _propostaNomeProprio(s) {
   return String(s || "").trim().toLowerCase().split(/\s+/).map(function(p, i) {
-    if (i > 0 && /^(de|da|do|dos|das|e)$/.test(p)) return p;
+    if (i > 0 && /^(de|da|do|dos|das|e|anos)$/.test(p)) return p;
     return p.charAt(0).toUpperCase() + p.slice(1);
   }).join(" ");
 }
@@ -406,7 +410,7 @@ function _propostaMarcacoes(orc) {
     ['VALOR_COMPLETO',           'Valor Completo + extenso',  v('inv_completo', _propostaValorTexto(completo))],
     ['VALOR_COMPLETO_NUMERO',    'Valor Completo só número',  v('inv_completo', fR(completo))],
     ['VALOR_COMPLETO_EXTENSO',   'Valor Completo só extenso', v('inv_completo', _propostaExtenso(completo))],
-    ['DESTILADOS',               'Destilados (Completo)',     v('inv_destilados', _propostaFrases(d.destilados).join(', '))],
+    ['DESTILADOS',               'Destilados (Completo)',     v('inv_destilados', _propostaRotulos(d.destilados).join(', '))],
     ['TEMPO_FESTA',              'Tempo de festa',            v('inv_tempoFesta', tempo.texto)],
     ['TEMPO_FESTA_NUMERO',       'Tempo de festa só número',  v('inv_tempoFesta', tempo.numero)],
     ['TEMPO_FESTA_EXTENSO',      'Tempo de festa só extenso', v('inv_tempoFesta', tempo.extenso)],
@@ -446,17 +450,24 @@ var PROPOSTA_APELIDOS = {
   DATA: 'DATA_EVENTO', TIPO: 'TIPO_EVENTO', EVENTO: 'TIPO_EVENTO',
 };
 function _propostaNormTag(tag) {
-  var t = String(tag || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().trim()
+  var t = String(tag || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase()
+    .replace(/[^A-Z0-9_\s\-.]/g, '').trim()
     .replace(/[\s\-.]+/g, '_').replace(/_(DE|DA|DO)_/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
   return PROPOSTA_APELIDOS[t] || t;
 }
+// Registro do que o modelo pediu nesta geração (pra avisar marcação não
+// reconhecida ou que saiu vazia).
+var _propostaTagsUsadas = [];
 function _propostaParserTolerante(tag) {
   var chave = _propostaNormTag(tag);
   return { get: function(scope) {
     if (tag === '.') return scope;
     if (scope == null || typeof scope !== 'object') return undefined;
-    if (scope[tag] !== undefined) return scope[tag];
-    return scope[chave];
+    var v = scope[tag] !== undefined ? scope[tag] : scope[chave];
+    // Qualquer marcação com TEMPO/DURAÇÃO no nome = tempo de festa completo.
+    if (v === undefined && /TEMPO|DURAC/.test(chave) && scope.TEMPO_FESTA_COMPLETO !== undefined) v = scope.TEMPO_FESTA_COMPLETO;
+    if (scope.NUMERO_PROPOSTA !== undefined) _propostaTagsUsadas.push({ tag: tag, achou: v !== undefined, vazio: v === '' });
+    return v;
   } };
 }
 
@@ -487,7 +498,19 @@ function _propostaGerarDocx(orc) {
       return { NOME: linhas[0], DESCRICAO: linhas.slice(1).join(' ') };
     });
     docx.setData(dados);
+    _propostaTagsUsadas = [];
     docx.render();
+
+    // Avisa o que o modelo pediu e não saiu: marcação que o sistema não
+    // conhece (sai [NOME?] no documento) ou que saiu vazia (campo em branco
+    // no orçamento ou desmarcado em "O que aparece no PDF").
+    var unicos = function(arr) { return Array.from(new Set(arr)); };
+    var naoAchou = unicos(_propostaTagsUsadas.filter(function(t) { return !t.achou; }).map(function(t) { return '{' + t.tag + '}'; }));
+    var vazias   = unicos(_propostaTagsUsadas.filter(function(t) { return t.vazio; }).map(function(t) { return '{' + t.tag + '}'; }));
+    if (naoAchou.length || vazias.length) {
+      alert2((naoAchou.length ? 'Marcações do modelo que o sistema não reconheceu: ' + naoAchou.join(', ') + '. ' : '') +
+        (vazias.length ? 'Saíram vazias: ' + vazias.join(', ') + ' (campo em branco no orçamento ou desmarcado em "O que aparece no PDF").' : ''), 'error');
+    }
 
     var blob = new Blob([docx.getZip().generate({ type: 'arraybuffer' })],
       { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
@@ -623,7 +646,7 @@ function _propostaMontarHtml(orc) {
     if (mostraCompleto) invBlocos.push(
       '<h3 class="prop-h3 prop-under">Completo</h3>' +
       '<p class="prop-p">Seleção de bebidas importadas incluída, com serviço ilimitado e preparo sob medida.' +
-      (_propostaValor(orc, 'inv_destilados') && destilados.length ? ' Rótulos como ' + _propostaEsc(_propostaFrases(destilados).join(', ')) + '.' : '') + '</p>' +
+      (_propostaValor(orc, 'inv_destilados') && destilados.length ? ' Rótulos como ' + _propostaEsc(_propostaRotulos(destilados).join(', ')) + '.' : '') + '</p>' +
       '<div class="prop-valor">' + fR(d.resumo.valorTotal) + '</div>' +
       '<div class="prop-extenso">(' + _propostaExtenso(d.resumo.valorTotal) + ')</div>');
     if (_propostaValor(orc, 'inv_pagamento')) invBlocos.push(
