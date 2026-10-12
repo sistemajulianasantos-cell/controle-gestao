@@ -72,7 +72,7 @@ function verificarNFDuplicada(){
     .join('<br>');
 
   // Destaca o campo de NF com borda laranja
-  if(inp) inp.style.borderColor='#F7C84F';
+  if(inp) inp.style.borderColor='#B45309';
 
   // Exibe o banner
   av.style.display='block';
@@ -155,8 +155,8 @@ function rEntradasNFPendentes(){
   const pendentes=_despesasNFPendentesEntrada();
   if(!pendentes.length){el.style.display='none';el.innerHTML='';return;}
   el.style.display='block';
-  el.innerHTML=`<div class="sec" style="margin:0 0 16px;border-left:3px solid #F7C84F">
-    <div class="sec-head"><span class="sec-title" style="color:#F7C84F">⚠ ${pendentes.length} NF lançada(s) em Despesas aguardando entrada de produtos</span></div>
+  el.innerHTML=`<div class="sec" style="margin:0 0 16px;border-left:3px solid #B45309">
+    <div class="sec-head"><span class="sec-title" style="color:#B45309">⚠ ${pendentes.length} NF lançada(s) em Despesas aguardando entrada de produtos</span></div>
     <div style="padding:8px 16px 14px;display:flex;flex-direction:column;gap:6px">
       ${pendentes.map(d=>`
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12px;color:var(--text2);background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:7px 12px">
@@ -214,7 +214,7 @@ function rEntradas(){
     const totalNF=g.itens.reduce((a,i)=>a+(i.custo?Number(i.qtd)*Number(i.custo):0),0);
     const totalQtd=g.itens.reduce((a,i)=>a+Number(i.qtd),0);
     const isDup=dupKeys.has(g.key);
-    const dupBadge=isDup?`<span style="display:inline-block;margin-left:8px;padding:1px 7px;background:#2A1A00;border:1px solid #F7C84F;border-radius:20px;font-size:9px;font-weight:600;color:#F7C84F;vertical-align:middle">⚠ possível duplicata</span>`:'';
+    const dupBadge=isDup?`<span style="display:inline-block;margin-left:8px;padding:1px 7px;background:#FFFBEB;border:1px solid #B45309;border-radius:20px;font-size:9px;font-weight:600;color:#B45309;vertical-align:middle">⚠ possível duplicata</span>`:'';
     const keyJson=JSON.stringify(g.key).replace(/"/g,'&quot;');
     const itensHtml=g.itens.map(i=>`
       <div style="display:grid;grid-template-columns:1fr 60px 90px 80px;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);font-size:11px;align-items:center">
@@ -223,7 +223,7 @@ function rEntradas(){
         <span style="font-family:var(--mono);color:var(--text3)">${i.custo?'R$ '+Number(i.custo).toFixed(2):'—'}</span>
         <span style="font-family:var(--mono);font-weight:600;color:${i.custo?'var(--text2)':'var(--text3)'}">${i.custo?'R$ '+(Number(i.qtd)*Number(i.custo)).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—'}</span>
       </div>`).join('');
-    return`<div class="festa-card enc" style="margin:8px 16px${isDup?';border-color:#F7C84F55':''}">
+    return`<div class="festa-card enc" style="margin:8px 16px${isDup?';border-color:#B4530955':''}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
         <div style="flex:1;min-width:0">
           <div style="font-size:14px;font-weight:600;color:var(--text)">${g.nf}${dupBadge}</div>
@@ -236,7 +236,7 @@ function rEntradas(){
           </div>
           <div style="display:flex;gap:5px">
             <button onclick="abrirEdicaoNFEnt(${keyJson})" style="font-size:10px;padding:3px 9px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text2);cursor:pointer">✏️ Editar</button>
-            <button onclick="excluirNFEnt(${keyJson})" style="font-size:10px;padding:3px 9px;background:#1A0808;border:1px solid #6B2020;border-radius:var(--radius);color:#E05555;cursor:pointer">Excluir</button>
+            <button onclick="excluirNFEnt(${keyJson})" style="font-size:10px;padding:3px 9px;background:#FEF2F2;border:1px solid #FECACA;border-radius:var(--radius);color:#B91C1C;cursor:pointer">Excluir</button>
           </div>
         </div>
       </div>

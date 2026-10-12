@@ -428,7 +428,7 @@ function rFechamentoMensal() {
     html += _fmBlocoClientes('👤 Receita (Contrato) por Cliente', clientesContrato) +
       _fmBlocoClientes('🧾 Fechamento por Cliente', clientesFechamento) +
       _fmSecTotalGeralClientes(clientesContrato, clientesFechamento, receitaTotal) +
-      _fmBlocoBreakdown('📉 Quebras por Produto (perda registrada)', quebraPorProduto, '#F7A84F');
+      _fmBlocoBreakdown('📉 Quebras por Produto (perda registrada)', quebraPorProduto, '#B45309');
   }
 
   html += htmlEventos;
@@ -574,13 +574,13 @@ function _fmRenderProdutos(cont, anoMes) {
     return;
   }
 
-  var corVerde = _fmCssVar('--green', '#3DDC84');
-  var corAmber = _fmCssVar('--amber', '#F7C35A');
-  var corVermelho = _fmCssVar('--red', '#F7625A');
-  var corAzul = _fmCssVar('--blue', '#4F8EF7');
-  var corTexto = _fmCssVar('--text3', '#8B91A8');
-  var corGrid = _fmCssVar('--border', '#2A2F42');
-  var paletaDonut = [corVerde, corAzul, corAmber, corVermelho, '#A78BFA', '#F472B6', '#22D3EE', '#94A3B8'];
+  var corVerde = _fmCssVar('--green', '#15803D');
+  var corAmber = _fmCssVar('--amber', '#B45309');
+  var corVermelho = _fmCssVar('--red', '#B91C1C');
+  var corAzul = _fmCssVar('--blue', '#C4622D');
+  var corTexto = _fmCssVar('--text3', '#4B5563');
+  var corGrid = _fmCssVar('--border', '#E5E7EB');
+  var paletaDonut = [corVerde, corAzul, corAmber, corVermelho, '#6D28D9', '#BE185D', '#0E7490', '#94A3B8'];
 
   Chart.defaults.color = corTexto;
   Chart.defaults.borderColor = corGrid;

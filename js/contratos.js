@@ -35,10 +35,10 @@ function initImportacao() {
   const zone = document.getElementById('imp-upload-zone');
   if (!zone || zone._initDone) return;
   zone._initDone = true;
-  zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor='#4F8EF7'; });
-  zone.addEventListener('dragleave', () => zone.style.borderColor='#2A2F42');
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor='#C4622D'; });
+  zone.addEventListener('dragleave', () => zone.style.borderColor='#E5E7EB');
   zone.addEventListener('drop', e => {
-    e.preventDefault(); zone.style.borderColor='#2A2F42';
+    e.preventDefault(); zone.style.borderColor='#E5E7EB';
     if (e.dataTransfer.files[0]) processarPDFImportacao(e.dataTransfer.files[0]);
   });
 }
@@ -485,10 +485,10 @@ function initContratos() {
   const zone = document.getElementById('contrato-upload-zone');
   if (!zone || zone._initDone) return;
   zone._initDone = true;
-  zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor='#4F8EF7'; });
-  zone.addEventListener('dragleave', () => zone.style.borderColor='#2A2F42');
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor='#C4622D'; });
+  zone.addEventListener('dragleave', () => zone.style.borderColor='#E5E7EB');
   zone.addEventListener('drop', e => {
-    e.preventDefault(); zone.style.borderColor='#2A2F42';
+    e.preventDefault(); zone.style.borderColor='#E5E7EB';
     if (e.dataTransfer.files[0]) processarPDF(e.dataTransfer.files[0]);
   });
 }
@@ -791,7 +791,7 @@ function rAnalise() {
   const setEl = (id, v) => { const el = document.getElementById(id); if (el) el.innerHTML = v; };
 
   // Card meta — semáforo
-  const corMeta = pctMeta === null ? '#8B91A8' : pctMeta >= 100 ? '#4FC78E' : pctMeta >= 80 ? '#F7C84F' : '#F74F6B';
+  const corMeta = pctMeta === null ? '#4B5563' : pctMeta >= 100 ? '#15803D' : pctMeta >= 80 ? '#B45309' : '#B91C1C';
   const iconMeta = pctMeta === null ? '—' : pctMeta >= 100 ? '🟢' : pctMeta >= 80 ? '🟡' : '🔴';
   setEl('an-faturamento', fR(atual.fat));
   setEl('an-recebido', '');
@@ -830,20 +830,20 @@ function rAnalise() {
     const faltam = meta.fat - atual.fat;
     metaBox.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <span style="font-weight:600;color:#E8EAF0">${iconMeta} Meta ${mes ? MESES_NOME[parseInt(mes)-1] : ano}</span>
+        <span style="font-weight:600;color:#111827">${iconMeta} Meta ${mes ? MESES_NOME[parseInt(mes)-1] : ano}</span>
         <span style="color:${corMeta};font-weight:700;font-size:18px">${pctMeta.toFixed(1)}%</span>
       </div>
-      <div style="background:#0D1117;border-radius:6px;height:10px;overflow:hidden;margin-bottom:8px">
+      <div style="background:#F0EDE8;border-radius:6px;height:10px;overflow:hidden;margin-bottom:8px">
         <div style="height:100%;width:${pct}%;background:${corMeta};border-radius:6px;transition:width .6s ease"></div>
       </div>
-      <div style="display:flex;justify-content:space-between;font-size:12px;color:#8B91A8">
-        <span>Realizado: <b style="color:#E8EAF0">${fR(atual.fat)}</b></span>
-        <span>Meta: <b style="color:#E8EAF0">${fR(meta.fat)}</b></span>
-        ${faltam > 0 ? `<span style="color:#F74F6B">Faltam: <b>${fR(faltam)}</b></span>` : `<span style="color:#4FC78E">✓ Meta batida!</span>`}
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:#4B5563">
+        <span>Realizado: <b style="color:#111827">${fR(atual.fat)}</b></span>
+        <span>Meta: <b style="color:#111827">${fR(meta.fat)}</b></span>
+        ${faltam > 0 ? `<span style="color:#B91C1C">Faltam: <b>${fR(faltam)}</b></span>` : `<span style="color:#15803D">✓ Meta batida!</span>`}
       </div>`;
     metaBox.style.display = '';
   } else if (metaBox) {
-    metaBox.innerHTML = '<span style="color:#8B91A8;font-size:13px">Configure as metas na aba ⚙️ Configurar.</span>';
+    metaBox.innerHTML = '<span style="color:#4B5563;font-size:13px">Configure as metas na aba ⚙️ Configurar.</span>';
     metaBox.style.display = '';
   }
 
@@ -859,21 +859,21 @@ function rAnalise() {
       const mt  = (D.metas||{})[`${ano}-${m}`] || {};
       const mFat = parseFloat(mt.fat||0);
       const pct  = mFat > 0 ? s.fat/mFat*100 : null;
-      const cor  = pct === null ? '#2A2F42' : pct >= 100 ? '#0D2E1A' : pct >= 80 ? '#2E2A0D' : '#2E0D0D';
-      const corT = pct === null ? '#8B91A8' : pct >= 100 ? '#4FC78E' : pct >= 80 ? '#F7C84F' : '#F74F6B';
+      const cor  = pct === null ? '#E5E7EB' : pct >= 100 ? '#F0FDF4' : pct >= 80 ? '#FFFBEB' : '#FEF2F2';
+      const corT = pct === null ? '#4B5563' : pct >= 100 ? '#15803D' : pct >= 80 ? '#B45309' : '#B91C1C';
       const difF = s.fat - hFat;
       const difP = s.pax - hPax;
-      const seta = v => v > 0 ? `<span style="color:#4FC78E">▲</span>` : v < 0 ? `<span style="color:#F74F6B">▼</span>` : '';
-      return `<tr style="border-bottom:1px solid #1E2333;background:${cor}">
-        <td style="padding:8px 12px;font-weight:600;color:#E8EAF0">${MESES_NOME[i]}</td>
-        <td style="padding:8px 12px;color:#8B91A8;text-align:right">${hPax > 0 ? fN(hPax) : '—'}</td>
-        <td style="padding:8px 12px;color:#8B91A8;text-align:right">${hFat > 0 ? fR(hFat) : '—'}</td>
-        <td style="padding:8px 12px;color:#8B91A8;text-align:right">${hPax > 0 ? 'R$\u00a0'+(hFat/hPax).toLocaleString('pt-BR',{minimumFractionDigits:2}) : '—'}</td>
-        <td style="padding:8px 12px;color:#E8EAF0;text-align:right;font-weight:500">${s.pax > 0 ? fN(s.pax) : '—'}</td>
-        <td style="padding:8px 12px;color:#E8EAF0;text-align:right;font-weight:500">${s.fat > 0 ? fR(s.fat) : '—'}</td>
-        <td style="padding:8px 12px;color:#E8EAF0;text-align:right;font-weight:500">${s.pax > 0 ? 'R$\u00a0'+(s.fat/s.pax).toLocaleString('pt-BR',{minimumFractionDigits:2}) : '—'}</td>
-        <td style="padding:8px 12px;text-align:right">${seta(difP)}<span style="color:${difP>=0?'#4FC78E':'#F74F6B'}">${difP !== 0 ? (difP>0?'+':'')+fN(difP) : '—'}</span></td>
-        <td style="padding:8px 12px;text-align:right">${seta(difF)}<span style="color:${difF>=0?'#4FC78E':'#F74F6B'}">${difF !== 0 ? (difF>0?'+':'')+fR(difF) : '—'}</span></td>
+      const seta = v => v > 0 ? `<span style="color:#15803D">▲</span>` : v < 0 ? `<span style="color:#B91C1C">▼</span>` : '';
+      return `<tr style="border-bottom:1px solid #F9F5F0;background:${cor}">
+        <td style="padding:8px 12px;font-weight:600;color:#111827">${MESES_NOME[i]}</td>
+        <td style="padding:8px 12px;color:#4B5563;text-align:right">${hPax > 0 ? fN(hPax) : '—'}</td>
+        <td style="padding:8px 12px;color:#4B5563;text-align:right">${hFat > 0 ? fR(hFat) : '—'}</td>
+        <td style="padding:8px 12px;color:#4B5563;text-align:right">${hPax > 0 ? 'R$\u00a0'+(hFat/hPax).toLocaleString('pt-BR',{minimumFractionDigits:2}) : '—'}</td>
+        <td style="padding:8px 12px;color:#111827;text-align:right;font-weight:500">${s.pax > 0 ? fN(s.pax) : '—'}</td>
+        <td style="padding:8px 12px;color:#111827;text-align:right;font-weight:500">${s.fat > 0 ? fR(s.fat) : '—'}</td>
+        <td style="padding:8px 12px;color:#111827;text-align:right;font-weight:500">${s.pax > 0 ? 'R$\u00a0'+(s.fat/s.pax).toLocaleString('pt-BR',{minimumFractionDigits:2}) : '—'}</td>
+        <td style="padding:8px 12px;text-align:right">${seta(difP)}<span style="color:${difP>=0?'#15803D':'#B91C1C'}">${difP !== 0 ? (difP>0?'+':'')+fN(difP) : '—'}</span></td>
+        <td style="padding:8px 12px;text-align:right">${seta(difF)}<span style="color:${difF>=0?'#15803D':'#B91C1C'}">${difF !== 0 ? (difF>0?'+':'')+fR(difF) : '—'}</span></td>
         <td style="padding:8px 12px;text-align:right;font-weight:700;color:${corT}">${pct !== null ? pct.toFixed(0)+'%' : '—'}</td>
       </tr>`;
     });
@@ -885,7 +885,7 @@ function rAnalise() {
     compBox.innerHTML = `
       <div style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:12px">
-        <thead><tr style="color:#8B91A8;border-bottom:2px solid #2A2F42;font-size:11px">
+        <thead><tr style="color:#4B5563;border-bottom:2px solid #E5E7EB;font-size:11px">
           <th style="padding:8px 12px;text-align:left">MÊS</th>
           <th style="padding:8px 12px;text-align:right">PAX ${anoPrev}</th>
           <th style="padding:8px 12px;text-align:right">FAT ${anoPrev}</th>
@@ -898,17 +898,17 @@ function rAnalise() {
           <th style="padding:8px 12px;text-align:right">% META</th>
         </tr></thead>
         <tbody>${linhas.join('')}</tbody>
-        <tfoot><tr style="border-top:2px solid #2A2F42;font-weight:700;background:#1A1F2E">
-          <td style="padding:8px 12px;color:#E8EAF0">TOTAL</td>
-          <td style="padding:8px 12px;text-align:right;color:#8B91A8">${fN(totHist.pax)}</td>
-          <td style="padding:8px 12px;text-align:right;color:#8B91A8">${fR(totHist.fat)}</td>
-          <td style="padding:8px 12px;text-align:right;color:#8B91A8">${totHist.pax>0?'R$\u00a0'+(totHist.fat/totHist.pax).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—'}</td>
-          <td style="padding:8px 12px;text-align:right;color:#E8EAF0">${fN(totAtual.pax)}</td>
-          <td style="padding:8px 12px;text-align:right;color:#E8EAF0">${fR(totAtual.fat)}</td>
-          <td style="padding:8px 12px;text-align:right;color:#E8EAF0">${totAtual.pax>0?'R$\u00a0'+(totAtual.fat/totAtual.pax).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—'}</td>
-          <td style="padding:8px 12px;text-align:right;color:${totAtual.pax>=totHist.pax?'#4FC78E':'#F74F6B'}">${totAtual.pax-totHist.pax >= 0 ? '+' : ''}${fN(totAtual.pax-totHist.pax)}</td>
-          <td style="padding:8px 12px;text-align:right;color:${totAtual.fat>=totHist.fat?'#4FC78E':'#F74F6B'}">${totAtual.fat-totHist.fat >= 0 ? '+' : ''}${fR(totAtual.fat-totHist.fat)}</td>
-          <td style="padding:8px 12px;text-align:right;color:${parseInt(totPct)>=100?'#4FC78E':parseInt(totPct)>=80?'#F7C84F':'#F74F6B'}">${totPct}</td>
+        <tfoot><tr style="border-top:2px solid #E5E7EB;font-weight:700;background:#FFFFFF">
+          <td style="padding:8px 12px;color:#111827">TOTAL</td>
+          <td style="padding:8px 12px;text-align:right;color:#4B5563">${fN(totHist.pax)}</td>
+          <td style="padding:8px 12px;text-align:right;color:#4B5563">${fR(totHist.fat)}</td>
+          <td style="padding:8px 12px;text-align:right;color:#4B5563">${totHist.pax>0?'R$\u00a0'+(totHist.fat/totHist.pax).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—'}</td>
+          <td style="padding:8px 12px;text-align:right;color:#111827">${fN(totAtual.pax)}</td>
+          <td style="padding:8px 12px;text-align:right;color:#111827">${fR(totAtual.fat)}</td>
+          <td style="padding:8px 12px;text-align:right;color:#111827">${totAtual.pax>0?'R$\u00a0'+(totAtual.fat/totAtual.pax).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—'}</td>
+          <td style="padding:8px 12px;text-align:right;color:${totAtual.pax>=totHist.pax?'#15803D':'#B91C1C'}">${totAtual.pax-totHist.pax >= 0 ? '+' : ''}${fN(totAtual.pax-totHist.pax)}</td>
+          <td style="padding:8px 12px;text-align:right;color:${totAtual.fat>=totHist.fat?'#15803D':'#B91C1C'}">${totAtual.fat-totHist.fat >= 0 ? '+' : ''}${fR(totAtual.fat-totHist.fat)}</td>
+          <td style="padding:8px 12px;text-align:right;color:${parseInt(totPct)>=100?'#15803D':parseInt(totPct)>=80?'#B45309':'#B91C1C'}">${totPct}</td>
         </tr></tfoot>
       </table></div>`;
   }
@@ -922,19 +922,19 @@ function rAnalise() {
       const mt = (D.metas||{})[`${ano}-${m}`] || {};
       const mFat = parseFloat(mt.fat||0);
       const pct  = mFat > 0 ? s.fat/mFat*100 : null;
-      const cor  = pct === null ? '#2A2F42' : pct >= 100 ? '#4FC78E' : pct >= 80 ? '#F7C84F' : '#F74F6B';
-      const bg   = pct === null ? '#1A1F2E' : pct >= 100 ? '#0D2E1A' : pct >= 80 ? '#2E2A0D' : '#2E0D0D';
+      const cor  = pct === null ? '#E5E7EB' : pct >= 100 ? '#15803D' : pct >= 80 ? '#B45309' : '#B91C1C';
+      const bg   = pct === null ? '#FFFFFF' : pct >= 100 ? '#F0FDF4' : pct >= 80 ? '#FFFBEB' : '#FEF2F2';
       const revisar = pct !== null && pct >= 100
         ? `<div onclick="event.stopPropagation();revisarMeta('${ano}-${m}','${MESES_NOME[i]}')"
-            style="font-size:9px;background:#4FC78E;color:#000;border-radius:4px;padding:2px 6px;margin-top:4px;cursor:pointer;font-weight:700">
+            style="font-size:9px;background:#15803D;color:#000;border-radius:4px;padding:2px 6px;margin-top:4px;cursor:pointer;font-weight:700">
             ↑ Revisar meta
            </div>` : '';
       return `<div onclick="document.getElementById('an-mes').value='${m}';rAnalise()"
         style="cursor:pointer;background:${bg};border:1px solid ${cor};border-radius:8px;padding:10px 14px;min-width:80px;text-align:center;transition:.2s"
         onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
-        <div style="font-size:11px;color:#8B91A8;margin-bottom:4px">${MESES_NOME[i]}</div>
+        <div style="font-size:11px;color:#4B5563;margin-bottom:4px">${MESES_NOME[i]}</div>
         <div style="font-size:16px;font-weight:700;color:${cor}">${pct !== null ? pct.toFixed(0)+'%' : cx.length > 0 ? cx.length+'ev' : '—'}</div>
-        <div style="font-size:10px;color:#8B91A8;margin-top:2px">${cx.length} evento${cx.length !== 1 ? 's' : ''}</div>
+        <div style="font-size:10px;color:#4B5563;margin-top:2px">${cx.length} evento${cx.length !== 1 ? 's' : ''}</div>
         ${revisar}
       </div>`;
     }).join('');
@@ -970,8 +970,8 @@ function rAnaliseConfig() {
     // Meta sugerida = proporcional ao histórico
     const metaSugerida = (totalHist > 0 && metaAnual > 0) ? (hFat/totalHist*metaAnual).toFixed(2) : '';
     const metaAtual = mt.fat || metaSugerida;
-    return `<tr style="border-bottom:1px solid #1E2333">
-      <td style="padding:8px 12px;color:#E8EAF0;font-weight:500">${MESES_NOME[i]}</td>
+    return `<tr style="border-bottom:1px solid #F9F5F0">
+      <td style="padding:8px 12px;color:#111827;font-weight:500">${MESES_NOME[i]}</td>
       <td style="padding:6px 8px"><input class="inp" type="number" style="width:90px" placeholder="PAX" value="${h.pax||''}"
         onchange="salvarHistorico('${hKey}','pax',this.value)"></td>
       <td style="padding:6px 8px"><input class="inp" type="number" style="width:120px" placeholder="R$" value="${hFat||''}"
@@ -985,7 +985,7 @@ function rAnaliseConfig() {
             onchange="salvarMeta('${mKey}','fat',this.value)">
           ${metaSugerida && !mt.fat ? `<button class="btn-sm" style="font-size:10px;padding:3px 7px;white-space:nowrap" onclick="salvarMeta('${mKey}','fat',${metaSugerida});rAnaliseConfig()" title="Usar sugestão">✓ usar</button>` : ''}
         </div>
-        ${metaSugerida ? `<div style="font-size:10px;color:#8B91A8;margin-top:2px">Sugerido: R$ ${parseFloat(metaSugerida).toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>` : ''}
+        ${metaSugerida ? `<div style="font-size:10px;color:#4B5563;margin-top:2px">Sugerido: R$ ${parseFloat(metaSugerida).toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>` : ''}
       </td>
     </tr>`;
   }).join('');
@@ -1132,7 +1132,7 @@ function rContratos() {
   const tbody = document.getElementById('contratos-body');
   if (!tbody) return;
   if (!lista.length) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#8B91A8;padding:24px">Nenhum contrato encontrado</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#4B5563;padding:24px">Nenhum contrato encontrado</td></tr>';
     return;
   }
   const statCor = { ativo:'tag-blue', concluido:'tag-green', cancelado:'tag-red' };
@@ -1145,7 +1145,7 @@ function rContratos() {
       <td>${fd(c.data)}</td>
       <td style="text-align:center">${c.convidados||'—'}</td>
       <td style="font-size:12px">${c.local||'—'}</td>
-      <td style="font-size:12px;color:#A8ADB8">${c.equipeTexto||'—'}</td>
+      <td style="font-size:12px;color:#4B5563">${c.equipeTexto||'—'}</td>
       <td>${c.opcao ? 'R$ '+c.opcao : '—'}</td>
       <td><span class="tag ${statCor[c.status]||'tag-yellow'}">${c.status||'ativo'}</span></td>
       <td style="white-space:nowrap">

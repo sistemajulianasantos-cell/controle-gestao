@@ -96,7 +96,7 @@ function rCategoriasLista() {
         '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">Mesma categoria escrita de formas diferentes (acento, maiúscula, espaço) — inclui categoria "fantasma" que aparece em algum insumo/ficha/regra mas não está cadastrada: ' +
           dups.map(function(g){ return g.map(function(n){ return '"' + n + '"'; }).join(' = '); }).join(' · ') +
         '</div>' +
-        '<button class="btn-sm" style="background:var(--amber);color:#1a1400;font-weight:700" onclick="unificarCategoriasDuplicadas()">Unificar automaticamente</button>' +
+        '<button class="btn-sm" style="background:var(--amber);color:#fff;font-weight:700" onclick="unificarCategoriasDuplicadas()">Unificar automaticamente</button>' +
       '</div>'
     : '';
 

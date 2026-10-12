@@ -68,8 +68,8 @@ function rOrcLista() {
               ${_orcCriadoTexto(o) ? `<div style="font-size:10px;color:var(--text3);margin-top:2px">${_orcCriadoTexto(o)}</div>` : ''}
             </div>
             <div style="text-align:right">
-              <div style="font-size:10px;color:#4F8EF7;text-transform:uppercase;margin-bottom:2px">Pacote Completo</div>
-              <div style="font-family:var(--mono);font-size:14px;color:#4F8EF7;font-weight:600">${temValor ? fR(r.valorTotal) : '—'}</div>
+              <div style="font-size:10px;color:#C4622D;text-transform:uppercase;margin-bottom:2px">Pacote Completo</div>
+              <div style="font-family:var(--mono);font-size:14px;color:#C4622D;font-weight:600">${temValor ? fR(r.valorTotal) : '—'}</div>
               <div style="font-size:10px;color:var(--text3)">${temValor && r.porPessoa ? fR(r.porPessoa)+' / pessoa' : ''}</div>
             </div>
             <div style="text-align:right">
@@ -276,9 +276,9 @@ function _rOrcRealContent(orc) {
             <tr style="border-bottom:2px solid var(--border2);font-size:10px;text-transform:uppercase;letter-spacing:.3px">
               <th style="padding:8px 10px;text-align:left;font-weight:500;color:var(--text3)">Produto</th>
               <th style="padding:8px 6px;text-align:left;font-weight:500;color:var(--text3)">Cat.</th>
-              <th style="padding:8px 6px;text-align:right;font-weight:600;color:#4F8EF7">Qtd Orc</th>
-              <th style="padding:8px 6px;text-align:right;font-weight:600;color:#4F8EF7">Preço Orc</th>
-              <th style="padding:8px 6px;text-align:right;font-weight:600;color:#4F8EF7">Total Orc</th>
+              <th style="padding:8px 6px;text-align:right;font-weight:600;color:#C4622D">Qtd Orc</th>
+              <th style="padding:8px 6px;text-align:right;font-weight:600;color:#C4622D">Preço Orc</th>
+              <th style="padding:8px 6px;text-align:right;font-weight:600;color:#C4622D">Total Orc</th>
               <th style="padding:8px 6px;text-align:right;font-weight:600;color:var(--green)">Qtd Real</th>
               <th style="padding:8px 6px;text-align:right;font-weight:600;color:var(--green)">Preço Real</th>
               <th style="padding:8px 6px;text-align:right;font-weight:600;color:var(--green)">Total Real</th>
@@ -291,14 +291,14 @@ function _rOrcRealContent(orc) {
               .sort((a,b) => ((b.totalReal||0)-(b.totalOrc||0)) - ((a.totalReal||0)-(a.totalOrc||0)))
               .map(item => {
                 const d = item.totalReal != null ? (item.totalReal||0)-(item.totalOrc||0) : null;
-                const rowBg = d != null && d > 0 ? 'background:#1A0808;' : '';
+                const rowBg = d != null && d > 0 ? 'background:#FEF2F2;' : '';
                 return `
                 <tr style="border-bottom:1px solid var(--border);${rowBg}">
                   <td style="padding:6px 10px;font-weight:500;color:var(--text);max-width:200px">${item.nome}</td>
                   <td style="padding:6px 6px"><span class="badge b-blue" style="font-size:9px">${item.categoria||'—'}</span></td>
-                  <td style="padding:6px 6px;text-align:right;font-family:var(--mono);color:#4F8EF7">${item.qtdOrc??'—'}</td>
-                  <td style="padding:6px 6px;text-align:right;font-family:var(--mono);color:#4F8EF7">${item.precoUnitOrc?fR(item.precoUnitOrc):'—'}</td>
-                  <td style="padding:6px 6px;text-align:right;font-family:var(--mono);font-weight:600;color:#4F8EF7">${item.totalOrc?fR(item.totalOrc):'—'}</td>
+                  <td style="padding:6px 6px;text-align:right;font-family:var(--mono);color:#C4622D">${item.qtdOrc??'—'}</td>
+                  <td style="padding:6px 6px;text-align:right;font-family:var(--mono);color:#C4622D">${item.precoUnitOrc?fR(item.precoUnitOrc):'—'}</td>
+                  <td style="padding:6px 6px;text-align:right;font-family:var(--mono);font-weight:600;color:#C4622D">${item.totalOrc?fR(item.totalOrc):'—'}</td>
                   <td style="padding:4px 6px;text-align:right">
                     <input type="number" value="${item.qtdReal??''}" placeholder="—" min="0" step="0.01"
                       onchange="atualizarItemOrc('${orc.id}','${item.id}','qtdReal',this.value)"
@@ -322,7 +322,7 @@ function _rOrcRealContent(orc) {
               }).join('')}
             <tr style="border-top:2px solid var(--border2);background:var(--bg3);font-weight:700">
               <td colspan="4" style="padding:8px 10px;font-size:11px;color:var(--text3);text-transform:uppercase">Total Geral</td>
-              <td style="padding:8px 6px;text-align:right;font-family:var(--mono);color:#4F8EF7">${fR(totalOrc)}</td>
+              <td style="padding:8px 6px;text-align:right;font-family:var(--mono);color:#C4622D">${fR(totalOrc)}</td>
               <td colspan="2"></td>
               <td style="padding:8px 6px;text-align:right;font-family:var(--mono);color:var(--green)">${totalReal>0?fR(totalReal):'—'}</td>
               <td style="padding:8px 6px;text-align:right;font-family:var(--mono);color:${diff>0?'var(--red)':diff<0?'var(--green)':'var(--text3)'}">
@@ -342,7 +342,7 @@ function _rOrcRealContent(orc) {
         <table style="width:100%;border-collapse:collapse;font-size:12px">
           <thead><tr style="border-bottom:1px solid var(--border2);font-size:10px;text-transform:uppercase">
             <th style="padding:7px 10px;text-align:left;font-weight:500;color:var(--text3)">Categoria</th>
-            <th style="padding:7px 10px;text-align:right;font-weight:600;color:#4F8EF7">Total Orc</th>
+            <th style="padding:7px 10px;text-align:right;font-weight:600;color:#C4622D">Total Orc</th>
             <th style="padding:7px 10px;text-align:right;font-weight:600;color:var(--green)">Total Real</th>
             <th style="padding:7px 10px;text-align:right;font-weight:500;color:var(--text3)">Diferença</th>
             <th style="padding:7px 10px;text-align:right;font-weight:500;color:var(--text3)">% do total orc</th>
@@ -353,7 +353,7 @@ function _rOrcRealContent(orc) {
               const pct = totalOrc > 0 ? ((v.orc/totalOrc)*100).toFixed(0) : 0;
               return `<tr style="border-bottom:1px solid var(--border)">
                 <td style="padding:7px 10px"><span class="badge b-blue" style="font-size:10px">${cat}</span></td>
-                <td style="padding:7px 10px;text-align:right;font-family:var(--mono);color:#4F8EF7">${fR(v.orc)}</td>
+                <td style="padding:7px 10px;text-align:right;font-family:var(--mono);color:#C4622D">${fR(v.orc)}</td>
                 <td style="padding:7px 10px;text-align:right;font-family:var(--mono);color:var(--green)">${v.real>0?fR(v.real):'—'}</td>
                 <td style="padding:7px 10px;text-align:right;font-family:var(--mono);font-weight:600;color:${d>0?'var(--red)':d<0?'var(--green)':'var(--text3)'}">
                   ${v.real>0?(d>=0?'+':'')+fR(d):'—'}
@@ -980,7 +980,7 @@ function rOrcCardapio(orc) {
     <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
         <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">🍹 Selecionar Cardápio</div>
-        <button class="btn-sm" style="margin-left:auto;background:var(--bg3);border:1px solid #4F8EF7;color:#4F8EF7" onclick="orcAplicarSugestaoCardapio('${orc.id}')" title="Aplica de uma vez todos os coquetéis marcados como sugestão deste Tipo de Evento em Comercial → Cálculos do Orçamento">✨ Usar cardápio sugerido</button>
+        <button class="btn-sm" style="margin-left:auto;background:var(--bg3);border:1px solid #C4622D;color:#C4622D" onclick="orcAplicarSugestaoCardapio('${orc.id}')" title="Aplica de uma vez todos os coquetéis marcados como sugestão deste Tipo de Evento em Comercial → Cálculos do Orçamento">✨ Usar cardápio sugerido</button>
       </div>
       <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
         <div style="flex:1;min-width:200px;position:relative">
@@ -1044,7 +1044,7 @@ function rOrcCardapio(orc) {
         </div>
         <div style="margin-top:10px;display:flex;gap:8px">
           <button onclick="orcAplicarCardapio('${orc.id}')"
-            style="background:#4F8EF7;border:none;color:white;border-radius:var(--radius);font-size:12px;padding:8px 20px;cursor:pointer;font-weight:600">⚡ Aplicar ao orçamento</button>
+            style="background:#C4622D;border:none;color:white;border-radius:var(--radius);font-size:12px;padding:8px 20px;cursor:pointer;font-weight:600">⚡ Aplicar ao orçamento</button>
           <button onclick="orcLimparCardapio()"
             style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:var(--radius);font-size:12px;padding:8px 12px;cursor:pointer">✕ Cancelar</button>
         </div>
@@ -1054,12 +1054,12 @@ function rOrcCardapio(orc) {
   const _insCols = 'minmax(0,1fr) 130px 110px 100px 26px';
 
   const insumosHtml = `
-    <div style="background:var(--bg2);border:1px solid var(--border);border-left:3px solid #F97316;border-radius:var(--radius)">
+    <div style="background:var(--bg2);border:1px solid var(--border);border-left:3px solid #C2410C;border-radius:var(--radius)">
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);gap:10px">
-        <span style="font-size:12px;font-weight:700;color:#F97316">🍾 Insumos / Bebidas</span>
+        <span style="font-size:12px;font-weight:700;color:#C2410C">🍾 Insumos / Bebidas</span>
         <div style="display:flex;align-items:center;gap:10px">
 
-          <span style="font-size:13px;font-weight:700;font-family:var(--mono);color:#F97316">${fR(custoInsumos)}</span>
+          <span style="font-size:13px;font-weight:700;font-family:var(--mono);color:#C2410C">${fR(custoInsumos)}</span>
         </div>
       </div>
       ${insumos.length ? `
@@ -1080,7 +1080,7 @@ function rOrcCardapio(orc) {
                 <div>
                   <span style="font-weight:500;color:var(--text)">${ins.nome}</span>
                   ${ins.viaRevenda ? `<span style="font-size:8px;font-weight:600;color:var(--green);background:rgba(34,197,94,.14);padding:1px 6px;border-radius:8px;white-space:nowrap;margin-left:4px" title="Preço final de revenda (${(orc.calcParams&&orc.calcParams.temporada)==='alta'?'Alta':'Baixa'} Temporada) — não recebe margem de segurança/lucro">💲 Revenda</span>` : ''}
-                  ${(ins.coqueteis&&ins.coqueteis.length) ? `<div style="margin-top:2px;display:flex;gap:3px;flex-wrap:wrap">${ins.coqueteis.map(c=>`<span style="font-size:8px;font-weight:600;color:#4F8EF7;background:rgba(79,142,247,.14);padding:1px 6px;border-radius:8px;white-space:nowrap">🍹 ${c}</span>`).join('')}</div>` : ''}
+                  ${(ins.coqueteis&&ins.coqueteis.length) ? `<div style="margin-top:2px;display:flex;gap:3px;flex-wrap:wrap">${ins.coqueteis.map(c=>`<span style="font-size:8px;font-weight:600;color:#C4622D;background:rgba(196,98,45,.14);padding:1px 6px;border-radius:8px;white-space:nowrap">🍹 ${c}</span>`).join('')}</div>` : ''}
                   ${_orcTrocaSelectHtml(ins)}
                 </div>
                 <div style="text-align:right">${typeof _calcInsumoQtdCell==='function' ? _calcInsumoQtdCell(ins) : `<input type="number" value="${ins.qtdGarrafas}" min="0" step="1" onchange="calcUpdateInsumo('${ins.id}','qtdGarrafas',this.value)" style="width:65px;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono)">`}</div>
@@ -1089,7 +1089,7 @@ function rOrcCardapio(orc) {
                     onchange="calcUpdateInsumo('${ins.id}','custoGarrafa',this.value)"
                     style="width:80px;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono)">
                 </div>
-                <div style="text-align:right;font-family:var(--mono);font-weight:700;color:#F97316">${fR(ins.total||0)}</div>
+                <div style="text-align:right;font-family:var(--mono);font-weight:700;color:#C2410C">${fR(ins.total||0)}</div>
                 <div style="text-align:center">
                   <span onclick="calcRemoveInsumo('${ins.id}')" style="cursor:pointer;color:var(--red);font-size:15px;line-height:1" title="Remover">×</span>
                 </div>
@@ -1133,7 +1133,7 @@ function rOrcCardapio(orc) {
               style="width:100%;font-size:11px;padding:5px 7px;background:var(--bg4);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius);font-family:var(--mono)">
           </div>
           <button onclick="calcAddInsumoItem()"
-            style="background:#F97316;border:none;color:white;border-radius:var(--radius);font-size:11px;padding:6px 14px;cursor:pointer;white-space:nowrap;font-weight:600">+ Adicionar</button>
+            style="background:#C2410C;border:none;color:white;border-radius:var(--radius);font-size:11px;padding:6px 14px;cursor:pointer;white-space:nowrap;font-weight:600">+ Adicionar</button>
         </div>
       </div>
     </div>`;
@@ -1660,10 +1660,10 @@ function rOrcServicos(orc) {
   const totalSvc = servicos.reduce((s,v) => s + (v.total||0), 0);
 
   el.innerHTML = `
-    <div style="background:var(--bg2);border:1px solid var(--border);border-left:3px solid #8B5CF6;border-radius:var(--radius)">
+    <div style="background:var(--bg2);border:1px solid var(--border);border-left:3px solid #6D28D9;border-radius:var(--radius)">
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)">
-        <span style="font-size:12px;font-weight:700;color:#8B5CF6">➕ Serviços Opcionais</span>
-        <span style="font-size:13px;font-weight:700;font-family:var(--mono);color:#8B5CF6">${fR(totalSvc)}</span>
+        <span style="font-size:12px;font-weight:700;color:#6D28D9">➕ Serviços Opcionais</span>
+        <span style="font-size:13px;font-weight:700;font-family:var(--mono);color:#6D28D9">${fR(totalSvc)}</span>
       </div>
       ${servicos.length ? `
         <table style="width:100%;border-collapse:collapse;font-size:12px">
@@ -1690,7 +1690,7 @@ function rOrcServicos(orc) {
                     onchange="updateServico('${orc.id}','${svc.id}','precoUnit',this.value)"
                     style="width:85px;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono)">
                 </td>
-                <td style="padding:6px 8px;text-align:right;font-family:var(--mono);font-weight:700;color:#8B5CF6">${fR(svc.total||0)}</td>
+                <td style="padding:6px 8px;text-align:right;font-family:var(--mono);font-weight:700;color:#6D28D9">${fR(svc.total||0)}</td>
                 <td style="padding:6px 8px;text-align:center">
                   <span onclick="removerServico('${orc.id}','${svc.id}')" style="cursor:pointer;color:var(--red);font-size:15px;line-height:1">×</span>
                 </td>
@@ -1728,7 +1728,7 @@ function rOrcServicos(orc) {
               style="width:100%;font-size:11px;padding:5px 7px;background:var(--bg4);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius);font-family:var(--mono)">
           </div>
           <button onclick="addServico('${orc.id}')"
-            style="background:#8B5CF6;border:none;color:white;border-radius:var(--radius);font-size:11px;padding:6px 14px;cursor:pointer;white-space:nowrap;font-weight:600">+ Adicionar</button>
+            style="background:#6D28D9;border:none;color:white;border-radius:var(--radius);font-size:11px;padding:6px 14px;cursor:pointer;white-space:nowrap;font-weight:600">+ Adicionar</button>
         </div>
       </div>
     </div>`;

@@ -678,7 +678,7 @@ function rFichas() {
         (f.variantes ? '<span style="color:var(--text3);font-size:11px">' + f.variantes + '</span>' : '') +
         (faltaMedida ? '<span style="color:var(--amber);font-size:10px" title="Nenhum ingrediente tem medida — edite a ficha e preencha as quantidades">sem medidas</span>' : '') +
         '<div style="margin-left:auto;display:flex;gap:6px">' +
-          '<button class="btn-sm" style="background:#6C63FF" onclick="imprimirFichaTecnicaCoquetel(\'' + f.id + '\')">🖨️ Ficha Técnica</button>' +
+          '<button class="btn-sm" style="background:#6D28D9" onclick="imprimirFichaTecnicaCoquetel(\'' + f.id + '\')">🖨️ Ficha Técnica</button>' +
           '<button class="btn-sm" style="background:var(--blue)" onclick="editarFicha(\'' + f.id + '\')">✏️ Editar</button>' +
           '<button class="btn-sm" style="background:var(--bg3)" onclick="clonarFicha(\'' + f.id + '\')" title="Cria uma nova ficha com os mesmos itens desta, pra você só ajustar o que for diferente">📋 Clonar</button>' +
           '<button class="btn-sm btn-red" onclick="excluirFicha(\'' + f.id + '\')">Excluir</button>' +
@@ -1838,7 +1838,7 @@ function rCopos() {
     var cx     = emb > 1 ? Math.ceil(qtd / emb) : null;
 
     var tags = nF
-      ? fichas.map(function(f){ return '<span style="display:inline-block;margin:1px 2px;font-size:9px;padding:1px 7px;border-radius:8px;background:rgba(79,142,247,.12);border:1px solid rgba(79,142,247,.3);color:#4F8EF7">' + f + '</span>'; }).join('')
+      ? fichas.map(function(f){ return '<span style="display:inline-block;margin:1px 2px;font-size:9px;padding:1px 7px;border-radius:8px;background:rgba(196,98,45,.12);border:1px solid rgba(196,98,45,.3);color:#C4622D">' + f + '</span>'; }).join('')
       : '<span style="font-size:9px;color:var(--text3)">sem ficha</span>';
 
     return '<tr style="border-bottom:1px solid var(--border)">' +
@@ -1848,7 +1848,7 @@ function rCopos() {
       '<td style="padding:8px 12px;text-align:center;font-family:var(--mono);font-size:12px;color:var(--text2)">' + fator.toFixed(1) + '/conv.</td>' +
       '<td style="padding:8px 12px;text-align:center;font-size:11px;color:var(--text3)">' + (emb > 1 ? emb + ' uni/cx' : '—') + '</td>' +
       '<td style="padding:8px 12px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--text2)">' + qtd + ' uni</td>' +
-      '<td style="padding:8px 12px;text-align:right;font-weight:700;color:#4F8EF7;font-family:var(--mono)">' + (cx != null ? cx + ' cx' : '—') + '</td>' +
+      '<td style="padding:8px 12px;text-align:right;font-weight:700;color:#C4622D;font-family:var(--mono)">' + (cx != null ? cx + ' cx' : '—') + '</td>' +
     '</tr>';
   }).join('');
 

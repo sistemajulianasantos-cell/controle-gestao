@@ -171,8 +171,8 @@ function rFestaPendentes() {
           <td style="font-size:11px;padding:10px 12px">${c.convidados||'—'}</td>
           <td style="font-family:var(--mono);font-size:11px;padding:10px 12px">${c.opcao||'—'}</td>
           <td style="padding:10px 12px">
-            <button class="btn-sm" onclick="abrirImporteFechamento('${c.id}')" style="border-color:#1A3D2B;color:#4ADE80">↓ Importar dados</button>
-            <button class="btn-sm" onclick="novoFechamento('${c.id}')" style="border-color:#1A2A3D;color:#60A5FA">✏️ Manual</button>
+            <button class="btn-sm" onclick="abrirImporteFechamento('${c.id}')" style="border-color:#F0FDF4;color:#15803D">↓ Importar dados</button>
+            <button class="btn-sm" onclick="novoFechamento('${c.id}')" style="border-color:#FBEEE6;color:#C4622D">✏️ Manual</button>
           </td>
         </tr>`;
       }).join('')}
@@ -424,11 +424,11 @@ function _initFchImportZone() {
   const zone = document.getElementById('fch-imp-upload-zone');
   if (!zone || zone._initDone) return;
   zone._initDone = true;
-  zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor = '#4F8EF7'; });
-  zone.addEventListener('dragleave', () => { zone.style.borderColor = '#2A2F42'; });
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor = '#C4622D'; });
+  zone.addEventListener('dragleave', () => { zone.style.borderColor = '#E5E7EB'; });
   zone.addEventListener('drop', e => {
     e.preventDefault();
-    zone.style.borderColor = '#2A2F42';
+    zone.style.borderColor = '#E5E7EB';
     if (e.dataTransfer.files[0]) _processarArquivoFechamento(e.dataTransfer.files[0]);
   });
 }
@@ -584,10 +584,10 @@ function _renderPreviewImporteFch(itens) {
         `<div style="display:grid;grid-template-columns:130px 1fr 110px;gap:8px;padding:6px 14px;border-bottom:1px solid var(--border);font-size:11px">
           <span style="color:${_fchCor(it.tipo)};font-weight:600">${_fchLabel(it.tipo)}</span>
           <span style="color:var(--text2)">${it.descricao}</span>
-          <span style="font-family:var(--mono);font-weight:600;color:#FBBF24;text-align:right">${fR(it.valor)}</span>
+          <span style="font-family:var(--mono);font-weight:600;color:#B45309;text-align:right">${fR(it.valor)}</span>
         </div>`
       ).join('')}
-      <div style="padding:10px 14px;text-align:right;font-weight:700;color:#FBBF24;font-family:var(--mono)">Total: ${fR(total)}</div>
+      <div style="padding:10px 14px;text-align:right;font-weight:700;color:#B45309;font-family:var(--mono)">Total: ${fR(total)}</div>
     </div>`;
 }
 
@@ -627,9 +627,9 @@ function confirmarImporteFechamento() {
 
 // ─── CATÁLOGO DE ITENS ────────────────────────────────────────────────────────
 const _CAT_TIPO = {
-  produto: { label: 'Produto',           icon: '🍾', color: '#22C55E' },
-  peca:    { label: 'Peça',              icon: '🥃', color: '#EF4444' },
-  servico: { label: 'Serviço adicional', icon: '⚙️', color: '#8B91A8' },
+  produto: { label: 'Produto',           icon: '🍾', color: '#15803D' },
+  peca:    { label: 'Peça',              icon: '🥃', color: '#B91C1C' },
+  servico: { label: 'Serviço adicional', icon: '⚙️', color: '#4B5563' },
 };
 
 function _fchCatMergeRows() {
@@ -723,7 +723,7 @@ function rFchCadastro() {
         const escNome = item.nome.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
         const isDup = dups.has(item.nome.toLowerCase());
         const dupBadge = isDup
-          ? '<span style="font-size:10px;background:#FBBF2422;color:#FBBF24;border:1px solid #FBBF2455;padding:1px 6px;border-radius:10px;margin-left:6px;vertical-align:middle">⚠️ duplicata</span>'
+          ? '<span style="font-size:10px;background:#B4530922;color:#B45309;border:1px solid #B4530955;padding:1px 6px;border-radius:10px;margin-left:6px;vertical-align:middle">⚠️ duplicata</span>'
           : '';
         const ocBadge = item.ocorrencias > 0
           ? `<span style="font-size:10px;color:var(--text3);margin-left:5px">(${item.ocorrencias}×)</span>` : '';

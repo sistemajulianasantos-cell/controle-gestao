@@ -86,7 +86,7 @@ function rAgenda() {
   };
 
   if (!lista.length) {
-    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#8B91A8;padding:24px">Nenhum evento no período</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#4B5563;padding:24px">Nenhum evento no período</td></tr>';
     ['ag-card-eventos','ag-card-convidados','ag-card-colab','ag-card-viagem'].forEach(id => {
       const el = document.getElementById(id); if(el) el.textContent = '—';
     });
@@ -230,17 +230,17 @@ function rAgenda() {
     const equipeDisplay = ev.equipeTexto || (ev.equipeTotal ? ev.equipeTotal+' colaboradores' : '—');
     const isViagem = ehViagem(ev);
     const tr = document.createElement('tr');
-    tr.style.borderBottom = '1px solid #1E2333';
+    tr.style.borderBottom = '1px solid #F9F5F0';
     if (isViagem) tr.classList.add('tr-viagem');
     tr.innerHTML = `
       <td style="padding:8px 12px">${fd(ev.data)}</td>
       <td style="padding:8px 12px">
         <strong>${ev.nome||'—'}</strong>
-        ${isViagem ? '<span style="background:#F7C84F;color:#000;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:6px">✈ VIAGEM</span>' : ''}
+        ${isViagem ? '<span style="background:#B45309;color:#000;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:6px">✈ VIAGEM</span>' : ''}
       </td>
       <td style="padding:8px 12px">${ev.tipo||'—'}</td>
       <td style="padding:8px 12px;text-align:center">${ev.convidados||'—'}</td>
-      <td style="padding:8px 12px;font-size:12px;color:#8B91A8">${ev.local||'—'}</td>
+      <td style="padding:8px 12px;font-size:12px;color:#4B5563">${ev.local||'—'}</td>
       <td style="padding:8px 12px">${ev.hrInicio||'—'}</td>
       <td style="padding:8px 12px">${ev.hrFim||'—'}</td>
       <td style="padding:8px 12px">${ev.duracao||calcDuracao(ev.hrInicio,ev.hrFim)||'—'}</td>

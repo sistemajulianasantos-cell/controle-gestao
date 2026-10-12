@@ -133,10 +133,10 @@ function _solMapTipoEvento(t) {
 
 function _solCorStatus(status) {
   var s = (status || '').toUpperCase();
-  if (s === 'PENDENTE') return { bg: '#F5A62333', cor: '#F5A623' };
-  if (s === 'ENVIADO') return { bg: '#4F8EF733', cor: '#4F8EF7' };
-  if (s === 'APROVADO') return { bg: '#4FC78E33', cor: '#4FC78E' };
-  if (s === 'RECUSADO') return { bg: '#F74F6B33', cor: '#F74F6B' };
+  if (s === 'PENDENTE') return { bg: '#B4530933', cor: '#B45309' };
+  if (s === 'ENVIADO') return { bg: '#C4622D33', cor: '#C4622D' };
+  if (s === 'APROVADO') return { bg: '#15803D33', cor: '#15803D' };
+  if (s === 'RECUSADO') return { bg: '#B91C1C33', cor: '#B91C1C' };
   return { bg: 'var(--bg3)', cor: 'var(--text3)' };
 }
 
@@ -320,7 +320,7 @@ function _solBuildLista() {
     '</div>' +
 
     (qtdSel > 0 ?
-      '<div style="display:flex;align-items:center;gap:10px;background:#F74F6B1A;border:1px solid var(--red);border-radius:8px;padding:8px 14px;margin-bottom:12px;flex-wrap:wrap">' +
+      '<div style="display:flex;align-items:center;gap:10px;background:#B91C1C1A;border:1px solid var(--red);border-radius:8px;padding:8px 14px;margin-bottom:12px;flex-wrap:wrap">' +
         '<span style="font-size:12px;color:var(--text)">' + qtdSel + ' selecionada(s)</span>' +
         '<button class="btn-sm btn-red" onclick="_solExcluirSelecionados()">🗑️ Excluir selecionadas</button>' +
         '<button class="btn-sm" style="background:var(--bg3)" onclick="_solLimparSelecao()">Cancelar seleção</button>' +
@@ -586,7 +586,7 @@ function _solBuildImportar() {
         '<textarea id="sol-tsv-input" placeholder="Cole aqui o conteúdo da planilha (Tab-separado), com a linha de cabeçalho incluída..." ' +
           'style="width:100%;height:180px;padding:12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;font-family:var(--mono);resize:vertical;box-sizing:border-box"></textarea>' +
         '<div style="display:flex;gap:10px;margin-top:10px;align-items:center;flex-wrap:wrap">' +
-          '<button class="btn" style="background:#4F8EF7;border-color:#4F8EF7;color:#fff;padding:9px 20px" onclick="_solProcessarImportColado()">Processar e salvar</button>' +
+          '<button class="btn" style="background:#C4622D;border-color:#C4622D;color:#fff;padding:9px 20px" onclick="_solProcessarImportColado()">Processar e salvar</button>' +
           '<button class="btn" onclick="document.getElementById(\'sol-tsv-input\').value=\'\'">Limpar campo</button>' +
         '</div>' +
       '</div>' +

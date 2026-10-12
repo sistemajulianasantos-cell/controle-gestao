@@ -57,14 +57,14 @@ var ORC_BLOCOS_ORDEM_PADRAO = ['equipe', 'locais', 'cond', 'desc', 'ci', 'perda'
 // cair numa delas ou ter BLOCO PRÓPRIO (fator.secao === fator.id) — antes
 // toda categoria nova ia pra "Custos variáveis" (ex.: Gelo, 10-01).
 var ORC_SECOES_PADRAO = [
-  { id:'equipe',    label:'👥 Equipe',             cor:'#4F8EF7' },
-  { id:'logistica', label:'🚚 Logística',           cor:'#F7A84F' },
-  { id:'custos',    label:'💸 Custos variáveis',    cor:'#8B5CF6' },
-  { id:'seguro',    label:'🛡️ Seguro',              cor:'#EC4899' },
-  { id:'copos',     label:'🥂 Vasilhames',          cor:'#14B8A6' },
+  { id:'equipe',    label:'👥 Equipe',             cor:'#C4622D' },
+  { id:'logistica', label:'🚚 Logística',           cor:'#B45309' },
+  { id:'custos',    label:'💸 Custos variáveis',    cor:'#6D28D9' },
+  { id:'seguro',    label:'🛡️ Seguro',              cor:'#BE185D' },
+  { id:'copos',     label:'🥂 Vasilhames',          cor:'#0E7490' },
   { id:'extras',    label:'➕ Extras',               cor:'#94A3B8' },
 ];
-var _ORC_CORES_BLOCO_PROPRIO = ['#0EA5E9', '#F43F5E', '#84CC16', '#EAB308', '#A855F7', '#22C55E'];
+var _ORC_CORES_BLOCO_PROPRIO = ['#0E7490', '#B91C1C', '#15803D', '#B45309', '#6D28D9', '#15803D'];
 
 function _orcSecoesCalc() {
   // Nome das seções fixas é editável (Regras do Orçamento → "renomear"),
@@ -445,7 +445,7 @@ function _orcAdicPainelHtml(orc, colab) {
   // Card compacto (mesma altura dos campos de parâmetro): caixa + título à
   // esquerda, valor da regra à direita, detalhe numa linha pequena embaixo.
   var cardTaxa = function(grupo, on, titulo, valor, detalhe) {
-    return '<label style="display:block;margin:0;cursor:pointer;text-transform:none;letter-spacing:0;width:auto;background:var(--bg3);border:1px solid ' + (on ? '#8B5CF6' : 'var(--border2)') + ';border-radius:var(--radius);padding:6px 10px">' +
+    return '<label style="display:block;margin:0;cursor:pointer;text-transform:none;letter-spacing:0;width:auto;background:var(--bg3);border:1px solid ' + (on ? '#6D28D9' : 'var(--border2)') + ';border-radius:var(--radius);padding:6px 10px">' +
       '<div style="display:flex;align-items:center;gap:8px">' +
         '<input type="checkbox"' + (on ? ' checked' : '') + ' onchange="calcSetAdic(\'' + grupo + '\',\'inclui\',this.checked)" style="width:auto;margin:0;cursor:pointer">' +
         '<span style="flex:1;font-size:11px;font-weight:700;color:' + (on ? 'var(--text)' : 'var(--text3)') + ';text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + titulo + '</span>' +
@@ -478,13 +478,13 @@ function _orcAdicPainelHtml(orc, colab) {
       '<div>' + rot('Duração prevista (h)') +
         '<input type="number" min="0" step="0.5" value="' + duracao + '" onchange="calcSetAdic(\'horaExtra\',\'duracao\',this.value)" title="Horas de serviço já incluídas no orçamento — segue a Hora do pedido (cabeçalho); editar aqui muda a Hora também. Sem Hora: padrão da regra, ' + (pad.horaExtra.duracaoPadrao || 0) + 'h" style="' + campoStyle + ';font-family:var(--mono)"></div>' +
       '<div>' + rot('+ Horas extras') +
-        '<input type="number" min="0" step="1" value="' + horas + '" onchange="calcSetAdic(\'horaExtra\',\'horas\',this.value)" style="' + campoStyle + ';font-family:var(--mono);border-color:' + (horas > 0 ? '#8B5CF6' : 'var(--border2)') + '"></div>' +
+        '<input type="number" min="0" step="1" value="' + horas + '" onchange="calcSetAdic(\'horaExtra\',\'horas\',this.value)" style="' + campoStyle + ';font-family:var(--mono);border-color:' + (horas > 0 ? '#6D28D9' : 'var(--border2)') + '"></div>' +
       '<div>' + rot('% do valor por hora') +
         '<select onchange="calcSetAdic(\'horaExtra\',\'pct\',this.value)" style="' + campoStyle + '">' +
           opcoesPct.map(function(o) { return '<option value="' + o + '"' + (o === pctAtual ? ' selected' : '') + '>' + o + '%</option>'; }).join('') +
         '</select></div>' +
       '<div>' + rot('Total de festa') +
-        '<div style="' + campoStyle + ';border-style:dashed;font-family:var(--mono);font-weight:700;color:' + (horas > 0 ? '#8B5CF6' : 'var(--text)') + '" title="Por hora extra: ' + fmt(adic.horaExtra.valorColab) + ' por colaborador + % do valor">' +
+        '<div style="' + campoStyle + ';border-style:dashed;font-family:var(--mono);font-weight:700;color:' + (horas > 0 ? '#6D28D9' : 'var(--text)') + '" title="Por hora extra: ' + fmt(adic.horaExtra.valorColab) + ' por colaborador + % do valor">' +
           (horas > 0 ? duracao + 'h + ' + horas + 'h = ' + totalHoras + 'h' : duracao + 'h') +
         '</div></div>' +
     '</div>' +
@@ -1062,14 +1062,14 @@ function rOrcCalc() {
           ].filter(l => l[1] > 0);
           if (!linhas.length) return '';
           return `<div style="padding:8px 10px;background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.25);border-radius:6px;margin-bottom:12px">
-            <div style="font-size:10px;color:#8B5CF6;margin-bottom:4px">Taxas e adicionais <span style="opacity:.7">(Pacote Completo)</span></div>
-            ${linhas.map(l => `<div style="display:flex;justify-content:space-between;font-size:11px;font-family:var(--mono);color:#8B5CF6"><span>+ ${l[0]}</span><span>${fR(l[1])}</span></div>`).join('')}
+            <div style="font-size:10px;color:#6D28D9;margin-bottom:4px">Taxas e adicionais <span style="opacity:.7">(Pacote Completo)</span></div>
+            ${linhas.map(l => `<div style="display:flex;justify-content:space-between;font-size:11px;font-family:var(--mono);color:#6D28D9"><span>+ ${l[0]}</span><span>${fR(l[1])}</span></div>`).join('')}
           </div>`;
         })()}
 
         <div style="border-top:2px solid var(--border2);padding-top:12px;margin-bottom:10px">
-          <div style="font-size:10px;color:#4F8EF7;margin-bottom:2px">🍹 Pacote Essencial <span style="opacity:.7">(sem bebidas alcoólicas)</span></div>
-          <div style="font-size:22px;font-weight:800;font-family:var(--mono);color:#4F8EF7">${fR(valorTotalEssencial)}</div>
+          <div style="font-size:10px;color:#C4622D;margin-bottom:2px">🍹 Pacote Essencial <span style="opacity:.7">(sem bebidas alcoólicas)</span></div>
+          <div style="font-size:22px;font-weight:800;font-family:var(--mono);color:#C4622D">${fR(valorTotalEssencial)}</div>
         </div>
 
         <div style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:${pax > 0 || custoBebidasAlc > 0 ? '12' : '0'}px">
@@ -1083,9 +1083,9 @@ function rOrcCalc() {
           </div>` : ''}
 
         ${pax > 0 ? `
-          <div style="background:rgba(79,142,247,.1);border:1px solid rgba(79,142,247,.3);border-radius:6px;padding:10px;text-align:center">
-            <div style="font-size:10px;color:#4F8EF7;margin-bottom:4px">${pax} convidados · Por pessoa</div>
-            <div style="font-size:13px;font-family:var(--mono)">Essencial: <strong style="color:#4F8EF7">${fR(porPessoaEssencial)}</strong> &nbsp;·&nbsp; Completo: <strong style="color:var(--green)">${fR(porPessoa)}</strong></div>
+          <div style="background:rgba(196,98,45,.1);border:1px solid rgba(196,98,45,.3);border-radius:6px;padding:10px;text-align:center">
+            <div style="font-size:10px;color:#C4622D;margin-bottom:4px">${pax} convidados · Por pessoa</div>
+            <div style="font-size:13px;font-family:var(--mono)">Essencial: <strong style="color:#C4622D">${fR(porPessoaEssencial)}</strong> &nbsp;·&nbsp; Completo: <strong style="color:var(--green)">${fR(porPessoa)}</strong></div>
           </div>` : ''}
       </div>
 
@@ -1112,11 +1112,11 @@ function rOrcCalc() {
           return `
             <div style="margin-bottom:8px">
               <div style="display:flex;justify-content:space-between;margin-bottom:3px">
-                <span style="font-size:10px;color:#F97316">Insumos / Bebidas</span>
+                <span style="font-size:10px;color:#C2410C">Insumos / Bebidas</span>
                 <span style="font-size:10px;font-family:var(--mono);color:var(--text3)">${fR(custoInsumos)} · ${pct}%</span>
               </div>
               <div style="height:4px;background:var(--bg3);border-radius:2px">
-                <div style="width:${pct}%;height:4px;background:#F97316;border-radius:2px"></div>
+                <div style="width:${pct}%;height:4px;background:#C2410C;border-radius:2px"></div>
               </div>
             </div>`;
         })() : ''}
@@ -1130,19 +1130,19 @@ function rOrcCalc() {
   // pra lá). Só aparece seção pra categoria que realmente tem item aplicado
   // neste orçamento.
   const CAT_COR_INSUMO = {
-    'BEBIDAS ALCOÓLICAS': '#F97316',
-    'BEBIDAS SEM ÁLCOOL':  '#FB923C',
-    'COPOS E TAÇAS':       '#06B6D4',
-    'HORTIFRUTI':          '#22C55E',
-    'ESPECIARIAS':         '#D946EF',
-    'MIX ARTESANAL':       '#F43F5E',
-    'PRODUÇÃO':            '#84CC16',
-    'XAROPES':             '#A855F7',
-    'GELO':                '#38BDF8',
+    'BEBIDAS ALCOÓLICAS': '#C2410C',
+    'BEBIDAS SEM ÁLCOOL':  '#C2410C',
+    'COPOS E TAÇAS':       '#0E7490',
+    'HORTIFRUTI':          '#15803D',
+    'ESPECIARIAS':         '#BE185D',
+    'MIX ARTESANAL':       '#B91C1C',
+    'PRODUÇÃO':            '#15803D',
+    'XAROPES':             '#6D28D9',
+    'GELO':                '#0E7490',
     'DESCARTÁVEIS':        '#64748B',
     'MATERIAL':            '#78716C',
     'MATERIAL (ESPECÍFICO)': '#78716C',
-    'KIT BARTENDER':       '#EAB308',
+    'KIT BARTENDER':       '#B45309',
   };
   // Agrupa pela categoria do Cadastro de Insumos (mesma da aba Cardápio)
   const insumosPorCat = {};
@@ -1160,8 +1160,8 @@ function rOrcCalc() {
   const _etiqueta = (txt, cor, bg, titulo) => `<span title="${_escI(titulo || '')}" style="font-size:9px;font-weight:600;color:${cor};background:${bg};padding:1px 6px;border-radius:8px;white-space:nowrap">${_escI(txt)}</span>`;
   const _origemHtml = ins => {
     const tags = [];
-    if (ins.autoGlobal) tags.push(_etiqueta('fixo', '#8B5CF6', 'rgba(139,92,246,.14)', 'Entra sempre — regra em Cálculos do Orçamento → Regras do Orçamento'));
-    (ins.coqueteis || []).forEach(c => tags.push(_etiqueta(c, '#4F8EF7', 'rgba(79,142,247,.14)', 'Vem do coquetel ' + c)));
+    if (ins.autoGlobal) tags.push(_etiqueta('fixo', '#6D28D9', 'rgba(139,92,246,.14)', 'Entra sempre — regra em Cálculos do Orçamento → Regras do Orçamento'));
+    (ins.coqueteis || []).forEach(c => tags.push(_etiqueta(c, '#C4622D', 'rgba(196,98,45,.14)', 'Vem do coquetel ' + c)));
     if (!ins.autoGlobal && !(ins.coqueteis || []).length) tags.push(_etiqueta('manual', 'var(--text3)', 'var(--bg3)', 'Adicionado à mão na aba Cardápio'));
     if (ins.viaRevenda) tags.push(_etiqueta('revenda', 'var(--green)', 'rgba(34,197,94,.14)', 'Preço final de revenda — não recebe margem'));
     if (ins.manualQtd || ins.manualPreco) tags.push(_etiqueta('ajustado à mão', 'var(--amber)', 'rgba(247,168,79,.14)', 'Valor que você mudou neste orçamento — o recálculo automático não mexe') +
@@ -1176,7 +1176,7 @@ function rOrcCalc() {
     const semValorItem = i => (typeof _orcInsumoSemValor === 'function') && _orcInsumoSemValor(i);
     const itensCobrados = itensCat.filter(i => !semValorItem(i));
     const totalCat  = itensCobrados.reduce((s, i) => s + (i.total || 0), 0);
-    const cor       = CAT_COR_INSUMO[cat] || '#F97316';
+    const cor       = CAT_COR_INSUMO[cat] || '#C2410C';
     const semValor  = !itensCobrados.length && (typeof _orcCatSemValorDireto === 'function') && _orcCatSemValorDireto(cat);
     const motivo    = (typeof _orcMotivoSemValor === 'function') ? _orcMotivoSemValor(cat) : 'sem valor no orçamento';
 

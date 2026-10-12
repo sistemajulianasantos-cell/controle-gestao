@@ -142,17 +142,17 @@ function rFornecedores(){
     const pixCell = f.pix
       ? `<td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${f.pix}">
            <span style="color:var(--text2)">${f.pix.length>18?f.pix.slice(0,18)+'…':f.pix}</span>
-           <button onclick="_copiarTexto('${f.pix.replace(/'/g,"\\'")}',this)" style="background:none;border:none;color:#4F8EF7;cursor:pointer;font-size:11px;padding:0 3px" title="Copiar">⎘</button>
+           <button onclick="_copiarTexto('${f.pix.replace(/'/g,"\\'")}',this)" style="background:none;border:none;color:#C4622D;cursor:pointer;font-size:11px;padding:0 3px" title="Copiar">⎘</button>
          </td>`
       : `<td style="color:var(--text3);font-size:11px">—</td>`;
     const barCell = f.codBarras
       ? `<td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${f.codBarras}">
            <span style="color:var(--text2)">${f.codBarras.length>16?f.codBarras.slice(0,16)+'…':f.codBarras}</span>
-           <button onclick="_copiarTexto('${f.codBarras.replace(/'/g,"\\'")}',this)" style="background:none;border:none;color:#4F8EF7;cursor:pointer;font-size:11px;padding:0 3px" title="Copiar">⎘</button>
+           <button onclick="_copiarTexto('${f.codBarras.replace(/'/g,"\\'")}',this)" style="background:none;border:none;color:#C4622D;cursor:pointer;font-size:11px;padding:0 3px" title="Copiar">⎘</button>
          </td>`
       : `<td style="color:var(--text3);font-size:11px">—</td>`;
     const catTag = f.categoria
-      ? `<span class="tag" style="background:#2A2F42;color:#CDD3E3;border:none;font-size:10px">${f.categoria}</span>`
+      ? `<span class="tag" style="background:#E5E7EB;color:#374151;border:none;font-size:10px">${f.categoria}</span>`
       : `<span style="color:var(--text3);font-size:11px">—</span>`;
     return `<tr>
       <td style="width:32px;text-align:center"><input type="checkbox" class="forn-cb" data-nome="${f.nome.replace(/"/g,'&quot;')}" onchange="_fornAtualizarBulkBar()"></td>
@@ -165,7 +165,7 @@ function rFornecedores(){
       <td><span class="badge b-blue">${compras} lançamento(s)</span></td>
       <td style="white-space:nowrap">
         <button class="btn-sm" onclick="abrirEditForn('${nomeEsc}')">✏️</button>
-        <button class="btn-sm" style="background:#3b1a1a;color:#f87171;border:1px solid #7f1d1d;margin-left:4px" onclick="excluirForn('${nomeEsc}')" title="Excluir">🗑</button>
+        <button class="btn-sm" style="background:#FEF2F2;color:#B91C1C;border:1px solid #FECACA;margin-left:4px" onclick="excluirForn('${nomeEsc}')" title="Excluir">🗑</button>
       </td>
     </tr>`;
   }).join('')||`<tr><td colspan="9" style="color:var(--text3);text-align:center;padding:16px">Nenhum fornecedor cadastrado</td></tr>`;

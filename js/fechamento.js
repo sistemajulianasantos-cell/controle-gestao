@@ -3,14 +3,14 @@
 if (!D.fechamentos) D.fechamentos = [];
 
 const TIPOS_FCH = [
-  { id: 'produto',      label: 'Produto',           cor: '#22C55E'      },
+  { id: 'produto',      label: 'Produto',           cor: '#15803D'      },
   { id: 'peca',         label: 'Peça',              cor: 'var(--red)'   },
-  { id: 'servico',      label: 'Serviço adicional', cor: '#FBBF24'      },
+  { id: 'servico',      label: 'Serviço adicional', cor: '#B45309'      },
   // tipos antigos exibem com o mesmo label dos novos
-  { id: 'bebida_extra', label: 'Produto',           cor: '#22C55E'      },
+  { id: 'bebida_extra', label: 'Produto',           cor: '#15803D'      },
   { id: 'quebra',       label: 'Peça',              cor: 'var(--red)'   },
-  { id: 'hora_extra',   label: 'Serviço adicional', cor: '#FBBF24'      },
-  { id: 'adicional',    label: 'Serviço adicional', cor: '#FBBF24'      },
+  { id: 'hora_extra',   label: 'Serviço adicional', cor: '#B45309'      },
+  { id: 'adicional',    label: 'Serviço adicional', cor: '#B45309'      },
 ];
 
 function _fchNormTipo(tipo) {
@@ -98,7 +98,7 @@ function _fchDetalheGrid(itens, colspan) {
       <span style="color:var(--text2)">${p.produto}</span>
       <span style="font-family:var(--mono);text-align:right;color:var(--text2)">${p.qtd != null ? p.qtd : '—'}</span>
       <span style="font-family:var(--mono);text-align:right;color:var(--text2)">${p.valorUnit != null ? fR(p.valorUnit) : '—'}</span>
-      <span style="font-family:var(--mono);font-weight:600;color:#FBBF24;text-align:right">${fR(p.valor)}</span>
+      <span style="font-family:var(--mono);font-weight:600;color:#B45309;text-align:right">${fR(p.valor)}</span>
     </div>`;
   }).join('') || '<div style="padding:10px 14px;font-size:11px;color:var(--text3)">Nenhum item lançado</div>';
   return header + rows;
@@ -174,9 +174,9 @@ function rFechamentos() {
     tr.innerHTML = `
       <td style="width:24px;font-size:12px;color:var(--text3);text-align:center;user-select:none" id="${uid}-arrow">▶</td>
       <td style="font-size:11px;color:var(--text3);white-space:nowrap">${fd(f.dataEvento) || '—'}</td>
-      <td><strong>${f.eventoNome || '—'}</strong><div style="font-size:10px;font-weight:400;color:var(--text3)">${f.clienteNome || ''}${f._orfao ? ' <span style="color:#F87171">(lançamento antigo)</span>' : ''}</div></td>
+      <td><strong>${f.eventoNome || '—'}</strong><div style="font-size:10px;font-weight:400;color:var(--text3)">${f.clienteNome || ''}${f._orfao ? ' <span style="color:#B91C1C">(lançamento antigo)</span>' : ''}</div></td>
       <td style="font-size:11px;color:var(--text3)">${(f.itens || []).length} item${(f.itens || []).length !== 1 ? 's' : ''}</td>
-      <td style="font-family:var(--mono);font-weight:700;color:#FBBF24">${fR(f.totalExtras)}</td>
+      <td style="font-family:var(--mono);font-weight:700;color:#B45309">${fR(f.totalExtras)}</td>
       <td>${statusTag}</td>
       <td onclick="event.stopPropagation()">
         ${f.status === 'pendente'
@@ -322,7 +322,7 @@ function _rFchItens() {
         <span style="color:var(--text2)">${p.produto}</span>
         <span style="font-family:var(--mono);text-align:right;color:var(--text2)">${p.qtd != null ? p.qtd : '—'}</span>
         <span style="font-family:var(--mono);text-align:right;color:var(--text2)">${p.valorUnit != null ? fR(p.valorUnit) : '—'}</span>
-        <span style="font-family:var(--mono);font-weight:600;color:#FBBF24;text-align:right">${fR(p.valor)}</span>
+        <span style="font-family:var(--mono);font-weight:600;color:#B45309;text-align:right">${fR(p.valor)}</span>
         <span style="cursor:pointer;color:var(--red);font-size:16px;text-align:center;line-height:1" onclick="_fchItens.splice(${idx},1);_rFchItens()">×</span>
       </div>`;
     }).join('');
@@ -677,7 +677,7 @@ function rFestaFechamentos() {
     // Status tag
     let statusTag;
     if (!fch) {
-      statusTag = '<span class="tag" style="background:#1A1E2E;color:#8B91A8">Pendente fechamento</span>';
+      statusTag = '<span class="tag" style="background:#FFFFFF;color:#4B5563">Pendente fechamento</span>';
     } else if (!fch.totalExtras) {
       statusTag = '<span class="tag tag-green">Sem cobrança</span>';
     } else if (fch.status === 'pago') {
@@ -692,7 +692,7 @@ function rFestaFechamentos() {
     // Ações
     let acoes;
     if (!fch) {
-      acoes = `<button class="btn-sm" onclick="event.stopPropagation();novoFechamento('${c.id}')" style="border-color:#1A2A3D;color:#60A5FA">+ Fechamento</button>`;
+      acoes = `<button class="btn-sm" onclick="event.stopPropagation();novoFechamento('${c.id}')" style="border-color:#FBEEE6;color:#C4622D">+ Fechamento</button>`;
     } else {
       const btnPag = fch.status === 'pendente'
         ? `<button class="btn-sm btn-green" onclick="event.stopPropagation();marcarFechamentoPago('${fch.id}')">Recebido</button>`
@@ -712,7 +712,7 @@ function rFestaFechamentos() {
       </td>
       <td style="font-family:var(--mono);font-size:11px;color:${valProd ? 'var(--green)' : 'var(--text3)'}">${valProd ? fR(valProd) : '—'}</td>
       <td style="font-family:var(--mono);font-size:11px;color:${valQbr ? 'var(--red)' : 'var(--text3)'}">${valQbr ? fR(valQbr) : '—'}</td>
-      <td style="font-family:var(--mono);font-size:11px;font-weight:${valExtras ? 700 : 400};color:${valExtras ? '#FBBF24' : 'var(--text3)'}">
+      <td style="font-family:var(--mono);font-size:11px;font-weight:${valExtras ? 700 : 400};color:${valExtras ? '#B45309' : 'var(--text3)'}">
         ${valExtras ? fR(valExtras) : '—'}
       </td>
       <td style="font-family:var(--mono);font-size:12px;font-weight:700;color:${fch&&fch.totalExtras?'var(--text)':'var(--text3)'}">
