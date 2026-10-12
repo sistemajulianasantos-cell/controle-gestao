@@ -181,6 +181,32 @@ select option{background:#fff;color:var(--text)}
 .card-viagem-ativo{background:#FFFBEB;border-color:#D97706!important;}
 .card-viagem-val{color:#B45309}
 
+/* ── MODO ESCURO (opcional, botão no topo) ─────────────────────────────── */
+body.dark-mode{
+  --bg:#0F1117;--bg2:#181B24;--bg3:#1E2230;--bg4:#252A3A;
+  --border:#2A2F42;--border2:#353C55;
+  --text:#E8EAF0;--text2:#A3A9BE;--text3:#6B7390;
+  --blue:#E07A45;--blue-dim:#6B3A1E;--blue-bg:#2A1A10;
+  --green:#3DDC84;--green-dim:#1A5C38;--green-bg:#0A2818;
+  --red:#F7625A;--red-dim:#6B2420;--red-bg:#2D0F0D;
+  --amber:#F7C35A;--amber-dim:#6B4F20;--amber-bg:#2D1F0D;
+  --purple:#A78BFA;--purple-dim:#3D2878;--purple-bg:#1A0F38;
+  --teal:#2DD4BF;
+  --verde-escuro:#1A2419;
+  color-scheme:dark;
+}
+body.dark-mode input,body.dark-mode select,body.dark-mode textarea{background:var(--bg3)}
+body.dark-mode select option{background:var(--bg3)}
+body.dark-mode .sec,body.dark-mode .card,body.dark-mode .period-bar,body.dark-mode .festa-card,body.dark-mode .modal{box-shadow:none}
+body.dark-mode .modal-overlay{background:rgba(0,0,0,.7)}
+body.dark-mode .tr-viagem{background:#1A1800!important}
+body.dark-mode .card-viagem-ativo{background:#2E2A0D;border-color:#F7C84F!important}
+body.dark-mode .card-viagem-val{color:#F7C84F}
+body.dark-mode img[src*="logo-black"]{filter:invert(1)}
+/* Botão Claro/Escuro */
+.theme-toggle{background:none;border:1px solid var(--border);border-radius:var(--radius);padding:5px 10px;cursor:pointer;font-size:12px;color:var(--text2);transition:all .15s;font-family:var(--font)}
+.theme-toggle:hover{border-color:var(--border2);color:var(--text)}
+
 /* ── IMPRESSÃO ──────────────────────────────────────────────────────────── */
 @media print{
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact;

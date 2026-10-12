@@ -101,19 +101,23 @@ function go(page){
   pageRenders[page]&&pageRenders[page]();
 }
 function toggleNavGroup(h){h.closest('.nav-group').classList.toggle('open');}
+// Tema: claro (cores do Sistema Separação) é o padrão; escuro é opcional e
+// fica salvo neste navegador. Chave nova ('tema') pra não herdar a escolha
+// do tema antigo, quando o escuro era o padrão.
 function toggleTheme(){
-  const isLight = document.body.classList.toggle('light-mode');
-  localStorage.setItem('theme', isLight ? 'light' : 'dark');
-  const btn = document.getElementById('theme-toggle-btn');
-  if (btn) btn.textContent = isLight ? '🌙 Escuro' : '☀ Claro';
+  const escuro = document.body.classList.toggle('dark-mode');
+  try { localStorage.setItem('tema', escuro ? 'escuro' : 'claro'); } catch (e) {}
+  _atualizarBotaoTema();
 }
 function applyTheme(){
-  const saved = localStorage.getItem('theme');
-  if (saved === 'light') {
-    document.body.classList.add('light-mode');
-    const btn = document.getElementById('theme-toggle-btn');
-    if (btn) btn.textContent = '🌙 Escuro';
-  }
+  let salvo = null;
+  try { salvo = localStorage.getItem('tema'); } catch (e) {}
+  document.body.classList.toggle('dark-mode', salvo === 'escuro');
+  _atualizarBotaoTema();
+}
+function _atualizarBotaoTema(){
+  const btn = document.getElementById('theme-toggle-btn');
+  if (btn) btn.textContent = document.body.classList.contains('dark-mode') ? 'Modo claro' : 'Modo escuro';
 }
 let _alertHideTimer = null;
 function alert2(msg,t='success'){

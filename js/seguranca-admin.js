@@ -44,8 +44,8 @@ function _segRender() {
     const e = _segEntry(hash);
     const souEu = typeof senhaHashAtual !== 'undefined' && hash === senhaHashAtual;
     const mfaTag = e.mfa
-      ? `<span style="background:#F0FDF4;color:#15803D;padding:2px 8px;border-radius:4px;font-size:11px">MFA ativo</span>`
-      : `<span style="background:#FFFBEB;color:#B45309;padding:2px 8px;border-radius:4px;font-size:11px">Sem MFA</span>`;
+      ? `<span style="background:var(--green-bg);color:var(--green);padding:2px 8px;border-radius:4px;font-size:11px">MFA ativo</span>`
+      : `<span style="background:var(--amber-bg);color:var(--amber);padding:2px 8px;border-radius:4px;font-size:11px">Sem MFA</span>`;
     const btnMfa = e.mfa
       ? `<button class="btn btn-sm" onclick="_segRemoverMFA('${hash}')">Desativar MFA</button>`
       : `<button class="btn btn-sm" onclick="_segIniciarSetupMFA('${hash}')">Ativar MFA</button>`;
@@ -65,7 +65,7 @@ function _segRender() {
         <div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">
           <button class="btn btn-sm" onclick="_segAbrirTrocaSenha('${hash}')">Trocar senha</button>
           ${btnMfa}
-          <button class="btn btn-sm" style="color:#B91C1C;border-color:#B91C1C40" onclick="_segExcluirSenha('${hash}')">Excluir</button>
+          <button class="btn btn-sm" style="color:var(--red);border-color:#B91C1C40" onclick="_segExcluirSenha('${hash}')">Excluir</button>
         </div>
       </td>
     </tr>`;
@@ -155,7 +155,7 @@ function _segRender() {
               onkeydown="if(event.key==='Enter')_segConfirmarTrocaSenha()"
               style="${campo};width:100%;padding:8px 10px;box-sizing:border-box">
           </div>
-          <div id="seg-troca-erro" style="color:#B91C1C;font-size:12px;min-height:16px;margin-bottom:8px"></div>
+          <div id="seg-troca-erro" style="color:var(--red);font-size:12px;min-height:16px;margin-bottom:8px"></div>
           <div class="form-actions">
             <button class="btn" onclick="closeM('seg-troca-modal')">Cancelar</button>
             <button class="btn btn-primary" onclick="_segConfirmarTrocaSenha()">Salvar nova senha</button>
@@ -185,7 +185,7 @@ function _segRender() {
             <input id="seg-mfa-verify-input" type="text" inputmode="numeric" maxlength="6" placeholder="000000"
               style="width:100%;padding:10px;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:20px;letter-spacing:6px;text-align:center;box-sizing:border-box"
               onkeydown="if(event.key==='Enter')_segConfirmarMFA()">
-            <div id="seg-mfa-erro" style="color:#B91C1C;font-size:12px;min-height:16px;margin-top:4px"></div>
+            <div id="seg-mfa-erro" style="color:var(--red);font-size:12px;min-height:16px;margin-top:4px"></div>
           </div>
           <div class="form-actions">
             <button class="btn" onclick="closeM('seg-mfa-modal')">Cancelar</button>
@@ -204,7 +204,7 @@ function _segValidarInput(inputId, reqId) {
   if (!req || !senha) { if (req) req.textContent = ''; return; }
   const erros = validarPoliticaSenha(senha);
   if (erros.length === 0) {
-    req.style.color = '#15803D';
+    req.style.color = 'var(--green)';
     req.textContent = 'Senha válida';
   } else {
     req.style.color = '';

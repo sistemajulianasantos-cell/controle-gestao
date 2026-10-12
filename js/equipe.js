@@ -116,7 +116,7 @@ function rEquipeLista() {
     </div>
 
     ${anivs.length ? `
-    <div style="background:#FFFBEB;border:1px solid var(--amber);border-radius:var(--radius);padding:10px 16px;margin-bottom:12px;font-size:12px;color:var(--amber)">
+    <div style="background:var(--amber-bg);border:1px solid var(--amber);border-radius:var(--radius);padding:10px 16px;margin-bottom:12px;font-size:12px;color:var(--amber)">
       🎂 <strong>Aniversariantes de ${['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][mes]}:</strong>
       ${anivs.map(c=>`<strong>${c.nome.split(' ')[0]}</strong> (${fd(c.nascimento)})`).join(' · ')}
     </div>` : ''}
@@ -359,7 +359,7 @@ function rEscalaEventos() {
       return (iA<0?99:iA)-(iB<0?99:iB);
     });
     const nomeEsc = (c.nome||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
-    const coresLabel = { 'Head Bartender':'#6D28D9','Coordenador':'#B45309','Bartender':'#C4622D','Bar Back':'#15803D','Copeiro':'#BE185D' };
+    const coresLabel = { 'Head Bartender':'var(--purple)','Coordenador':'var(--amber)','Bartender':'var(--blue)','Bar Back':'var(--green)','Copeiro':'#BE185D' };
 
     const corpo = !escalas.length
       ? `<div style="padding:10px 14px;color:var(--text3);font-size:12px">Nenhum colaborador escalado</div>`
@@ -392,7 +392,7 @@ function rEscalaEventos() {
                     </td>
                     <td style="padding:5px 10px;color:${cor};font-size:11px">${cargo}</td>
                     <td style="padding:5px 10px;color:${col.nivel==='Novato'?'var(--amber)':'var(--green)'};font-size:11px">${col.nivel||'—'}</td>
-                    <td style="padding:5px 10px;font-family:monospace;font-size:10px;color:#15803D">${col.chave_pix||'—'}</td>
+                    <td style="padding:5px 10px;font-family:monospace;font-size:10px;color:var(--green)">${col.chave_pix||'—'}</td>
                   </tr>`;
                 }).join('')}
               </tbody>
@@ -704,7 +704,7 @@ function calcularFolhaPagamento() {
                 <span style="font-weight:700;font-size:12px;color:${l.totalEditado?'var(--amber)':'var(--green)'}">${fmt(l.total)}</span>
               </div>
             </td>
-            <td style="padding:7px 10px;text-align:center;font-size:10px;color:#15803D;font-family:monospace">${l.col.chave_pix||'—'}</td>
+            <td style="padding:7px 10px;text-align:center;font-size:10px;color:var(--green);font-family:monospace">${l.col.chave_pix||'—'}</td>
           </tr>`).join('')}
         </tbody>
         <tfoot>
@@ -1044,10 +1044,10 @@ function rEscalaEvento() {
         // ── VIEW IMAGEM ─────────────────────────────────────────────────────
         if (_escalaViewMode === 'imagem') {
           const coresLabel = {
-            'Coordenador':    '#B45309',
-            'Head Bartender': '#6D28D9',
-            'Bartender':      '#C4622D',
-            'Bar Back':       '#15803D',
+            'Coordenador':    'var(--amber)',
+            'Head Bartender': 'var(--purple)',
+            'Bartender':      'var(--blue)',
+            'Bar Back':       'var(--green)',
             'Copeiro':        '#BE185D',
           };
           // Agrupa escalados por cargo mantendo ordem
@@ -1124,7 +1124,7 @@ function rEscalaEvento() {
                    <td style="padding:7px 10px">${cargoSelect(e.id, e.cargo||col.cargo||'')}</td>
                    <td style="padding:7px 10px;color:${col.nivel==='Novato'?'var(--amber)':'var(--green)'}">${col.nivel||'—'}</td>
                    <td style="padding:7px 10px;text-align:center;font-size:10px;color:var(--text2);font-family:monospace">${col.cpf||'—'}</td>
-                   <td style="padding:7px 10px;text-align:center;font-size:10px;color:#15803D;font-family:monospace">${col.chave_pix||'—'}</td>
+                   <td style="padding:7px 10px;text-align:center;font-size:10px;color:var(--green);font-family:monospace">${col.chave_pix||'—'}</td>
                    <td style="padding:7px 10px;text-align:center">
                      <button class="btn-sm btn-red" onclick="removerEscala('${e.id}');equipeView='evento-detalhe';setTimeout(rEscalaEvento,80)" title="Remover">✕</button>
                    </td>
@@ -1304,13 +1304,13 @@ function _renderColabEventoOpcoes(busca) {
     : _colabEventoOpcoes;
 
   if (!filtrados.length) {
-    opcoes.innerHTML = '<div style="padding:10px 12px;color:#4B5563;font-size:12px">Nenhum resultado</div>';
+    opcoes.innerHTML = '<div style="padding:10px 12px;color:var(--text2);font-size:12px">Nenhum resultado</div>';
   } else {
     opcoes.innerHTML = filtrados.map(c =>
       `<div data-id="${c.id}" data-val="${c.inputVal.replace(/"/g,'&quot;')}"
         onmousedown="event.preventDefault();_selecionarColabEvento(this.dataset.id,this.dataset.val)"
-        onmouseover="this.style.background='#FFFFFF'" onmouseout="this.style.background=''"
-        style="padding:8px 12px;cursor:pointer;font-size:13px;color:#111827;border-bottom:1px solid #FFFFFF"
+        onmouseover="this.style.background='var(--bg2)'" onmouseout="this.style.background=''"
+        style="padding:8px 12px;cursor:pointer;font-size:13px;color:var(--text);border-bottom:1px solid var(--bg2)"
       >${c.label}</div>`
     ).join('');
   }
@@ -1369,8 +1369,8 @@ function eqAtualizarInicial(nome) {
 function eqToggleCargo(cb) {
   const lbl = document.getElementById('eq-lbl-' + cb.id.replace('eq-m-cargo-',''));
   if (lbl) {
-    lbl.style.borderColor   = cb.checked ? '#C4622D' : '';
-    lbl.style.background    = cb.checked ? '#FBEEE6' : '';
+    lbl.style.borderColor   = cb.checked ? 'var(--blue)' : '';
+    lbl.style.background    = cb.checked ? 'var(--blue-bg)' : '';
     lbl.style.color         = cb.checked ? '#9A4A20' : '';
   }
 }
@@ -1683,7 +1683,7 @@ function rEquipeRegras() {
           <tr style="border-bottom:2px solid var(--border2)">
             <th style="${thStyle}"></th>
             ${CARGOS_PAGAMENTO.map(()=>`
-              <th style="${thStyle}border-left:1px solid var(--border2);color:#15803D">Novato</th>
+              <th style="${thStyle}border-left:1px solid var(--border2);color:var(--green)">Novato</th>
               <th style="${thStyle}color:#9A4A20">Antigo</th>`).join('')}
           </tr>
         </thead>
@@ -1710,7 +1710,7 @@ function rEquipeRegras() {
   const hevNhN  = (hev.naHora||{}).novato;      const hevNhA  = (hev.naHora||{}).antigo;
 
   const _thHE = txt => `<th style="${thStyle}text-align:left;min-width:220px">${txt}</th>`;
-  const _thNv = txt => `<th style="${thStyle}text-align:center;color:#15803D;min-width:110px">${txt}</th>`;
+  const _thNv = txt => `<th style="${thStyle}text-align:center;color:var(--green);min-width:110px">${txt}</th>`;
   const _thAt = txt => `<th style="${thStyle}text-align:center;color:#9A4A20;min-width:110px">${txt}</th>`;
 
   const tabelaHE = `
@@ -1813,7 +1813,7 @@ function rEquipeRegras() {
       </div>
       <div style="padding:12px 14px">
         <div style="font-size:11px;color:var(--text3);margin-bottom:10px">
-          Somente leitura — para alterar, use o <b>Cadastro → Cargos</b>. <span style="color:#15803D">■</span> Novato &nbsp;&nbsp;
+          Somente leitura — para alterar, use o <b>Cadastro → Cargos</b>. <span style="color:var(--green)">■</span> Novato &nbsp;&nbsp;
           <span style="color:#9A4A20">■</span> Antigo / Experiente
         </div>
         ${tabelaBase}
@@ -2139,7 +2139,7 @@ function rEquipePagamentos() {
                     <td style="padding:6px 10px;text-align:right;font-weight:700;color:var(--green)">
                       ${p.motivoAjuste?`<span title="${p.motivoAjuste.replace(/"/g,'&quot;')}" style="cursor:help;font-size:11px;margin-right:3px">💬</span>`:''}${fmtR(p.total)}
                     </td>
-                    <td style="padding:6px 10px;text-align:center;font-size:10px;color:#15803D;font-family:monospace">${p.chave_pix||'—'}</td>
+                    <td style="padding:6px 10px;text-align:center;font-size:10px;color:var(--green);font-family:monospace">${p.chave_pix||'—'}</td>
                     <td style="padding:6px 10px;text-align:center">
                       <button onclick="marcarPagamentoPago('${p.id}')"
                         style="padding:3px 10px;border-radius:var(--radius);border:1px solid;font-size:10px;cursor:pointer;

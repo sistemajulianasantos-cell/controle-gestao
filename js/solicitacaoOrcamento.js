@@ -586,7 +586,7 @@ function _solBuildImportar() {
         '<textarea id="sol-tsv-input" placeholder="Cole aqui o conteúdo da planilha (Tab-separado), com a linha de cabeçalho incluída..." ' +
           'style="width:100%;height:180px;padding:12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;font-family:var(--mono);resize:vertical;box-sizing:border-box"></textarea>' +
         '<div style="display:flex;gap:10px;margin-top:10px;align-items:center;flex-wrap:wrap">' +
-          '<button class="btn" style="background:#C4622D;border-color:#C4622D;color:#fff;padding:9px 20px" onclick="_solProcessarImportColado()">Processar e salvar</button>' +
+          '<button class="btn" style="background:var(--blue);border-color:var(--blue);color:#fff;padding:9px 20px" onclick="_solProcessarImportColado()">Processar e salvar</button>' +
           '<button class="btn" onclick="document.getElementById(\'sol-tsv-input\').value=\'\'">Limpar campo</button>' +
         '</div>' +
       '</div>' +

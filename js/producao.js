@@ -35,7 +35,7 @@ function rProducoes() {
   if (!cont) return;
 
   if (!lista.length) {
-    cont.innerHTML = '<div style="text-align:center;color:#4B5563;padding:32px">Nenhuma produção registrada</div>';
+    cont.innerHTML = '<div style="text-align:center;color:var(--text2);padding:32px">Nenhuma produção registrada</div>';
     return;
   }
 
@@ -52,18 +52,18 @@ function rProducoes() {
     div.innerHTML = `
       <div class="sec-head" style="display:flex;align-items:center;gap:10px">
         <span class="sec-title">🎉 ${p.evento||p.cliente||'—'}</span>
-        <span style="color:#4B5563;font-size:12px">${fd(p.data)||''}</span>
-        <button class="btn-sm" style="background:#C4622D;margin-left:auto" onclick="gerarFolhaProducao('${p.id}')">📄 Word</button>
+        <span style="color:var(--text2);font-size:12px">${fd(p.data)||''}</span>
+        <button class="btn-sm" style="background:var(--blue);margin-left:auto" onclick="gerarFolhaProducao('${p.id}')">📄 Word</button>
         <button class="btn-sm btn-red" onclick="excluirProducao('${p.id}')">Excluir</button>
       </div>
       <div style="padding:12px 16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px">
 
         <div><label class="lbl">PROPOSTA</label><input class="inp" type="text" value="${p.proposta||''}" placeholder="Ex: 0126-061" onchange="editarProducao('${p.id}','proposta',this.value)"></div>
-        <div><label class="lbl">OCASIÃO</label><div style="color:#111827;font-size:13px">${p.tipo||'—'}</div></div>
-        <div><label class="lbl">CLIENTE</label><div style="color:#111827;font-size:13px">${p.cliente||'—'}</div></div>
-        <div><label class="lbl">DIA</label><div style="color:#111827;font-size:13px">${fd(p.data)||'—'}</div></div>
-        <div><label class="lbl">CONVIDADOS</label><div style="color:#111827;font-size:13px">${p.convidados||'—'}</div></div>
-        <div style="grid-column:1/-1"><label class="lbl">LOCAL</label><div style="color:#111827;font-size:13px">${p.local||'—'}</div></div>
+        <div><label class="lbl">OCASIÃO</label><div style="color:var(--text);font-size:13px">${p.tipo||'—'}</div></div>
+        <div><label class="lbl">CLIENTE</label><div style="color:var(--text);font-size:13px">${p.cliente||'—'}</div></div>
+        <div><label class="lbl">DIA</label><div style="color:var(--text);font-size:13px">${fd(p.data)||'—'}</div></div>
+        <div><label class="lbl">CONVIDADOS</label><div style="color:var(--text);font-size:13px">${p.convidados||'—'}</div></div>
+        <div style="grid-column:1/-1"><label class="lbl">LOCAL</label><div style="color:var(--text);font-size:13px">${p.local||'—'}</div></div>
 
         <div><label class="lbl">TRANSPORTE</label>
           <select class="inp" onchange="editarProducao('${p.id}','transporte',this.value)">
@@ -84,16 +84,16 @@ function rProducoes() {
           </select>
         </div>
         <div><label class="lbl">HORÁRIO CHEGADA DA EQUIPE</label><input class="inp" type="time" value="${p.hrChegadaEquipe||''}" onchange="editarProducao('${p.id}','hrChegadaEquipe',this.value)"></div>
-        <div><label class="lbl">HORÁRIO FESTA</label><div style="color:#111827;font-size:13px">${p.hrInicio||'—'} às ${p.hrFim||'—'} ${p.duracao?'· '+p.duracao:''}</div></div>
-        <div><label class="lbl">HORA EXTRA (valor)</label><div style="color:#111827;font-size:13px">${p.horaExtra?'R$ '+p.horaExtra:'—'}</div></div>
+        <div><label class="lbl">HORÁRIO FESTA</label><div style="color:var(--text);font-size:13px">${p.hrInicio||'—'} às ${p.hrFim||'—'} ${p.duracao?'· '+p.duracao:''}</div></div>
+        <div><label class="lbl">HORA EXTRA (valor)</label><div style="color:var(--text);font-size:13px">${p.horaExtra?'R$ '+p.horaExtra:'—'}</div></div>
 
         <div style="grid-column:1/-1"><label class="lbl">EQUIPE</label>
-          <div style="color:#111827;font-size:13px;line-height:2">${equipeHtml}</div>
+          <div style="color:var(--text);font-size:13px;line-height:2">${equipeHtml}</div>
         </div>
 
         <div style="grid-column:1/-1"><label class="lbl">BEBIDAS CLIENTE</label><input class="inp" type="text" value="${p.bebidasCliente||''}" placeholder="Ex: Vodka (21) e Gin (18)" onchange="editarProducao('${p.id}','bebidasCliente',this.value)"></div>
-        ${p.bebidasRomero?`<div style="grid-column:1/-1"><label class="lbl">BEBIDAS ROMERO</label><div style="color:#111827;font-size:13px">${p.bebidasRomero}</div></div>`:''}
-        ${p.cardapio?`<div style="grid-column:1/-1"><label class="lbl">CARDÁPIO</label><div style="color:#111827;font-size:13px;white-space:pre-wrap">${p.cardapio}</div></div>`:''}
+        ${p.bebidasRomero?`<div style="grid-column:1/-1"><label class="lbl">BEBIDAS ROMERO</label><div style="color:var(--text);font-size:13px">${p.bebidasRomero}</div></div>`:''}
+        ${p.cardapio?`<div style="grid-column:1/-1"><label class="lbl">CARDÁPIO</label><div style="color:var(--text);font-size:13px;white-space:pre-wrap">${p.cardapio}</div></div>`:''}
         <div style="grid-column:1/-1"><label class="lbl">OBS</label><input class="inp" type="text" value="${p.obs||''}" placeholder="—" onchange="editarProducao('${p.id}','obs',this.value)"></div>
 
       </div>

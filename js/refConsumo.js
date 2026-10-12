@@ -376,7 +376,7 @@ function _rcBuildTabela() {
       <div style="font-size:12px;color:var(--text3);margin-top:2px">
         ${total
           ? `<span style="color:var(--green)">${total} evento${total>1?'s':''} na base</span>${dasFestas.length?` · ${dasFestas.length} do fechamento`:''}${manual.length?` · ${manual.length} manuais`:''}`
-          : `<span style="color:#B45309">Nenhum fechamento com consumo encontrado</span> <span style="color:var(--text3)">· registre eventos com produtos consumidos para alimentar as estimativas</span>`
+          : `<span style="color:var(--amber)">Nenhum fechamento com consumo encontrado</span> <span style="color:var(--text3)">· registre eventos com produtos consumidos para alimentar as estimativas</span>`
         }
       </div>
     </div>
@@ -407,16 +407,16 @@ function _rcBuildTabela() {
     ${_rcBuildTabelaComparativa(stats)}
   </div>
 
-  <div style="margin-top:14px;padding:12px 16px;background:var(--bg3);border-radius:8px;border-left:3px solid #C4622D;font-size:11px;color:var(--text3);line-height:1.7">
+  <div style="margin-top:14px;padding:12px 16px;background:var(--bg3);border-radius:8px;border-left:3px solid var(--blue);font-size:11px;color:var(--text3);line-height:1.7">
     <strong style="color:var(--text2)">Mínimo</strong> = piso histórico (nunca levar menos).&nbsp;
     <strong style="color:var(--text2)">Sugestão</strong> = média × convidados + margem de segurança (<strong>×1,20</strong> se &lt; 18 unid., <strong>×1,15</strong> se ≥ 18 unid.) — sempre arredondado para cima.&nbsp;
-    <sup style="color:#B45309">*</sup> = apenas 1 evento registrado nessa categoria. Itens sem histórico mostram sugestão global.
+    <sup style="color:var(--amber)">*</sup> = apenas 1 evento registrado nessa categoria. Itens sem histórico mostram sugestão global.
   </div>
 </div>
 <style>
 .rc-tab{padding:6px 14px;border:1px solid var(--border);border-radius:20px;background:var(--bg3);color:var(--text2);font-size:12px;font-weight:500;cursor:pointer;transition:.15s}
-.rc-tab:hover{border-color:#C4622D;color:#C4622D}
-.rc-tab.active{background:#C4622D;border-color:#C4622D;color:#fff}
+.rc-tab:hover{border-color:var(--blue);color:var(--blue)}
+.rc-tab.active{background:var(--blue);border-color:var(--blue);color:#fff}
 #rc-cmp-tbody tr{border-bottom:1px solid var(--border)}
 #rc-cmp-tbody tr:hover td{background:rgba(0,0,0,.03)}
 </style>`;
@@ -433,7 +433,7 @@ function _rcBuildTabelaComparativa(stats) {
     <th style="padding:6px 8px;text-align:right;color:var(--text3);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.5px;border-left:2px solid var(--border);min-width:44px">Mín</th>
     <th style="padding:6px 8px;text-align:right;color:var(--text3);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.5px;min-width:44px">Méd</th>
     <th style="padding:6px 8px;text-align:right;color:var(--text3);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.5px;min-width:44px">Máx</th>
-    <th style="padding:6px 8px;text-align:right;color:#C4622D;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.5px;background:rgba(196,98,45,.07);min-width:52px">Sug.</th>
+    <th style="padding:6px 8px;text-align:right;color:var(--blue);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.5px;background:rgba(196,98,45,.07);min-width:52px">Sug.</th>
   `).join('');
 
   return `
@@ -502,10 +502,10 @@ function _rcBuildComparativaRows(statsArg, groupsArg) {
           return `<td style="padding:7px 8px;text-align:right;color:var(--text3);${sep}">—</td><td style="padding:7px 8px;text-align:right;color:var(--text3)">—</td><td style="padding:7px 8px;text-align:right;color:var(--text3)">—</td><td style="padding:7px 8px;text-align:right;color:var(--text3);background:rgba(196,98,45,.04)">—</td>`;
         }
         if (d.count <= 0) {
-          return `<td style="padding:7px 8px;text-align:right;color:var(--text3);opacity:.55;${sep}">—</td><td style="padding:7px 8px;text-align:right;color:var(--text3);opacity:.55">—</td><td style="padding:7px 8px;text-align:right;color:var(--text3);opacity:.55">—</td><td style="padding:7px 8px;text-align:right;font-weight:600;color:#C4622D;opacity:.65;background:rgba(196,98,45,.04)">${d.mediaGeral!=null?_rcSugestao(d.mediaGeral):'—'}</td>`;
+          return `<td style="padding:7px 8px;text-align:right;color:var(--text3);opacity:.55;${sep}">—</td><td style="padding:7px 8px;text-align:right;color:var(--text3);opacity:.55">—</td><td style="padding:7px 8px;text-align:right;color:var(--text3);opacity:.55">—</td><td style="padding:7px 8px;text-align:right;font-weight:600;color:var(--blue);opacity:.65;background:rgba(196,98,45,.04)">${d.mediaGeral!=null?_rcSugestao(d.mediaGeral):'—'}</td>`;
         }
-        const suf = d.count===1 ? '<sup style="color:#B45309;font-size:9px">*</sup>' : '';
-        return `<td style="padding:7px 8px;text-align:right;color:var(--text2);${sep}">${ceil(d.min)}</td><td style="padding:7px 8px;text-align:right;color:var(--text2)">${ceil(d.avg)}</td><td style="padding:7px 8px;text-align:right;color:var(--text2)">${ceil(d.max)}</td><td style="padding:7px 8px;text-align:right;font-weight:700;color:#C4622D;font-size:12px;background:rgba(196,98,45,.04)">${d.avg!=null?_rcSugestao(d.avg):'—'}${suf}</td>`;
+        const suf = d.count===1 ? '<sup style="color:var(--amber);font-size:9px">*</sup>' : '';
+        return `<td style="padding:7px 8px;text-align:right;color:var(--text2);${sep}">${ceil(d.min)}</td><td style="padding:7px 8px;text-align:right;color:var(--text2)">${ceil(d.avg)}</td><td style="padding:7px 8px;text-align:right;color:var(--text2)">${ceil(d.max)}</td><td style="padding:7px 8px;text-align:right;font-weight:700;color:var(--blue);font-size:12px;background:rgba(196,98,45,.04)">${d.avg!=null?_rcSugestao(d.avg):'—'}${suf}</td>`;
       }).join('');
 
       html.push(`<tr><td style="padding:7px 14px 7px 22px;color:var(--text);font-weight:500;white-space:nowrap">${b}</td>${cells}</tr>`);
@@ -543,7 +543,7 @@ function _rcBuildEventos() {
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
     <button class="btn" onclick="_rcSetView('tabela')">← Tabela</button>
     <div style="font-size:18px;font-weight:600;color:var(--text)">Histórico de Eventos</div>
-    <button class="btn" style="background:#15803D;border-color:#15803D;color:#000;font-weight:600;margin-left:auto" onclick="_rcSetView('novo')">+ Manual</button>
+    <button class="btn" style="background:var(--green);border-color:var(--green);color:#000;font-weight:600;margin-left:auto" onclick="_rcSetView('novo')">+ Manual</button>
   </div>
 
   <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;padding:12px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)">
@@ -654,14 +654,14 @@ function _rcHistResultadosHTML() {
         ? ` · ${_rcHistConvMin||'?'}–${_rcHistConvMax||'?'} conv.` : '';
       auditSummary = `
         <div style="margin-bottom:14px;padding:14px 18px;background:rgba(196,98,45,.06);border-radius:8px;border:1px solid rgba(196,98,45,.25)">
-          <div style="font-size:11px;font-weight:700;color:#C4622D;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">
+          <div style="font-size:11px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">
             Auditoria · ${auditBev} · ${dados.length} evento${dados.length!==1?'s':''} · ${_rcHistGrupo||'todos os tipos'}${convLabel}
           </div>
           <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:13px">
             <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Mínimo</div><strong style="color:var(--text);font-size:18px">${mn}</strong></div>
             <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Médio</div><strong style="color:var(--text);font-size:18px">${Math.ceil(avgQty)}</strong></div>
             <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Máximo</div><strong style="color:var(--text);font-size:18px">${mx}</strong></div>
-            <div style="text-align:center;background:rgba(196,98,45,.12);border-radius:6px;padding:4px 16px"><div style="font-size:10px;color:#C4622D;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Sugestão</div><strong style="color:#C4622D;font-size:22px">${sug}</strong></div>
+            <div style="text-align:center;background:rgba(196,98,45,.12);border-radius:6px;padding:4px 16px"><div style="font-size:10px;color:var(--blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Sugestão</div><strong style="color:var(--blue);font-size:22px">${sug}</strong></div>
           </div>
           <div style="margin-top:8px;font-size:10px;color:var(--text3)">Média histórica: ${avgQty.toFixed(1)} unid. · Margem: ×${margem.toFixed(2)} · total histórico: ${totalQty} unid. em ${dados.length} eventos</div>
         </div>`;
@@ -674,7 +674,7 @@ function _rcHistResultadosHTML() {
   const nPags  = Math.ceil(total / RC_HIST_PER_PAGE);
 
   const auditTh = auditBev ? `
-    <th style="padding:9px 12px;text-align:right;color:#C4622D;font-weight:600;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap">Qtd ${auditBev}</th>
+    <th style="padding:9px 12px;text-align:right;color:var(--blue);font-weight:600;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap">Qtd ${auditBev}</th>
     <th style="padding:9px 12px;text-align:right;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Unid./Conv.</th>` : '';
 
   const idsVisiveis = pagina.map(e => e.id);
@@ -688,8 +688,8 @@ function _rcHistResultadosHTML() {
     : pagina.map((e) => {
         const idxReal = todos.indexOf(e);
         const badge   = e._fonte==='manual'
-          ? `<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:rgba(61,220,132,.12);border:1px solid rgba(61,220,132,.3);color:#15803D">manual</span>`
-          : `<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:rgba(245,166,35,.12);border:1px solid rgba(245,166,35,.3);color:#B45309">fechamento</span>`;
+          ? `<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:rgba(61,220,132,.12);border:1px solid rgba(61,220,132,.3);color:var(--green)">manual</span>`
+          : `<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:rgba(245,166,35,.12);border:1px solid rgba(245,166,35,.3);color:var(--amber)">fechamento</span>`;
         const selTd = `<td style="padding:8px 6px;text-align:center"><input type="checkbox" ${_rcHistSelecionados.has(e.id)?'checked':''} onchange="_rcHistToggleSel('${e.id}')"></td>`;
 
         // Produtos consumidos em lista vertical, ordenados por qtd desc
@@ -698,10 +698,10 @@ function _rcHistResultadosHTML() {
           .sort((a,b) => b[1]-a[1])
           .map(([k,v]) => {
             const destaque = auditBev && k === auditBev;
-            return `<div style="display:flex;align-items:center;gap:6px;padding:2px 0;${destaque?'color:#C4622D;font-weight:700':'color:var(--text2)'}">
+            return `<div style="display:flex;align-items:center;gap:6px;padding:2px 0;${destaque?'color:var(--blue);font-weight:700':'color:var(--text2)'}">
               <strong style="font-family:var(--mono);min-width:22px;text-align:right;font-size:12px">${v}</strong>
               <span style="font-size:11px">${k}</span>
-              ${destaque ? '<span style="font-size:9px;color:#C4622D">★</span>' : ''}
+              ${destaque ? '<span style="font-size:9px;color:var(--blue)">★</span>' : ''}
             </div>`;
           }).join('');
 
@@ -710,7 +710,7 @@ function _rcHistResultadosHTML() {
           const qty  = parseFloat((e.consumo||{})[auditBev] || 0);
           const taxa = (qty > 0 && e.convidados > 0) ? (qty / e.convidados) : 0;
           auditTds = `
-            <td style="padding:8px 12px;text-align:right;font-weight:700;color:#C4622D;font-family:var(--mono)">${qty > 0 ? qty : '—'}</td>
+            <td style="padding:8px 12px;text-align:right;font-weight:700;color:var(--blue);font-family:var(--mono)">${qty > 0 ? qty : '—'}</td>
             <td style="padding:8px 12px;text-align:right;color:var(--text3);font-family:var(--mono);font-size:11px">${taxa > 0 ? taxa.toFixed(4) : '—'}</td>`;
         }
         return `<tr style="border-bottom:1px solid var(--border)">
@@ -721,8 +721,8 @@ function _rcHistResultadosHTML() {
           ${auditTds}
           <td style="padding:6px 12px;line-height:1.8">${prods||'<span style="color:var(--text3);font-size:11px">—</span>'}</td>
           <td style="padding:8px 12px;text-align:right;white-space:nowrap">
-            <button onclick="_rcVerEvento(${idxReal})" style="background:none;border:none;color:#C4622D;cursor:pointer;font-size:11px;text-decoration:underline;margin-right:8px">detalhes</button>
-            ${e._fonte==='manual' ? `<button onclick="_rcEditarEvento(${idxReal})" style="background:none;border:none;color:#C4622D;cursor:pointer;font-size:11px;margin-right:8px">editar</button>` : ''}
+            <button onclick="_rcVerEvento(${idxReal})" style="background:none;border:none;color:var(--blue);cursor:pointer;font-size:11px;text-decoration:underline;margin-right:8px">detalhes</button>
+            ${e._fonte==='manual' ? `<button onclick="_rcEditarEvento(${idxReal})" style="background:none;border:none;color:var(--blue);cursor:pointer;font-size:11px;margin-right:8px">editar</button>` : ''}
             <button onclick="_rcDeleteEvento(${idxReal})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:11px">excluir</button>
           </td>
         </tr>`;
@@ -830,7 +830,7 @@ function _rcVerEvento(i) {
     .join('');
   const el = document.getElementById('rc-evt-detalhe');
   if (el) el.innerHTML = `
-    <div style="margin-bottom:14px;padding:12px 16px;background:var(--bg3);border-radius:8px;border-left:3px solid #C4622D">
+    <div style="margin-bottom:14px;padding:12px 16px;background:var(--bg3);border-radius:8px;border-left:3px solid var(--blue)">
       <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px">${e.cliente||'Sem nome'} · ${e.grupo} · ${e.convidados} conv.${e.convidadosContrato?` (${e.convidadosContrato} no contrato)`:''} · ${e.data}</div>
       ${e.observacao ? `<div style="font-size:11px;color:var(--text2);margin-bottom:8px">Obs.: ${e.observacao}</div>` : ''}
       <div style="line-height:1.8">${itens||'<span style="color:var(--text3)">Sem consumo registrado</span>'}</div>
@@ -994,7 +994,7 @@ function _rcBuildNovo() {
       <div>
         <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:5px">Convidados no evento (real)</label>
         <input type="number" min="1" placeholder="ex: 150" value="${f.convidados||''}"
-          style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid #C4622D;border-radius:6px;color:var(--text);font-size:13px;box-sizing:border-box"
+          style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--blue);border-radius:6px;color:var(--text);font-size:13px;box-sizing:border-box"
           oninput="_rcNovoForm.convidados=this.value">
       </div>
     </div>
@@ -1004,7 +1004,7 @@ function _rcBuildNovo() {
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:10px;flex-wrap:wrap">
     <span style="font-size:13px;font-weight:600;color:var(--text)">
       Consumo por insumo
-      <span id="rc-novo-count" style="font-size:11px;color:#15803D;font-weight:600;margin-left:8px;${nPreench?'':'display:none'}">${nPreench} preenchido${nPreench===1?'':'s'}</span>
+      <span id="rc-novo-count" style="font-size:11px;color:var(--green);font-weight:600;margin-left:8px;${nPreench?'':'display:none'}">${nPreench} preenchido${nPreench===1?'':'s'}</span>
     </span>
     <input type="text" placeholder="Filtrar insumo..." value="${_rcNovoBev}"
       style="width:150px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px"
@@ -1017,7 +1017,7 @@ function _rcBuildNovo() {
   </div>
 
   <div style="margin-top:18px;display:flex;gap:10px;align-items:center">
-    <button class="btn" style="background:#15803D;border-color:#15803D;color:#000;font-weight:600;padding:10px 24px" onclick="_rcSalvarEvento()">${editando ? 'Salvar alterações' : 'Salvar evento'}</button>
+    <button class="btn" style="background:var(--green);border-color:var(--green);color:#000;font-weight:600;padding:10px 24px" onclick="_rcSalvarEvento()">${editando ? 'Salvar alterações' : 'Salvar evento'}</button>
     <button class="btn" onclick="_rcNovoCancelar()">Cancelar</button>
     <span id="rc-novo-status" style="font-size:12px;color:var(--text3)"></span>
   </div>
@@ -1063,7 +1063,7 @@ function _rcNovoItensHTML() {
       return `<div style="display:flex;align-items:center;gap:8px;padding:5px 2px;border-bottom:1px solid var(--border)">
         <span style="flex:1;font-size:12px;color:${temVal?'var(--text)':'var(--text2)'}">${b}</span>
         <input type="number" min="0" step="0.5" placeholder="0" value="${val}"
-          style="width:80px;padding:5px 8px;background:var(--bg3);border:1px solid ${temVal?'#C4622D':'var(--border)'};border-radius:6px;color:var(--text);font-size:13px;text-align:right"
+          style="width:80px;padding:5px 8px;background:var(--bg3);border:1px solid ${temVal?'var(--blue)':'var(--border)'};border-radius:6px;color:var(--text);font-size:13px;text-align:right"
           oninput="_rcNovoSetBev('${b.replace(/'/g,"\\'")}',this)">
         <span style="font-size:10px;color:var(--text3);width:32px">garr.</span>
       </div>`;
@@ -1087,7 +1087,7 @@ function _rcNovoSetBev(bev, inputEl) {
   if (!_rcNovoForm.consumo) _rcNovoForm.consumo = {};
   _rcNovoForm.consumo[bev] = parseFloat(val) || 0;
   const temVal = parseFloat(val) > 0;
-  inputEl.style.borderColor = temVal ? '#C4622D' : 'var(--border)';
+  inputEl.style.borderColor = temVal ? 'var(--blue)' : 'var(--border)';
   const label = inputEl.previousElementSibling;
   if (label) label.style.color = temVal ? 'var(--text)' : 'var(--text2)';
 
@@ -1194,7 +1194,7 @@ function _rcBuildImport() {
     ? `<span style="color:var(--green);font-weight:600">${imp.length} eventos importados${meta?' · '+meta.data:''}</span>`
     : `<span style="color:var(--text3)">Nenhum evento importado</span>`;
   const statusMan = manual.length
-    ? `<span style="color:#C4622D;font-weight:600">${manual.length} lançados manualmente</span>`
+    ? `<span style="color:var(--blue);font-weight:600">${manual.length} lançados manualmente</span>`
     : `<span style="color:var(--text3)">Nenhum lançado manualmente</span>`;
 
   return `
@@ -1235,7 +1235,7 @@ function _rcBuildImport() {
   <textarea id="rc-tsv-input" placeholder="Cole aqui o conteúdo da planilha (Tab-separado)..."
     style="width:100%;height:220px;padding:12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;font-family:var(--mono);resize:vertical;box-sizing:border-box"></textarea>
   <div style="display:flex;gap:10px;margin-top:12px;align-items:center;flex-wrap:wrap">
-    <button class="btn" style="background:#C4622D;border-color:#C4622D;color:#fff;padding:9px 20px" onclick="_rcProcessarImport()">Processar e salvar</button>
+    <button class="btn" style="background:var(--blue);border-color:var(--blue);color:#fff;padding:9px 20px" onclick="_rcProcessarImport()">Processar e salvar</button>
     <button class="btn" onclick="document.getElementById('rc-tsv-input').value=''">Limpar campo</button>
     <span id="rc-import-status" style="font-size:12px;color:var(--text3)"></span>
   </div>

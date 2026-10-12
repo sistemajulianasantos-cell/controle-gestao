@@ -10,51 +10,51 @@
 <link rel="icon" href="icons/icon-rc.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20261012d">
+<link rel="stylesheet" href="style.css?v=20261012e">
 </head>
 <body>
 
 <!-- ═══ LOGIN ═══ -->
-<div id="login-overlay" style="position:fixed;inset:0;background:#F0EDE8;z-index:10000;display:flex;align-items:center;justify-content:center">
-  <div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;padding:40px 48px;min-width:320px;text-align:center">
+<div id="login-overlay" style="position:fixed;inset:0;background:var(--bg);z-index:10000;display:flex;align-items:center;justify-content:center">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:40px 48px;min-width:320px;text-align:center">
     <img src="icons/logo-black.png" alt="Romero Coquetéis" style="width:120px;height:120px;display:block;margin:0 auto 14px">
-    <div style="font-size:20px;font-weight:600;color:#111827;margin-bottom:2px">Romero Coquetéis</div>
-    <div style="font-size:12px;color:#6B7280;margin-bottom:18px">Controle e Gestão</div>
+    <div style="font-size:20px;font-weight:600;color:var(--text);margin-bottom:2px">Romero Coquetéis</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:18px">Controle e Gestão</div>
 
     <!-- Etapa 1: Senha -->
     <div id="login-step-senha">
-      <div style="font-size:13px;color:#4B5563;margin-bottom:28px">Informe a senha de acesso</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:28px">Informe a senha de acesso</div>
       <div style="position:relative;margin-bottom:8px">
         <input id="login-senha" type="password" placeholder="Senha" maxlength="64"
-          style="width:100%;padding:10px 74px;background:#F0EDE8;border:1px solid #E5E7EB;border-radius:8px;color:#111827;font-size:15px;letter-spacing:4px;text-align:center;box-sizing:border-box"
+          style="width:100%;padding:10px 74px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:15px;letter-spacing:4px;text-align:center;box-sizing:border-box"
           onkeydown="if(event.key==='Enter')tentarLogin()">
         <button type="button" id="login-senha-ver"
           onclick="var i=document.getElementById('login-senha');var ver=i.type==='password';i.type=ver?'text':'password';this.textContent=ver?'Ocultar':'Mostrar';i.focus()"
-          style="position:absolute;right:6px;top:50%;transform:translateY(-50%);padding:4px 8px;background:transparent;border:1px solid #E5E7EB;border-radius:6px;color:#4B5563;font-size:11px;cursor:pointer">
+          style="position:absolute;right:6px;top:50%;transform:translateY(-50%);padding:4px 8px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:11px;cursor:pointer">
           Mostrar
         </button>
       </div>
-      <div id="login-erro" style="color:#B91C1C;font-size:12px;min-height:16px;margin-bottom:12px"></div>
+      <div id="login-erro" style="color:var(--red);font-size:12px;min-height:16px;margin-bottom:12px"></div>
       <button onclick="tentarLogin()"
-        style="width:100%;padding:10px;background:#C4622D;border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:600;cursor:pointer">
+        style="width:100%;padding:10px;background:var(--blue);border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:600;cursor:pointer">
         Entrar
       </button>
     </div>
 
     <!-- Etapa 2: MFA (oculto até MFA ser exigido) -->
     <div id="login-step-mfa" style="display:none">
-      <div style="font-size:13px;color:#4B5563;margin-bottom:6px">Autenticação em dois fatores</div>
-      <div style="font-size:12px;color:#6B7280;margin-bottom:20px">Informe o código do seu app autenticador</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:6px">Autenticação em dois fatores</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Informe o código do seu app autenticador</div>
       <input id="login-mfa-input" type="text" inputmode="numeric" maxlength="6" placeholder="000 000"
-        style="width:100%;padding:10px 14px;background:#F0EDE8;border:1px solid #E5E7EB;border-radius:8px;color:#111827;font-size:22px;letter-spacing:8px;text-align:center;box-sizing:border-box;margin-bottom:8px"
+        style="width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:22px;letter-spacing:8px;text-align:center;box-sizing:border-box;margin-bottom:8px"
         onkeydown="if(event.key==='Enter')tentarLoginMFA()">
-      <div id="login-mfa-erro" style="color:#B91C1C;font-size:12px;min-height:16px;margin-bottom:12px"></div>
+      <div id="login-mfa-erro" style="color:var(--red);font-size:12px;min-height:16px;margin-bottom:12px"></div>
       <button onclick="tentarLoginMFA()"
-        style="width:100%;padding:10px;background:#C4622D;border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px">
+        style="width:100%;padding:10px;background:var(--blue);border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px">
         Verificar
       </button>
       <button onclick="cancelarMFA()"
-        style="width:100%;padding:8px;background:transparent;border:1px solid #E5E7EB;border-radius:8px;color:#4B5563;font-size:13px;cursor:pointer">
+        style="width:100%;padding:8px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text2);font-size:13px;cursor:pointer">
         Voltar
       </button>
     </div>
@@ -62,23 +62,23 @@
 </div>
 
 <!-- ═══ AVISO DE SESSÃO ═══ -->
-<div id="sessao-aviso" style="display:none;position:fixed;bottom:20px;right:20px;z-index:9000;background:#FFFFFF;border:1px solid #B45309;border-radius:10px;padding:14px 18px;min-width:280px;box-shadow:0 4px 20px rgba(0,0,0,.5)">
-  <div style="font-size:13px;font-weight:600;color:#B45309;margin-bottom:4px">Sessão prestes a expirar</div>
-  <div style="font-size:12px;color:#4B5563;margin-bottom:10px">Sua sessão encerrará em breve por inatividade.</div>
+<div id="sessao-aviso" style="display:none;position:fixed;bottom:20px;right:20px;z-index:9000;background:var(--bg2);border:1px solid var(--amber);border-radius:10px;padding:14px 18px;min-width:280px;box-shadow:0 4px 20px rgba(0,0,0,.5)">
+  <div style="font-size:13px;font-weight:600;color:var(--amber);margin-bottom:4px">Sessão prestes a expirar</div>
+  <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Sua sessão encerrará em breve por inatividade.</div>
   <button onclick="document.getElementById('sessao-aviso').style.display='none'"
-    style="padding:6px 14px;background:#C4622D;border:none;border-radius:6px;color:#fff;font-size:12px;cursor:pointer">
+    style="padding:6px 14px;background:var(--blue);border:none;border-radius:6px;color:#fff;font-size:12px;cursor:pointer">
     Continuar
   </button>
 </div>
 
 
 <!-- ═══ LOADING OVERLAY ═══ -->
-<div id="loading-overlay" style="position:fixed;inset:0;background:#F0EDE8;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px">
+<div id="loading-overlay" style="position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px">
   <img src="icons/logo-black.png" alt="Romero Coquetéis" style="width:110px;height:110px;display:block">
-  <div style="font-size:22px;font-weight:600;color:#111827">Romero Coquetéis</div>
-  <div style="font-size:13px;color:#4B5563">Controle e Gestão</div>
-  <div style="font-size:12px;color:#6B7280" id="loading-msg">Carregando...</div>
-  <div style="width:40px;height:40px;border:3px solid #E5E7EB;border-top-color:#C4622D;border-radius:50%;animation:spin 0.8s linear infinite"></div>
+  <div style="font-size:22px;font-weight:600;color:var(--text)">Romero Coquetéis</div>
+  <div style="font-size:13px;color:var(--text2)">Controle e Gestão</div>
+  <div style="font-size:12px;color:var(--text3)" id="loading-msg">Carregando...</div>
+  <div style="width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin 0.8s linear infinite"></div>
   <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 </div>
 
@@ -304,6 +304,7 @@
     </div>
     <div style="display:flex;align-items:center;gap:10px">
       <div class="topbar-date" id="tdate"></div>
+      <button class="theme-toggle" id="theme-toggle-btn" onclick="toggleTheme()">Modo escuro</button>
     </div>
   </div>
   <div class="content">
@@ -485,7 +486,7 @@
         </div>
 
         <!-- Banner de NF duplicada — aparece logo abaixo dos campos, bem visível -->
-        <div id="enf-aviso" style="display:none;margin:0 16px 0;padding:10px 14px;background:#FFFBEB;border-left:4px solid #B45309;border-radius:4px;color:#B45309;font-size:12px;line-height:1.6"></div>
+        <div id="enf-aviso" style="display:none;margin:0 16px 0;padding:10px 14px;background:var(--amber-bg);border-left:4px solid var(--amber);border-radius:4px;color:var(--amber);font-size:12px;line-height:1.6"></div>
 
         <div style="padding:12px 16px;border-top:1px solid var(--border)">
           <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Produtos da nota</div>
@@ -564,7 +565,7 @@
             <span id="forn-count" style="font-size:11px;color:var(--text3)"></span>
             <div id="forn-bulk-bar" style="display:none;margin-left:auto;display:none;align-items:center;gap:8px">
               <span id="forn-sel-count" style="font-size:12px;color:var(--text2)"></span>
-              <button class="btn-sm" style="background:#FEF2F2;color:#B91C1C;border:1px solid #FECACA" onclick="excluirFornSelecionados()">🗑 Excluir selecionados</button>
+              <button class="btn-sm" style="background:var(--red-bg);color:var(--red);border:1px solid var(--red-dim)" onclick="excluirFornSelecionados()">🗑 Excluir selecionados</button>
             </div>
           </div>
           <table>
@@ -721,7 +722,7 @@
             <input type="text" id="cat-busca" class="inp" placeholder="Buscar item..." style="width:200px;font-size:11px;padding:5px 9px" oninput="rFchCadastro()">
             <span style="font-size:11px;color:var(--text3)" id="cat-total-label"></span>
           </div>
-          <div id="cat-dup-alert" style="display:none;margin:10px 0 4px;padding:8px 12px;background:#B4530915;border:1px solid #B4530955;border-radius:var(--radius);font-size:12px;color:#B45309"></div>
+          <div id="cat-dup-alert" style="display:none;margin:10px 0 4px;padding:8px 12px;background:#B4530915;border:1px solid #B4530955;border-radius:var(--radius);font-size:12px;color:var(--amber)"></div>
           <!-- Formulário de adição -->
           <div style="display:grid;grid-template-columns:1fr 150px auto;gap:8px;align-items:flex-end;padding:12px 0 16px;border-bottom:1px solid var(--border2)">
             <div>
@@ -740,9 +741,9 @@
           </div>
           <!-- Legenda -->
           <div style="display:flex;gap:16px;padding:10px 0 8px;flex-wrap:wrap">
-            <span style="font-size:11px;color:#15803D">🍾 <strong>Produto</strong> → aparece em "Produtos consumidos"</span>
-            <span style="font-size:11px;color:#B91C1C">🥃 <strong>Peça</strong> → aparece em "Quebras detalhadas"</span>
-            <span style="font-size:11px;color:#4B5563">⚙️ <strong>Serviço adicional</strong> → somente no total do fechamento</span>
+            <span style="font-size:11px;color:var(--green)">🍾 <strong>Produto</strong> → aparece em "Produtos consumidos"</span>
+            <span style="font-size:11px;color:var(--red)">🥃 <strong>Peça</strong> → aparece em "Quebras detalhadas"</span>
+            <span style="font-size:11px;color:var(--text2)">⚙️ <strong>Serviço adicional</strong> → somente no total do fechamento</span>
           </div>
           <!-- Lista do catálogo -->
           <table>
@@ -760,22 +761,22 @@
             <button class="btn-sm" onclick="setFestaView('novo')" style="margin-left:auto">← Voltar</button>
           </div>
           <div style="padding:16px">
-            <div id="fch-import-contrato-info" style="color:#374151;font-size:13px;margin-bottom:14px;font-weight:500"></div>
-            <p style="color:#4B5563;font-size:12px;margin-bottom:16px;line-height:1.7">
-              Envie o <strong style="color:#374151">PDF do fechamento</strong> (formato padrão com tabela de itens, unidades e valores) ou um arquivo CSV/TXT.<br>
+            <div id="fch-import-contrato-info" style="color:var(--text2);font-size:13px;margin-bottom:14px;font-weight:500"></div>
+            <p style="color:var(--text2);font-size:12px;margin-bottom:16px;line-height:1.7">
+              Envie o <strong style="color:var(--text2)">PDF do fechamento</strong> (formato padrão com tabela de itens, unidades e valores) ou um arquivo CSV/TXT.<br>
               <span style="color:#6B7280">CSV/TXT — uma linha por item:
-              <code style="background:#FFFFFF;padding:2px 5px;border-radius:4px">tipo, descrição, valor</code>
+              <code style="background:var(--bg2);padding:2px 5px;border-radius:4px">tipo, descrição, valor</code>
               ou
-              <code style="background:#FFFFFF;padding:2px 5px;border-radius:4px">descrição, valor</code></span>
+              <code style="background:var(--bg2);padding:2px 5px;border-radius:4px">descrição, valor</code></span>
             </p>
             <div id="fch-imp-upload-zone"
-              style="border:2px dashed #E5E7EB;border-radius:10px;padding:40px 32px;text-align:center;cursor:pointer;transition:border-color 0.2s;max-width:500px"
+              style="border:2px dashed var(--border);border-radius:10px;padding:40px 32px;text-align:center;cursor:pointer;transition:border-color 0.2s;max-width:500px"
               onclick="document.getElementById('fch-imp-file-input').click()">
               <div style="font-size:36px;margin-bottom:10px">📂</div>
-              <div style="color:#4B5563;font-size:13px">Clique ou arraste o PDF / CSV / TXT aqui</div>
+              <div style="color:var(--text2);font-size:13px">Clique ou arraste o PDF / CSV / TXT aqui</div>
               <input id="fch-imp-file-input" type="file" accept=".pdf,.csv,.txt" style="display:none" onchange="lerArquivoFechamento(this)">
             </div>
-            <div id="fch-imp-status" style="color:#4B5563;font-size:12px;margin-top:10px;min-height:16px"></div>
+            <div id="fch-imp-status" style="color:var(--text2);font-size:12px;margin-top:10px;min-height:16px"></div>
           </div>
         </div>
         <div class="sec" id="fch-imp-preview" style="display:none">
@@ -783,7 +784,7 @@
           <div id="fch-imp-itens-list" style="padding:8px 0"></div>
           <div style="padding:12px 16px;display:flex;gap:8px">
             <button class="btn btn-primary" onclick="confirmarImporteFechamento()">✅ Confirmar e abrir fechamento</button>
-            <button class="btn" onclick="setFestaView('novo')" style="background:#E5E7EB">Cancelar</button>
+            <button class="btn" onclick="setFestaView('novo')" style="background:var(--border)">Cancelar</button>
           </div>
         </div>
       </div>
@@ -835,7 +836,7 @@
           <div style="overflow-x:auto">
             <table style="width:100%;border-collapse:collapse;font-size:13px">
               <thead>
-                <tr style="color:#4B5563;border-bottom:1px solid #E5E7EB">
+                <tr style="color:var(--text2);border-bottom:1px solid var(--border)">
                   <th style="padding:10px 12px;width:24px"></th>
                   <th style="padding:10px 12px;text-align:left;font-weight:500">Data</th>
                   <th style="padding:10px 12px;text-align:left;font-weight:500">Evento / Contrato</th>
@@ -1102,8 +1103,8 @@
         <button class="sort-btn active" id="cv-lista"    onclick="setContratoView('lista')">📋 Todos os contratos</button>
         <button class="sort-btn"        id="cv-manual"   onclick="setContratoView('manual')">✏️ Novo contrato manual</button>
         <button class="sort-btn"        id="cv-importar" onclick="setContratoView('importar')">📥 Importar via PDF</button>
-        <button class="btn-sm" onclick="abrirModalConferirValores()" style="margin-left:auto;background:#E5E7EB;color:#15803D;border:1px solid #15803D" title="Compara o valor de cada contrato com as parcelas 20%/80% já lançadas no Financeiro (inclusive já pagas)">💰 Conferir valores</button>
-        <button class="btn-sm" onclick="repararVinculosContratos()" style="background:#E5E7EB;color:#B45309;border:1px solid #B45309" title="Corrige vínculos quebrados entre contratos, agenda, financeiro e produção">🔧 Reparar vínculos</button>
+        <button class="btn-sm" onclick="abrirModalConferirValores()" style="margin-left:auto;background:var(--border);color:var(--green);border:1px solid var(--green)" title="Compara o valor de cada contrato com as parcelas 20%/80% já lançadas no Financeiro (inclusive já pagas)">💰 Conferir valores</button>
+        <button class="btn-sm" onclick="repararVinculosContratos()" style="background:var(--border);color:var(--amber);border:1px solid var(--amber)" title="Corrige vínculos quebrados entre contratos, agenda, financeiro e produção">🔧 Reparar vínculos</button>
       </div>
 
       <!-- ─── VIEW: Novo contrato via PDF ─────────────────────────────── -->
@@ -1112,13 +1113,13 @@
           <div class="sec-head"><span class="sec-title">📂 Upload da Proposta (PDF)</span></div>
           <div style="padding:16px">
             <div id="contrato-upload-zone"
-              style="border:2px dashed #E5E7EB;border-radius:10px;padding:32px;text-align:center;cursor:pointer;transition:border-color 0.2s;max-width:500px"
+              style="border:2px dashed var(--border);border-radius:10px;padding:32px;text-align:center;cursor:pointer;transition:border-color 0.2s;max-width:500px"
               onclick="document.getElementById('contrato-pdf-input').click()">
               <div style="font-size:32px;margin-bottom:8px">📂</div>
-              <div style="color:#4B5563;font-size:13px">Clique ou arraste a proposta PDF aqui</div>
+              <div style="color:var(--text2);font-size:13px">Clique ou arraste a proposta PDF aqui</div>
               <input id="contrato-pdf-input" type="file" accept=".pdf" style="display:none" onchange="lerPDFContrato(this)">
             </div>
-            <div id="contrato-status" style="color:#4B5563;font-size:12px;margin-top:10px;min-height:16px"></div>
+            <div id="contrato-status" style="color:var(--text2);font-size:12px;margin-top:10px;min-height:16px"></div>
           </div>
         </div>
         <div class="sec" id="contrato-form" style="display:none">
@@ -1138,8 +1139,8 @@
             </div>
             <div style="grid-column:1/-1"><label class="lbl">Valor do contrato (R$)</label><input id="c-opcao" class="inp" type="text" placeholder="Ex: 12.500,00"></div>
             <div style="grid-column:1/-1;display:flex;gap:8px;margin-top:4px">
-              <button id="btn-gerar-contrato" class="btn" onclick="gerarContratoDocx()" style="background:#C4622D">📄 Gerar Contrato (.docx)</button>
-              <button class="btn" onclick="novoContrato()" style="background:#E5E7EB">Limpar</button>
+              <button id="btn-gerar-contrato" class="btn" onclick="gerarContratoDocx()" style="background:var(--blue)">📄 Gerar Contrato (.docx)</button>
+              <button class="btn" onclick="novoContrato()" style="background:var(--border)">Limpar</button>
             </div>
           </div>
         </div>
@@ -1150,15 +1151,15 @@
         <div class="sec" style="margin-bottom:14px">
           <div class="sec-head"><span class="sec-title">📂 Upload do contrato existente (PDF)</span></div>
           <div style="padding:16px">
-            <p style="color:#4B5563;font-size:13px;margin-bottom:14px">Envie o PDF de um contrato já assinado. O sistema extrai os dados e registra na agenda e financeiro.</p>
+            <p style="color:var(--text2);font-size:13px;margin-bottom:14px">Envie o PDF de um contrato já assinado. O sistema extrai os dados e registra na agenda e financeiro.</p>
             <div id="imp-upload-zone"
-              style="border:2px dashed #E5E7EB;border-radius:10px;padding:32px;text-align:center;cursor:pointer;transition:border-color 0.2s;max-width:500px"
+              style="border:2px dashed var(--border);border-radius:10px;padding:32px;text-align:center;cursor:pointer;transition:border-color 0.2s;max-width:500px"
               onclick="document.getElementById('imp-pdf-input').click()">
               <div style="font-size:32px;margin-bottom:8px">📂</div>
-              <div style="color:#4B5563;font-size:13px">Clique ou arraste o PDF do contrato aqui</div>
+              <div style="color:var(--text2);font-size:13px">Clique ou arraste o PDF do contrato aqui</div>
               <input id="imp-pdf-input" type="file" accept=".pdf" style="display:none" onchange="lerPDFImportacao(this)">
             </div>
-            <div id="imp-status" style="color:#4B5563;font-size:12px;margin-top:10px;min-height:16px"></div>
+            <div id="imp-status" style="color:var(--text2);font-size:12px;margin-top:10px;min-height:16px"></div>
             <div id="imp-resumo" style="display:none;margin-top:10px"></div>
           </div>
         </div>
@@ -1172,7 +1173,7 @@
             <div style="grid-column:1/-1"><label class="lbl">Local</label><input id="imp-local" class="inp" type="text" placeholder="Nome do espaço"></div>
             <div><label class="lbl">Horário início</label><input id="imp-ini" class="inp" type="time"></div>
             <div><label class="lbl">Horário fim</label><input id="imp-fim" class="inp" type="time"></div>
-            <div><label class="lbl">Equipe</label><input id="imp-equipe" class="inp" type="text" placeholder="1 Head Bartender · 4 Bartenders..." readonly style="font-size:11px;color:#4B5563"></div>
+            <div><label class="lbl">Equipe</label><input id="imp-equipe" class="inp" type="text" placeholder="1 Head Bartender · 4 Bartenders..." readonly style="font-size:11px;color:var(--text2)"></div>
             <div style="grid-column:1/-1"><label class="lbl">Valor total (R$)</label><input id="imp-valor" class="inp" type="text" placeholder="Ex: 12.500,00"></div>
             <div style="grid-column:1/-1"><label class="lbl">Status do contrato</label>
               <select id="imp-contrato-status" class="inp" style="max-width:240px">
@@ -1182,8 +1183,8 @@
               </select>
             </div>
             <div style="grid-column:1/-1;display:flex;gap:8px;margin-top:4px">
-              <button class="btn" onclick="salvarImportacao()" style="background:#C4622D">✅ Confirmar e salvar</button>
-              <button class="btn" onclick="limparImportacao()" style="background:#E5E7EB">Limpar</button>
+              <button class="btn" onclick="salvarImportacao()" style="background:var(--blue)">✅ Confirmar e salvar</button>
+              <button class="btn" onclick="limparImportacao()" style="background:var(--border)">Limpar</button>
             </div>
           </div>
         </div>
@@ -1196,12 +1197,12 @@
           <div style="padding:12px 16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">
 
             <!-- Bloco: Dados do cliente -->
-            <div style="grid-column:1/-1;color:#4B5563;font-size:11px;font-weight:600;letter-spacing:.06em;padding-top:4px">CLIENTE</div>
+            <div style="grid-column:1/-1;color:var(--text2);font-size:11px;font-weight:600;letter-spacing:.06em;padding-top:4px">CLIENTE</div>
             <div><label class="lbl">Nome completo *</label><input id="mn-nome" class="inp" type="text" placeholder="Nome do contratante"></div>
             <div><label class="lbl">CPF</label><input id="mn-cpf" class="inp" type="text" placeholder="000.000.000-00"></div>
 
             <!-- Bloco: Dados do evento -->
-            <div style="grid-column:1/-1;color:#4B5563;font-size:11px;font-weight:600;letter-spacing:.06em;padding-top:8px">EVENTO</div>
+            <div style="grid-column:1/-1;color:var(--text2);font-size:11px;font-weight:600;letter-spacing:.06em;padding-top:8px">EVENTO</div>
             <div><label class="lbl">Tipo de evento</label>
               <select id="mn-tipo" class="inp">
                 <option value="">Selecionar...</option>
@@ -1221,11 +1222,11 @@
             <div style="grid-column:1/-1"><label class="lbl">Local</label><input id="mn-local" class="inp" type="text" placeholder="Nome do espaço / endereço"></div>
 
             <!-- Bloco: Equipe -->
-            <div style="grid-column:1/-1;color:#4B5563;font-size:11px;font-weight:600;letter-spacing:.06em;padding-top:8px">EQUIPE</div>
+            <div style="grid-column:1/-1;color:var(--text2);font-size:11px;font-weight:600;letter-spacing:.06em;padding-top:8px">EQUIPE</div>
             <div style="grid-column:1/-1"><label class="lbl">Composição da equipe</label><input id="mn-equipe" class="inp" type="text" placeholder="Ex: 1 Head Bartender · 4 Bartenders · 2 Bar Back"></div>
 
             <!-- Bloco: Financeiro -->
-            <div style="grid-column:1/-1;color:#4B5563;font-size:11px;font-weight:600;letter-spacing:.06em;padding-top:8px">FINANCEIRO</div>
+            <div style="grid-column:1/-1;color:var(--text2);font-size:11px;font-weight:600;letter-spacing:.06em;padding-top:8px">FINANCEIRO</div>
             <div><label class="lbl">Valor total (R$)</label><input id="mn-valor" class="inp" type="text" placeholder="Ex: 12.500,00"></div>
             <div><label class="lbl">Valor do sinal (R$)</label><input id="mn-sinal" class="inp" type="text" placeholder="Deixe em branco para 20%"></div>
             <div><label class="lbl">Vencimento do sinal</label><input id="mn-sinal-venc" class="inp" type="date"></div>
@@ -1245,15 +1246,15 @@
             </div>
 
             <!-- Bloco: Extras -->
-            <div style="grid-column:1/-1;color:#4B5563;font-size:11px;font-weight:600;letter-spacing:.06em;padding-top:8px">EXTRAS (opcional)</div>
+            <div style="grid-column:1/-1;color:var(--text2);font-size:11px;font-weight:600;letter-spacing:.06em;padding-top:8px">EXTRAS (opcional)</div>
             <div style="grid-column:1/-1"><label class="lbl">Cardápio / Coquetéis</label><textarea id="mn-cardapio" class="inp" rows="3" placeholder="Liste os coquetéis e itens do cardápio..." style="resize:vertical"></textarea></div>
             <div style="grid-column:1/-1"><label class="lbl">Bebidas fornecidas pela Romero</label><textarea id="mn-bebidas-romero" class="inp" rows="2" placeholder="Ex: VODKA, GIN..." style="resize:vertical"></textarea></div>
             <div style="grid-column:1/-1"><label class="lbl">Bebidas do cliente</label><textarea id="mn-bebidas-cliente" class="inp" rows="2" placeholder="Bebidas fornecidas pelo cliente..." style="resize:vertical"></textarea></div>
             <div style="grid-column:1/-1"><label class="lbl">Observações</label><textarea id="mn-obs" class="inp" rows="2" placeholder="Observações gerais..." style="resize:vertical"></textarea></div>
 
             <div style="grid-column:1/-1;display:flex;gap:8px;margin-top:8px">
-              <button class="btn" onclick="salvarContratoManual()" style="background:#C4622D">✅ Salvar contrato</button>
-              <button class="btn" onclick="limparContratoManual()" style="background:#E5E7EB">Limpar</button>
+              <button class="btn" onclick="salvarContratoManual()" style="background:var(--blue)">✅ Salvar contrato</button>
+              <button class="btn" onclick="limparContratoManual()" style="background:var(--border)">Limpar</button>
             </div>
           </div>
         </div>
@@ -1286,7 +1287,7 @@
               <select id="ct-ano" class="inp" style="width:80px" onchange="aplicarMesFechado('ct-ano','ct-mes','ct-data-ini','ct-data-fim',rContratos)"></select>
               <select id="ct-mes" class="inp" style="width:110px" onchange="aplicarMesFechado('ct-ano','ct-mes','ct-data-ini','ct-data-fim',rContratos)"><option value="">Mês...</option><option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option><option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option><option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option></select>
               <input id="ct-data-ini" class="inp" type="date" style="width:140px" onchange="document.getElementById('ct-ano').value='';document.getElementById('ct-mes').value='';rContratos()" placeholder="De">
-              <span style="color:#4B5563;font-size:12px">até</span>
+              <span style="color:var(--text2);font-size:12px">até</span>
               <input id="ct-data-fim" class="inp" type="date" style="width:140px" onchange="document.getElementById('ct-ano').value='';document.getElementById('ct-mes').value='';rContratos()" placeholder="Até">
               <button class="btn-sm" onclick="document.getElementById('ct-busca').value='';document.getElementById('ct-data-ini').value='';document.getElementById('ct-data-fim').value='';document.getElementById('ct-ano').value='';document.getElementById('ct-mes').value='';rContratos()">✕ Limpar</button>
             </div>
@@ -1294,7 +1295,7 @@
           <div style="overflow-x:auto">
             <table style="width:100%;border-collapse:collapse;font-size:13px">
               <thead>
-                <tr style="color:#4B5563;border-bottom:1px solid #E5E7EB">
+                <tr style="color:var(--text2);border-bottom:1px solid var(--border)">
                   <th style="padding:10px 12px;text-align:left;font-weight:500">Cliente</th>
                   <th style="padding:10px 12px;text-align:left;font-weight:500">Tipo</th>
                   <th style="padding:10px 12px;text-align:left;font-weight:500">Data</th>
@@ -1399,21 +1400,21 @@
         <div class="card"><div class="card-label">Total de eventos</div><div class="card-val" id="ag-card-eventos">—</div></div>
         <div class="card"><div class="card-label">Total de convidados</div><div class="card-val" id="ag-card-convidados">—</div></div>
         <div class="card"><div class="card-label">Total de colaboradores</div><div class="card-val" id="ag-card-colab">—</div></div>
-        <div class="card" id="ag-card-viagem-box" style="border:1px solid #E5E7EB">
+        <div class="card" id="ag-card-viagem-box" style="border:1px solid var(--border)">
           <div class="card-label">Eventos com viagem</div>
           <div class="card-val" id="ag-card-viagem">—</div>
         </div>
       </div>
 
       <!-- Detalhe equipe -->
-      <div style="font-size:12px;color:#4B5563;margin-bottom:14px" id="ag-detalhe-equipe"></div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:14px" id="ag-detalhe-equipe"></div>
 
       <div class="sec" style="margin-bottom:14px">
         <div class="sec-head"><span class="sec-title">📅 Agenda de Eventos</span></div>
         <div style="overflow-x:auto">
           <table style="width:100%;border-collapse:collapse;font-size:13px">
             <thead>
-              <tr style="color:#4B5563;border-bottom:1px solid #E5E7EB">
+              <tr style="color:var(--text2);border-bottom:1px solid var(--border)">
                 <th style="padding:10px 12px;text-align:left;font-weight:500">Data</th>
                 <th style="padding:10px 12px;text-align:left;font-weight:500">Evento / Cliente</th>
                 <th style="padding:10px 12px;text-align:left;font-weight:500">Tipo</th>
@@ -1436,7 +1437,7 @@
     <div id="page-financeiro" class="page">
 
       <!-- Alerta persistente: pendências de aprovação (só aparece se houver alguma) -->
-      <div id="fin-pendencias-alerta" style="display:none;background:#FFFBEB;border:1px solid #B45309;border-radius:var(--radius);padding:10px 14px;margin-bottom:14px;font-size:12px;color:#B45309"></div>
+      <div id="fin-pendencias-alerta" style="display:none;background:var(--amber-bg);border:1px solid var(--amber);border-radius:var(--radius);padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--amber)"></div>
 
       <!-- Detalhamento por categoria: contrato (20%+80%) x fechamento x geral -->
       <div style="margin-bottom:14px">
@@ -1449,12 +1450,12 @@
         <button class="sort-btn active" id="fin-tab-sint" onclick="finSetView('sintetico')">📊 Sintético</button>
         <button class="sort-btn"        id="fin-tab-anal" onclick="finSetView('analitico')">📋 Analítico</button>
         <div style="margin-left:auto;display:flex;gap:8px">
-          <button class="btn-sm" onclick="verificarDuplicatasFinanceiro()" style="background:#FEF2F2;color:#B91C1C;border:1px solid #B91C1C;font-weight:700" title="Confere se algum valor está contado duas vezes no total">🧮 Verificar duplicatas</button>
-          <button class="btn-sm" onclick="migrarComprovantesEmbutidos()" style="background:#FEF2F2;color:#B91C1C;border:1px solid #B91C1C;font-weight:700" title="Se o Financeiro parou de salvar (documento acima de 1MB), clique aqui">🗜️ Corrigir erro de salvamento</button>
-          <button class="btn-sm" onclick="verificarParcelasContratos()" style="background:#E5E7EB;color:#B45309;border:1px solid #B45309" title="Corrige parcelas 20%/80% faltando ou com valor diferente do contrato">🔍 Verificar parcelas</button>
-          <button class="btn-sm" onclick="sincronizarFechamentosFinanceiro()" style="background:#E5E7EB;color:#C4622D;border:1px solid #C4622D" title="Recria a parcela de fechamentos que sumiram do Financeiro">🔧 Sincronizar fechamentos</button>
-          <button class="btn-sm" onclick="limparFinanceiroOrfaos()" style="background:#E5E7EB;color:#B91C1C;border:1px solid #B91C1C" title="Remove lançamentos cujo contrato foi excluído">🗑️ Limpar órfãos</button>
-          <button class="btn-sm" onclick="restaurarBackupFinanceiro()" style="background:#E5E7EB;color:#15803D;border:1px solid #15803D" title="Desfaz a última gravação de um ano específico, voltando pra cópia de segurança automática">🛟 Restaurar backup</button>
+          <button class="btn-sm" onclick="verificarDuplicatasFinanceiro()" style="background:var(--red-bg);color:var(--red);border:1px solid var(--red);font-weight:700" title="Confere se algum valor está contado duas vezes no total">🧮 Verificar duplicatas</button>
+          <button class="btn-sm" onclick="migrarComprovantesEmbutidos()" style="background:var(--red-bg);color:var(--red);border:1px solid var(--red);font-weight:700" title="Se o Financeiro parou de salvar (documento acima de 1MB), clique aqui">🗜️ Corrigir erro de salvamento</button>
+          <button class="btn-sm" onclick="verificarParcelasContratos()" style="background:var(--border);color:var(--amber);border:1px solid var(--amber)" title="Corrige parcelas 20%/80% faltando ou com valor diferente do contrato">🔍 Verificar parcelas</button>
+          <button class="btn-sm" onclick="sincronizarFechamentosFinanceiro()" style="background:var(--border);color:var(--blue);border:1px solid var(--blue)" title="Recria a parcela de fechamentos que sumiram do Financeiro">🔧 Sincronizar fechamentos</button>
+          <button class="btn-sm" onclick="limparFinanceiroOrfaos()" style="background:var(--border);color:var(--red);border:1px solid var(--red)" title="Remove lançamentos cujo contrato foi excluído">🗑️ Limpar órfãos</button>
+          <button class="btn-sm" onclick="restaurarBackupFinanceiro()" style="background:var(--border);color:var(--green);border:1px solid var(--green)" title="Desfaz a última gravação de um ano específico, voltando pra cópia de segurança automática">🛟 Restaurar backup</button>
         </div>
       </div>
 
@@ -1475,13 +1476,13 @@
           <div style="overflow-x:auto">
             <table style="width:100%;border-collapse:collapse;font-size:12px">
               <thead>
-                <tr style="color:#4B5563;border-bottom:2px solid #E5E7EB;background:var(--bg4)">
+                <tr style="color:var(--text2);border-bottom:2px solid var(--border);background:var(--bg4)">
                   <th style="padding:10px 12px;text-align:left;font-weight:600">Data evento</th>
                   <th style="padding:10px 12px;text-align:left;font-weight:600">Evento</th>
                   <th style="padding:10px 12px;text-align:left;font-weight:600">Tipo / Convidados</th>
-                  <th style="padding:10px 14px;text-align:center;font-weight:600;color:#C4622D">20% — Sinal</th>
-                  <th style="padding:10px 14px;text-align:center;font-weight:600;color:#6D28D9">80% — Restante</th>
-                  <th style="padding:10px 14px;text-align:center;font-weight:600;color:#B45309">Fechamento</th>
+                  <th style="padding:10px 14px;text-align:center;font-weight:600;color:var(--blue)">20% — Sinal</th>
+                  <th style="padding:10px 14px;text-align:center;font-weight:600;color:var(--purple)">80% — Restante</th>
+                  <th style="padding:10px 14px;text-align:center;font-weight:600;color:var(--amber)">Fechamento</th>
                   <th style="padding:10px 12px;text-align:right;font-weight:600" title="Valor do contrato, direto da aba Contratos — não muda por causa de pagamento/reconciliação">Subtotal (contrato)</th>
                   <th style="padding:10px 12px;text-align:right;font-weight:600" title="Subtotal (contrato) + Fechamento">Total</th>
                 </tr>
@@ -1512,7 +1513,7 @@
           <div style="overflow-x:auto">
             <table style="width:100%;border-collapse:collapse;font-size:13px">
               <thead>
-                <tr style="color:#4B5563;border-bottom:1px solid #E5E7EB">
+                <tr style="color:var(--text2);border-bottom:1px solid var(--border)">
                   <th style="padding:10px 12px;text-align:left;font-weight:500">Vencimento</th>
                   <th style="padding:10px 12px;text-align:left;font-weight:500">Evento</th>
                   <th style="padding:10px 12px;text-align:left;font-weight:500">Data evento</th>
@@ -1554,7 +1555,7 @@
         <div style="overflow-x:auto">
           <table style="width:100%;border-collapse:collapse;font-size:13px">
             <thead>
-              <tr style="color:#4B5563;border-bottom:1px solid #E5E7EB">
+              <tr style="color:var(--text2);border-bottom:1px solid var(--border)">
                 <th style="padding:10px 12px;width:24px"></th>
                 <th style="padding:10px 12px;text-align:left;font-weight:500">Data evento</th>
                 <th style="padding:10px 12px;text-align:left;font-weight:500">Evento / Cliente</th>
@@ -1620,7 +1621,7 @@
       <div id="desp-view-lancar" style="display:none">
         <div class="sec">
           <div class="sec-head"><span class="sec-title">💸 Nova Despesa</span></div>
-          <div id="desp-form-clone-hint" style="display:none;margin:12px 16px 0;padding:8px 12px;background:#FBEEE6;border:1px solid #C4622D40;border-radius:6px;font-size:12px;color:#9A4A20"></div>
+          <div id="desp-form-clone-hint" style="display:none;margin:12px 16px 0;padding:8px 12px;background:var(--blue-bg);border:1px solid #C4622D40;border-radius:6px;font-size:12px;color:#9A4A20"></div>
           <div style="padding:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px">
             <div>
               <label class="lbl">Data de Entrada *</label>
@@ -1641,7 +1642,7 @@
                   <option value="">Selecione...</option>
                 </select>
                 <button type="button" class="btn-sm" onclick="_despAddCategoria('desp-form-cat')"
-                  style="background:#FBEEE6;border:1px solid #C4622D40;color:#C4622D;font-size:16px;padding:0 10px;flex-shrink:0;border-radius:6px" title="Nova categoria">+</button>
+                  style="background:var(--blue-bg);border:1px solid #C4622D40;color:var(--blue);font-size:16px;padding:0 10px;flex-shrink:0;border-radius:6px" title="Nova categoria">+</button>
               </div>
             </div>
             <div>
@@ -1651,7 +1652,7 @@
                   <option value="">Selecione...</option>
                 </select>
                 <button type="button" class="btn-sm" onclick="_despAddFornecedor('desp-form-forn','desp-form-cat')"
-                  style="background:#FBEEE6;border:1px solid #C4622D40;color:#C4622D;font-size:16px;padding:0 10px;flex-shrink:0;border-radius:6px" title="Novo fornecedor">+</button>
+                  style="background:var(--blue-bg);border:1px solid #C4622D40;color:var(--blue);font-size:16px;padding:0 10px;flex-shrink:0;border-radius:6px" title="Novo fornecedor">+</button>
               </div>
             </div>
             <div id="desp-form-pix-box" style="display:none;grid-column:1/-1"></div>
@@ -1743,7 +1744,7 @@
               <option value="pago">Pago</option>
             </select>
             <div style="margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-              <span style="color:#B91C1C;font-weight:600">Total: <span id="desp-lista-total">—</span></span>
+              <span style="color:var(--red);font-weight:600">Total: <span id="desp-lista-total">—</span></span>
               <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3)" title="Filtra a lista e a impressão pelo intervalo. Deixe em branco para usar o filtro de Mês/Ano acima">
                 Período por <span id="desp-print-campo-data-lbl">vencimento</span>:
                 <input type="date" id="desp-print-de" class="inp" style="width:130px;font-size:11px" onchange="rDespesasLista()">
@@ -1763,19 +1764,19 @@
             </div>
           </div>
           <!-- Barra de ações em lote -->
-          <div id="desp-bulk-bar" style="display:none;align-items:center;gap:10px;padding:8px 14px;background:#FFFFFF;border-top:1px solid #E5E7EB;flex-wrap:wrap">
-            <span style="color:#374151;font-size:13px"><strong id="desp-bulk-count">0</strong> selecionada(s)</span>
-            <button class="btn-sm" onclick="marcarSelecionadasPagas()" style="background:#F0FDF4;border:1px solid #15803D40;color:#15803D;font-size:12px;padding:3px 10px">✓ Marcar como Pago</button>
+          <div id="desp-bulk-bar" style="display:none;align-items:center;gap:10px;padding:8px 14px;background:var(--bg2);border-top:1px solid var(--border);flex-wrap:wrap">
+            <span style="color:var(--text2);font-size:13px"><strong id="desp-bulk-count">0</strong> selecionada(s)</span>
+            <button class="btn-sm" onclick="marcarSelecionadasPagas()" style="background:var(--green-bg);border:1px solid #15803D40;color:var(--green);font-size:12px;padding:3px 10px">✓ Marcar como Pago</button>
             <button class="btn-sm btn-red" onclick="excluirDespesasSelecionadas()" style="font-size:12px;padding:3px 10px">✕ Excluir selecionadas</button>
             <button class="btn-sm" onclick="despSelAll(false)" style="background:var(--bg2);border:1px solid var(--border2);font-size:12px;padding:3px 10px">Limpar seleção</button>
           </div>
           <div style="overflow-x:auto">
             <table style="width:100%;border-collapse:collapse;font-size:13px">
               <thead>
-                <tr style="color:#4B5563;border-bottom:1px solid #E5E7EB">
+                <tr style="color:var(--text2);border-bottom:1px solid var(--border)">
                   <th style="padding:10px 10px;text-align:center;font-weight:500;width:36px">
                     <input type="checkbox" id="desp-chk-all" onchange="despSelAll(this.checked)"
-                      style="width:15px;height:15px;cursor:pointer;accent-color:#C4622D" title="Selecionar todos">
+                      style="width:15px;height:15px;cursor:pointer;accent-color:var(--blue)" title="Selecionar todos">
                   </th>
                   <th style="padding:10px 10px;text-align:left;font-weight:500">Data</th>
                   <th style="padding:10px 10px;text-align:left;font-weight:500">Vencimento</th>
@@ -1803,13 +1804,13 @@
         <div class="sec" style="margin-bottom:16px">
           <div class="sec-head"><span class="sec-title">📄 Importar PDF — Relatório de Contas a Pagar</span></div>
           <div style="padding:20px;display:flex;flex-direction:column;gap:16px">
-            <div style="background:#F9F5F0;border-radius:8px;padding:16px;font-size:13px;color:#374151;line-height:1.9">
-              <strong style="color:#15803D">Formato suportado:</strong> Relatório de Contas a Pagar — Modelo 02 (Romero Coqueteis)<br>
+            <div style="background:var(--bg3);border-radius:8px;padding:16px;font-size:13px;color:var(--text2);line-height:1.9">
+              <strong style="color:var(--green)">Formato suportado:</strong> Relatório de Contas a Pagar — Modelo 02 (Romero Coqueteis)<br>
               As categorias são lidas automaticamente do PDF (ex: PESSOAL/FUNCIONÁRIOS, MOTORISTA, etc.).<br>
               A coluna <strong>Vencimento</strong> é usada como data e <strong>Valor a Pagar</strong> como valor.
             </div>
             <div>
-              <label class="btn" style="cursor:pointer;margin:0;background:#15803D">
+              <label class="btn" style="cursor:pointer;margin:0;background:var(--green)">
                 📄 Selecionar PDF
                 <input type="file" accept=".pdf" style="display:none" onchange="importarDespesasPDF(this)">
               </label>
@@ -1821,13 +1822,13 @@
         <div class="sec">
           <div class="sec-head"><span class="sec-title">📊 Importar CSV (lançamento manual)</span></div>
           <div style="padding:20px;display:flex;flex-direction:column;gap:16px">
-            <div style="background:#F9F5F0;border-radius:8px;padding:16px;font-size:13px;color:#374151;line-height:1.9">
-              <strong style="color:#B45309">Formato (separado por ponto e vírgula):</strong><br>
-              <code style="background:#F0EDE8;padding:3px 8px;border-radius:4px;font-size:12px">DATA;CATEGORIA;DESCRICAO;VALOR;OBSERVACAO</code><br><br>
-              <strong>Datas:</strong> DD/MM/AAAA &nbsp;|&nbsp; <strong>Valores:</strong> use vírgula — ex: <code style="background:#F0EDE8;padding:1px 5px;border-radius:3px">1500,00</code>
+            <div style="background:var(--bg3);border-radius:8px;padding:16px;font-size:13px;color:var(--text2);line-height:1.9">
+              <strong style="color:var(--amber)">Formato (separado por ponto e vírgula):</strong><br>
+              <code style="background:var(--bg);padding:3px 8px;border-radius:4px;font-size:12px">DATA;CATEGORIA;DESCRICAO;VALOR;OBSERVACAO</code><br><br>
+              <strong>Datas:</strong> DD/MM/AAAA &nbsp;|&nbsp; <strong>Valores:</strong> use vírgula — ex: <code style="background:var(--bg);padding:1px 5px;border-radius:3px">1500,00</code>
             </div>
             <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
-              <button class="btn" style="background:#E5E7EB;color:#374151" onclick="baixarModeloDespesasCSV()">⬇️ Baixar Modelo CSV</button>
+              <button class="btn" style="background:var(--border);color:var(--text2)" onclick="baixarModeloDespesasCSV()">⬇️ Baixar Modelo CSV</button>
               <label class="btn" style="cursor:pointer;margin:0">
                 📂 Selecionar Arquivo CSV
                 <input type="file" accept=".csv,.txt" style="display:none" onchange="importarDespesasCSV(this)">
@@ -1965,22 +1966,22 @@
             </div>
           </div>
           <!-- Meta anual + distribuição automática -->
-          <div style="padding:14px 16px;background:#F0EDE8;margin:0 16px 12px;border-radius:6px;border:1px solid #E5E7EB">
-            <div style="font-size:12px;color:#4B5563;margin-bottom:10px">🎯 <b style="color:#111827">Meta anual</b> — o sistema distribui automaticamente pelos meses proporcional ao histórico</div>
+          <div style="padding:14px 16px;background:var(--bg);margin:0 16px 12px;border-radius:6px;border:1px solid var(--border)">
+            <div style="font-size:12px;color:var(--text2);margin-bottom:10px">🎯 <b style="color:var(--text)">Meta anual</b> — o sistema distribui automaticamente pelos meses proporcional ao histórico</div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <input id="an-meta-anual-input" class="inp" type="number" style="width:180px" placeholder="Ex: 2000000"
                 onchange="if(!D.metas)D.metas={};D.metas.metaAnual=parseFloat(this.value)||0;sv('metas')">
-              <button class="btn" style="background:#C4622D;padding:8px 16px" onclick="distribuirMetaAnual()">⚡ Distribuir pelos meses</button>
-              <span style="font-size:11px;color:#4B5563">Você pode ajustar cada mês individualmente depois</span>
+              <button class="btn" style="background:var(--blue);padding:8px 16px" onclick="distribuirMetaAnual()">⚡ Distribuir pelos meses</button>
+              <span style="font-size:11px;color:var(--text2)">Você pode ajustar cada mês individualmente depois</span>
             </div>
           </div>
-          <div style="padding:10px 16px;font-size:12px;color:#4B5563;background:#F0EDE8;margin:0 16px 12px;border-radius:6px;border:1px solid #E5E7EB">
-            📋 Formato do CSV: <b style="color:#111827">MES;ANO;PAX;FATURAMENTO</b> — ex: <code>Janeiro;2025;525;22990</code><br>
+          <div style="padding:10px 16px;font-size:12px;color:var(--text2);background:var(--bg);margin:0 16px 12px;border-radius:6px;border:1px solid var(--border)">
+            📋 Formato do CSV: <b style="color:var(--text)">MES;ANO;PAX;FATURAMENTO</b> — ex: <code>Janeiro;2025;525;22990</code><br>
             Dados do ano anterior (2025) alimentam o histórico. Dados do ano atual (2026) alimentam as metas.
           </div>
           <div style="overflow-x:auto;padding:0 16px 16px">
             <table style="width:100%;border-collapse:collapse;font-size:13px">
-              <thead><tr style="color:#4B5563;border-bottom:2px solid #E5E7EB">
+              <thead><tr style="color:var(--text2);border-bottom:2px solid var(--border)">
                 <th style="padding:8px 12px;text-align:left">Mês</th>
                 <th style="padding:8px 12px;text-align:left">PAX 2025 (histórico)</th>
                 <th style="padding:8px 12px;text-align:left">Fat. 2025 (histórico)</th>
@@ -2122,7 +2123,7 @@
           </div>
         </div>
         <div style="display:flex;align-items:center;justify-content:flex-end;gap:14px">
-          <span style="font-size:12px;color:var(--text3)">Total: <strong id="fch-item-total-prev" style="color:#B45309;font-family:var(--mono)">—</strong></span>
+          <span style="font-size:12px;color:var(--text3)">Total: <strong id="fch-item-total-prev" style="color:var(--amber);font-family:var(--mono)">—</strong></span>
           <button class="btn btn-primary" onclick="fchAddItem()" style="white-space:nowrap;padding:8px 14px">+ Add</button>
         </div>
       </div>
@@ -2130,7 +2131,7 @@
       <div id="fch-itens-list" style="border:1px solid var(--border2);border-radius:var(--radius);max-height:180px;overflow-y:auto;min-height:36px;background:var(--bg3)"></div>
 
       <div id="fch-total-row" style="display:flex;justify-content:flex-end;align-items:center;gap:8px;font-size:13px;color:var(--text3)">
-        Total a cobrar: <strong id="fch-total-preview" style="color:#B45309;font-size:16px;font-family:var(--mono)">—</strong>
+        Total a cobrar: <strong id="fch-total-preview" style="color:var(--amber);font-size:16px;font-family:var(--mono)">—</strong>
       </div>
 
       <div>
@@ -2294,8 +2295,8 @@
 
 <!-- ═══ MODAL NOVO ORÇAMENTO ═══ -->
 <div id="m-novo-orc" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5000;align-items:center;justify-content:center">
-  <div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;padding:28px 32px;width:100%;max-width:540px;max-height:90vh;overflow-y:auto">
-    <div style="font-size:16px;font-weight:600;color:#111827;margin-bottom:20px">📋 Novo Orçamento</div>
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:28px 32px;width:100%;max-width:540px;max-height:90vh;overflow-y:auto">
+    <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:20px">📋 Novo Orçamento</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div style="grid-column:1/-1">
         <label class="lbl">Nº do orçamento (mês + ano + sequência)</label>
@@ -2335,19 +2336,19 @@
         </select>
       </div>
     </div>
-    <div style="font-size:11px;font-weight:700;color:#4B5563;text-transform:uppercase;margin:18px 0 8px">Taxas e adicionais</div>
+    <div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;margin:18px 0 8px">Taxas e adicionais</div>
     <div id="orc-m-adic" style="display:grid;grid-template-columns:1fr 1fr;gap:10px"></div>
     <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
       <button class="btn" onclick="document.getElementById('m-novo-orc').style.display='none'">Cancelar</button>
-      <button class="btn" style="background:#C4622D" onclick="criarOrcamento()">Criar orçamento</button>
+      <button class="btn" style="background:var(--blue)" onclick="criarOrcamento()">Criar orçamento</button>
     </div>
   </div>
 </div>
 
 <!-- ═══ MODAL ADICIONAR ITEM ORC ═══ -->
 <div id="m-add-orc-item" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5000;align-items:center;justify-content:center">
-  <div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;padding:28px 32px;width:100%;max-width:480px">
-    <div style="font-size:16px;font-weight:600;color:#111827;margin-bottom:20px">+ Adicionar item (orçado vs real)</div>
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:28px 32px;width:100%;max-width:480px">
+    <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:20px">+ Adicionar item (orçado vs real)</div>
     <input type="hidden" id="orc-add-orcid">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div style="grid-column:1/-1">
@@ -2374,29 +2375,29 @@
     </div>
     <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
       <button class="btn" onclick="document.getElementById('m-add-orc-item').style.display='none'">Cancelar</button>
-      <button class="btn" style="background:#C4622D" onclick="salvarAddItemOrc()">Adicionar</button>
+      <button class="btn" style="background:var(--blue)" onclick="salvarAddItemOrc()">Adicionar</button>
     </div>
   </div>
 </div>
 
 <!-- ═══ MODAL IMPORTAR ORC ═══ -->
 <div id="m-import-orc" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5000;align-items:center;justify-content:center">
-  <div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;padding:28px 32px;width:100%;max-width:640px;max-height:90vh;overflow-y:auto">
-    <div style="font-size:16px;font-weight:600;color:#111827;margin-bottom:6px">📥 Importar orçamento do Excel</div>
-    <div style="font-size:12px;color:#4B5563;margin-bottom:12px">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:28px 32px;width:100%;max-width:640px;max-height:90vh;overflow-y:auto">
+    <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:6px">📥 Importar orçamento do Excel</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:12px">
       Cole os dados copiados do Excel (Tab-separado):<br>
-      <strong style="color:#111827">Produto | Qtd Orçada | Preço Unit Orçado</strong>
+      <strong style="color:var(--text)">Produto | Qtd Orçada | Preço Unit Orçado</strong>
     </div>
     <input type="hidden" id="orc-imp-orcid">
     <textarea id="orc-imp-area" class="inp" rows="6" placeholder="Cole aqui..." oninput="previewImportOrc()"
       style="width:100%;font-size:11px;font-family:var(--mono);resize:vertical"></textarea>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
-      <span id="orc-imp-info" style="font-size:12px;color:#4B5563"></span>
+      <span id="orc-imp-info" style="font-size:12px;color:var(--text2)"></span>
     </div>
     <div id="orc-imp-preview" style="margin-top:10px"></div>
     <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end">
       <button class="btn" onclick="document.getElementById('m-import-orc').style.display='none'">Cancelar</button>
-      <button class="btn" style="background:#C4622D" onclick="confirmarImportOrc()">✅ Confirmar importação</button>
+      <button class="btn" style="background:var(--blue)" onclick="confirmarImportOrc()">✅ Confirmar importação</button>
     </div>
   </div>
 </div>
@@ -2429,48 +2430,48 @@
 <script src="js/data.js?v=20260610z"></script>
 <script src="js/globals.js?v=20260728a"></script>
 <!-- ── Módulos do sistema ── -->
-<script src="js/dashboard.js?v=20261012c"></script>
+<script src="js/dashboard.js?v=20261012e"></script>
 <script src="js/estoques.js?v=20260610z"></script>
 <script src="js/contagens.js?v=20260610z"></script>
 <script src="js/precos.js?v=20260804a"></script>
 <script src="js/selects.js?v=20260610z"></script>
-<script src="js/entradas.js?v=20261012c"></script>
+<script src="js/entradas.js?v=20261012e"></script>
 <script src="js/quebras.js?v=20260804a"></script>
-<script src="js/festas.js?v=20261012c"></script>
+<script src="js/festas.js?v=20261012e"></script>
 <script src="js/relatorio.js?v=20260610z"></script>
-<script src="js/fornecedores.js?v=20261012c"></script>
-<script src="js/nav.js?v=20260930b"></script>
+<script src="js/fornecedores.js?v=20261012e"></script>
+<script src="js/nav.js?v=20261012e"></script>
 <script src="js/auth.js?v=20260930a"></script>
-<script src="js/contratos.js?v=20261012c"></script>
-<script src="js/agenda.js?v=20261012c"></script>
-<script src="js/producao.js?v=20261012c"></script>
-<script src="js/financeiro.js?v=20261012c"></script>
-<script src="js/fechamento.js?v=20261012c"></script>
-<script src="js/despesas.js?v=20261012d"></script>
+<script src="js/contratos.js?v=20261012e"></script>
+<script src="js/agenda.js?v=20261012e"></script>
+<script src="js/producao.js?v=20261012e"></script>
+<script src="js/financeiro.js?v=20261012e"></script>
+<script src="js/fechamento.js?v=20261012e"></script>
+<script src="js/despesas.js?v=20261012e"></script>
 <script src="js/producao2.js?v=20260610z"></script>
 <script src="js/produtos.js?v=20260610z"></script>
 <script src="js/categorias.js?v=20261012c"></script>
 <script src="js/servicos.js?v=20260713b"></script>
 <script src="js/tiposEvento.js?v=20260913a"></script>
 <script src="js/medidas.js?v=20260929a"></script>
-<script src="js/fechamentoMensal.js?v=20261012c"></script>
+<script src="js/fechamentoMensal.js?v=20261012e"></script>
 <script src="js/insumos.js?v=20260930a"></script>
 <script src="js/estoqueSeparacao.js?v=20260901d"></script>
 <script src="js/cargos.js?v=20260713b"></script>
-<script src="js/regras.js?v=20261012c"></script>
+<script src="js/regras.js?v=20261012e"></script>
 <script src="js/opcionais.js?v=20260908a"></script>
 <script src="js/associacoes.js?v=20260901a"></script>
 <script src="js/fichaTecnica.js?v=20260929a"></script>
-<script src="js/separacao.js?v=20261012c"></script>
-<script src="js/equipe.js?v=20261012d"></script>
-<script src="js/solicitacaoOrcamento.js?v=20261012c"></script>
-<script src="js/orcamento.js?v=20261012c"></script>
-<script src="js/orcCalc.js?v=20261012c"></script>
-<script src="js/orcCalculos.js?v=20261012c"></script>
+<script src="js/separacao.js?v=20261012e"></script>
+<script src="js/equipe.js?v=20261012e"></script>
+<script src="js/solicitacaoOrcamento.js?v=20261012e"></script>
+<script src="js/orcamento.js?v=20261012e"></script>
+<script src="js/orcCalc.js?v=20261012e"></script>
+<script src="js/orcCalculos.js?v=20261012e"></script>
 <script src="js/orcProposta.js?v=20261007c"></script>
 <script src="js/_refConsumoData.js?v=20260610z"></script>
-<script src="js/refConsumo.js?v=20261012c"></script>
-<script src="js/seguranca-admin.js?v=20261012c"></script>
+<script src="js/refConsumo.js?v=20261012e"></script>
+<script src="js/seguranca-admin.js?v=20261012e"></script>
 
 <script type="module">
 import { initializeApp }    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -2952,7 +2953,7 @@ async function carregarDados() {
   } catch(e) {
     window._erroCarregamento = true;
     document.getElementById("loading-msg").textContent = "⚠ Erro ao conectar. Verifique sua internet.";
-    document.getElementById("loading-msg").style.color = "#B91C1C";
+    document.getElementById("loading-msg").style.color = "var(--red)";
     console.error("Firebase erro:", e);
   }
 }
@@ -2963,7 +2964,7 @@ signInAnonymously(auth)
   .catch(e => {
     window._erroCarregamento = true;
     document.getElementById("loading-msg").textContent = "⚠ Falha na autenticação. Verifique sua internet.";
-    document.getElementById("loading-msg").style.color = "#B91C1C";
+    document.getElementById("loading-msg").style.color = "var(--red)";
     console.error("Auth erro:", e);
   });
 
@@ -3093,16 +3094,16 @@ window.buscarItemConfigSeparacao = async function () {
 const styleExtra = document.createElement("style");
 styleExtra.textContent = `
   .tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
-  .tag-green{background:#F0FDF4;color:#15803D}
-  .tag-yellow{background:#FFFBEB;color:#B45309}
-  .tag-red{background:#FEF2F2;color:#B91C1C}
-  .tag-blue{background:#FBEEE6;color:#C4622D}
-  .btn-sm{padding:3px 8px;font-size:11px;border-radius:6px;cursor:pointer;border:1px solid #E5E7EB;background:#FFFFFF;color:#374151;margin-right:4px}
-  .btn-sm:hover{background:#E5E7EB}
-  .btn-green{border-color:#F0FDF4;color:#15803D}
-  .btn-red{border-color:#FEF2F2;color:#B91C1C}
-  .lbl{display:block;font-size:11px;color:#4B5563;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px}
-  .contrato-upload-zone.drag-over{border-color:#C4622D!important}
+  .tag-green{background:var(--green-bg);color:var(--green)}
+  .tag-yellow{background:var(--amber-bg);color:var(--amber)}
+  .tag-red{background:var(--red-bg);color:var(--red)}
+  .tag-blue{background:var(--blue-bg);color:var(--blue)}
+  .btn-sm{padding:3px 8px;font-size:11px;border-radius:6px;cursor:pointer;border:1px solid var(--border);background:var(--bg2);color:var(--text2);margin-right:4px}
+  .btn-sm:hover{background:var(--border)}
+  .btn-green{border-color:var(--green-bg);color:var(--green)}
+  .btn-red{border-color:var(--red-bg);color:var(--red)}
+  .lbl{display:block;font-size:11px;color:var(--text2);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px}
+  .contrato-upload-zone.drag-over{border-color:var(--blue)!important}
   [data-modulo]{transition:display 0s}
 `;
 document.head.appendChild(styleExtra);
@@ -3111,9 +3112,9 @@ document.head.appendChild(styleExtra);
 
 <!-- ═══ MODAL CADASTRO RÁPIDO DE PRODUTO (a partir do lançamento NF) ═══ -->
 <div id="m-quick-produto" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:6000;align-items:center;justify-content:center">
-  <div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;padding:28px 32px;width:100%;max-width:480px">
-    <div style="font-size:16px;font-weight:600;color:#111827;margin-bottom:6px">📦 Cadastrar novo produto</div>
-    <div style="font-size:12px;color:#4B5563;margin-bottom:16px">O produto será salvo no catálogo e selecionado automaticamente na NF.</div>
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:28px 32px;width:100%;max-width:480px">
+    <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:6px">📦 Cadastrar novo produto</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:16px">O produto será salvo no catálogo e selecionado automaticamente na NF.</div>
     <div style="display:grid;gap:10px">
       <div>
         <label class="lbl">Nome *</label>
@@ -3161,27 +3162,27 @@ document.head.appendChild(styleExtra);
 
 <!-- ═══ MODAL NOVO COLABORADOR ═══ -->
 <div id="m-novo-colab" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5000;align-items:center;justify-content:center">
-  <div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;padding:28px 32px;width:100%;max-width:640px;max-height:90vh;overflow-y:auto">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:28px 32px;width:100%;max-width:640px;max-height:90vh;overflow-y:auto">
     <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">
       <!-- Foto -->
       <div style="position:relative;flex-shrink:0">
         <div id="eq-m-foto-preview"
-          style="width:72px;height:72px;border-radius:50%;background:#F9F5F0;border:2px solid #E5E7EB;
+          style="width:72px;height:72px;border-radius:50%;background:var(--bg3);border:2px solid var(--border);
                  display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700;
                  color:#9CA3AF;overflow:hidden;cursor:pointer"
           onclick="document.getElementById('eq-m-foto-file').click()"
           title="Clique para adicionar foto">
           <span id="eq-m-foto-inicial">?</span>
         </div>
-        <label style="position:absolute;bottom:0;right:0;width:22px;height:22px;background:#C4622D;border-radius:50%;
-                      display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12px;border:2px solid #FFFFFF"
+        <label style="position:absolute;bottom:0;right:0;width:22px;height:22px;background:var(--blue);border-radius:50%;
+                      display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12px;border:2px solid var(--bg2)"
                title="Alterar foto" onclick="document.getElementById('eq-m-foto-file').click()">📷</label>
         <input type="file" id="eq-m-foto-file" accept="image/*" style="display:none" onchange="eqPreviewFoto(this)">
         <input type="hidden" id="eq-m-foto">
       </div>
       <!-- Título + nome -->
       <div style="flex:1">
-        <div id="eq-m-titulo" style="font-size:16px;font-weight:600;color:#111827;margin-bottom:10px">+ Novo Colaborador</div>
+        <div id="eq-m-titulo" style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:10px">+ Novo Colaborador</div>
         <input id="eq-m-nome" class="inp" type="text" placeholder="Nome completo *" oninput="eqAtualizarInicial(this.value)">
       </div>
     </div>
@@ -3192,19 +3193,19 @@ document.head.appendChild(styleExtra);
         <label class="lbl">Funções (pode marcar mais de uma)</label>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
           <label id="eq-lbl-hb" style="display:flex;align-items:center;gap:5px;padding:5px 12px;border:1px solid var(--border2);border-radius:20px;cursor:pointer;font-size:12px;color:var(--text2);transition:.15s">
-            <input type="checkbox" id="eq-m-cargo-hb" value="Head Bartender" style="accent-color:#C4622D" onchange="eqToggleCargo(this)"> Head Bartender
+            <input type="checkbox" id="eq-m-cargo-hb" value="Head Bartender" style="accent-color:var(--blue)" onchange="eqToggleCargo(this)"> Head Bartender
           </label>
           <label id="eq-lbl-cd" style="display:flex;align-items:center;gap:5px;padding:5px 12px;border:1px solid var(--border2);border-radius:20px;cursor:pointer;font-size:12px;color:var(--text2);transition:.15s">
-            <input type="checkbox" id="eq-m-cargo-cd" value="Coordenador" style="accent-color:#C4622D" onchange="eqToggleCargo(this)"> Coordenador
+            <input type="checkbox" id="eq-m-cargo-cd" value="Coordenador" style="accent-color:var(--blue)" onchange="eqToggleCargo(this)"> Coordenador
           </label>
           <label id="eq-lbl-bt" style="display:flex;align-items:center;gap:5px;padding:5px 12px;border:1px solid var(--border2);border-radius:20px;cursor:pointer;font-size:12px;color:var(--text2);transition:.15s">
-            <input type="checkbox" id="eq-m-cargo-bt" value="Bartender" style="accent-color:#C4622D" onchange="eqToggleCargo(this)"> Bartender
+            <input type="checkbox" id="eq-m-cargo-bt" value="Bartender" style="accent-color:var(--blue)" onchange="eqToggleCargo(this)"> Bartender
           </label>
           <label id="eq-lbl-bb" style="display:flex;align-items:center;gap:5px;padding:5px 12px;border:1px solid var(--border2);border-radius:20px;cursor:pointer;font-size:12px;color:var(--text2);transition:.15s">
-            <input type="checkbox" id="eq-m-cargo-bb" value="Bar Back" style="accent-color:#C4622D" onchange="eqToggleCargo(this)"> Bar Back
+            <input type="checkbox" id="eq-m-cargo-bb" value="Bar Back" style="accent-color:var(--blue)" onchange="eqToggleCargo(this)"> Bar Back
           </label>
           <label id="eq-lbl-cp" style="display:flex;align-items:center;gap:5px;padding:5px 12px;border:1px solid var(--border2);border-radius:20px;cursor:pointer;font-size:12px;color:var(--text2);transition:.15s">
-            <input type="checkbox" id="eq-m-cargo-cp" value="Copeiro" style="accent-color:#C4622D" onchange="eqToggleCargo(this)"> Copeiro
+            <input type="checkbox" id="eq-m-cargo-cp" value="Copeiro" style="accent-color:var(--blue)" onchange="eqToggleCargo(this)"> Copeiro
           </label>
         </div>
       </div>
@@ -3230,24 +3231,24 @@ document.head.appendChild(styleExtra);
       <div style="grid-column:1/-1"><label class="lbl">Observações</label><textarea id="eq-m-obs" class="inp" rows="2" placeholder="Observações gerais, restrições, etc." style="resize:vertical"></textarea></div>
 
       <!-- Chave PIX destacada -->
-      <div style="grid-column:1/-1;border:1px solid #15803D80;border-radius:8px;padding:12px 14px;background:#F0FDF4">
-        <label class="lbl" style="color:#15803D;font-size:10px;letter-spacing:.08em">CHAVE PIX</label>
+      <div style="grid-column:1/-1;border:1px solid #15803D80;border-radius:8px;padding:12px 14px;background:var(--green-bg)">
+        <label class="lbl" style="color:var(--green);font-size:10px;letter-spacing:.08em">CHAVE PIX</label>
         <input id="eq-m-pix" class="inp" type="text" placeholder="CPF, e-mail, telefone ou chave aleatória"
-          style="background:#F0FDF4;border-color:#15803D60;color:#15803D;font-family:monospace;margin-top:4px">
+          style="background:var(--green-bg);border-color:#15803D60;color:var(--green);font-family:monospace;margin-top:4px">
       </div>
     </div>
     <input type="hidden" id="eq-m-id">
     <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
       <button class="btn" onclick="document.getElementById('m-novo-colab').style.display='none'">Cancelar</button>
-      <button class="btn" style="background:#C4622D" onclick="salvarColab()">Salvar</button>
+      <button class="btn" style="background:var(--blue)" onclick="salvarColab()">Salvar</button>
     </div>
   </div>
 </div>
 
 <!-- ═══ MODAL EDITAR DESPESA ═══ -->
 <div id="m-edit-despesa" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5000;align-items:center;justify-content:center">
-  <div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;padding:28px 32px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto">
-    <div style="font-size:15px;font-weight:600;color:#111827;margin-bottom:20px">✏️ Editar Despesa</div>
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:28px 32px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto">
+    <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:20px">✏️ Editar Despesa</div>
     <input type="hidden" id="desp-edit-id">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <div>
@@ -3269,7 +3270,7 @@ document.head.appendChild(styleExtra);
             <option value="">Selecione...</option>
           </select>
           <button type="button" class="btn-sm" onclick="_despAddCategoria('desp-edit-cat')"
-            style="background:#FBEEE6;border:1px solid #C4622D40;color:#C4622D;font-size:16px;padding:0 10px;flex-shrink:0;border-radius:6px" title="Nova categoria">+</button>
+            style="background:var(--blue-bg);border:1px solid #C4622D40;color:var(--blue);font-size:16px;padding:0 10px;flex-shrink:0;border-radius:6px" title="Nova categoria">+</button>
         </div>
       </div>
       <div>
@@ -3301,7 +3302,7 @@ document.head.appendChild(styleExtra);
             <option value="">Selecione...</option>
           </select>
           <button type="button" class="btn-sm" onclick="_despAddFornecedor('desp-edit-forn','desp-edit-cat')"
-            style="background:#FBEEE6;border:1px solid #C4622D40;color:#C4622D;font-size:16px;padding:0 10px;flex-shrink:0;border-radius:6px" title="Novo fornecedor">+</button>
+            style="background:var(--blue-bg);border:1px solid #C4622D40;color:var(--blue);font-size:16px;padding:0 10px;flex-shrink:0;border-radius:6px" title="Novo fornecedor">+</button>
         </div>
       </div>
       <div id="desp-edit-pix-box" style="display:none;grid-column:span 2"></div>
@@ -3316,15 +3317,15 @@ document.head.appendChild(styleExtra);
     </div>
     <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
       <button class="btn" onclick="document.getElementById('m-edit-despesa').style.display='none'">Cancelar</button>
-      <button class="btn" style="background:#C4622D" onclick="salvarEditDespesa()">💾 Salvar</button>
+      <button class="btn" style="background:var(--blue)" onclick="salvarEditDespesa()">💾 Salvar</button>
     </div>
   </div>
 </div>
 
 <!-- ═══ MODAL EDITAR FORNECEDOR ═══ -->
 <div id="m-edit-forn" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5000;align-items:center;justify-content:center">
-  <div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;padding:28px 32px;width:100%;max-width:540px;max-height:90vh;overflow-y:auto">
-    <div style="font-size:15px;font-weight:600;color:#111827;margin-bottom:20px">✏️ Editar Fornecedor</div>
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:28px 32px;width:100%;max-width:540px;max-height:90vh;overflow-y:auto">
+    <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:20px">✏️ Editar Fornecedor</div>
     <input type="hidden" id="fn-edit-nome-orig">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <div style="grid-column:span 2">
@@ -3356,23 +3357,23 @@ document.head.appendChild(styleExtra);
         <input id="fn-edit-cod-barras" class="inp" type="text" style="width:100%;box-sizing:border-box" placeholder="Cole aqui o código do boleto recorrente">
       </div>
     </div>
-    <div id="fn-edit-aviso-cat" style="display:none;margin-top:12px;background:#F9F5F0;border:1px solid #B4530940;border-radius:8px;padding:10px 14px;font-size:12px;color:#B45309"></div>
+    <div id="fn-edit-aviso-cat" style="display:none;margin-top:12px;background:var(--bg3);border:1px solid #B4530940;border-radius:8px;padding:10px 14px;font-size:12px;color:var(--amber)"></div>
     <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
       <button class="btn" onclick="document.getElementById('m-edit-forn').style.display='none'">Cancelar</button>
-      <button class="btn" style="background:#C4622D" onclick="salvarEditForn()">💾 Salvar</button>
+      <button class="btn" style="background:var(--blue)" onclick="salvarEditForn()">💾 Salvar</button>
     </div>
   </div>
 </div>
 
 <!-- ═══ MODAL ADICIONAR COLABORADOR AO EVENTO ═══ -->
 <div id="m-add-colab-evento" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5000;align-items:center;justify-content:center">
-  <div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;padding:28px 32px;width:100%;max-width:480px">
-    <div id="add-ev-titulo" style="font-size:15px;font-weight:600;color:#111827;margin-bottom:20px">Adicionar colaborador</div>
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:28px 32px;width:100%;max-width:480px">
+    <div id="add-ev-titulo" style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:20px">Adicionar colaborador</div>
     <div style="display:grid;gap:10px">
       <div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
           <label class="lbl" style="margin-bottom:0">Colaborador *</label>
-          <button type="button" onclick="abrirNovoColabFromEvento()" style="background:none;border:none;color:#C4622D;font-size:11px;cursor:pointer;padding:0">+ Cadastrar novo</button>
+          <button type="button" onclick="abrirNovoColabFromEvento()" style="background:none;border:none;color:var(--blue);font-size:11px;cursor:pointer;padding:0">+ Cadastrar novo</button>
         </div>
         <input type="hidden" id="add-ev-lista">
         <div style="position:relative">
@@ -3384,7 +3385,7 @@ document.head.appendChild(styleExtra);
             autocomplete="off">
           <div id="add-ev-opcoes"
             style="position:absolute;left:0;right:0;top:100%;margin-top:2px;max-height:200px;overflow-y:auto;
-                   background:#FFFFFF;border:1px solid #E5E7EB;border-radius:8px;z-index:100;display:none"></div>
+                   background:var(--bg2);border:1px solid var(--border);border-radius:8px;z-index:100;display:none"></div>
         </div>
       </div>
       <div><label class="lbl">Cargo neste evento</label>
@@ -3401,40 +3402,40 @@ document.head.appendChild(styleExtra);
     </div>
     <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
       <button class="btn" onclick="document.getElementById('m-add-colab-evento').style.display='none'">Cancelar</button>
-      <button class="btn" style="background:#C4622D" onclick="confirmarAddColabEvento()">Adicionar</button>
+      <button class="btn" style="background:var(--blue)" onclick="confirmarAddColabEvento()">Adicionar</button>
     </div>
   </div>
 </div>
 
 <!-- ═══ MODAL IMPORTAR EQUIPE ═══ -->
 <div id="m-import-equipe" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5000;align-items:center;justify-content:center">
-  <div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;padding:28px 32px;width:100%;max-width:640px;max-height:90vh;overflow-y:auto">
-    <div style="font-size:16px;font-weight:600;color:#111827;margin-bottom:6px">📥 Importar Colaboradores da Planilha</div>
-    <div style="font-size:12px;color:#4B5563;margin-bottom:16px">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:28px 32px;width:100%;max-width:640px;max-height:90vh;overflow-y:auto">
+    <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:6px">📥 Importar Colaboradores da Planilha</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:16px">
       Cole os dados copiados do Excel. Colunas esperadas (separadas por Tab):<br>
-      <code style="background:#F0EDE8;padding:4px 8px;border-radius:4px;font-size:11px;display:inline-block;margin-top:4px">
+      <code style="background:var(--bg);padding:4px 8px;border-radius:4px;font-size:11px;display:inline-block;margin-top:4px">
         Nome &nbsp;|&nbsp; Endereço &nbsp;|&nbsp; Telefone &nbsp;|&nbsp; Chave PIX
       </code>
     </div>
     <textarea id="eq-imp-area" rows="8"
-      style="width:100%;background:#F0EDE8;border:1px solid #E5E7EB;border-radius:8px;color:#111827;font-size:11px;padding:10px;box-sizing:border-box;resize:vertical;font-family:monospace"
+      style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:11px;padding:10px;box-sizing:border-box;resize:vertical;font-family:monospace"
       placeholder="Cole aqui os dados copiados do Excel (Ctrl+C na planilha, Ctrl+V aqui)..."></textarea>
     <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
-      <button class="btn" style="background:#E5E7EB" onclick="previewImportEquipe()">👁 Visualizar</button>
-      <span id="eq-imp-info" style="font-size:12px;color:#4B5563"></span>
+      <button class="btn" style="background:var(--border)" onclick="previewImportEquipe()">👁 Visualizar</button>
+      <span id="eq-imp-info" style="font-size:12px;color:var(--text2)"></span>
     </div>
     <div id="eq-imp-preview" style="margin-top:10px"></div>
     <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end">
       <button class="btn" onclick="document.getElementById('m-import-equipe').style.display='none'">Cancelar</button>
-      <button class="btn" style="background:#C4622D" onclick="confirmarImportEquipe()">✅ Confirmar importação</button>
+      <button class="btn" style="background:var(--blue)" onclick="confirmarImportEquipe()">✅ Confirmar importação</button>
     </div>
   </div>
 </div>
 
 <!-- ═══ MODAL ESCALAR COLABORADOR (legado) ═══ -->
 <div id="m-escalar-colab" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5000;align-items:center;justify-content:center">
-  <div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;padding:28px 32px;width:100%;max-width:480px">
-    <div style="font-size:16px;font-weight:600;color:#111827;margin-bottom:20px">📅 Escalar Colaborador</div>
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:28px 32px;width:100%;max-width:480px">
+    <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:20px">📅 Escalar Colaborador</div>
     <div style="display:grid;gap:10px">
       <div><label class="lbl">Data do evento *</label><input id="esc-m-data" class="inp" type="date"></div>
       <div><label class="lbl">Nome do evento</label><input id="esc-m-evento" class="inp" type="text" placeholder="Ex: Casamento João e Maria"></div>
@@ -3456,15 +3457,15 @@ document.head.appendChild(styleExtra);
     <input type="hidden" id="esc-m-contrato">
     <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
       <button class="btn" onclick="document.getElementById('m-escalar-colab').style.display='none'">Cancelar</button>
-      <button class="btn" style="background:#C4622D" onclick="confirmarEscalar()">Escalar</button>
+      <button class="btn" style="background:var(--blue)" onclick="confirmarEscalar()">Escalar</button>
     </div>
   </div>
 </div>
 
 <!-- ═══ MODAL EDITAR CONTRATO ═══ -->
 <div id="m-edit-contrato" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5000;align-items:center;justify-content:center">
-  <div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;padding:28px 32px;width:100%;max-width:680px;max-height:90vh;overflow-y:auto">
-    <div style="font-size:16px;font-weight:600;color:#111827;margin-bottom:20px">✏️ Editar Contrato</div>
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:28px 32px;width:100%;max-width:680px;max-height:90vh;overflow-y:auto">
+    <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:20px">✏️ Editar Contrato</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px">
       <div><label class="lbl">Cliente *</label><input id="ec-nome" class="inp" type="text"></div>
       <div><label class="lbl">Nome do evento</label><input id="ec-nome-evento" class="inp" type="text" placeholder="Ex: Casamento entre Vanessa e Allan" title="Usado como nome de exibição no Financeiro — deixe em branco para usar o nome do Cliente"></div>
@@ -3490,15 +3491,15 @@ document.head.appendChild(styleExtra);
     <input type="hidden" id="ec-id">
     <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
       <button class="btn" onclick="document.getElementById('m-edit-contrato').style.display='none'">Cancelar</button>
-      <button class="btn" style="background:#C4622D" onclick="salvarEdicaoContrato()">Salvar alterações</button>
+      <button class="btn" style="background:var(--blue)" onclick="salvarEdicaoContrato()">Salvar alterações</button>
     </div>
   </div>
 </div>
 
 <!-- ═══ MODAL EDITAR NOTA FISCAL (ENTRADA) ═══ -->
 <div id="m-edit-ent" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:6000;align-items:center;justify-content:center">
-  <div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;padding:28px 32px;width:100%;max-width:580px;max-height:90vh;overflow-y:auto">
-    <div style="font-size:16px;font-weight:600;color:#111827;margin-bottom:20px">✏️ Editar Nota Fiscal</div>
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:28px 32px;width:100%;max-width:580px;max-height:90vh;overflow-y:auto">
+    <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:20px">✏️ Editar Nota Fiscal</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
       <div>
         <label class="lbl">Nº da NF</label>
@@ -3518,11 +3519,11 @@ document.head.appendChild(styleExtra);
       </div>
     </div>
 
-    <div style="font-size:11px;font-weight:600;color:#4B5563;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Produtos</div>
-    <div id="ent-edit-itens" style="border:1px solid #E5E7EB;border-radius:8px;background:#F0EDE8;min-height:48px;margin-bottom:12px;max-height:240px;overflow-y:auto"></div>
+    <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Produtos</div>
+    <div id="ent-edit-itens" style="border:1px solid var(--border);border-radius:8px;background:var(--bg);min-height:48px;margin-bottom:12px;max-height:240px;overflow-y:auto"></div>
 
     <!-- Adicionar produto ao editar -->
-    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:10px;background:#F0EDE8;border:1px solid #E5E7EB;border-radius:8px;margin-bottom:20px">
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:20px">
       <select id="ent-edit-addprod" class="inp" style="flex:1;min-width:160px;font-size:12px;padding:5px 8px">
         <option value="">Selecione produto...</option>
       </select>
@@ -3530,12 +3531,12 @@ document.head.appendChild(styleExtra);
         style="width:80px;font-size:12px;padding:5px 8px">
       <input id="ent-edit-addcusto" type="number" class="inp" placeholder="Custo unit." min="0" step="0.01"
         style="width:100px;font-size:12px;padding:5px 8px">
-      <button onclick="addIEEdit()" style="padding:5px 14px;background:#15803D;border:none;border-radius:6px;color:#fff;font-size:12px;font-weight:600;cursor:pointer">+ Adicionar</button>
+      <button onclick="addIEEdit()" style="padding:5px 14px;background:var(--green);border:none;border-radius:6px;color:#fff;font-size:12px;font-weight:600;cursor:pointer">+ Adicionar</button>
     </div>
 
     <div style="display:flex;gap:10px;justify-content:flex-end">
       <button class="btn" onclick="document.getElementById('m-edit-ent').style.display='none'">Cancelar</button>
-      <button class="btn" style="background:#C4622D" onclick="salvarEdicaoNFEnt()">Salvar alterações</button>
+      <button class="btn" style="background:var(--blue)" onclick="salvarEdicaoNFEnt()">Salvar alterações</button>
     </div>
   </div>
 </div>

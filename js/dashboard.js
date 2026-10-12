@@ -58,7 +58,7 @@ function rFechamento(){
   const catSort=Object.entries(porcatF).sort((a,b)=>b[1]-a[1]);
   const maxCat=catSort[0]?.[1]||1;
   const totalCat=catSort.reduce((a,[,v])=>a+v,0);
-  const catColors=['var(--blue)','var(--green)','var(--amber)','var(--red)','#6D28D9','#0E7490','#C2410C','#4D7C0F','#BE185D','#0F766E'];
+  const catColors=['var(--blue)','var(--green)','var(--amber)','var(--red)','var(--purple)','#0E7490','#C2410C','#4D7C0F','#BE185D','#0F766E'];
   document.getElementById('dash-cat-chart').innerHTML=catSort.map(([cat,qtd],i)=>{
     const pct=Math.round((qtd/maxCat)*100);
     const pctTotal=totalCat>0?((qtd/totalCat)*100).toFixed(0):0;

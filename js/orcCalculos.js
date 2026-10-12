@@ -967,7 +967,7 @@ function _ocoRenderOverview(cont, tipos) {
       var nItens = _ocoRegras(t.id).length;
       html += '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:8px">' +
         '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
-          '<button onclick="ocoAbrirDetalhe(\'' + t.id + '\')" style="background:none;border:none;padding:0;cursor:pointer;font-size:14px;font-weight:700;color:var(--blue,#C4622D);text-decoration:underline">' + t.nome + '</button>' +
+          '<button onclick="ocoAbrirDetalhe(\'' + t.id + '\')" style="background:none;border:none;padding:0;cursor:pointer;font-size:14px;font-weight:700;color:var(--blue,var(--blue));text-decoration:underline">' + t.nome + '</button>' +
           (nItens ? '<span style="font-size:10px;color:var(--text3)">' + nItens + ' insumo(s) na tabela de quantidades</span>' : '') +
         '</div>' +
         '<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">' +
@@ -1022,7 +1022,7 @@ function _ocoRenderCatalogo(cont) {
   Object.keys(porCatCatalogo).forEach(function(c) { if (ordemCatsCatalogo.indexOf(c) === -1) ordemCatsCatalogo.push(c); });
 
   html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">' +
-    '<button class="btn-sm" style="background:' + (_ocoSoAvisos ? 'var(--amber)' : 'var(--bg3)') + ';color:' + (_ocoSoAvisos ? '#FFFBEB' : 'var(--text)') + ';font-weight:700" onclick="ocoToggleSoAvisos()">' +
+    '<button class="btn-sm" style="background:' + (_ocoSoAvisos ? 'var(--amber)' : 'var(--bg3)') + ';color:' + (_ocoSoAvisos ? 'var(--amber-bg)' : 'var(--text)') + ';font-weight:700" onclick="ocoToggleSoAvisos()">' +
       (totalAvisos ? '⚠️ ' + totalAvisos + ' com grafia duplicada/sem cadastro' : '✓ nenhuma duplicata encontrada') +
       (_ocoSoAvisos ? ' — mostrando só esses' : ' — ver só esses') +
     '</button>' +

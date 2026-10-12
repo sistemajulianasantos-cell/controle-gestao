@@ -7,16 +7,16 @@ function _getCategoriasDespesas() {
 }
 
 const _FORMAS_DESP = {
-  dinheiro:       { label: 'Dinheiro',      bg: '#F0FDF4', cor: '#15803D' },
-  pix:            { label: 'PIX',           bg: '#F0FDF4', cor: '#15803D' },
-  pix_manual:     { label: 'PIX',           bg: '#F0FDF4', cor: '#15803D' },
-  pix_nota:       { label: 'PIX+Nota',      bg: '#FBEEE6', cor: '#0E7490' },
-  cartao_credito: { label: 'Cartão Créd.',  bg: '#FBEEE6', cor: '#C4622D' },
-  cartao_debito:  { label: 'Cartão Déb.',   bg: '#FBEEE6', cor: '#6D28D9' },
-  boleto:         { label: 'Boleto',        bg: '#FBEEE6', cor: '#C4622D' },
-  transferencia:  { label: 'Transferência', bg: '#FBEEE6', cor: '#0E7490' },
-  cheque:         { label: 'Cheque',        bg: '#FFFBEB', cor: '#B45309' },
-  outros:         { label: 'Outros',        bg: '#E5E7EB', cor: '#4B5563' },
+  dinheiro:       { label: 'Dinheiro',      bg: 'var(--green-bg)', cor: '#15803D' },
+  pix:            { label: 'PIX',           bg: 'var(--green-bg)', cor: '#15803D' },
+  pix_manual:     { label: 'PIX',           bg: 'var(--green-bg)', cor: '#15803D' },
+  pix_nota:       { label: 'PIX+Nota',      bg: 'var(--blue-bg)', cor: '#0E7490' },
+  cartao_credito: { label: 'Cartão Créd.',  bg: 'var(--blue-bg)', cor: '#C4622D' },
+  cartao_debito:  { label: 'Cartão Déb.',   bg: 'var(--blue-bg)', cor: '#6D28D9' },
+  boleto:         { label: 'Boleto',        bg: 'var(--blue-bg)', cor: '#C4622D' },
+  transferencia:  { label: 'Transferência', bg: 'var(--blue-bg)', cor: '#0E7490' },
+  cheque:         { label: 'Cheque',        bg: 'var(--amber-bg)', cor: '#B45309' },
+  outros:         { label: 'Outros',        bg: 'var(--border)', cor: '#4B5563' },
 };
 
 function _detectarFormaDespesa(d) {
@@ -34,7 +34,7 @@ function _descricaoSemPrefixo(d) {
 }
 
 function _formaTag(forma) {
-  if (!forma) return '<span style="color:#4B5563;font-size:12px">—</span>';
+  if (!forma) return '<span style="color:var(--text2);font-size:12px">—</span>';
   const f = _FORMAS_DESP[forma] || _FORMAS_DESP.outros;
   return `<span style="background:${f.bg};color:${f.cor};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;border:1px solid ${f.cor}40">${f.label}</span>`;
 }
@@ -48,9 +48,9 @@ function _statusDesp(d) {
 
 function _statusTag(status) {
   const MAP = {
-    pago:     { label: 'Pago',     bg: '#F0FDF4', cor: '#15803D' },
-    vencido:  { label: 'Vencido',  bg: '#FEF2F2', cor: '#B91C1C' },
-    pendente: { label: 'Pendente', bg: '#FFFBEB', cor: '#B45309' },
+    pago:     { label: 'Pago',     bg: 'var(--green-bg)', cor: '#15803D' },
+    vencido:  { label: 'Vencido',  bg: 'var(--red-bg)', cor: '#B91C1C' },
+    pendente: { label: 'Pendente', bg: 'var(--amber-bg)', cor: '#B45309' },
   };
   const s = MAP[status] || MAP.pendente;
   return `<span style="background:${s.bg};color:${s.cor};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;border:1px solid ${s.cor}40">${s.label}</span>`;
@@ -129,17 +129,17 @@ function _despPixInfo(nome, boxId, forcarEdicao) {
   const nomeEsc = forn.nome.replace(/'/g,"\\'").replace(/"/g,'&quot;');
   if (forn.pix && !forcarEdicao) {
     const pixEsc = forn.pix.replace(/'/g,"\\'");
-    box.innerHTML = `<div style="display:flex;align-items:center;gap:8px;background:#F0FDF4;border:1px solid #15803D40;border-radius:6px;padding:6px 10px;font-size:12px">
-        <span style="color:#4B5563;flex-shrink:0">Chave PIX salva:</span>
-        <span style="color:#15803D;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${forn.pix}">${forn.pix}</span>
-        <button type="button" class="btn-sm" onclick="_copiarTexto('${pixEsc}',this)" style="background:#15803D20;border:1px solid #15803D40;color:#15803D;font-size:11px;padding:2px 8px;flex-shrink:0">Copiar</button>
-        <button type="button" class="btn-sm" onclick="_despEditarPixForn('${nomeEsc}','${boxId}')" style="background:none;border:none;color:#4B5563;font-size:11px;padding:2px 4px;flex-shrink:0" title="Alterar chave">alterar</button>
+    box.innerHTML = `<div style="display:flex;align-items:center;gap:8px;background:var(--green-bg);border:1px solid #15803D40;border-radius:6px;padding:6px 10px;font-size:12px">
+        <span style="color:var(--text2);flex-shrink:0">Chave PIX salva:</span>
+        <span style="color:var(--green);font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${forn.pix}">${forn.pix}</span>
+        <button type="button" class="btn-sm" onclick="_copiarTexto('${pixEsc}',this)" style="background:#15803D20;border:1px solid #15803D40;color:var(--green);font-size:11px;padding:2px 8px;flex-shrink:0">Copiar</button>
+        <button type="button" class="btn-sm" onclick="_despEditarPixForn('${nomeEsc}','${boxId}')" style="background:none;border:none;color:var(--text2);font-size:11px;padding:2px 4px;flex-shrink:0" title="Alterar chave">alterar</button>
       </div>`;
   } else {
     box.innerHTML = `<div style="display:flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:6px 10px">
         <input id="${boxId}-inp" class="inp" type="text" placeholder="Chave PIX de ${forn.nome} — salva no cadastro, não precisa digitar toda semana" style="flex:1;font-size:12px;padding:4px 8px"
           onkeydown="if(event.key==='Enter'){event.preventDefault();_despSalvarPixForn('${nomeEsc}','${boxId}')}">
-        <button type="button" class="btn-sm" onclick="_despSalvarPixForn('${nomeEsc}','${boxId}')" style="background:#F0FDF4;border:1px solid #15803D40;color:#15803D;font-size:11px;padding:3px 10px;flex-shrink:0">Salvar chave</button>
+        <button type="button" class="btn-sm" onclick="_despSalvarPixForn('${nomeEsc}','${boxId}')" style="background:var(--green-bg);border:1px solid #15803D40;color:var(--green);font-size:11px;padding:3px 10px;flex-shrink:0">Salvar chave</button>
       </div>`;
   }
 }
@@ -353,48 +353,48 @@ function rDespesasKpi() {
   const el = document.getElementById('desp-view-kpi');
   if (!el) return;
 
-  const corResultado = resultado >= 0 ? '#15803D' : '#B91C1C';
-  const corPercDesp = parseFloat(percDespVsRec) > 80 ? '#B91C1C' : parseFloat(percDespVsRec) > 60 ? '#B45309' : '#15803D';
+  const corResultado = resultado >= 0 ? 'var(--green)' : 'var(--red)';
+  const corPercDesp = parseFloat(percDespVsRec) > 80 ? 'var(--red)' : parseFloat(percDespVsRec) > 60 ? 'var(--amber)' : 'var(--green)';
 
   el.innerHTML = `
     <div class="cards" style="margin-bottom:20px">
       <div class="card">
         <div class="card-label">💰 Faturamento</div>
-        <div class="card-val" style="color:#15803D">${fR(receita)}</div>
-        <div style="font-size:11px;color:#4B5563;margin-top:4px">${contratosKpi.length} contrato(s) • recebido: <span style="color:#15803D">${fR(recebidoCaixa)}</span>${aReceberKpi > 0 ? ` • a receber: <span style="color:#B45309">${fR(aReceberKpi)}</span>` : ''}</div>
+        <div class="card-val" style="color:var(--green)">${fR(receita)}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:4px">${contratosKpi.length} contrato(s) • recebido: <span style="color:var(--green)">${fR(recebidoCaixa)}</span>${aReceberKpi > 0 ? ` • a receber: <span style="color:var(--amber)">${fR(aReceberKpi)}</span>` : ''}</div>
       </div>
       <div class="card">
         <div class="card-label">💸 Total de Despesas</div>
-        <div class="card-val" style="color:#B91C1C">${fR(totalDespesas)}</div>
-        <div style="font-size:11px;color:#4B5563;margin-top:4px">${despesasFiltradas.length} lançamento(s)</div>
+        <div class="card-val" style="color:var(--red)">${fR(totalDespesas)}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:4px">${despesasFiltradas.length} lançamento(s)</div>
       </div>
       <div class="card">
         <div class="card-label">📊 Resultado</div>
         <div class="card-val" style="color:${corResultado}">${fR(resultado)}</div>
-        <div style="font-size:11px;color:#4B5563;margin-top:4px">Margem: ${margem}%</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:4px">Margem: ${margem}%</div>
       </div>
       <div class="card">
         <div class="card-label">🎯 Meta Faturamento</div>
-        <div class="card-val" style="color:#B45309">${meta ? fR(meta) : '—'}</div>
-        <div style="font-size:11px;color:#4B5563;margin-top:4px">${meta ? percRecVsMeta + '% atingido' : 'Não definida'}</div>
+        <div class="card-val" style="color:var(--amber)">${meta ? fR(meta) : '—'}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:4px">${meta ? percRecVsMeta + '% atingido' : 'Não definida'}</div>
       </div>
     </div>
 
     <div class="cards" style="margin-bottom:20px">
-      <div class="card" style="border-left:3px solid #15803D">
+      <div class="card" style="border-left:3px solid var(--green)">
         <div class="card-label">✅ Pagas</div>
-        <div class="card-val" style="color:#15803D">${fR(totalPago)}</div>
-        <div style="font-size:11px;color:#4B5563;margin-top:4px">${despesasFiltradas.filter(d=>_statusDesp(d)==='pago').length} despesa(s)</div>
+        <div class="card-val" style="color:var(--green)">${fR(totalPago)}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:4px">${despesasFiltradas.filter(d=>_statusDesp(d)==='pago').length} despesa(s)</div>
       </div>
-      <div class="card" style="border-left:3px solid #B45309">
+      <div class="card" style="border-left:3px solid var(--amber)">
         <div class="card-label">⏳ A Pagar</div>
-        <div class="card-val" style="color:#B45309">${fR(totalPendente)}</div>
-        <div style="font-size:11px;color:#4B5563;margin-top:4px">${despesasFiltradas.filter(d=>_statusDesp(d)==='pendente').length} despesa(s)</div>
+        <div class="card-val" style="color:var(--amber)">${fR(totalPendente)}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:4px">${despesasFiltradas.filter(d=>_statusDesp(d)==='pendente').length} despesa(s)</div>
       </div>
-      <div class="card" style="border-left:3px solid #B91C1C">
+      <div class="card" style="border-left:3px solid var(--red)">
         <div class="card-label">🚨 Vencidas</div>
-        <div class="card-val" style="color:#B91C1C">${fR(totalVencido)}</div>
-        <div style="font-size:11px;color:#4B5563;margin-top:4px">${despesasFiltradas.filter(d=>_statusDesp(d)==='vencido').length} despesa(s)</div>
+        <div class="card-val" style="color:var(--red)">${fR(totalVencido)}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:4px">${despesasFiltradas.filter(d=>_statusDesp(d)==='vencido').length} despesa(s)</div>
       </div>
     </div>
 
@@ -402,22 +402,22 @@ function rDespesasKpi() {
       <div class="sec-head"><span class="sec-title">Indicadores</span></div>
       <div style="padding:16px;display:flex;flex-direction:column;gap:16px">
         <div>
-          <div style="display:flex;justify-content:space-between;font-size:12px;color:#4B5563;margin-bottom:6px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:6px">
             <span>Despesas vs Receita</span>
             <span style="color:${corPercDesp};font-weight:600">${percDespVsRec}%</span>
           </div>
-          <div style="background:#E5E7EB;border-radius:6px;height:10px;overflow:hidden">
+          <div style="background:var(--border);border-radius:6px;height:10px;overflow:hidden">
             <div style="height:100%;width:${percDespVsRec}%;background:${corPercDesp};border-radius:6px;transition:.4s"></div>
           </div>
         </div>
         ${meta ? `
         <div>
-          <div style="display:flex;justify-content:space-between;font-size:12px;color:#4B5563;margin-bottom:6px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:6px">
             <span>Receita vs Meta</span>
-            <span style="color:#15803D;font-weight:600">${percRecVsMeta}%</span>
+            <span style="color:var(--green);font-weight:600">${percRecVsMeta}%</span>
           </div>
-          <div style="background:#E5E7EB;border-radius:6px;height:10px;overflow:hidden">
-            <div style="height:100%;width:${percRecVsMeta}%;background:#15803D;border-radius:6px;transition:.4s"></div>
+          <div style="background:var(--border);border-radius:6px;height:10px;overflow:hidden">
+            <div style="height:100%;width:${percRecVsMeta}%;background:var(--green);border-radius:6px;transition:.4s"></div>
           </div>
         </div>` : ''}
       </div>
@@ -429,7 +429,7 @@ function rDespesasKpi() {
       <div style="overflow-x:auto">
         <table style="width:100%;border-collapse:collapse;font-size:13px">
           <thead>
-            <tr style="color:#4B5563;border-bottom:1px solid #E5E7EB">
+            <tr style="color:var(--text2);border-bottom:1px solid var(--border)">
               <th style="padding:10px 12px;text-align:left;font-weight:500">Categoria</th>
               <th style="padding:10px 12px;text-align:right;font-weight:500">Total</th>
               <th style="padding:10px 12px;text-align:right;font-weight:500">% das despesas</th>
@@ -439,20 +439,20 @@ function rDespesasKpi() {
           <tbody>
             ${Object.entries(byCategoria).sort((a, b) => b[1] - a[1]).map(([cat, val]) => {
               const pct = totalDespesas > 0 ? ((val / totalDespesas) * 100).toFixed(1) : 0;
-              return `<tr style="border-bottom:1px solid #F9F5F0">
+              return `<tr style="border-bottom:1px solid var(--bg3)">
                 <td style="padding:10px 12px">${cat}</td>
-                <td style="padding:10px 12px;text-align:right;color:#B91C1C;font-weight:600">${fR(val)}</td>
-                <td style="padding:10px 12px;text-align:right;color:#4B5563">${pct}%</td>
+                <td style="padding:10px 12px;text-align:right;color:var(--red);font-weight:600">${fR(val)}</td>
+                <td style="padding:10px 12px;text-align:right;color:var(--text2)">${pct}%</td>
                 <td style="padding:10px 12px;min-width:140px">
-                  <div style="background:#E5E7EB;border-radius:4px;height:6px;overflow:hidden">
-                    <div style="height:100%;width:${pct}%;background:#B91C1C;border-radius:4px"></div>
+                  <div style="background:var(--border);border-radius:4px;height:6px;overflow:hidden">
+                    <div style="height:100%;width:${pct}%;background:var(--red);border-radius:4px"></div>
                   </div>
                 </td>
               </tr>`;
             }).join('')}
-            <tr style="border-top:2px solid #E5E7EB;font-weight:600">
+            <tr style="border-top:2px solid var(--border);font-weight:600">
               <td style="padding:10px 12px">Total</td>
-              <td style="padding:10px 12px;text-align:right;color:#B91C1C">${fR(totalDespesas)}</td>
+              <td style="padding:10px 12px;text-align:right;color:var(--red)">${fR(totalDespesas)}</td>
               <td style="padding:10px 12px;text-align:right">100%</td>
               <td></td>
             </tr>
@@ -460,7 +460,7 @@ function rDespesasKpi() {
         </table>
       </div>
     </div>` : `
-    <div style="text-align:center;color:#4B5563;padding:40px">
+    <div style="text-align:center;color:var(--text2);padding:40px">
       Nenhuma despesa lançada para este período.<br>
       <button class="btn" style="margin-top:16px" onclick="despSetView('lancar')">➕ Lançar Despesa</button>
     </div>`}
@@ -612,43 +612,43 @@ function rDespesasLista() {
 
   tbody.innerHTML = '';
   if (!lista.length) {
-    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#4B5563;padding:24px">Nenhuma despesa encontrada para este período.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--text2);padding:24px">Nenhuma despesa encontrada para este período.</td></tr>';
     return;
   }
 
   lista.forEach(d => {
     const tr = document.createElement('tr');
-    tr.style.borderBottom = '1px solid #F9F5F0';
+    tr.style.borderBottom = '1px solid var(--bg3)';
     const forma  = _detectarFormaDespesa(d);
     const desc   = _descricaoSemPrefixo(d);
     const status = _statusDesp(d);
     const descEsc = (d.descricao||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
     const vencCell = d.dataVencimento
-      ? `<span style="color:${status==='vencido'?'#B91C1C':status==='pago'?'#4B5563':'#B45309'};font-size:12px">${fd(d.dataVencimento)}</span>`
-      : `<span style="color:#4B5563;font-size:12px">—</span>`;
+      ? `<span style="color:${status==='vencido'?'var(--red)':status==='pago'?'var(--text2)':'var(--amber)'};font-size:12px">${fd(d.dataVencimento)}</span>`
+      : `<span style="color:var(--text2);font-size:12px">—</span>`;
     const catCell = `<td style="padding:4px 10px">
            <select onchange="editarCategoriaDespesa('${d.id}','${descEsc}',this.value)"
-             style="background:#E5E7EB;color:#374151;border:1px solid #E5E7EB;border-radius:4px;font-size:11px;padding:2px 6px;cursor:pointer;max-width:120px">
+             style="background:var(--border);color:var(--text2);border:1px solid var(--border);border-radius:4px;font-size:11px;padding:2px 6px;cursor:pointer;max-width:120px">
              ${_getCategoriasDespesas().map(c=>`<option value="${c}"${c===d.categoria?' selected':''}>${c}</option>`).join('')}
            </select>
          </td>`;
     const pagCell = status === 'pago' && d.dataPagamento
-      ? `<div style="font-size:10px;color:#15803D;margin-top:2px">Pago em ${fd(d.dataPagamento)}</div>` : '';
+      ? `<div style="font-size:10px;color:var(--green);margin-top:2px">Pago em ${fd(d.dataPagamento)}</div>` : '';
     tr.innerHTML = `
       <td style="padding:8px 10px;text-align:center">
         <input type="checkbox" class="desp-chk" data-id="${d.id}" onchange="despToggleSel('${d.id}',this.checked)"
-          style="width:15px;height:15px;cursor:pointer;accent-color:#C4622D">
+          style="width:15px;height:15px;cursor:pointer;accent-color:var(--blue)">
       </td>
       <td style="padding:8px 10px;white-space:nowrap">${fd(d.data)||'—'}</td>
       <td style="padding:8px 10px;white-space:nowrap">${vencCell}</td>
       <td style="padding:8px 10px">${_statusTag(status)}</td>
       ${catCell}
       <td style="padding:8px 10px">${_formaTag(forma)}</td>
-      <td style="padding:8px 10px">${d.fornecedor||desc||'—'}${d.fornecedor&&desc?`<div style="font-size:10px;color:#4B5563;margin-top:2px">${desc}</div>`:''}${pagCell}</td>
-      <td style="padding:8px 10px;color:#B91C1C;font-weight:600;white-space:nowrap">${fR(d.valor||0)}</td>
+      <td style="padding:8px 10px">${d.fornecedor||desc||'—'}${d.fornecedor&&desc?`<div style="font-size:10px;color:var(--text2);margin-top:2px">${desc}</div>`:''}${pagCell}</td>
+      <td style="padding:8px 10px;color:var(--red);font-weight:600;white-space:nowrap">${fR(d.valor||0)}</td>
       <td style="padding:8px 10px;white-space:nowrap">
         <div style="display:flex;gap:4px;align-items:center">
-          ${status !== 'pago' ? `<button class="btn-sm" onclick="marcarDespesaPaga('${d.id}')" style="background:#F0FDF4;border:1px solid #15803D40;color:#15803D;font-size:11px;padding:2px 7px" title="Marcar como pago">✓ Pagar</button>` : ''}
+          ${status !== 'pago' ? `<button class="btn-sm" onclick="marcarDespesaPaga('${d.id}')" style="background:var(--green-bg);border:1px solid #15803D40;color:var(--green);font-size:11px;padding:2px 7px" title="Marcar como pago">✓ Pagar</button>` : ''}
           <button class="btn-sm" onclick="clonarDespesa('${d.id}')" style="background:var(--bg3);border:1px solid var(--border2);font-size:11px;padding:2px 7px" title="Clonar: cria uma nova despesa a partir desta, sem alterar a original">Clonar</button>
           <button class="btn-sm" onclick="abrirEditDespesa('${d.id}')" style="background:var(--bg3);border:1px solid var(--border2)" title="Editar">✏️</button>
           <button class="btn-sm btn-red" onclick="excluirDespesa('${d.id}')" title="Excluir">✕</button>
@@ -1081,7 +1081,7 @@ function rDespesasCategorias() {
             const cEsc = c.replace(/'/g,"\\'");
             return `<div style="display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:9px 14px">
               <span style="flex:1;font-size:13px;color:var(--text)">${c}</span>
-              ${qtd ? `<span style="font-size:10px;color:#4B5563;background:var(--bg2);padding:1px 7px;border-radius:4px">${qtd}</span>` : ''}
+              ${qtd ? `<span style="font-size:10px;color:var(--text2);background:var(--bg2);padding:1px 7px;border-radius:4px">${qtd}</span>` : ''}
               <button class="btn-sm" onclick="editarNomeCategoriaDespesa('${cEsc}')"
                 style="background:var(--bg2);border:1px solid var(--border2);color:var(--text2);font-size:11px;padding:3px 10px">Editar</button>
               <button class="btn-sm btn-red" onclick="excluirCategoriaDespesa('${cEsc}')"
@@ -1089,7 +1089,7 @@ function rDespesasCategorias() {
             </div>`;
           }).join('')}
         </div>
-        <div style="margin-top:14px;font-size:11px;color:#4B5563">O número mostra quantas despesas usam cada categoria.</div>
+        <div style="margin-top:14px;font-size:11px;color:var(--text2)">O número mostra quantas despesas usam cada categoria.</div>
       </div>
     </div>`;
 }

@@ -52,8 +52,8 @@ function rSeparacoes() {
         '<span style="color:var(--text3);font-size:11px">' + (s.convidados||'—') + ' convidados</span>' +
         '<div style="margin-left:auto;display:flex;gap:6px">' +
           '<button class="btn-sm" style="background:var(--blue)" onclick="editarSeparacao(\'' + s.id + '\')">✏️ Ver / Editar</button>' +
-          '<button class="btn-sm" style="background:#6D28D9" onclick="imprimirSeparacao(\'' + s.id + '\')">🖨️ Separação</button>' +
-          '<button class="btn-sm" style="background:#6D28D9" onclick="imprimirFichaTecnica(\'' + s.id + '\')">🖨️ Ficha Técnica</button>' +
+          '<button class="btn-sm" style="background:var(--purple)" onclick="imprimirSeparacao(\'' + s.id + '\')">🖨️ Separação</button>' +
+          '<button class="btn-sm" style="background:var(--purple)" onclick="imprimirFichaTecnica(\'' + s.id + '\')">🖨️ Ficha Técnica</button>' +
           '<button class="btn-sm btn-red" onclick="excluirSeparacao(\'' + s.id + '\')">Excluir</button>' +
         '</div>' +
       '</div>' +

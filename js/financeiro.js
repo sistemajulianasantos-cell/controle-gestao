@@ -311,7 +311,7 @@ function _finAtualizarKpis(filtroIni, filtroFim) {
           </div>
           <div>
             <div style="color:var(--text3);text-transform:uppercase;font-size:10px">Pendente</div>
-            <div style="font-family:var(--mono);font-weight:700;color:#B45309">${fR(l.pendente)}</div>
+            <div style="font-family:var(--mono);font-weight:700;color:var(--amber)">${fR(l.pendente)}</div>
           </div>
           <div>
             <div style="color:var(--text3);text-transform:uppercase;font-size:10px">Atrasado</div>
@@ -598,7 +598,7 @@ function rFinanceiro() {
 
   tbody.innerHTML = '';
   if (!lista.length) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#4B5563;padding:24px">Nenhum lançamento</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text2);padding:24px">Nenhum lançamento</td></tr>';
     return;
   }
 
@@ -613,7 +613,7 @@ function rFinanceiro() {
     let statusCell;
     if (f.aprovacaoPendente) {
       statusCell = `
-        <span class="tag" style="background:#FFFBEB;color:#B45309">⚠ Aguardando aprovação</span>
+        <span class="tag" style="background:var(--amber-bg);color:var(--amber)">⚠ Aguardando aprovação</span>
         <div style="font-size:10px;color:var(--text3);margin-top:3px">pago ${fR(f.aprovacaoPendente.valorPago)} · previsto ${fR(f.valorOriginal)}</div>
       `;
     } else if (semCobranca) {
@@ -647,7 +647,7 @@ function rFinanceiro() {
     }
 
     tr.innerHTML = `
-      <td style="${atrasado?'color:#B91C1C;font-weight:600':''}">${fd(vencEfetivo)||'—'}${!f.vencimento && vencEfetivo ? ' <span style="font-size:10px;color:var(--text3)">(estimado)</span>' : ''}</td>
+      <td style="${atrasado?'color:var(--red);font-weight:600':''}">${fd(vencEfetivo)||'—'}${!f.vencimento && vencEfetivo ? ' <span style="font-size:10px;color:var(--text3)">(estimado)</span>' : ''}</td>
       <td><strong>${f.evento||f.contrato||'—'}</strong>${f.isFechamento?'<span class="tag tag-blue" style="margin-left:6px;font-size:10px">Fechamento</span>':''}</td>
       <td>${fd(f.data)||'—'}</td>
       <td>${f.tipo||'—'}</td>
@@ -804,7 +804,7 @@ function rFinanceiroSintetico() {
   const linhas = Object.values(grupos).sort((a, b) => b.data.localeCompare(a.data));
 
   if (!linhas.length) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#4B5563;padding:24px">Nenhum lançamento encontrado</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text2);padding:24px">Nenhum lançamento encontrado</td></tr>';
     return;
   }
 
@@ -853,7 +853,7 @@ function rFinanceiroSintetico() {
       subtotalAviso = `<div style="font-size:10px;font-weight:600;color:var(--text3);margin-top:2px" title="Aprovado por ${dv.aprovadoPor||'admin'}: ${dv.motivo}">✓ divergência aprovada</div>`;
     } else if (faltaContrato) {
       subtotalAviso = `
-        <div style="font-size:10px;font-weight:600;color:#B91C1C;margin-top:2px" title="Valor do contrato: ${fR(valorContrato)} · Lançado nas parcelas 20%/80%: ${fR(totalParcelas)}">⚠ ${saldoContrato>0?'falta':'excedeu'} ${fR(Math.abs(saldoContrato))}</div>
+        <div style="font-size:10px;font-weight:600;color:var(--red);margin-top:2px" title="Valor do contrato: ${fR(valorContrato)} · Lançado nas parcelas 20%/80%: ${fR(totalParcelas)}">⚠ ${saldoContrato>0?'falta':'excedeu'} ${fR(Math.abs(saldoContrato))}</div>
         ${souAdminSub && contrato ? `<button class="btn-sm" onclick="aprovarDivergenciaContrato('${contrato.id}', ${saldoContrato})" style="font-size:9px;padding:1px 6px;margin-top:2px">✓ Aprovar</button>` : ''}
       `;
     }
@@ -895,7 +895,7 @@ function _finPilula(parc, hoje, opts) {
            <button class="btn-sm btn-red" onclick="rejeitarPagamentoMenor('${parc.id}')" style="font-size:9px;padding:1px 6px">✕</button>
          </div>`
       : `<div style="font-size:9px;opacity:0.8;margin-top:4px">Aguardando admin</div>`;
-    return `<div style="background:#FFFBEB;color:#B45309;border-radius:8px;padding:7px 10px;display:inline-block;min-width:110px;text-align:center">
+    return `<div style="background:var(--amber-bg);color:var(--amber);border-radius:8px;padding:7px 10px;display:inline-block;min-width:110px;text-align:center">
       <div style="font-family:var(--mono);font-weight:700;font-size:13px">${fR(p.valorPago)}</div>
       <div style="font-size:10px;opacity:0.75;margin-top:2px">previsto ${fR(parc.valorOriginal)}</div>
       <div style="font-size:10px;margin-top:1px">⚠ Abaixo do valor</div>
@@ -907,7 +907,7 @@ function _finPilula(parc, hoje, opts) {
   // cascata de excedente) — não exige ação, mesmo que o status ainda diga "pendente"
   const semCobranca = parc.status !== 'pago' && !parc.valorNum;
   if (semCobranca) {
-    return `<div style="background:#F0FDF4;color:#15803D;border-radius:8px;padding:7px 10px;display:inline-block;min-width:110px;text-align:center">
+    return `<div style="background:var(--green-bg);color:var(--green);border-radius:8px;padding:7px 10px;display:inline-block;min-width:110px;text-align:center">
       <div style="font-size:10px">Sem cobrança</div>
     </div>`;
   }
@@ -915,8 +915,8 @@ function _finPilula(parc, hoje, opts) {
   const vencEfetivo = _finVencimentoEfetivo(parc);
   const atrasado = parc.status === 'pendente' && vencEfetivo && vencEfetivo < hoje;
   const pago     = parc.status === 'pago';
-  const bg    = pago ? '#F0FDF4' : atrasado ? '#FEF2F2' : '#E5E7EB';
-  const cor   = pago ? '#15803D' : atrasado ? '#B91C1C' : '#B45309';
+  const bg    = pago ? 'var(--green-bg)' : atrasado ? 'var(--red-bg)' : 'var(--border)';
+  const cor   = pago ? 'var(--green)' : atrasado ? 'var(--red)' : 'var(--amber)';
   const label = pago ? 'Pago'    : atrasado ? '⚠ Atrasado' : 'Pendente';
   const venc  = vencEfetivo
     ? `<div style="font-size:10px;opacity:0.75;margin-top:2px">venc. ${fd(vencEfetivo)}${!parc.vencimento ? ' (estimado)' : ''}</div>`
@@ -929,7 +929,7 @@ function _finPilula(parc, hoje, opts) {
   if (pago && opts?.faltaValor) {
     const souAdminPil = typeof perfilAtual !== 'undefined' && perfilAtual === 'admin';
     divergAviso = `
-      <div style="font-size:10px;font-weight:600;color:#B91C1C;margin-top:2px" title="Valor real: ${fR(opts.valorReal)} · Registrado: ${fR(parc.valorNum)}">⚠ ${opts.diferenca>0?'faltam':'a mais'} ${fR(Math.abs(opts.diferenca))}</div>
+      <div style="font-size:10px;font-weight:600;color:var(--red);margin-top:2px" title="Valor real: ${fR(opts.valorReal)} · Registrado: ${fR(parc.valorNum)}">⚠ ${opts.diferenca>0?'faltam':'a mais'} ${fR(Math.abs(opts.diferenca))}</div>
       ${souAdminPil && opts.refId ? `<button class="btn-sm" onclick="${opts.aprovarFn}('${opts.refId}', ${opts.diferenca})" style="font-size:9px;padding:1px 6px;margin-top:2px">✓ Aprovar</button>` : ''}
     `;
   } else if (pago && opts?.aprovado) {
@@ -942,7 +942,7 @@ function _finPilula(parc, hoje, opts) {
          <button class="btn-sm" onclick="marcarPendente('${parc.id}')" style="font-size:9px;padding:1px 6px">Desfazer</button>
        </div>`
     : `<div style="margin-top:4px"><button class="btn-sm btn-green" onclick="abrirModalPagamento('${parc.id}')" style="font-size:9px;padding:1px 6px">Recebido</button></div>`;
-  return `<div style="background:${pago && opts?.faltaValor ? '#FEF2F2' : bg};color:${pago && opts?.faltaValor ? '#B91C1C' : cor};border-radius:8px;padding:7px 10px;display:inline-block;min-width:110px;text-align:center">
+  return `<div style="background:${pago && opts?.faltaValor ? 'var(--red-bg)' : bg};color:${pago && opts?.faltaValor ? 'var(--red)' : cor};border-radius:8px;padding:7px 10px;display:inline-block;min-width:110px;text-align:center">
     <div style="font-family:var(--mono);font-weight:700;font-size:13px">${fR(parc.valorNum)}</div>
     ${venc}
     ${pagoEm}

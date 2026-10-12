@@ -428,7 +428,7 @@ function rFechamentoMensal() {
     html += _fmBlocoClientes('👤 Receita (Contrato) por Cliente', clientesContrato) +
       _fmBlocoClientes('🧾 Fechamento por Cliente', clientesFechamento) +
       _fmSecTotalGeralClientes(clientesContrato, clientesFechamento, receitaTotal) +
-      _fmBlocoBreakdown('📉 Quebras por Produto (perda registrada)', quebraPorProduto, '#B45309');
+      _fmBlocoBreakdown('📉 Quebras por Produto (perda registrada)', quebraPorProduto, 'var(--amber)');
   }
 
   html += htmlEventos;
