@@ -21,8 +21,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);height:100vh
 
 /* SIDEBAR — verde-escuro igual ao cabeçalho do Sistema Separação */
 .sidebar{width:210px;background:var(--verde-escuro);border-right:1px solid var(--verde-escuro);display:flex;flex-direction:column;flex-shrink:0}
-.logo{padding:20px 18px 16px;border-bottom:1px solid rgba(255,255,255,.12)}
+.logo{text-align:center;padding:18px 18px 14px;border-bottom:1px solid rgba(255,255,255,.12)}
 .logo-mark{font-size:11px;font-weight:600;letter-spacing:2px;color:#E8A47E;text-transform:uppercase;margin-bottom:3px}
+.logo-img{width:76px;height:76px;display:block;margin:0 auto 10px}
 .logo-title{font-size:16px;font-weight:600;color:#fff}
 .logo-by{font-size:10px;color:rgba(255,255,255,.55);margin-top:2px}
 .nav{flex:1;padding:10px 0;overflow-y:auto}

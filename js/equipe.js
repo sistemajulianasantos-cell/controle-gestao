@@ -827,7 +827,7 @@ function imprimirFolhaEvento() {
     </tr></tfoot>
   </table>
   ${notasRodape.length ? `<div class="notas">${notasRodape.map(n=>`* ${n}`).join('<br>')}</div>` : ''}
-  <div class="rodape">Controle e Gestão — Juliana Santos · ${new Date().toLocaleDateString('pt-BR')}</div>
+  <div class="rodape">Romero Coquetéis — Controle e Gestão · ${new Date().toLocaleDateString('pt-BR')}</div>
   <script>window.onload=function(){window.print()};<\/script>
   </body></html>`);
   w.document.close();
@@ -2278,7 +2278,7 @@ function imprimirPagamentosEquipe() {
   </div>
   ${corpo}
   ${notasRodape.length ? `<div class="notas">${notasRodape.map(n=>`* ${n}`).join('<br>')}</div>` : ''}
-  <div class="rodape">Controle e Gestão — Juliana Santos · ${new Date().toLocaleDateString('pt-BR')}</div>
+  <div class="rodape">Romero Coquetéis — Controle e Gestão · ${new Date().toLocaleDateString('pt-BR')}</div>
   <script>window.onload=function(){window.print()};<\/script>
   </body></html>`);
   w.document.close();

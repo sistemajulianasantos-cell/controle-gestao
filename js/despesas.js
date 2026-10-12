@@ -1291,7 +1291,7 @@ function imprimirDespesas() {
   <div class="cabecalho">
     <div>
       <h2>Relatório de Despesas</h2>
-      <div class="sub">Controle e Gestão — Juliana Santos</div>
+      <div class="sub">Romero Coquetéis — Controle e Gestão</div>
       <div class="sub">Impresso em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}</div>
       <div class="sub">Agrupamento: ${ordem === 'categoria' ? 'Por categoria (subtotal por categoria)' : `Por data de ${campoDataLabel} (subtotal por dia)`}</div>
     </div>
@@ -1325,7 +1325,7 @@ function imprimirDespesas() {
   </tr></tfoot></table>
 
   <div class="rodape">
-    <span>Controle e Gestão — Juliana Santos</span>
+    <span>Romero Coquetéis — Controle e Gestão</span>
     <span>${new Date().toLocaleDateString('pt-BR')}</span>
   </div>
   <script>window.onload=function(){window.print()};<\/script>
