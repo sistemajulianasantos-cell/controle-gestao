@@ -79,6 +79,7 @@ function rOrcLista() {
             </div>
             <div style="display:flex;align-items:center;gap:6px">
               ${temValor ? '' : `<span style="background:var(--bg3);color:var(--text3);font-size:9px;padding:2px 7px;border-radius:3px">Sem cálculo</span>`}
+              <button class="btn-sm" onclick="event.stopPropagation();clonarOrc('${o.id}')" title="Criar um novo orçamento igual a este" style="background:var(--bg3)">Clonar</button>
               <button class="btn-sm btn-red" onclick="event.stopPropagation();excluirOrc('${o.id}')" title="Excluir">✕</button>
             </div>
           </div>`;
@@ -183,6 +184,7 @@ function rOrcDetalhe() {
         <option value="">por quem? (escolher)</option>
         ${_orcNomesUsuarios().map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('')}
       </select>` : ''}
+      <button class="btn-sm" onclick="clonarOrc('${orc.id}')" title="Criar um novo orçamento igual a este" style="background:var(--bg3)">Clonar</button>
     </div>
     ${!sol ? `
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--bg3);border:1px dashed var(--border2);border-radius:var(--radius);padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--text3)">
@@ -578,6 +580,33 @@ function _atualizarTotaisOrc(orc) {
   // Re-renderiza só a linha da diferença e os cards — evita perder foco
   // Para simplicidade, chamamos rOrcDetalhe com um flag (ou só recarregamos após blur)
   // Aqui salvamos e confiamos no próximo render completo
+}
+
+// ─── CLONAR ──────────────────────────────────────────────────────────────────
+// Novo orçamento igual a um existente (cardápio, insumos, serviços, convidados,
+// parâmetros da Calculadora — inclusive o centro de custo, que ela ajusta lá).
+// Sai com Nº novo, sem data, sem contato e sem Solicitação vinculada: é outro
+// evento. Hora/Serviços orçados/Bebidas vêm junto (Hora define a duração).
+function clonarOrc(id) {
+  const orig = (D.orcamentos || []).find(o => o.id === id);
+  if (!orig) return;
+  if (!confirm('Criar um novo orçamento igual a "' + (orig.nomeCliente || 'Sem nome') + '"?')) return;
+  const copia = JSON.parse(JSON.stringify(orig));
+  const novoId = 'ORC' + Date.now();
+  copia.id = novoId;
+  copia.nomeCliente = (orig.nomeCliente || 'Sem nome') + ' (cópia)';
+  copia.numeroProposta = typeof _solProximoNumero === 'function' ? _solProximoNumero() : '';
+  copia.dataEvento = '';
+  copia.telefone = '';
+  copia.criadoEm = new Date().toISOString();
+  copia.criadoPor = _orcUsuarioAtual();
+  ['solicitadoPor', 'localEvento', 'observacao'].forEach(c => { delete copia[c]; });
+  ['hora', 'servicosOrcados', 'bebidas'].forEach(c => { const v = _orcInfo(orig, c); if (v) copia[c] = v; else delete copia[c]; });
+  if (!D.orcamentos) D.orcamentos = [];
+  D.orcamentos.push(copia);
+  sv('orcamentos');
+  alert2('Orçamento clonado — confira cliente, data e centro de custo.', 'success');
+  abrirOrcDetalhe(novoId);
 }
 
 // ─── EXCLUIR ─────────────────────────────────────────────────────────────────
