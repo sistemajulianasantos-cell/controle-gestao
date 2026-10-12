@@ -105,6 +105,21 @@ function _orcCriadoTexto(o) {
   return 'Criado em ' + data + (o.criadoPor ? ' por ' + o.criadoPor : '');
 }
 
+// Nomes cadastrados nas senhas (Segurança) — pra marcar quem criou um
+// orçamento antigo, que não gravou criadoPor.
+function _orcNomesUsuarios() {
+  const nomes = Object.values(D.senhas || {}).map(e => (e && typeof e === 'object' && e.n) ? String(e.n).trim() : '').filter(Boolean);
+  return [...new Set(nomes)].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+}
+
+function orcSetCriadoPor(id, nome) {
+  const o = (D.orcamentos || []).find(x => x.id === id);
+  if (!o || !nome) return;
+  o.criadoPor = nome;
+  sv('orcamentos');
+  rOrcDetalhe();
+}
+
 // ─── DETALHE ─────────────────────────────────────────────────────────────────
 
 function abrirOrcDetalhe(id) {
@@ -164,6 +179,10 @@ function rOrcDetalhe() {
       ${nomeSolicitante && nomeSolicitante !== orc.nomeCliente ? `<span style="font-size:14px;color:var(--text2)">· ${esc(nomeSolicitante)}</span>` : ''}
       ${sol ? `<span style="font-size:11px;color:var(--text3)">(da Solicitação de Orçamento)</span>` : ''}
       ${_orcCriadoTexto(orc) ? `<span style="font-size:11px;color:var(--text3);margin-left:auto">${esc(_orcCriadoTexto(orc))}</span>` : ''}
+      ${!orc.criadoPor ? `<select onchange="orcSetCriadoPor('${orc.id}',this.value)" title="Orçamento antigo: não registrou quem criou" style="${campo};font-size:11px;padding:3px 6px${_orcCriadoTexto(orc) ? '' : ';margin-left:auto'}">
+        <option value="">por quem? (escolher)</option>
+        ${_orcNomesUsuarios().map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('')}
+      </select>` : ''}
     </div>
     ${!sol ? `
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--bg3);border:1px dashed var(--border2);border-radius:var(--radius);padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--text3)">
