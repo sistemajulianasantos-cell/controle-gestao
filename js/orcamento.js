@@ -178,7 +178,8 @@ function rOrcDetalhe() {
       ${orc.numeroProposta ? `<span style="font-family:var(--mono);font-size:12px;color:var(--text3)">${esc(orc.numeroProposta)}</span>` : ''}
       <span style="font-weight:600;font-size:15px;color:var(--text)">${esc(orc.nomeCliente||'Sem nome')}</span>
       ${nomeSolicitante && nomeSolicitante !== orc.nomeCliente ? `<span style="font-size:14px;color:var(--text2)">· ${esc(nomeSolicitante)}</span>` : ''}
-      ${sol ? `<span style="font-size:11px;color:var(--text3)">(da Solicitação de Orçamento)</span>` : ''}
+      ${sol ? `<span style="font-size:11px;color:var(--text3)">(da Solicitação de Orçamento)</span>
+      <button class="btn-sm" onclick="if(confirm('Trocar cliente, data, convidados, contato, centro de custo e tipo de evento pelos da Solicitação?'))orcVincularSolicitacao('${orc.id}','${sol.id}')" title="Copia de novo os dados da Solicitação para o cabeçalho" style="background:var(--bg3)">Puxar dados da Solicitação</button>` : ''}
       ${_orcCriadoTexto(orc) ? `<span style="font-size:11px;color:var(--text3);margin-left:auto">${esc(_orcCriadoTexto(orc))}</span>` : ''}
       ${!orc.criadoPor ? `<select onchange="orcSetCriadoPor('${orc.id}',this.value)" title="Orçamento antigo: não registrou quem criou" style="${campo};font-size:11px;padding:3px 6px${_orcCriadoTexto(orc) ? '' : ';margin-left:auto'}">
         <option value="">por quem? (escolher)</option>
@@ -585,8 +586,9 @@ function _atualizarTotaisOrc(orc) {
 // ─── CLONAR ──────────────────────────────────────────────────────────────────
 // Novo orçamento igual a um existente (cardápio, insumos, serviços, convidados,
 // parâmetros da Calculadora — inclusive o centro de custo, que ela ajusta lá).
-// Sai com Nº novo, sem data, sem contato e sem Solicitação vinculada: é outro
-// evento. Hora/Serviços orçados/Bebidas vêm junto (Hora define a duração).
+// Sai com Nº novo e o cabeçalho do cliente em branco (nome, data, contato,
+// local, hora, serviços, bebidas, obs.) e sem Solicitação vinculada: é outro
+// evento. Ao vincular uma Solicitação, o cabeçalho vem todo dela.
 function clonarOrc(id) {
   const orig = (D.orcamentos || []).find(o => o.id === id);
   if (!orig) return;
@@ -594,18 +596,23 @@ function clonarOrc(id) {
   const copia = JSON.parse(JSON.stringify(orig));
   const novoId = 'ORC' + Date.now();
   copia.id = novoId;
-  copia.nomeCliente = (orig.nomeCliente || 'Sem nome') + ' (cópia)';
+  copia.nomeCliente = '';
   copia.numeroProposta = typeof _solProximoNumero === 'function' ? _solProximoNumero() : '';
   copia.dataEvento = '';
   copia.telefone = '';
   copia.criadoEm = new Date().toISOString();
   copia.criadoPor = _orcUsuarioAtual();
-  ['solicitadoPor', 'localEvento', 'observacao'].forEach(c => { delete copia[c]; });
-  ['hora', 'servicosOrcados', 'bebidas'].forEach(c => { const v = _orcInfo(orig, c); if (v) copia[c] = v; else delete copia[c]; });
+  // A duração da festa vinha da Hora do cabeçalho — guarda na Calculadora
+  // pra o valor não mudar com a Hora em branco.
+  const horas = typeof _orcHorasCabecalho === 'function' ? _orcHorasCabecalho(orig) : null;
+  if (horas != null && copia.calcParams && copia.calcParams.adic) {
+    copia.calcParams.adic.horaExtra = Object.assign({}, copia.calcParams.adic.horaExtra, { duracao: horas });
+  }
+  ['solicitadoPor', 'localEvento', 'observacao', 'hora', 'servicosOrcados', 'bebidas'].forEach(c => { delete copia[c]; });
   if (!D.orcamentos) D.orcamentos = [];
   D.orcamentos.push(copia);
   sv('orcamentos');
-  alert2('Orçamento clonado — confira cliente, data e centro de custo.', 'success');
+  alert2('Orçamento clonado — preencha o cliente ou vincule a Solicitação.', 'success');
   abrirOrcDetalhe(novoId);
 }
 
@@ -801,7 +808,10 @@ function _orcNomeSolicitante(orc) {
 }
 
 // Grava o vínculo orçamento ↔ solicitação (o Nº da proposta passa a ser o da
-// solicitação, que é o número oficial dela).
+// solicitação, que é o número oficial dela). O cabeçalho passa a ser o da
+// solicitação: cliente, data, convidados, contato, centro de custo e tipo de
+// evento vêm dela (o que estiver preenchido lá) — pedido dela 10-13, ao
+// vincular um orçamento clonado ficavam os dados do original.
 function orcVincularSolicitacao(orcId, solId) {
   const orc = (D.orcamentos||[]).find(o => o.id === orcId);
   const sol = (D.solicitacoesOrcamento||[]).find(s => s.id === solId);
@@ -809,7 +819,19 @@ function orcVincularSolicitacao(orcId, solId) {
   if (_orcSolTemOrc(sol) && sol.orcamentoId !== orc.id) { alert2('Essa solicitação já tem outro orçamento.', 'error'); return; }
   sol.orcamentoId = orc.id;
   if (sol.numero) orc.numeroProposta = typeof _solNumeroTexto === 'function' ? _solNumeroTexto(sol.numero) : sol.numero;
-  if (!orc.telefone) orc.telefone = sol.celular || sol.telefoneFixo || '';
+  const nome = sol.cliente || [sol.tipoEvento, sol.solicitadoPor].filter(Boolean).join(' - ');
+  if (nome) orc.nomeCliente = nome;
+  if (sol.dataEvento) orc.dataEvento = sol.dataEvento;
+  const pax = parseInt(sol.pax) || 0;
+  const mudouPax = pax && pax !== orc.convidados;
+  if (pax) orc.convidados = pax;
+  orc.telefone = sol.celular || sol.telefoneFixo || '';
+  if (!orc.calcParams) orc.calcParams = {};
+  if (sol.centroCusto) orc.calcParams.local = sol.centroCusto;
+  if (sol.tipoEvento && typeof _solMapTipoEvento === 'function') orc.calcParams.tipoEvento = _solMapTipoEvento(sol.tipoEvento);
+  if (mudouPax) {
+    try { _orcAtualizarValores(orc); } catch (e) { console.error('Erro ao recalcular após vincular:', e); }
+  }
   sv('orcamentos');
   sv('solicitacoesOrcamento');
   rOrcDetalhe();
