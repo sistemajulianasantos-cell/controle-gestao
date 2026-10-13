@@ -203,8 +203,8 @@ function rOrcProposta(orc) {
       '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px 14px">' +
       grupos[grupo].map(function(c) {
         var checked = _propostaValor(orc, c.id);
-        return '<label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2);cursor:pointer">' +
-          '<input type="checkbox" ' + (checked ? 'checked' : '') +
+        return '<label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:400;color:var(--text2);cursor:pointer;text-transform:none;letter-spacing:0">' +
+          '<input type="checkbox" style="width:auto;margin:0" ' + (checked ? 'checked' : '') +
           ' onchange="propostaToggleCampo(\'' + orc.id + '\',\'' + c.id + '\',this.checked)">' +
           c.label + '</label>';
       }).join('') +
@@ -232,6 +232,8 @@ function rOrcProposta(orc) {
       '</div>' +
     '</div>' +
 
+    _propostaOpcionaisHtml(orc) +
+
     '<details style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 20px;max-width:700px;margin-bottom:14px">' +
       '<summary style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;cursor:pointer">Marcações para o modelo Word</summary>' +
       '<div style="font-size:11px;color:var(--text3);margin:10px 0">Escreva no modelo .docx a marcação entre chaves, ex.: {LOCAL_EVENTO}. Ao gerar, ela é trocada pelo valor abaixo (deste orçamento).</div>' +
@@ -248,6 +250,7 @@ function rOrcProposta(orc) {
         '<strong>Listas alinhadas (um item por parágrafo):</strong> {EQUIPE} e {CARDAPIO} quebram linha dentro do mesmo parágrafo — se a linha do modelo começa com espaço/tab, só a 1ª linha fica recuada. Pra cada item sair com a mesma formatação, use no modelo, cada marcação numa linha:<br>' +
         '<span style="font-family:var(--mono);color:var(--text)">{#EQUIPE_LISTA}<br>{CARGO}<br>{/EQUIPE_LISTA}</span><br>' +
         'e para o cardápio: <span style="font-family:var(--mono);color:var(--text)">{#CARDAPIO_LISTA}<br>{NOME}<br>{DESCRICAO}<br>{/CARDAPIO_LISTA}</span><br>' +
+        'e para os opcionais marcados: <span style="font-family:var(--mono);color:var(--text)">{#OPCIONAIS_LISTA}<br>{NOME} — {VALOR}<br>{/OPCIONAIS_LISTA}</span> (também {VALOR_EXTENSO})<br>' +
         'Marcação digitada errado sai no documento como [NOME?], pra achar fácil.' +
       '</div>' +
     '</details>' +
@@ -432,6 +435,7 @@ function _propostaMarcacoes(orc) {
   var contato = _propostaInfo(orc, 'contato');
   var essencial = d.resumo.valorTotalEssencial || 0;
   var completo  = d.resumo.valorTotal || 0;
+  var valHE = Number(orc.propostaValorHoraExtra) || 0;
   return [
     ['NUMERO_PROPOSTA',          'Nº da proposta',            v('capa_numero', _propostaNumeroEfetivo(orc))],
     ['CLIENTE',                  'Cliente (Solicitado por)',  _propostaCliente(orc)],
@@ -459,7 +463,85 @@ function _propostaMarcacoes(orc) {
     ['TEMPO_FESTA_EXTENSO',      'Tempo de festa só extenso', v('inv_tempoFesta', tempo.extenso)],
     ['TEMPO_FESTA_COMPLETO',     'Tempo de festa número + extenso', v('inv_tempoFesta', tempo.completo)],
     ['HORAS_EXTRAS',             'Horas extras contratadas',  v('inv_tempoFesta', tempo.extrasCalc ? String(tempo.extrasCalc) : '')],
+    ['VALOR_HORA_EXTRA',         'Valor da hora extra (digitado)', valHE ? fR(valHE) : ''],
+    ['VALOR_HORA_EXTRA_EXTENSO', 'Valor da hora extra + extenso', valHE ? _propostaValorTexto(valHE) : ''],
+    ['OPCIONAIS',                'Opcionais marcados (um por linha)', _propostaOpcionaisMarcados(orc).map(function(o) { return o.nome + (o.valor ? ' — ' + fR(o.valor) : ''); }).join('\n')],
   ];
+}
+
+// ─── OPCIONAIS NA PROPOSTA ───────────────────────────────────────────────────
+// Ela marca, por orçamento, quais opcionais do cadastro (Regras e Cálculos →
+// Opcionais) aparecem na proposta, e o valor de cada um — vem o preço do
+// cadastro, mas pode ser trocado só neste orçamento (pedido dela 10-13).
+// orc.propostaOpcionais = { <id do opcional>: { on: bool, valor: número|null } }
+// valor null = usa o do cadastro.
+function _propostaOpcionaisMarcados(orc) {
+  var sel = orc.propostaOpcionais || {};
+  return ((typeof getOpcionais === 'function') ? getOpcionais() : []).filter(function(o) {
+    return sel[o.id] && sel[o.id].on;
+  }).map(function(o) {
+    var v = sel[o.id].valor;
+    return { id: o.id, nome: o.nome || '', valor: v != null ? v : ((typeof precoOpcional === 'function') ? precoOpcional(o) : 0) };
+  });
+}
+
+function propostaSetOpcional(orcId, opcId, campo, valor) {
+  var orc = (D.orcamentos || []).find(function(o) { return o.id === orcId; });
+  if (!orc) return;
+  if (!orc.propostaOpcionais) orc.propostaOpcionais = {};
+  var cur = orc.propostaOpcionais[opcId] || (orc.propostaOpcionais[opcId] = { on: false, valor: null });
+  if (campo === 'on') cur.on = !!valor;
+  else {
+    var t = String(valor == null ? '' : valor).trim();
+    cur.valor = t === '' ? null : (parseFloat(t.replace(',', '.')) || 0);
+  }
+  sv('orcamentos');
+  rOrcProposta(orc);
+}
+
+function propostaSetValorHoraExtra(orcId, valor) {
+  var orc = (D.orcamentos || []).find(function(o) { return o.id === orcId; });
+  if (!orc) return;
+  var t = String(valor == null ? '' : valor).trim();
+  orc.propostaValorHoraExtra = t === '' ? null : (parseFloat(t.replace(',', '.')) || 0);
+  sv('orcamentos');
+  rOrcProposta(orc);
+}
+
+function _propostaOpcionaisHtml(orc) {
+  var lista = (typeof getOpcionais === 'function') ? getOpcionais().slice().sort(function(a, b) {
+    return (a.nome || '').localeCompare(b.nome || '', 'pt-BR');
+  }) : [];
+  var sel = orc.propostaOpcionais || {};
+  var campo = 'width:110px;text-align:right;font-size:12px;padding:4px 6px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono)';
+  var linhas = lista.map(function(o) {
+    var s = sel[o.id] || {};
+    var cadastro = (typeof precoOpcional === 'function') ? precoOpcional(o) : 0;
+    var alterado = s.valor != null && s.valor !== cadastro;
+    return '<tr style="border-top:1px solid var(--border)">' +
+      '<td style="padding:5px 8px 5px 0;width:24px"><input type="checkbox"' + (s.on ? ' checked' : '') +
+        ' onchange="propostaSetOpcional(\'' + orc.id + '\',\'' + o.id + '\',\'on\',this.checked)" style="width:auto;margin:0;cursor:pointer"></td>' +
+      '<td style="padding:5px 8px;font-size:12px;color:' + (s.on ? 'var(--text)' : 'var(--text3)') + '">' + _propostaEsc(o.nome || '') + '</td>' +
+      '<td style="padding:5px 8px;font-size:10px;color:var(--text3);text-align:right;white-space:nowrap">' +
+        (alterado ? 'cadastro: ' + fR(cadastro) + ' · <a href="#" onclick="propostaSetOpcional(\'' + orc.id + '\',\'' + o.id + '\',\'valor\',\'\');return false" style="color:var(--blue)">voltar</a>' : '') + '</td>' +
+      '<td style="padding:5px 0;text-align:right"><input type="number" min="0" step="0.01" value="' + (s.valor != null ? s.valor : (cadastro || '')) + '" placeholder="0,00"' +
+        ' onchange="propostaSetOpcional(\'' + orc.id + '\',\'' + o.id + '\',\'valor\',this.value)" style="' + campo + (alterado ? ';border-color:var(--blue)' : '') + '"></td>' +
+    '</tr>';
+  }).join('');
+  var valHE = orc.propostaValorHoraExtra;
+  return '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;max-width:700px;margin-bottom:14px">' +
+    '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Opcionais na proposta</div>' +
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:10px">Marque os que aparecem nesta proposta. O valor vem do cadastro (Regras e Cálculos → Opcionais); se mudar aqui, vale só para este orçamento.</div>' +
+    (lista.length
+      ? '<table style="width:100%;border-collapse:collapse">' + linhas + '</table>'
+      : '<div style="font-size:12px;color:var(--text3)">Nenhum opcional cadastrado.</div>') +
+    '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-top:1px solid var(--border);margin-top:12px;padding-top:12px">' +
+      '<label class="lbl" style="margin:0">Valor da hora extra (R$)</label>' +
+      '<input type="number" min="0" step="0.01" value="' + (valHE != null ? valHE : '') + '" placeholder="digite o valor"' +
+        ' onchange="propostaSetValorHoraExtra(\'' + orc.id + '\',this.value)" style="' + campo + ';width:130px">' +
+      '<span style="font-size:10px;color:var(--text3)">Sai na proposta em {VALOR_HORA_EXTRA}. Em branco: texto padrão (20% do total).</span>' +
+    '</div>' +
+  '</div>';
 }
 
 function _propostaEquipeLista(d) {
@@ -539,6 +621,9 @@ function _propostaGerarDocx(orc) {
     dados.CARDAPIO_LISTA = _propostaCardapioTexto(orc).split('\n\n').filter(Boolean).map(function(bloco) {
       var linhas = bloco.split('\n');
       return { NOME: linhas[0], DESCRICAO: linhas.slice(1).join(' ') };
+    });
+    dados.OPCIONAIS_LISTA = _propostaOpcionaisMarcados(orc).map(function(o) {
+      return { NOME: o.nome, VALOR: o.valor ? fR(o.valor) : '', VALOR_EXTENSO: o.valor ? _propostaValorTexto(o.valor) : '' };
     });
     docx.setData(dados);
     _propostaTagsUsadas = [];
@@ -703,7 +788,7 @@ function _propostaMontarHtml(orc) {
       '<h3 class="prop-h3 prop-under">Tempo de festa</h3>' +
       '<p class="prop-p">Serviço de recepção tem duração de ' + _tf.texto +
         (_tf.extras > 0 ? ' (já incluídas ' + _tf.extras + ' hora' + _sx + ' extra' + _sx + ' contratada' + _sx + ')' : '') +
-        '. O valor da hora extra é de 20% do total do orçamento.</p>');
+        '. ' + (Number(orc.propostaValorHoraExtra) > 0 ? 'O valor da hora extra é de ' + _propostaValorTexto(Number(orc.propostaValorHoraExtra)) + '.' : 'O valor da hora extra é de 20% do total do orçamento.') + '</p>');
     paginas.push(
       '<div class="prop-page">' +
         '<div class="prop-corner tl">r.</div><div class="prop-corner tr">r.</div>' +
@@ -717,6 +802,7 @@ function _propostaMontarHtml(orc) {
 
   // ── Página 6: Complementos ───────────────────────────────────────────────
   if (_propostaValor(orc, 'pag_complementos')) {
+    var opcMarcados = _propostaOpcionaisMarcados(orc);
     var complementos = [
       ['Signature cocktail', 'Criação de coquetéis exclusivos para personalizar a sua comemoração.'],
       ['Torre de Taças', 'Momento de celebração do casal'],
@@ -732,8 +818,12 @@ function _propostaMontarHtml(orc) {
         '<div class="prop-frame">' +
           '<h2 class="prop-h2">QUER ELEVAR AINDA MAIS A EXPERIÊNCIA?</h2>' +
           '<p class="prop-p">Alguns formatos que costumam encantar:</p>' +
-          complementos.map(function(c) { return '<div class="prop-compl"><strong>' + c[0] + '</strong><br>' + c[1] + '</div>'; }).join('') +
-          '<p class="prop-p" style="text-align:center;margin-top:14px">Valores sob consulta</p>' +
+          // Opcionais marcados na aba Proposta (com valor); sem nenhum
+          // marcado, a lista fixa de antes, "sob consulta".
+          (opcMarcados.length
+            ? opcMarcados.map(function(o) { return '<div class="prop-compl"><strong>' + _propostaEsc(o.nome) + '</strong>' + (o.valor ? '<br>' + fR(o.valor) : '') + '</div>'; }).join('')
+            : complementos.map(function(c) { return '<div class="prop-compl"><strong>' + c[0] + '</strong><br>' + c[1] + '</div>'; }).join('') +
+              '<p class="prop-p" style="text-align:center;margin-top:14px">Valores sob consulta</p>') +
         '</div>' +
       '</div>');
   }
