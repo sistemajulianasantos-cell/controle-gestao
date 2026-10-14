@@ -13,6 +13,7 @@ var _rcHistInsumo    = '';
 var _rcHistConvMin   = '';
 var _rcHistConvMax   = '';
 var _rcHistObs       = '';
+var _rcHistCliente   = '';
 var _rcGruposVisiveis = ['CASAMENTO','ANIVERSÁRIO','FORMATURA'];
 var _rcHistSelecionados = new Set();
 const RC_HIST_PER_PAGE = 50;
@@ -570,6 +571,12 @@ function _rcBuildEventos() {
         oninput="_rcHistFiltrarInsumo(this.value)">
     </div>
     <div style="display:flex;flex-direction:column;gap:3px">
+      <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Cliente</label>
+      <input type="text" placeholder="ex: Ana e Pedro" value="${_rcHistCliente}"
+        style="width:160px;padding:6px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px"
+        oninput="_rcHistFiltrarCliente(this.value)">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:3px">
       <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Observação</label>
       <input type="text" placeholder="ex: 11 a 15 anos" value="${_rcHistObs}"
         style="width:160px;padding:6px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px"
@@ -585,7 +592,7 @@ function _rcBuildEventos() {
 }
 
 function _rcHistTemFiltro() {
-  return !!(_rcHistGrupo || _rcHistConvMin!=='' || _rcHistConvMax!=='' || _rcHistInsumo.trim() || _rcHistObs.trim());
+  return !!(_rcHistCliente.trim() || _rcHistGrupo || _rcHistConvMin!=='' || _rcHistConvMax!=='' || _rcHistInsumo.trim() || _rcHistObs.trim());
 }
 
 function _rcHistRefresh() {
@@ -594,6 +601,8 @@ function _rcHistRefresh() {
   const btnLimpar = document.getElementById('rc-hist-limpar');
   if (btnLimpar) btnLimpar.style.display = _rcHistTemFiltro() ? '' : 'none';
 }
+
+function _rcEscHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
 
 function _rcHistResultadosHTML() {
   const dasFestas = _rcGetEventosDasFestas().map(e => ({...e, _fonte:'fechamento'}));
@@ -616,6 +625,10 @@ function _rcHistResultadosHTML() {
   if (_rcHistConvMax !== '') {
     const mx = parseFloat(_rcHistConvMax);
     if (!isNaN(mx)) filtrados = filtrados.filter(e => parseFloat(e.convidados||0) <= mx);
+  }
+  if (_rcHistCliente.trim()) {
+    const termCli = _rcHistCliente.toLowerCase().trim();
+    filtrados = filtrados.filter(e => (e.cliente||'').toLowerCase().includes(termCli));
   }
   if (_rcHistObs.trim()) {
     const termObs = _rcHistObs.toLowerCase().trim();
@@ -684,7 +697,7 @@ function _rcHistResultadosHTML() {
     : `<th style="width:26px"></th>`;
 
   const rows = pagina.length === 0
-    ? `<tr><td colspan="${auditBev?8:6}" style="padding:32px;text-align:center;color:var(--text3)">Nenhum evento encontrado.</td></tr>`
+    ? `<tr><td colspan="${auditBev?9:7}" style="padding:32px;text-align:center;color:var(--text3)">Nenhum evento encontrado.</td></tr>`
     : pagina.map((e) => {
         const idxReal = todos.indexOf(e);
         const badge   = e._fonte==='manual'
@@ -716,6 +729,7 @@ function _rcHistResultadosHTML() {
         return `<tr style="border-bottom:1px solid var(--border)">
           ${selTd}
           <td style="padding:8px 12px;color:var(--text2);font-family:var(--mono);font-size:11px;white-space:nowrap">${e.data||'—'}</td>
+          <td style="padding:8px 12px;font-size:12px;font-weight:600;color:var(--text)">${e.cliente ? _rcEscHtml(e.cliente) : '<span style="color:var(--text3);font-weight:400">—</span>'}</td>
           <td style="padding:8px 12px">${badge} <span style="font-size:11px;color:var(--text2);margin-left:4px">${e.grupo||'—'}</span>${e.observacao?`<div style="font-size:10px;color:var(--text3);margin-top:2px">${e.observacao}</div>`:''}</td>
           <td style="padding:8px 12px;text-align:right;font-family:var(--mono);color:var(--text);font-weight:600">${e.convidados||0}</td>
           ${auditTds}
@@ -761,6 +775,7 @@ function _rcHistResultadosHTML() {
         <tr style="background:var(--bg3);border-bottom:2px solid var(--border)">
           ${selTh}
           <th style="padding:9px 12px;text-align:left;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Data</th>
+          <th style="padding:9px 12px;text-align:left;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Cliente</th>
           <th style="padding:9px 12px;text-align:left;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Tipo</th>
           <th style="padding:9px 12px;text-align:right;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Conv.</th>
           ${auditTh}
@@ -785,7 +800,8 @@ function _rcHistFiltrarInsumo(v)     { _rcHistInsumo = v; _rcHistPage = 0; _rcHi
 function _rcHistFiltrarConvMin(v)    { _rcHistConvMin = v; _rcHistPage = 0; _rcHistRefresh(); }
 function _rcHistFiltrarConvMax(v)    { _rcHistConvMax = v; _rcHistPage = 0; _rcHistRefresh(); }
 function _rcHistFiltrarObs(v)        { _rcHistObs = v; _rcHistPage = 0; _rcHistRefresh(); }
-function _rcHistLimparFiltros()      { _rcHistGrupo=''; _rcHistInsumo=''; _rcHistConvMin=''; _rcHistConvMax=''; _rcHistObs=''; _rcHistPage=0; rRefConsumo(); }
+function _rcHistFiltrarCliente(v)    { _rcHistCliente = v; _rcHistPage = 0; _rcHistRefresh(); }
+function _rcHistLimparFiltros()      { _rcHistGrupo=''; _rcHistInsumo=''; _rcHistConvMin=''; _rcHistConvMax=''; _rcHistObs=''; _rcHistCliente=''; _rcHistPage=0; rRefConsumo(); }
 
 function _rcHistToggleSel(id) {
   if (_rcHistSelecionados.has(id)) _rcHistSelecionados.delete(id);
