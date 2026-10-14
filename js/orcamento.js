@@ -181,7 +181,7 @@ function rOrcDetalhe() {
       ${sol ? `<span style="font-size:11px;color:var(--text3)">(da Solicitação de Orçamento)</span>
       <button class="btn-sm" onclick="if(confirm('Trocar cliente, data, convidados, contato, centro de custo e tipo de evento pelos da Solicitação?'))orcVincularSolicitacao('${orc.id}','${sol.id}')" title="Copia de novo os dados da Solicitação para o cabeçalho" style="background:var(--bg3)">Puxar dados da Solicitação</button>` : ''}
       ${_orcCriadoTexto(orc) ? `<span style="font-size:11px;color:var(--text3);margin-left:auto">${esc(_orcCriadoTexto(orc))}</span>` : ''}
-      ${!orc.criadoPor ? `<select onchange="orcSetCriadoPor('${orc.id}',this.value)" title="Orçamento antigo: não registrou quem criou" style="${campo};font-size:11px;padding:3px 6px${_orcCriadoTexto(orc) ? '' : ';margin-left:auto'}">
+      ${!orc.criadoPor ? `<select onchange="orcSetCriadoPor('${orc.id}',this.value)" title="Orçamento antigo: não registrou quem criou" style="${campo};width:auto;font-size:11px;padding:3px 6px${_orcCriadoTexto(orc) ? '' : ';margin-left:auto'}">
         <option value="">por quem? (escolher)</option>
         ${_orcNomesUsuarios().map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('')}
       </select>` : ''}
@@ -213,6 +213,10 @@ function rOrcDetalhe() {
           <label style="${lbl}">Convidados</label>
           <input type="number" min="1" value="${esc(orc.convidados)}" onchange="orcSetCabecalho('${orc.id}','convidados',this.value)" style="${campo};width:100%">
         </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:10px">
+        ${txt('homenageados', 'Noivos / aniversariante', 'Ex: Ana e Pedro / 15 anos da Maria', true)}
+        ${txt('contatoCliente', 'Contato do cliente', '(31) 9 9999-9999')}
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px">
         ${txt('localEvento', 'Local do evento', 'Nome do espaço / endereço', true)}
@@ -608,7 +612,7 @@ function clonarOrc(id) {
   if (horas != null && copia.calcParams && copia.calcParams.adic) {
     copia.calcParams.adic.horaExtra = Object.assign({}, copia.calcParams.adic.horaExtra, { duracao: horas });
   }
-  ['solicitadoPor', 'localEvento', 'observacao', 'hora', 'servicosOrcados', 'bebidas'].forEach(c => { delete copia[c]; });
+  ['solicitadoPor', 'homenageados', 'contatoCliente', 'localEvento', 'observacao', 'hora', 'servicosOrcados', 'bebidas'].forEach(c => { delete copia[c]; });
   if (!D.orcamentos) D.orcamentos = [];
   D.orcamentos.push(copia);
   sv('orcamentos');
