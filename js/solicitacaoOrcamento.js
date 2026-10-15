@@ -315,7 +315,16 @@ function _solBuildLista() {
         '</tr>';
       }).join('');
 
+  var semPedido = _solOrcamentosSemPedido();
   return '<div style="padding:20px 24px">' +
+    (semPedido.length
+      ? '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--amber-bg);border:1px solid var(--amber-dim);border-radius:var(--radius);padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--text2)">' +
+          '<span><strong>' + semPedido.length + ' orçamento(s)</strong> foram criados sem pedido registrado aqui (' +
+            semPedido.slice(0, 5).map(function(o) { return (o.numeroProposta || '') + ' ' + (o.nomeCliente || 'Sem nome'); }).join(', ').replace(/</g, '&lt;') +
+            (semPedido.length > 5 ? '…' : '') + ').</span>' +
+          '<button class="btn btn-sm" style="margin-left:auto" onclick="solRegistrarOrcamentosSemPedido()">Registrar todos aqui</button>' +
+        '</div>'
+      : '') +
     '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;gap:12px;flex-wrap:wrap">' +
       '<div>' +
         '<div style="font-size:18px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.5px">Solicitação de Orçamento</div>' +
@@ -413,6 +422,63 @@ function _solBuildForm(id) {
       '<button class="btn" style="background:var(--bg3);color:var(--text)" onclick="_solVoltarDoForm()">Cancelar</button>' +
     '</div>' +
   '</div>';
+}
+
+// ── Orçamentos criados sem pedido (antes de 10-15 o "+ Novo orçamento" e o
+// Clonar não registravam Solicitação) ─────────────────────────────────────────
+function _solOrcamentosSemPedido() {
+  if (typeof _orcSolVinculada !== 'function') return [];
+  return (D.orcamentos || []).filter(function(o) { return !_orcSolVinculada(o); });
+}
+
+// Cria a Solicitação a partir dos dados do orçamento (mesmo Nº) e liga os dois.
+function _solRegistrarDeOrcamento(o) {
+  if (!o || (typeof _orcSolVinculada === 'function' && _orcSolVinculada(o))) return null;
+  var p = o.calcParams || {};
+  var t = (typeof buscarTipoEventoPorId === 'function') ? buscarTipoEventoPorId(p.tipoEvento) : null;
+  var s = {
+    id: _gerarId('SOL'),
+    numero: o.numeroProposta || _solProximoNumero(),
+    solicitadoPor: o.solicitadoPor || '',
+    cliente: o.nomeCliente || '',
+    telefoneFixo: '',
+    celular: o.telefone || '',
+    tipoEvento: t ? t.nome : '',
+    dataEvento: o.dataEvento || '',
+    localEvento: o.localEvento || '',
+    centroCusto: p.local || '',
+    pax: parseInt(o.convidados) || 0,
+    servicosOrcados: o.servicosOrcados || '',
+    status: 'PENDENTE',
+    hora: o.hora || '',
+    bebidas: o.bebidas || '',
+    observacao: o.observacao || '',
+    modeloUtilizado: '',
+    bonificacaoCerimonial: '',
+    orcamentoId: o.id,
+    criadoEm: o.criadoEm || new Date().toISOString(),
+  };
+  if (!D.solicitacoesOrcamento) D.solicitacoesOrcamento = [];
+  D.solicitacoesOrcamento.push(s);
+  return s;
+}
+
+function solRegistrarOrcamentosSemPedido() {
+  var lista = _solOrcamentosSemPedido();
+  if (!lista.length) return;
+  if (!confirm('Registrar ' + lista.length + ' orçamento(s) como Solicitação de Orçamento (com o mesmo Nº e os dados do orçamento)?')) return;
+  lista.forEach(_solRegistrarDeOrcamento);
+  sv('solicitacoesOrcamento');
+  alert2(lista.length + ' pedido(s) registrado(s).');
+  rSolicitacao();
+}
+
+function solRegistrarOrcamentoId(orcId) {
+  var o = (D.orcamentos || []).find(function(x) { return x.id === orcId; });
+  if (!_solRegistrarDeOrcamento(o)) return;
+  sv('solicitacoesOrcamento');
+  alert2('Pedido registrado em Solicitação de Orçamento.');
+  if (typeof rOrcDetalhe === 'function') rOrcDetalhe();
 }
 
 // Valor pra dentro de value="..." (nome com aspas não quebra o campo).

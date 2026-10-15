@@ -323,6 +323,7 @@ function rOrcDetalhe() {
         <option value="">Vincular à solicitação...</option>
         ${solsLivres.map(s => `<option value="${s.id}">${esc(rotuloSol(s))}</option>`).join('')}
       </select>` : 'Nenhuma solicitação livre para vincular.'}
+      <button class="btn-sm" onclick="solRegistrarOrcamentoId('${orc.id}')" title="Cria o pedido em Solicitação de Orçamento com os dados deste orçamento (mesmo Nº)" style="background:var(--bg2)">Registrar como novo pedido</button>
     </div>` : ''}
     <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:14px">
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:10px">
