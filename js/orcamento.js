@@ -48,38 +48,99 @@ function rOrcLista() {
         <div style="margin-bottom:8px;font-size:14px">Nenhum orçamento cadastrado</div>
         <div style="font-size:12px">Crie um novo orçamento ou gere a partir de uma Solicitação de Orçamento</div>
       </div>` : `
-    <div style="margin-bottom:12px">
-      <input type="search" value="${String(_orcBusca).replace(/"/g, '&quot;')}" placeholder="Buscar por Nº, cliente ou nº de convidados..."
-        oninput="_orcSetBusca(this.value)" style="max-width:420px">
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px">
+      <div style="flex:1;min-width:220px;max-width:380px">
+        <label>Buscar</label>
+        <input type="search" value="${String(_orcBusca).replace(/"/g, '&quot;')}" placeholder="Nº, cliente, tipo, observação..."
+          oninput="_orcSetFiltro('busca',this.value)">
+      </div>
+      <div style="width:220px">
+        <label>Tipo de evento</label>
+        <select onchange="_orcSetFiltro('tipo',this.value)">${_orcTipoFiltroOptions()}</select>
+      </div>
+      <div style="width:100px">
+        <label>Convidados de</label>
+        <input type="number" min="0" value="${_orcConvMin}" placeholder="ex: 80" oninput="_orcSetFiltro('min',this.value)">
+      </div>
+      <div style="width:100px">
+        <label>até</label>
+        <input type="number" min="0" value="${_orcConvMax}" placeholder="ex: 120" oninput="_orcSetFiltro('max',this.value)">
+      </div>
+      <button class="btn btn-sm" id="orc-limpar-filtros" onclick="_orcLimparFiltros()" style="${_orcTemFiltro() ? '' : 'display:none'}">Limpar filtros</button>
     </div>
     <div id="orc-lista-res">${_orcListaCardsHTML(lista)}</div>`}`;
 }
 
-// Busca da lista (guardada aqui pra não sumir ao voltar de um orçamento).
-let _orcBusca = '';
-function _orcSetBusca(v) {
-  _orcBusca = v;
+// Filtros da lista — todos valem juntos (pedido dela 10-15: "aniversário x
+// idade para x convidados"). Guardados aqui pra não sumir ao voltar de um
+// orçamento.
+let _orcBusca = '', _orcFiltroTipo = '', _orcConvMin = '', _orcConvMax = '';
+function _orcTemFiltro() { return !!(String(_orcBusca).trim() || _orcFiltroTipo || _orcConvMin !== '' || _orcConvMax !== ''); }
+function _orcSetFiltro(campo, v) {
+  if (campo === 'busca') _orcBusca = v;
+  else if (campo === 'tipo') _orcFiltroTipo = v;
+  else if (campo === 'min') _orcConvMin = v;
+  else if (campo === 'max') _orcConvMax = v;
   const res = document.getElementById('orc-lista-res');
   if (!res) return;
   const criado = o => o.criadoEm || (/^ORC(\d{13})/.test(o.id || '') ? new Date(Number(o.id.slice(3, 16))).toISOString() : '');
   res.innerHTML = _orcListaCardsHTML((D.orcamentos || []).slice().sort((a,b) => criado(b).localeCompare(criado(a))));
+  const bt = document.getElementById('orc-limpar-filtros');
+  if (bt) bt.style.display = _orcTemFiltro() ? '' : 'none';
+}
+function _orcLimparFiltros() { _orcBusca = ''; _orcFiltroTipo = ''; _orcConvMin = ''; _orcConvMax = ''; rOrcLista(); }
+
+// Tipos de evento do cadastro; grupo com mais de um tipo (ex: Aniversário)
+// ganha também a opção "todos do grupo" (valor "g:<grupo>").
+function _orcTipoFiltroOptions() {
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  const tipos = (typeof getTiposEvento === 'function') ? getTiposEvento() : [];
+  const porGrupo = {}, ordem = [];
+  tipos.forEach(t => { const g = t.grupo || t.nome; if (!porGrupo[g]) { porGrupo[g] = []; ordem.push(g); } porGrupo[g].push(t); });
+  const opt = (v, txt) => `<option value="${esc(v)}"${_orcFiltroTipo === v ? ' selected' : ''}>${esc(txt)}</option>`;
+  return opt('', 'Todos os tipos') + ordem.map(g => {
+    const itens = porGrupo[g];
+    if (itens.length === 1) return opt(itens[0].id, itens[0].nome);
+    return `<optgroup label="${esc(g)}">${opt('g:' + g, g + ' (todos)')}${itens.map(t => opt(t.id, t.nome)).join('')}</optgroup>`;
+  }).join('');
 }
 
-// Nº do orçamento, cliente (e quem solicitou) ou nº de convidados — número
-// puro também acha os orçamentos com exatamente essa quantidade de convidados.
+function _orcTipoNome(o) {
+  const t = (typeof buscarTipoEventoPorId === 'function') ? buscarTipoEventoPorId((o.calcParams || {}).tipoEvento) : null;
+  return t ? [t.nome, t.grupo].filter(Boolean).join(' ') : ((o.calcParams || {}).tipoEvento || '');
+}
+
+// Busca: cada palavra precisa aparecer em algum campo (Nº, cliente, quem
+// solicitou, tipo de evento, observação, serviços); palavra que é só número
+// também vale se for exatamente o nº de convidados.
 function _orcFiltrarBusca(lista) {
   const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-  const q = norm(_orcBusca).trim();
-  if (!q) return lista;
-  const num = /^\d+$/.test(q) ? Number(q) : null;
-  return lista.filter(o =>
-    (num != null && Number(o.convidados) === num) ||
-    norm([o.numeroProposta, o.nomeCliente, _orcNomeSolicitante(o)].join(' ')).includes(q));
+  const palavras = norm(_orcBusca).split(/\s+/).filter(Boolean);
+  const min = _orcConvMin !== '' ? Number(_orcConvMin) : null;
+  const max = _orcConvMax !== '' ? Number(_orcConvMax) : null;
+  const tipos = (typeof getTiposEvento === 'function') ? getTiposEvento() : [];
+  return lista.filter(o => {
+    const conv = Number(o.convidados) || 0;
+    if (min != null && conv < min) return false;
+    if (max != null && conv > max) return false;
+    if (_orcFiltroTipo) {
+      const id = (o.calcParams || {}).tipoEvento;
+      if (_orcFiltroTipo.startsWith('g:')) {
+        const g = _orcFiltroTipo.slice(2);
+        const t = tipos.find(x => x.id === id);
+        if (!t || (t.grupo || t.nome) !== g) return false;
+      } else if (id !== _orcFiltroTipo) return false;
+    }
+    if (!palavras.length) return true;
+    const texto = norm([o.numeroProposta, o.nomeCliente, _orcNomeSolicitante(o), _orcTipoNome(o),
+      _orcInfo(o, 'observacao'), _orcInfo(o, 'servicosOrcados')].join(' '));
+    return palavras.every(p => texto.includes(p) || (/^\d+$/.test(p) && conv === Number(p)));
+  });
 }
 
 function _orcListaCardsHTML(listaToda) {
   const lista = _orcFiltrarBusca(listaToda);
-  if (!lista.length) return `<div style="text-align:center;padding:40px 20px;color:var(--text3);font-size:13px">Nenhum orçamento encontrado para "${String(_orcBusca).replace(/</g, '&lt;')}".</div>`;
+  if (!lista.length) return `<div style="text-align:center;padding:40px 20px;color:var(--text3);font-size:13px">Nenhum orçamento encontrado com esses filtros.</div>`;
   return `<div style="display:grid;gap:10px">
       ${lista.map(o => {
         // Valor = o mesmo da Calculadora (Pacote Completo e Essencial)
