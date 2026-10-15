@@ -58,6 +58,13 @@ function rOrcLista() {
         <label>Tipo de evento</label>
         <select onchange="_orcSetFiltro('tipo',this.value)">${_orcTipoFiltroOptions()}</select>
       </div>
+      <div style="width:200px">
+        <label>Centro de custo</label>
+        <select onchange="_orcSetFiltro('local',this.value)">
+          <option value="">Todos</option>
+          ${(typeof REGIOES_LOCAL !== 'undefined' ? REGIOES_LOCAL : []).map(r => `<option value="${r.key}"${_orcFiltroLocal === r.key ? ' selected' : ''}>${r.label}</option>`).join('')}
+        </select>
+      </div>
       <div style="width:100px">
         <label>Convidados de</label>
         <input type="number" min="0" value="${_orcConvMin}" placeholder="ex: 80" oninput="_orcSetFiltro('min',this.value)">
@@ -74,11 +81,12 @@ function rOrcLista() {
 // Filtros da lista — todos valem juntos (pedido dela 10-15: "aniversário x
 // idade para x convidados"). Guardados aqui pra não sumir ao voltar de um
 // orçamento.
-let _orcBusca = '', _orcFiltroTipo = '', _orcConvMin = '', _orcConvMax = '';
-function _orcTemFiltro() { return !!(String(_orcBusca).trim() || _orcFiltroTipo || _orcConvMin !== '' || _orcConvMax !== ''); }
+let _orcBusca = '', _orcFiltroTipo = '', _orcFiltroLocal = '', _orcConvMin = '', _orcConvMax = '';
+function _orcTemFiltro() { return !!(String(_orcBusca).trim() || _orcFiltroTipo || _orcFiltroLocal || _orcConvMin !== '' || _orcConvMax !== ''); }
 function _orcSetFiltro(campo, v) {
   if (campo === 'busca') _orcBusca = v;
   else if (campo === 'tipo') _orcFiltroTipo = v;
+  else if (campo === 'local') _orcFiltroLocal = v;
   else if (campo === 'min') _orcConvMin = v;
   else if (campo === 'max') _orcConvMax = v;
   const res = document.getElementById('orc-lista-res');
@@ -88,7 +96,7 @@ function _orcSetFiltro(campo, v) {
   const bt = document.getElementById('orc-limpar-filtros');
   if (bt) bt.style.display = _orcTemFiltro() ? '' : 'none';
 }
-function _orcLimparFiltros() { _orcBusca = ''; _orcFiltroTipo = ''; _orcConvMin = ''; _orcConvMax = ''; rOrcLista(); }
+function _orcLimparFiltros() { _orcBusca = ''; _orcFiltroTipo = ''; _orcFiltroLocal = ''; _orcConvMin = ''; _orcConvMax = ''; rOrcLista(); }
 
 // Tipos de evento do cadastro; grupo com mais de um tipo (ex: Aniversário)
 // ganha também a opção "todos do grupo" (valor "g:<grupo>").
@@ -123,6 +131,12 @@ function _orcFiltrarBusca(lista) {
     const conv = Number(o.convidados) || 0;
     if (min != null && conv < min) return false;
     if (max != null && conv > max) return false;
+    if (_orcFiltroLocal) {
+      // Centro de custo = Local da Calculadora (chave antiga convertida sem gravar)
+      const loc = (o.calcParams || {}).local || 'area_central';
+      const mapa = (typeof _MAPA_LOCAL_ORCAMENTO_PARA_REGIAO !== 'undefined') ? _MAPA_LOCAL_ORCAMENTO_PARA_REGIAO : {};
+      if ((mapa[loc] || loc) !== _orcFiltroLocal) return false;
+    }
     if (_orcFiltroTipo) {
       const id = (o.calcParams || {}).tipoEvento;
       if (_orcFiltroTipo.startsWith('g:')) {
