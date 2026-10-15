@@ -1872,8 +1872,8 @@ function rOrcServicos(orc) {
         <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:8px">+ Adicionar serviço</div>
         ${(typeof getOpcionais === 'function' && getOpcionais().length) ? `
         <div style="margin-bottom:8px">
-          <label style="font-size:9px;color:var(--text3);display:block;margin-bottom:2px">Puxar de um opcional cadastrado (Regras e Cálculos → Opcionais)</label>
-          <select onchange="orcPreencherDeOpcional(this.value)"
+          <label style="font-size:9px;color:var(--text3);display:block;margin-bottom:2px">Adicionar um opcional cadastrado (Regras e Cálculos → Opcionais) — entra direto, ajuste a qtd na lista</label>
+          <select onchange="if(this.value)orcAddServicoDeOpcional('${orc.id}',this.value)"
             style="width:100%;max-width:280px;font-size:11px;padding:5px 7px;background:var(--bg4);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius)">
             <option value="">— escolher —</option>
             ${getOpcionais().map(o => `<option value="${o.id}">${(o.nome||'').replace(/</g,'&lt;')}</option>`).join('')}
@@ -1905,15 +1905,29 @@ function rOrcServicos(orc) {
 // Preenche o formulário "Adicionar serviço" a partir de um opcional cadastrado
 // (js/opcionais.js) — nome + preço de referência. Ela revisa e clica em
 // "+ Adicionar". Não altera o modelo de orc.servicos[].
-function orcPreencherDeOpcional(opcId) {
-  if (!opcId) return;
+// Escolher um opcional cadastrado já adiciona ele (qtd 1, preço do cadastro)
+// — antes só preenchia o formulário e precisava clicar em "+ Adicionar".
+// Se já estiver na lista, soma 1 na quantidade. Guarda opcionalId: a aba
+// Proposta usa pra levar o opcional com quantidade e total.
+function orcAddServicoDeOpcional(orcId, opcId) {
+  const orc = (D.orcamentos||[]).find(o => o.id === orcId);
   const o = (typeof buscarOpcionalPorId === 'function') ? buscarOpcionalPorId(opcId) : null;
-  if (!o) return;
-  const nomeEl  = document.getElementById('svc-nome');
-  const precoEl = document.getElementById('svc-preco');
-  if (nomeEl) nomeEl.value = o.nome || '';
+  if (!orc || !o) return;
+  if (!orc.servicos) orc.servicos = [];
   const preco = (typeof precoOpcional === 'function') ? precoOpcional(o) : (o.precoPadrao || 0);
-  if (precoEl && preco) precoEl.value = fmtValorBR(preco);
+  const ja = orc.servicos.find(s => s.opcionalId === o.id);
+  if (ja) {
+    ja.qtd = (ja.qtd || 0) + 1;
+    ja.total = Math.round(ja.qtd * (ja.precoUnit || 0) * 100) / 100;
+  } else {
+    orc.servicos.push({
+      id: 'svc-' + Date.now() + Math.random().toString(36).slice(2,4),
+      opcionalId: o.id, nome: o.nome || '', qtd: 1, precoUnit: preco,
+      total: Math.round(preco * 100) / 100
+    });
+  }
+  sv('orcamentos');
+  rOrcServicos(orc);
 }
 
 function addServico(orcId) {

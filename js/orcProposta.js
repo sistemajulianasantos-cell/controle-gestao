@@ -250,7 +250,7 @@ function rOrcProposta(orc) {
         '<strong>Listas alinhadas (um item por parágrafo):</strong> {EQUIPE} e {CARDAPIO} quebram linha dentro do mesmo parágrafo — se a linha do modelo começa com espaço/tab, só a 1ª linha fica recuada. Pra cada item sair com a mesma formatação, use no modelo, cada marcação numa linha:<br>' +
         '<span style="font-family:var(--mono);color:var(--text)">{#EQUIPE_LISTA}<br>{CARGO}<br>{/EQUIPE_LISTA}</span><br>' +
         'e para o cardápio: <span style="font-family:var(--mono);color:var(--text)">{#CARDAPIO_LISTA}<br>{NOME}<br>{DESCRICAO}<br>{/CARDAPIO_LISTA}</span><br>' +
-        'e para os opcionais marcados: <span style="font-family:var(--mono);color:var(--text)">{#OPCIONAIS_LISTA}<br>{NOME} — {VALOR}<br>{DESCRICAO}<br>{/OPCIONAIS_LISTA}</span> (também {VALOR_EXTENSO})<br>' +
+        'e para os opcionais marcados: <span style="font-family:var(--mono);color:var(--text)">{#OPCIONAIS_LISTA}<br>{NOME} — {VALOR}<br>{DESCRICAO}<br>{/OPCIONAIS_LISTA}</span> (também {VALOR_EXTENSO}, {QTD} e {VALOR_UNITARIO}; uma linha em branco antes de {/OPCIONAIS_LISTA} separa um opcional do outro)<br>' +
         'Marcação digitada errado sai no documento como [NOME?], pra achar fácil.' +
       '</div>' +
     '</details>' +
@@ -479,15 +479,47 @@ function _propostaMarcacoes(orc) {
 // cadastro, mas pode ser trocado só neste orçamento (pedido dela 10-13).
 // orc.propostaOpcionais = { <id do opcional>: { on: bool, valor: número|null } }
 // valor null = usa o do cadastro.
+// Opcional adicionado na aba Serviços do orçamento (pelo opcionalId ou, nos
+// adicionados antes, pelo nome).
+function _propostaSvcDoOpc(orc, o) {
+  var norm = function(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().trim(); };
+  return (orc.servicos || []).find(function(s) { return s.opcionalId === o.id; }) ||
+    (orc.servicos || []).find(function(s) { return !s.opcionalId && norm(s.nome) === norm(o.nome); }) || null;
+}
+
+// Estado de um opcional nesta proposta. Se está na aba Serviços, entra
+// sozinho (com a quantidade e o total de lá) — dá pra desmarcar aqui.
+// Valor/descrição mudados aqui valem só pra este orçamento.
+function _propostaOpcEstado(orc, o) {
+  var s = (orc.propostaOpcionais || {})[o.id] || {};
+  var svc = _propostaSvcDoOpc(orc, o);
+  var cadastro = (typeof precoOpcional === 'function') ? precoOpcional(o) : 0;
+  var unit = svc ? (Number(svc.precoUnit) || 0) : cadastro;
+  var qtd = svc ? (Number(svc.qtd) || 1) : 1;
+  var padrao = svc ? (Number(svc.total) || unit * qtd) : cadastro;
+  return {
+    s: s, svc: svc, unit: unit, qtd: qtd, valorPadrao: padrao,
+    incluido: s.on === true || (!!svc && s.on !== false),
+    valor: s.valor != null ? s.valor : padrao,
+  };
+}
+
+// Descrição aceita {QTD}, {VALOR} e {VALOR_UNITARIO} — ex: "{QTD} x 60
+// unidades" sai "2 x 60 unidades" quando são 2 na aba Serviços.
+function _propostaDescComValores(txt, e) {
+  return String(txt || '')
+    .replace(/\{\s*QTD\s*\}/gi, String(e.qtd))
+    .replace(/\{\s*VALOR_UNITARIO\s*\}/gi, e.unit ? fR(e.unit) : '')
+    .replace(/\{\s*VALOR\s*\}/gi, e.valor ? fR(e.valor) : '');
+}
+
 function _propostaOpcionaisMarcados(orc) {
-  var sel = orc.propostaOpcionais || {};
-  return ((typeof getOpcionais === 'function') ? getOpcionais() : []).filter(function(o) {
-    return sel[o.id] && sel[o.id].on;
-  }).map(function(o) {
-    var v = sel[o.id].valor;
-    var dsc = sel[o.id].descricao;
-    return { id: o.id, nome: o.nome || '', valor: v != null ? v : ((typeof precoOpcional === 'function') ? precoOpcional(o) : 0),
-      descricao: dsc != null ? dsc : _propostaDescOpcCadastro(o) };
+  return ((typeof getOpcionais === 'function') ? getOpcionais() : []).map(function(o) {
+    return { o: o, e: _propostaOpcEstado(orc, o) };
+  }).filter(function(x) { return x.e.incluido; }).map(function(x) {
+    var dsc = x.e.s.descricao != null ? x.e.s.descricao : _propostaDescOpcCadastro(x.o);
+    return { id: x.o.id, nome: x.o.nome || '', valor: x.e.valor, qtd: x.e.qtd, unit: x.e.unit,
+      descricao: _propostaDescComValores(dsc, x.e) };
   });
 }
 
@@ -500,7 +532,8 @@ function propostaSetOpcional(orcId, opcId, campo, valor) {
   var orc = (D.orcamentos || []).find(function(o) { return o.id === orcId; });
   if (!orc) return;
   if (!orc.propostaOpcionais) orc.propostaOpcionais = {};
-  var cur = orc.propostaOpcionais[opcId] || (orc.propostaOpcionais[opcId] = { on: false, valor: null });
+  // on: null = segue a aba Serviços (entra se estiver lá)
+  var cur = orc.propostaOpcionais[opcId] || (orc.propostaOpcionais[opcId] = { on: null, valor: null });
   if (campo === 'on') cur.on = !!valor;
   else if (campo === 'descricao') cur.descricao = valor == null ? null : String(valor).trim();
   else {
@@ -527,7 +560,7 @@ function _propostaOpcDescLinha(orc, o, s) {
   var alterada = s.descricao != null && s.descricao !== padrao;
   var texto = s.descricao != null ? s.descricao : padrao;
   return '<tr><td></td><td colspan="3" style="padding:0 0 8px 8px">' +
-    '<textarea rows="2" placeholder="Descrição na proposta (cadastre um texto padrão em Regras e Cálculos → Opcionais)"' +
+    '<textarea rows="' + Math.min(8, Math.max(2, String(texto).split('\n').length)) + '" placeholder="Descrição na proposta (cadastre um texto padrão em Regras e Cálculos → Opcionais)"' +
       ' onchange="propostaSetOpcional(\'' + orc.id + '\',\'' + o.id + '\',\'descricao\',this.value)"' +
       ' style="width:100%;font-size:12px;padding:5px 7px;background:var(--bg3);border:1px solid ' + (alterada ? 'var(--blue)' : 'var(--border2)') + ';color:var(--text);border-radius:4px;resize:vertical">' +
       _propostaEsc(texto) + '</textarea>' +
@@ -542,23 +575,25 @@ function _propostaOpcionaisHtml(orc) {
   var sel = orc.propostaOpcionais || {};
   var campo = 'width:110px;text-align:right;font-size:12px;padding:4px 6px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono)';
   var linhas = lista.map(function(o) {
-    var s = sel[o.id] || {};
-    var cadastro = (typeof precoOpcional === 'function') ? precoOpcional(o) : 0;
-    var alterado = s.valor != null && s.valor !== cadastro;
+    var e = _propostaOpcEstado(orc, o);
+    var s = e.s;
+    var alterado = s.valor != null && s.valor !== e.valorPadrao;
+    var origem = e.svc ? e.qtd + '× ' + fR(e.unit) + ' na aba Serviços' : 'preço do cadastro';
     return '<tr style="border-top:1px solid var(--border)">' +
-      '<td style="padding:5px 8px 5px 0;width:24px"><input type="checkbox"' + (s.on ? ' checked' : '') +
+      '<td style="padding:5px 8px 5px 0;width:24px"><input type="checkbox"' + (e.incluido ? ' checked' : '') +
         ' onchange="propostaSetOpcional(\'' + orc.id + '\',\'' + o.id + '\',\'on\',this.checked)" style="width:auto;margin:0;cursor:pointer"></td>' +
-      '<td style="padding:5px 8px;font-size:12px;color:' + (s.on ? 'var(--text)' : 'var(--text3)') + '">' + _propostaEsc(o.nome || '') + '</td>' +
+      '<td style="padding:5px 8px;font-size:12px;color:' + (e.incluido ? 'var(--text)' : 'var(--text3)') + '">' + _propostaEsc(o.nome || '') +
+        (e.svc ? ' <span style="font-size:10px;color:var(--purple);white-space:nowrap">· ' + e.qtd + '× em Serviços</span>' : '') + '</td>' +
       '<td style="padding:5px 8px;font-size:10px;color:var(--text3);text-align:right;white-space:nowrap">' +
-        (alterado ? 'cadastro: ' + fR(cadastro) + ' · <a href="#" onclick="propostaSetOpcional(\'' + orc.id + '\',\'' + o.id + '\',\'valor\',\'\');return false" style="color:var(--blue)">voltar</a>' : '') + '</td>' +
-      '<td style="padding:5px 0;text-align:right"><input type="text" inputmode="decimal" value="' + (s.valor != null ? fmtValorBR(s.valor) : (cadastro ? fmtValorBR(cadastro) : '')) + '" placeholder="0,00"' +
+        (alterado ? origem + ': ' + fR(e.valorPadrao) + ' · <a href="#" onclick="propostaSetOpcional(\'' + orc.id + '\',\'' + o.id + '\',\'valor\',\'\');return false" style="color:var(--blue)">voltar</a>' : '') + '</td>' +
+      '<td style="padding:5px 0;text-align:right"><input type="text" inputmode="decimal" value="' + (e.valor ? fmtValorBR(e.valor) : '') + '" placeholder="0,00"' +
         ' onchange="propostaSetOpcional(\'' + orc.id + '\',\'' + o.id + '\',\'valor\',this.value)" style="' + campo + (alterado ? ';border-color:var(--blue)' : '') + '"></td>' +
-    '</tr>' + (s.on ? _propostaOpcDescLinha(orc, o, s) : '');
+    '</tr>' + (e.incluido ? _propostaOpcDescLinha(orc, o, s) : '');
   }).join('');
   var valHE = orc.propostaValorHoraExtra;
   return '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;max-width:700px;margin-bottom:14px">' +
     '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Opcionais na proposta</div>' +
-    '<div style="font-size:11px;color:var(--text3);margin-bottom:10px">Marque os que aparecem nesta proposta. O valor vem do cadastro (Regras e Cálculos → Opcionais); se mudar aqui, vale só para este orçamento.</div>' +
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:10px">Os adicionados na aba Serviços já entram marcados, com a quantidade e o total de lá; os outros você marca aqui (valor do cadastro). Mudar valor ou descrição aqui vale só para este orçamento. Na descrição dá pra usar {QTD}, {VALOR} e {VALOR_UNITARIO}.</div>' +
     (lista.length
       ? '<table style="width:100%;border-collapse:collapse">' + linhas + '</table>'
       : '<div style="font-size:12px;color:var(--text3)">Nenhum opcional cadastrado.</div>') +
@@ -650,7 +685,7 @@ function _propostaGerarDocx(orc) {
       return { NOME: linhas[0], DESCRICAO: linhas.slice(1).join(' ') };
     });
     dados.OPCIONAIS_LISTA = _propostaOpcionaisMarcados(orc).map(function(o) {
-      return { NOME: o.nome, DESCRICAO: o.descricao || '', VALOR: o.valor ? fR(o.valor) : '', VALOR_EXTENSO: o.valor ? _propostaValorTexto(o.valor) : '' };
+      return { NOME: o.nome, DESCRICAO: o.descricao || '', QTD: String(o.qtd || 1), VALOR_UNITARIO: o.unit ? fR(o.unit) : '', VALOR: o.valor ? fR(o.valor) : '', VALOR_EXTENSO: o.valor ? _propostaValorTexto(o.valor) : '' };
     });
     docx.setData(dados);
     _propostaTagsUsadas = [];
