@@ -17,9 +17,11 @@ function rOrcLista() {
   const el = document.getElementById('orc-content');
   if (!el) return;
 
-  const lista = (D.orcamentos || []).slice().sort((a,b) =>
-    (b.dataEvento||b.criadoEm||'').localeCompare(a.dataEvento||a.criadoEm||'')
-  );
+  // Ordem em que foram feitos, o mais novo em cima (pedido dela 10-15 —
+  // antes era pela data do evento e parecia sem ordem). Orçamento antigo sem
+  // criadoEm usa a hora gravada no id (ORC + timestamp).
+  const criado = o => o.criadoEm || (/^ORC(\d{13})/.test(o.id || '') ? new Date(Number(o.id.slice(3, 16))).toISOString() : '');
+  const lista = (D.orcamentos || []).slice().sort((a,b) => criado(b).localeCompare(criado(a)));
 
   const tpl = D.propostaTemplateDocx;
   el.innerHTML = `
