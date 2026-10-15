@@ -70,6 +70,8 @@ function _sepHojeStr() {
 function rSepNova() {
   var cont = document.getElementById('sep-nova-body');
   if (!cont) return;
+  // Entrou de novo na tela: edições não salvas da vez anterior não voltam.
+  window._sepEditadosMap = {};
   var hoje = _sepHojeStr();
   // Só eventos de hoje em diante (ou sem data) que ainda NÃO têm folha —
   // evento passado não precisa de folha nova, e evento que já tem folha se
@@ -1071,9 +1073,47 @@ function sepCarregarProducao(prodId) {
         _sepRecalcAssociacoes();
         _sepSyncConvCaixa(e.target);
       }
+      _sepMarcarEditado(window._sepProdAberta, e.target);
+    });
+    cont.addEventListener('change', function(e) {
+      _sepMarcarEditado(window._sepProdAberta, e.target);
     });
   }
+  window._sepProdAberta = prodId;
+  _sepRestaurarEditados(prodId);
   _sepRecalcAssociacoes();
+}
+
+// Tudo que ela digitou/escolheu à mão na folha e ainda não salvou. Marcar um
+// opcional, coquetel, copo etc. redesenha a tela inteira — sem isso, as
+// quantidades editadas voltavam pro valor calculado. Só guarda o campo que
+// ela mexeu, então o resto continua acompanhando o cálculo.
+function _sepMarcarEditado(prodId, el) {
+  if (!prodId || !el || !el.dataset) return;
+  if (!window._sepEditadosMap) window._sepEditadosMap = {};
+  var m = window._sepEditadosMap[prodId] = window._sepEditadosMap[prodId] || { qtd: {}, forn: {} };
+  if (el.dataset.item != null && el.dataset.cat != null && el.type !== 'hidden') {
+    m.qtd[el.dataset.cat + '||' + el.dataset.item] = el.value;
+  } else if (el.dataset.fornItem != null && el.dataset.fornCat != null) {
+    m.forn[el.dataset.fornCat + '||' + el.dataset.fornItem] = el.value;
+  }
+}
+
+function _sepRestaurarEditados(prodId) {
+  var m = window._sepEditadosMap && window._sepEditadosMap[prodId];
+  if (!m) return;
+  document.querySelectorAll('#sep-form-campos [data-item][data-cat]').forEach(function(inp) {
+    if (inp.type === 'hidden') return;
+    var k = inp.dataset.cat + '||' + inp.dataset.item;
+    if (Object.prototype.hasOwnProperty.call(m.qtd, k)) {
+      inp.value = m.qtd[k];
+      _sepSyncConvCaixa(inp);
+    }
+  });
+  document.querySelectorAll('#sep-form-campos [data-forn-item][data-forn-cat]').forEach(function(sel) {
+    var k = sel.dataset.fornCat + '||' + sel.dataset.fornItem;
+    if (Object.prototype.hasOwnProperty.call(m.forn, k)) sel.value = m.forn[k];
+  });
 }
 
 
@@ -1282,6 +1322,7 @@ function salvarSeparacao() {
   }
   sv('separacoes');
   if (window._sepQtdScratch) delete window._sepQtdScratch[prodId];
+  if (window._sepEditadosMap) delete window._sepEditadosMap[prodId];
   alert('Folha de separação gerada!');
   setSepView('lista');
 }
