@@ -6,6 +6,9 @@
 
 var _solView = 'lista';
 var _solEditId = null;
+// true quando o formulário foi aberto pelo "+ Novo orçamento" (tela de
+// Orçamentos): salvar registra a solicitação E já cria o orçamento ligado.
+var _solCriarOrc = false;
 var _solSelecionados = {}; // id -> true, seleção múltipla na lista (só na view atual)
 // Filtros da lista — guardados aqui (e não lidos do DOM) porque a lista é
 // redesenhada inteira a cada mudança, o que zerava busca/select antes.
@@ -17,6 +20,7 @@ function initSolicitacaoOrcamento() {
   if (!D.solicitacoesOrcamento) D.solicitacoesOrcamento = [];
   _solView = 'lista';
   _solEditId = null;
+  _solCriarOrc = false;
   _solSelecionados = {};
   rSolicitacao();
 }
@@ -370,17 +374,15 @@ function _solBuildForm(id) {
 
   return '<div style="padding:20px 24px;max-width:900px">' +
     '<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">' +
-      '<button class="btn" onclick="_solSetView(\'lista\')">← Voltar</button>' +
-      '<div style="font-size:18px;font-weight:600;color:var(--text)">' + (s ? '✏️ Editar Solicitação' : '+ Nova Solicitação de Orçamento') + '</div>' +
+      '<button class="btn" onclick="_solVoltarDoForm()">← Voltar</button>' +
+      '<div style="font-size:18px;font-weight:600;color:var(--text)">' + (s ? '✏️ Editar Solicitação' : (_solCriarOrc ? '+ Novo Orçamento' : '+ Nova Solicitação de Orçamento')) + '</div>' +
     '</div>' +
+    (_solCriarOrc ? '<div style="font-size:12px;color:var(--text3);margin:-10px 0 16px">O pedido fica registrado em Solicitação de Orçamento e o orçamento já é criado ligado a ele.</div>' : '') +
     '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">' +
       '<div><label class="lbl">Nº</label><input class="inp" id="sol-numero" type="text" value="' + (s ? s.numero : _solProximoNumero()) + '"></div>' +
       '<div><label class="lbl">Solicitado por</label><input class="inp" id="sol-solicitado-por" type="text" placeholder="Quem atendeu/recebeu o pedido" value="' + (s ? s.solicitadoPor || '' : '') + '"></div>' +
-      '<div style="grid-column:span 2"><label class="lbl">Cliente *</label><input class="inp" id="sol-cliente" type="text" placeholder="Nome do cliente" value="' + (s ? s.cliente || '' : '') + '"></div>' +
-      '<div style="grid-column:span 2"><label class="lbl">Noivos / aniversariante</label><input class="inp" id="sol-homenageados" type="text" placeholder="Ex: Ana e Pedro / 15 anos da Maria" value="' + (s ? _solEscAttr(s.homenageados) : '') + '"></div>' +
-      '<div><label class="lbl">Contato do cliente</label><input class="inp" id="sol-contato-cliente" type="text" placeholder="(31) 9 9999-9999" value="' + (s ? _solEscAttr(s.contatoCliente) : '') + '"></div>' +
-      '<div><label class="lbl">Telefone Fixo</label><input class="inp" id="sol-tel-fixo" type="text" placeholder="(31) 3333-3333" value="' + (s ? s.telefoneFixo || '' : '') + '"></div>' +
-      '<div><label class="lbl">Celular</label><input class="inp" id="sol-celular" type="text" placeholder="(31) 9 9999-9999" value="' + (s ? s.celular || '' : '') + '"></div>' +
+      '<div style="grid-column:span 2"><label class="lbl">Cliente (noivos / aniversariante) *</label><input class="inp" id="sol-cliente" type="text" placeholder="Ex: Ana e Pedro / 15 anos da Maria" value="' + (s ? _solEscAttr(s.cliente) : '') + '"></div>' +
+      '<div><label class="lbl">Contato</label><input class="inp" id="sol-contato" type="text" placeholder="(31) 9 9999-9999" value="' + (s ? _solEscAttr(s.celular || s.telefoneFixo || s.contatoCliente) : '') + '"></div>' +
       '<div><label class="lbl">Tipo de Evento</label><select class="inp" id="sol-tipo">' + _solTipoOptionsHtml(s ? s.tipoEvento || '' : '') + '</select></div>' +
       '<div><label class="lbl">Data do Evento</label><input class="inp" id="sol-data" type="date" value="' + (s ? s.dataEvento || '' : '') + '"></div>' +
       '<div><label class="lbl">PAX</label><input class="inp" id="sol-pax" type="number" min="0" placeholder="Nº de convidados" value="' + (s ? s.pax || '' : '') + '"></div>' +
@@ -400,8 +402,8 @@ function _solBuildForm(id) {
       '<div><label class="lbl">Bonificação Cerimonial (bv)</label><input class="inp" id="sol-bv" type="text" placeholder="Ex: nome / % / valor" value="' + (s ? s.bonificacaoCerimonial || '' : '') + '"></div>' +
     '</div>' +
     '<div style="margin-top:16px;display:flex;gap:8px">' +
-      '<button class="btn" style="background:var(--green)" onclick="_solSalvar()">💾 Salvar</button>' +
-      '<button class="btn" style="background:var(--bg3);color:var(--text)" onclick="_solSetView(\'lista\')">Cancelar</button>' +
+      '<button class="btn" style="background:var(--green);color:#fff" onclick="_solSalvar()">' + (_solCriarOrc ? 'Criar orçamento' : '💾 Salvar') + '</button>' +
+      '<button class="btn" style="background:var(--bg3);color:var(--text)" onclick="_solVoltarDoForm()">Cancelar</button>' +
     '</div>' +
   '</div>';
 }
@@ -411,22 +413,43 @@ function _solEscAttr(v) {
   return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }
 
+// "+ Novo orçamento" (tela de Orçamentos) abre este mesmo formulário — pedido
+// dela 10-15: as duas telas iguais e todo orçamento novo registrado também
+// como Solicitação.
+function solAbrirFormNovoOrcamento() {
+  go('solicitacao');
+  _solCriarOrc = true;
+  _solEditId = null;
+  _solView = 'form';
+  rSolicitacao();
+}
+
+function _solVoltarDoForm() {
+  if (_solCriarOrc) { _solCriarOrc = false; _solView = 'lista'; go('orcamento'); return; }
+  _solSetView('lista');
+}
+
 function _solSalvar() {
   var cliente = (document.getElementById('sol-cliente')?.value || '').trim();
   if (!cliente) { alert('Informe o nome do cliente.'); return; }
+  var pax = parseInt(document.getElementById('sol-pax')?.value) || 0;
+  if (_solCriarOrc && !pax) { alert('Informe o PAX (nº de convidados) para criar o orçamento.'); return; }
 
   if (!D.solicitacoesOrcamento) D.solicitacoesOrcamento = [];
   var existente = _solEditId ? _solBuscar(_solEditId) : null;
+  // Um campo só de contato (10-15). Antes eram Telefone fixo + Celular +
+  // Contato do cliente: o Contato grava em `celular` (o que o resto do
+  // sistema lê); fixo antigo continua guardado quando já havia celular.
+  var contato = (document.getElementById('sol-contato')?.value || '').trim();
+  var fixoAntigo = existente && existente.celular ? (existente.telefoneFixo || '') : '';
 
   var registro = {
     id: existente ? existente.id : _gerarId('SOL'),
     numero: (document.getElementById('sol-numero')?.value || '').trim() || _solProximoNumero(),
     solicitadoPor: (document.getElementById('sol-solicitado-por')?.value || '').trim(),
     cliente: cliente,
-    homenageados: (document.getElementById('sol-homenageados')?.value || '').trim(),
-    contatoCliente: (document.getElementById('sol-contato-cliente')?.value || '').trim(),
-    telefoneFixo: (document.getElementById('sol-tel-fixo')?.value || '').trim(),
-    celular: (document.getElementById('sol-celular')?.value || '').trim(),
+    telefoneFixo: contato ? fixoAntigo : '',
+    celular: contato,
     tipoEvento: (document.getElementById('sol-tipo')?.value || '').trim(),
     dataEvento: document.getElementById('sol-data')?.value || '',
     localEvento: (document.getElementById('sol-local')?.value || '').trim(),
@@ -451,6 +474,12 @@ function _solSalvar() {
   }
 
   sv('solicitacoesOrcamento');
+  if (_solCriarOrc) {
+    _solCriarOrc = false;
+    _solView = 'lista';
+    _solCriarOrcamentoDe(registro);
+    return;
+  }
   alert2('Solicitação salva!');
   _solSetView('lista');
 }
@@ -505,7 +534,11 @@ function _solGerarOrcamento(id) {
   if (!s) return;
   if (!s.pax) { alert('Informe o PAX antes de gerar o orçamento.'); return; }
   if (!confirm('Gerar um Orçamento a partir desta solicitação?')) return;
+  _solCriarOrcamentoDe(s);
+}
 
+// Cria o orçamento ligado à solicitação e abre ele.
+function _solCriarOrcamentoDe(s) {
   if (!D.orcamentos) D.orcamentos = [];
   var orcId = 'ORC' + Date.now();
   D.orcamentos.push({
@@ -540,6 +573,11 @@ function _solGerarOrcamento(id) {
   s.orcamentoId = orcId;
   sv('orcamentos');
   sv('solicitacoesOrcamento');
+  // Já entra com o cardápio sugerido do Tipo de Evento (como fazia o antigo
+  // modal "Novo orçamento"). Erro aqui não pode impedir de abrir o orçamento.
+  try {
+    if (typeof orcAplicarSugestaoCardapio === 'function') orcAplicarSugestaoCardapio(orcId, { silencioso: true });
+  } catch (e) { console.error('Erro ao aplicar cardápio sugerido:', e); }
   go('orcamento');
   setTimeout(function() { if (typeof abrirOrcDetalhe === 'function') abrirOrcDetalhe(orcId); }, 50);
 }

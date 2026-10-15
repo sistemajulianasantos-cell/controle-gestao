@@ -442,8 +442,10 @@ function _propostaMarcacoes(orc) {
     ['NOME_CLIENTE',             'Cliente (mesmo que CLIENTE)', _propostaCliente(orc)],
     ['NOME_EVENTO',              'Cliente / evento do cabeçalho', orc.nomeCliente || ''],
     ['SOLICITADO_POR',           'Solicitado por',            _propostaNomeProprio(_propostaInfo(orc, 'solicitadoPor'))],
-    ['HOMENAGEADOS',             'Noivos / aniversariante',   _propostaInfo(orc, 'homenageados')],
-    ['CONTATO_CLIENTE',          'Contato do cliente',        _propostaInfo(orc, 'contatoCliente')],
+    // Noivos/aniversariante = o próprio Cliente; contato = o único Contato
+    // (10-15). Mantidas pra modelo que já use essas marcações.
+    ['HOMENAGEADOS',             'Noivos / aniversariante (= Cliente)', _propostaInfo(orc, 'homenageados') || _propostaCliente(orc)],
+    ['CONTATO_CLIENTE',          'Contato (mesmo que CONTATO)', _propostaInfo(orc, 'contatoCliente') || contato],
     ['CONTATO',                  'Contato',                   v('capa_telefone', contato)],
     ['TELEFONE',                 'Contato (mesmo que CONTATO)', v('capa_telefone', contato)],
     ['TIPO_EVENTO',              'Tipo de evento',            v('capa_tipoEvento', _propostaTipoEvento(orc))],

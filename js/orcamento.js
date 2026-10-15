@@ -25,7 +25,7 @@ function rOrcLista() {
   el.innerHTML = `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
       <span style="font-size:16px;font-weight:600;color:var(--text)">Orçamentos de Eventos</span>
-      <button class="btn btn-primary btn-sm" onclick="abrirModalNovoOrcamento()"
+      <button class="btn btn-primary btn-sm" onclick="solAbrirFormNovoOrcamento()"
         style="margin-left:auto">+ Novo orçamento</button>
     </div>
 
@@ -213,10 +213,6 @@ function rOrcDetalhe() {
           <label style="${lbl}">Convidados</label>
           <input type="number" min="1" value="${esc(orc.convidados)}" onchange="orcSetCabecalho('${orc.id}','convidados',this.value)" style="${campo};width:100%">
         </div>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:10px">
-        ${txt('homenageados', 'Noivos / aniversariante', 'Ex: Ana e Pedro / 15 anos da Maria', true)}
-        ${txt('contatoCliente', 'Contato do cliente', '(31) 9 9999-9999')}
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px">
         ${txt('localEvento', 'Local do evento', 'Nome do espaço / endereço', true)}
