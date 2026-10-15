@@ -9,6 +9,9 @@ var _solEditId = null;
 // true quando o formulário foi aberto pelo "+ Novo orçamento" (tela de
 // Orçamentos): salvar registra a solicitação E já cria o orçamento ligado.
 var _solCriarOrc = false;
+// Id do orçamento sendo clonado (botão Clonar) — salvar cria a cópia dele em
+// vez de um orçamento do zero.
+var _solClonarDeId = null;
 var _solSelecionados = {}; // id -> true, seleção múltipla na lista (só na view atual)
 // Filtros da lista — guardados aqui (e não lidos do DOM) porque a lista é
 // redesenhada inteira a cada mudança, o que zerava busca/select antes.
@@ -21,6 +24,7 @@ function initSolicitacaoOrcamento() {
   _solView = 'lista';
   _solEditId = null;
   _solCriarOrc = false;
+  _solClonarDeId = null;
   _solSelecionados = {};
   rSolicitacao();
 }
@@ -370,26 +374,29 @@ function _solLabelRegiao(key) {
 function _solBuildForm(id) {
   _solEditId = id || null;
   var s = id ? _solBuscar(id) : null;
+  // Clonando: tipo, PAX e centro de custo já vêm do orçamento original.
+  var p = s || _solPrefillClone();
   var regioes = (typeof REGIOES_LOCAL !== 'undefined' ? REGIOES_LOCAL : []);
 
   return '<div style="padding:20px 24px;max-width:900px">' +
     '<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">' +
       '<button class="btn" onclick="_solVoltarDoForm()">← Voltar</button>' +
-      '<div style="font-size:18px;font-weight:600;color:var(--text)">' + (s ? '✏️ Editar Solicitação' : (_solCriarOrc ? '+ Novo Orçamento' : '+ Nova Solicitação de Orçamento')) + '</div>' +
+      '<div style="font-size:18px;font-weight:600;color:var(--text)">' + (s ? '✏️ Editar Solicitação' : (_solClonarDeId ? 'Clonar orçamento' : _solCriarOrc ? '+ Novo Orçamento' : '+ Nova Solicitação de Orçamento')) + '</div>' +
     '</div>' +
     (_solCriarOrc ? '<div style="font-size:12px;color:var(--text3);margin:-10px 0 16px">O pedido fica registrado em Solicitação de Orçamento e o orçamento já é criado ligado a ele.</div>' : '') +
+    _solCloneVincularHtml() +
     '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">' +
       '<div><label class="lbl">Nº</label><input class="inp" id="sol-numero" type="text" value="' + (s ? s.numero : _solProximoNumero()) + '"></div>' +
       '<div><label class="lbl">Solicitado por</label><input class="inp" id="sol-solicitado-por" type="text" placeholder="Quem atendeu/recebeu o pedido" value="' + (s ? s.solicitadoPor || '' : '') + '"></div>' +
       '<div style="grid-column:span 2"><label class="lbl">Cliente (noivos / aniversariante) *</label><input class="inp" id="sol-cliente" type="text" placeholder="Ex: Ana e Pedro / 15 anos da Maria" value="' + (s ? _solEscAttr(s.cliente) : '') + '"></div>' +
       '<div><label class="lbl">Contato</label><input class="inp" id="sol-contato" type="text" placeholder="(31) 9 9999-9999" value="' + (s ? _solEscAttr(s.celular || s.telefoneFixo || s.contatoCliente) : '') + '"></div>' +
-      '<div><label class="lbl">Tipo de Evento</label><select class="inp" id="sol-tipo">' + _solTipoOptionsHtml(s ? s.tipoEvento || '' : '') + '</select></div>' +
+      '<div><label class="lbl">Tipo de Evento</label><select class="inp" id="sol-tipo">' + _solTipoOptionsHtml(p ? p.tipoEvento || '' : '') + '</select></div>' +
       '<div><label class="lbl">Data do Evento</label><input class="inp" id="sol-data" type="date" value="' + (s ? s.dataEvento || '' : '') + '"></div>' +
-      '<div><label class="lbl">PAX</label><input class="inp" id="sol-pax" type="number" min="0" placeholder="Nº de convidados" value="' + (s ? s.pax || '' : '') + '"></div>' +
+      '<div><label class="lbl">PAX</label><input class="inp" id="sol-pax" type="number" min="0" placeholder="Nº de convidados" value="' + (p ? p.pax || '' : '') + '"></div>' +
       '<div style="grid-column:span 2"><label class="lbl">Local do Evento</label><input class="inp" id="sol-local" type="text" placeholder="Nome do espaço / endereço" value="' + (s ? s.localEvento || '' : '') + '"></div>' +
       '<div><label class="lbl">Centro de Custo do Local</label><select class="inp" id="sol-centro-custo">' +
         '<option value="">— Selecione —</option>' +
-        regioes.map(function(r) { return '<option value="' + r.key + '"' + (s && s.centroCusto === r.key ? ' selected' : '') + '>' + r.label + '</option>'; }).join('') +
+        regioes.map(function(r) { return '<option value="' + r.key + '"' + (p && p.centroCusto === r.key ? ' selected' : '') + '>' + r.label + '</option>'; }).join('') +
       '</select></div>' +
       '<div><label class="lbl">Status</label><select class="inp" id="sol-status">' +
         SOL_STATUS_PADRAO.map(function(st) { return '<option value="' + st + '"' + (s && (s.status || 'PENDENTE') === st ? ' selected' : '') + '>' + st + '</option>'; }).join('') +
@@ -402,7 +409,7 @@ function _solBuildForm(id) {
       '<div><label class="lbl">Bonificação Cerimonial (bv)</label><input class="inp" id="sol-bv" type="text" placeholder="Ex: nome / % / valor" value="' + (s ? s.bonificacaoCerimonial || '' : '') + '"></div>' +
     '</div>' +
     '<div style="margin-top:16px;display:flex;gap:8px">' +
-      '<button class="btn" style="background:var(--green);color:#fff" onclick="_solSalvar()">' + (_solCriarOrc ? 'Criar orçamento' : '💾 Salvar') + '</button>' +
+      '<button class="btn" style="background:var(--green);color:#fff" onclick="_solSalvar()">' + (_solClonarDeId ? 'Clonar orçamento' : _solCriarOrc ? 'Criar orçamento' : '💾 Salvar') + '</button>' +
       '<button class="btn" style="background:var(--bg3);color:var(--text)" onclick="_solVoltarDoForm()">Cancelar</button>' +
     '</div>' +
   '</div>';
@@ -424,8 +431,58 @@ function solAbrirFormNovoOrcamento() {
   rSolicitacao();
 }
 
+function solAbrirFormClonar(orcId) {
+  go('solicitacao');
+  _solCriarOrc = true;
+  _solClonarDeId = orcId;
+  _solEditId = null;
+  _solView = 'form';
+  rSolicitacao();
+}
+
+function _solOrcClonado() {
+  return _solClonarDeId ? (D.orcamentos || []).find(function(o) { return o.id === _solClonarDeId; }) || null : null;
+}
+
+function _solPrefillClone() {
+  var o = _solOrcClonado();
+  if (!o) return null;
+  var p = o.calcParams || {};
+  var t = (typeof buscarTipoEventoPorId === 'function') ? buscarTipoEventoPorId(p.tipoEvento) : null;
+  return { pax: o.convidados || '', tipoEvento: t ? t.nome : '', centroCusto: p.local || '' };
+}
+
+// No modo Clonar: aviso + atalho pra usar uma Solicitação já cadastrada (sem
+// orçamento) em vez de preencher o formulário.
+function _solCloneVincularHtml() {
+  var o = _solOrcClonado();
+  if (!o) return '';
+  var esc = function(x) { return String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
+  var livres = (D.solicitacoesOrcamento || []).filter(function(s) { return !(typeof _orcSolTemOrc === 'function' ? _orcSolTemOrc(s) : s.orcamentoId); })
+    .sort(function(a, b) { return (_solChaveNumero(b.numero) || 0) - (_solChaveNumero(a.numero) || 0); });
+  return '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--text2)">' +
+    'Copiando cardápio, insumos, serviços e Calculadora de <strong>' + esc((o.numeroProposta ? o.numeroProposta + ' ' : '') + (o.nomeCliente || 'Sem nome')) + '</strong>. Preencha o pedido abaixo' +
+    (livres.length
+      ? ' ou use uma solicitação já cadastrada: <select class="inp" style="width:auto;display:inline-block;max-width:420px;margin-left:6px" onchange="if(this.value)_solClonarParaExistente(this.value)">' +
+          '<option value="">— escolher solicitação —</option>' +
+          livres.map(function(s) { return '<option value="' + s.id + '">' + esc([_solNumeroTexto(s.numero), s.cliente, s.dataEvento ? fd(s.dataEvento) : '', s.pax ? s.pax + ' pax' : ''].filter(Boolean).join(' · ')) + '</option>'; }).join('') +
+        '</select>'
+      : '.') +
+  '</div>';
+}
+
+function _solClonarParaExistente(solId) {
+  var s = _solBuscar(solId);
+  var origId = _solClonarDeId;
+  if (!s || !origId) return;
+  _solCriarOrc = false;
+  _solClonarDeId = null;
+  _solView = 'lista';
+  if (typeof _orcClonarParaSolicitacao === 'function') _orcClonarParaSolicitacao(origId, s);
+}
+
 function _solVoltarDoForm() {
-  if (_solCriarOrc) { _solCriarOrc = false; _solView = 'lista'; go('orcamento'); return; }
+  if (_solCriarOrc) { _solCriarOrc = false; _solClonarDeId = null; _solView = 'lista'; go('orcamento'); return; }
   _solSetView('lista');
 }
 
@@ -475,9 +532,12 @@ function _solSalvar() {
 
   sv('solicitacoesOrcamento');
   if (_solCriarOrc) {
+    var origId = _solClonarDeId;
     _solCriarOrc = false;
+    _solClonarDeId = null;
     _solView = 'lista';
-    _solCriarOrcamentoDe(registro);
+    if (origId && typeof _orcClonarParaSolicitacao === 'function') _orcClonarParaSolicitacao(origId, registro);
+    else _solCriarOrcamentoDe(registro);
     return;
   }
   alert2('Solicitação salva!');

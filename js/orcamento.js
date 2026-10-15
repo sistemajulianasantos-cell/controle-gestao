@@ -717,12 +717,33 @@ function _atualizarTotaisOrc(orc) {
 // Sai com Nº novo e o cabeçalho do cliente em branco (nome, data, contato,
 // local, hora, serviços, bebidas, obs.) e sem Solicitação vinculada: é outro
 // evento. Ao vincular uma Solicitação, o cabeçalho vem todo dela.
+//
+// Clonar abre o mesmo formulário da Solicitação (Cliente/noivos, Contato,
+// data...) — pedido dela 10-15: o clone ficava sem esses campos e não aparecia
+// na lista de Solicitações. Ao salvar (ou escolher uma Solicitação já
+// cadastrada), _orcClonarParaSolicitacao cria a cópia já ligada a ela.
 function clonarOrc(id) {
-  const orig = (D.orcamentos || []).find(o => o.id === id);
-  if (!orig) return;
-  if (!confirm('Criar um novo orçamento igual a "' + (orig.nomeCliente || 'Sem nome') + '"?')) return;
+  if (!(D.orcamentos || []).some(o => o.id === id)) return;
+  if (typeof solAbrirFormClonar === 'function') solAbrirFormClonar(id);
+}
+
+function _orcClonarParaSolicitacao(origId, sol) {
+  const orig = (D.orcamentos || []).find(o => o.id === origId);
+  if (!orig || !sol) return;
+  const copia = _orcCopiaClone(orig);
+  D.orcamentos.push(copia);
+  // Cabeçalho vem todo da solicitação (mesma regra do "Vincular")
+  orcVincularSolicitacao(copia.id, sol.id, { semRender: true });
+  alert2('Orçamento clonado de "' + (orig.nomeCliente || 'Sem nome') + '".', 'success');
+  go('orcamento');
+  setTimeout(() => abrirOrcDetalhe(copia.id), 50);
+}
+
+function _orcCopiaClone(orig) {
   const copia = JSON.parse(JSON.stringify(orig));
-  const novoId = 'ORC' + Date.now();
+  let t = Date.now();
+  while ((D.orcamentos || []).some(o => o.id === 'ORC' + t)) t++;
+  const novoId = 'ORC' + t;
   copia.id = novoId;
   copia.nomeCliente = '';
   copia.numeroProposta = typeof _solProximoNumero === 'function' ? _solProximoNumero() : '';
@@ -738,10 +759,7 @@ function clonarOrc(id) {
   }
   ['solicitadoPor', 'homenageados', 'contatoCliente', 'localEvento', 'observacao', 'hora', 'servicosOrcados', 'bebidas'].forEach(c => { delete copia[c]; });
   if (!D.orcamentos) D.orcamentos = [];
-  D.orcamentos.push(copia);
-  sv('orcamentos');
-  alert2('Orçamento clonado — preencha o cliente ou vincule a Solicitação.', 'success');
-  abrirOrcDetalhe(novoId);
+  return copia;
 }
 
 // ─── EXCLUIR ─────────────────────────────────────────────────────────────────
@@ -940,7 +958,7 @@ function _orcNomeSolicitante(orc) {
 // solicitação: cliente, data, convidados, contato, centro de custo e tipo de
 // evento vêm dela (o que estiver preenchido lá) — pedido dela 10-13, ao
 // vincular um orçamento clonado ficavam os dados do original.
-function orcVincularSolicitacao(orcId, solId) {
+function orcVincularSolicitacao(orcId, solId, opts) {
   const orc = (D.orcamentos||[]).find(o => o.id === orcId);
   const sol = (D.solicitacoesOrcamento||[]).find(s => s.id === solId);
   if (!orc || !sol) return;
@@ -962,7 +980,7 @@ function orcVincularSolicitacao(orcId, solId) {
   }
   sv('orcamentos');
   sv('solicitacoesOrcamento');
-  rOrcDetalhe();
+  if (!(opts && opts.semRender)) rOrcDetalhe();
 }
 
 // Dados de contato/pedido: da Solicitação vinculada quando existe, senão do
