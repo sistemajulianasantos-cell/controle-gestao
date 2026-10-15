@@ -89,6 +89,15 @@ function rOpcionaisLista() {
           '<div style="text-align:center"><button class="btn-sm btn-red" onclick="opcionalExcluir(\'' + o.id + '\')" style="padding:2px 7px" title="Excluir opcional">×</button></div>' +
         '</div>' +
 
+        '<div style="margin-top:10px">' +
+          '<div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Descrição na proposta</div>' +
+          '<textarea rows="2" placeholder="' + (_opcDescricaoSugerida(o) ? 'Sugestão: ' + _opcDescricaoSugerida(o).replace(/"/g, '&quot;') : 'Texto que aparece na proposta junto do nome') + '" ' +
+            'onchange="opcionalSet(\'' + o.id + '\',\'descricao\',this.value)" ' +
+            'style="width:100%;font-size:12px;padding:5px 7px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);resize:vertical">' +
+            (o.descricao || '').replace(/</g, '&lt;') + '</textarea>' +
+          (!o.descricao && _opcDescricaoSugerida(o) ? '<div style="font-size:10px;color:var(--text3)">Em branco, a proposta usa a sugestão acima.</div>' : '') +
+        '</div>' +
+
         '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border2)">' +
           '<div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Insumos que traz</div>' +
           (itens.length
@@ -136,6 +145,8 @@ function opcionalSet(id, campo, valor) {
     o.precoPadrao = parseFloat(valor) || 0;
   } else if (campo === 'nome') {
     o.nome = (valor || '').trim().toUpperCase();
+  } else if (campo === 'descricao') {
+    o.descricao = (valor || '').trim();
   } else {
     o[campo] = valor;
   }
@@ -168,6 +179,25 @@ function opcionalExcluir(id) {
   D.opcionais = (D.opcionais || []).filter(function(x) { return x.id !== id; });
   sv('opcionais');
   rOpcionaisLista();
+}
+
+// Descrição do opcional na proposta: a do cadastro; sem ela, uma sugestão
+// pelo nome (mesmos textos da antiga página fixa de Complementos da proposta).
+var _OPC_DESCRICOES_SUGERIDAS = [
+  [/SIGNATURE/,          'Criação de coquetéis exclusivos para personalizar a sua comemoração.'],
+  [/TORRE/,              'Momento de celebração com torre de taças.'],
+  [/SHOT/,               'Para momentos descontraídos e de interação entre os convidados.'],
+  [/WHISK/,              'Apreciação de whiskys com rótulos selecionados.'],
+  [/GELO/,               'Formatos diferenciados, valorizam a apresentação dos coquetéis e preservam os sabores.'],
+  [/ESTA[CÇ]/,           'Traz praticidade e dinamismo.'],
+];
+function _opcDescricaoSugerida(o) {
+  var n = String((o && o.nome) || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
+  var achou = _OPC_DESCRICOES_SUGERIDAS.find(function(par) { return par[0].test(n); });
+  return achou ? achou[1] : '';
+}
+function descricaoOpcional(o) {
+  return (o && o.descricao) || _opcDescricaoSugerida(o);
 }
 
 // Preço de referência de um opcional pro Orçamento: preço próprio ou, se
