@@ -65,6 +65,10 @@ function rOrcLista() {
           ${(typeof REGIOES_LOCAL !== 'undefined' ? REGIOES_LOCAL : []).map(r => `<option value="${r.key}"${_orcFiltroLocal === r.key ? ' selected' : ''}>${r.label}</option>`).join('')}
         </select>
       </div>
+      <div style="width:170px">
+        <label>Mês do evento</label>
+        <select onchange="_orcSetFiltro('mes',this.value)">${_orcMesFiltroOptions()}</select>
+      </div>
       <div style="width:100px">
         <label>Convidados de</label>
         <input type="number" min="0" value="${_orcConvMin}" placeholder="ex: 80" oninput="_orcSetFiltro('min',this.value)">
@@ -81,12 +85,13 @@ function rOrcLista() {
 // Filtros da lista — todos valem juntos (pedido dela 10-15: "aniversário x
 // idade para x convidados"). Guardados aqui pra não sumir ao voltar de um
 // orçamento.
-let _orcBusca = '', _orcFiltroTipo = '', _orcFiltroLocal = '', _orcConvMin = '', _orcConvMax = '';
-function _orcTemFiltro() { return !!(String(_orcBusca).trim() || _orcFiltroTipo || _orcFiltroLocal || _orcConvMin !== '' || _orcConvMax !== ''); }
+let _orcBusca = '', _orcFiltroTipo = '', _orcFiltroLocal = '', _orcFiltroMes = '', _orcConvMin = '', _orcConvMax = '';
+function _orcTemFiltro() { return !!(String(_orcBusca).trim() || _orcFiltroTipo || _orcFiltroLocal || _orcFiltroMes || _orcConvMin !== '' || _orcConvMax !== ''); }
 function _orcSetFiltro(campo, v) {
   if (campo === 'busca') _orcBusca = v;
   else if (campo === 'tipo') _orcFiltroTipo = v;
   else if (campo === 'local') _orcFiltroLocal = v;
+  else if (campo === 'mes') _orcFiltroMes = v;
   else if (campo === 'min') _orcConvMin = v;
   else if (campo === 'max') _orcConvMax = v;
   const res = document.getElementById('orc-lista-res');
@@ -96,7 +101,7 @@ function _orcSetFiltro(campo, v) {
   const bt = document.getElementById('orc-limpar-filtros');
   if (bt) bt.style.display = _orcTemFiltro() ? '' : 'none';
 }
-function _orcLimparFiltros() { _orcBusca = ''; _orcFiltroTipo = ''; _orcFiltroLocal = ''; _orcConvMin = ''; _orcConvMax = ''; rOrcLista(); }
+function _orcLimparFiltros() { _orcBusca = ''; _orcFiltroTipo = ''; _orcFiltroLocal = ''; _orcFiltroMes = ''; _orcConvMin = ''; _orcConvMax = ''; rOrcLista(); }
 
 // Tipos de evento do cadastro; grupo com mais de um tipo (ex: Aniversário)
 // ganha também a opção "todos do grupo" (valor "g:<grupo>").
@@ -111,6 +116,16 @@ function _orcTipoFiltroOptions() {
     if (itens.length === 1) return opt(itens[0].id, itens[0].nome);
     return `<optgroup label="${esc(g)}">${opt('g:' + g, g + ' (todos)')}${itens.map(t => opt(t.id, t.nome)).join('')}</optgroup>`;
   }).join('');
+}
+
+// Meses (mês/ano) que têm evento nos orçamentos, em ordem de calendário, +
+// "Sem data".
+function _orcMesFiltroOptions() {
+  const NOMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const meses = [...new Set((D.orcamentos || []).map(o => String(o.dataEvento || '').slice(0, 7)).filter(m => /^\d{4}-\d{2}$/.test(m)))].sort();
+  const opt = (v, txt) => `<option value="${v}"${_orcFiltroMes === v ? ' selected' : ''}>${txt}</option>`;
+  return opt('', 'Todos') + meses.map(m => opt(m, NOMES[Number(m.slice(5, 7)) - 1] + ' / ' + m.slice(0, 4))).join('') +
+    ((D.orcamentos || []).some(o => !o.dataEvento) ? opt('sem', 'Sem data') : '');
 }
 
 function _orcTipoNome(o) {
@@ -131,6 +146,10 @@ function _orcFiltrarBusca(lista) {
     const conv = Number(o.convidados) || 0;
     if (min != null && conv < min) return false;
     if (max != null && conv > max) return false;
+    if (_orcFiltroMes) {
+      const mes = String(o.dataEvento || '').slice(0, 7);
+      if (_orcFiltroMes === 'sem' ? !!mes : mes !== _orcFiltroMes) return false;
+    }
     if (_orcFiltroLocal) {
       // Centro de custo = Local da Calculadora (chave antiga convertida sem gravar)
       const loc = (o.calcParams || {}).local || 'area_central';
