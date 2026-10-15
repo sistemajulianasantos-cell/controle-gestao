@@ -518,7 +518,9 @@ function _propostaOpcionaisMarcados(orc) {
     return { o: o, e: _propostaOpcEstado(orc, o) };
   }).filter(function(x) { return x.e.incluido; }).map(function(x) {
     var dsc = x.e.s.descricao != null ? x.e.s.descricao : _propostaDescOpcCadastro(x.o);
-    return { id: x.o.id, nome: x.o.nome || '', valor: x.e.valor, qtd: x.e.qtd, unit: x.e.unit,
+    // Nome como no cardápio: só a 1ª letra maiúscula (o cadastro guarda
+    // tudo em MAIÚSCULAS).
+    return { id: x.o.id, nome: _propostaFrase(x.o.nome || ''), valor: x.e.valor, qtd: x.e.qtd, unit: x.e.unit,
       descricao: _propostaDescComValores(dsc, x.e) };
   });
 }
