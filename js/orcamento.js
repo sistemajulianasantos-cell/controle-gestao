@@ -47,8 +47,40 @@ function rOrcLista() {
         <div style="font-size:36px;margin-bottom:12px">📋</div>
         <div style="margin-bottom:8px;font-size:14px">Nenhum orçamento cadastrado</div>
         <div style="font-size:12px">Crie um novo orçamento ou gere a partir de uma Solicitação de Orçamento</div>
-      </div>` :
-    `<div style="display:grid;gap:10px">
+      </div>` : `
+    <div style="margin-bottom:12px">
+      <input type="search" value="${String(_orcBusca).replace(/"/g, '&quot;')}" placeholder="Buscar por Nº, cliente ou nº de convidados..."
+        oninput="_orcSetBusca(this.value)" style="max-width:420px">
+    </div>
+    <div id="orc-lista-res">${_orcListaCardsHTML(lista)}</div>`}`;
+}
+
+// Busca da lista (guardada aqui pra não sumir ao voltar de um orçamento).
+let _orcBusca = '';
+function _orcSetBusca(v) {
+  _orcBusca = v;
+  const res = document.getElementById('orc-lista-res');
+  if (!res) return;
+  const criado = o => o.criadoEm || (/^ORC(\d{13})/.test(o.id || '') ? new Date(Number(o.id.slice(3, 16))).toISOString() : '');
+  res.innerHTML = _orcListaCardsHTML((D.orcamentos || []).slice().sort((a,b) => criado(b).localeCompare(criado(a))));
+}
+
+// Nº do orçamento, cliente (e quem solicitou) ou nº de convidados — número
+// puro também acha os orçamentos com exatamente essa quantidade de convidados.
+function _orcFiltrarBusca(lista) {
+  const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const q = norm(_orcBusca).trim();
+  if (!q) return lista;
+  const num = /^\d+$/.test(q) ? Number(q) : null;
+  return lista.filter(o =>
+    (num != null && Number(o.convidados) === num) ||
+    norm([o.numeroProposta, o.nomeCliente, _orcNomeSolicitante(o)].join(' ')).includes(q));
+}
+
+function _orcListaCardsHTML(listaToda) {
+  const lista = _orcFiltrarBusca(listaToda);
+  if (!lista.length) return `<div style="text-align:center;padding:40px 20px;color:var(--text3);font-size:13px">Nenhum orçamento encontrado para "${String(_orcBusca).replace(/</g, '&lt;')}".</div>`;
+  return `<div style="display:grid;gap:10px">
       ${lista.map(o => {
         // Valor = o mesmo da Calculadora (Pacote Completo e Essencial)
         const r = (typeof _orcCalcResumo === 'function') ? _orcCalcResumo(o) : null;
@@ -86,7 +118,7 @@ function rOrcLista() {
             </div>
           </div>`;
       }).join('')}
-    </div>`}`;
+    </div>`;
 }
 
 // Quem está logado (nome cadastrado na senha — Segurança → Senhas; sem nome,
