@@ -70,14 +70,14 @@ function rOrcLista() {
               ${_orcCriadoTexto(o) ? `<div style="font-size:10px;color:var(--text3);margin-top:2px">${_orcCriadoTexto(o)}</div>` : ''}
             </div>
             <div style="text-align:right">
-              <div style="font-size:10px;color:var(--blue);text-transform:uppercase;margin-bottom:2px">Pacote Completo</div>
-              <div style="font-family:var(--mono);font-size:14px;color:var(--blue);font-weight:600">${temValor ? fR(r.valorTotal) : '—'}</div>
-              <div style="font-size:10px;color:var(--text3)">${temValor && r.porPessoa ? fR(r.porPessoa)+' / pessoa' : ''}</div>
+              <div style="font-size:10px;color:var(--blue);text-transform:uppercase;margin-bottom:2px">Pacote Essencial</div>
+              <div style="font-family:var(--mono);font-size:14px;color:var(--blue);font-weight:600">${temValor ? fR(r.valorTotalEssencial) : '—'}</div>
+              <div style="font-size:10px;color:var(--text3)">${temValor && r.porPessoaEssencial ? fR(r.porPessoaEssencial)+' / pessoa' : ''}</div>
             </div>
             <div style="text-align:right">
-              <div style="font-size:10px;color:var(--green);text-transform:uppercase;margin-bottom:2px">Pacote Essencial</div>
-              <div style="font-family:var(--mono);font-size:14px;color:var(--green);font-weight:600">${temValor ? fR(r.valorTotalEssencial) : '—'}</div>
-              <div style="font-size:10px;color:var(--text3)">${temValor && r.porPessoaEssencial ? fR(r.porPessoaEssencial)+' / pessoa' : ''}</div>
+              <div style="font-size:10px;color:var(--green);text-transform:uppercase;margin-bottom:2px">Pacote Completo</div>
+              <div style="font-family:var(--mono);font-size:14px;color:var(--green);font-weight:600">${temValor ? fR(r.valorTotal) : '—'}</div>
+              <div style="font-size:10px;color:var(--text3)">${temValor && r.porPessoa ? fR(r.porPessoa)+' / pessoa' : ''}</div>
             </div>
             <div style="display:flex;align-items:center;gap:6px">
               ${temValor ? '' : `<span style="background:var(--bg3);color:var(--text3);font-size:9px;padding:2px 7px;border-radius:3px">Sem cálculo</span>`}
