@@ -1854,7 +1854,7 @@ function rOrcServicos(orc) {
                     style="width:65px;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono)">
                 </td>
                 <td style="padding:4px 6px;text-align:right">
-                  <input type="number" value="${svc.precoUnit||''}" min="0" step="0.01" placeholder="0,00"
+                  <input type="text" inputmode="decimal" value="${svc.precoUnit ? fmtValorBR(svc.precoUnit) : ''}" placeholder="0,00"
                     onchange="updateServico('${orc.id}','${svc.id}','precoUnit',this.value)"
                     style="width:85px;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono)">
                 </td>
@@ -1892,7 +1892,7 @@ function rOrcServicos(orc) {
           </div>
           <div>
             <label style="font-size:9px;color:var(--text3);display:block;margin-bottom:2px">Preço unit. (R$)</label>
-            <input id="svc-preco" type="number" min="0" step="0.01" placeholder="0,00"
+            <input id="svc-preco" type="text" inputmode="decimal" placeholder="0,00"
               style="width:100%;font-size:11px;padding:5px 7px;background:var(--bg4);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius);font-family:var(--mono)">
           </div>
           <button onclick="addServico('${orc.id}')"
@@ -1913,13 +1913,13 @@ function orcPreencherDeOpcional(opcId) {
   const precoEl = document.getElementById('svc-preco');
   if (nomeEl) nomeEl.value = o.nome || '';
   const preco = (typeof precoOpcional === 'function') ? precoOpcional(o) : (o.precoPadrao || 0);
-  if (precoEl && preco) precoEl.value = preco;
+  if (precoEl && preco) precoEl.value = fmtValorBR(preco);
 }
 
 function addServico(orcId) {
   const nome  = document.getElementById('svc-nome')?.value?.trim();
   const qtd   = parseFloat(document.getElementById('svc-qtd')?.value)   || 1;
-  const preco = parseFloat(document.getElementById('svc-preco')?.value) || 0;
+  const preco = parseValorBR(document.getElementById('svc-preco')?.value);
   if (!nome) { alert2('Informe o nome do serviço.', 'error'); return; }
   const orc = (D.orcamentos||[]).find(o => o.id === orcId);
   if (!orc) return;
@@ -1938,7 +1938,7 @@ function updateServico(orcId, svcId, campo, valor) {
   if (!orc) return;
   const svc = (orc.servicos||[]).find(s => s.id === svcId);
   if (!svc) return;
-  svc[campo] = parseFloat(valor) || 0;
+  svc[campo] = campo === 'precoUnit' ? parseValorBR(valor) : (parseFloat(valor) || 0);
   svc.total  = Math.round((svc.qtd||0) * (svc.precoUnit||0) * 100) / 100;
   sv('orcamentos');
   rOrcServicos(orc);

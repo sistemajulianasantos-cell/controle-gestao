@@ -505,7 +505,7 @@ function propostaSetOpcional(orcId, opcId, campo, valor) {
   else if (campo === 'descricao') cur.descricao = valor == null ? null : String(valor).trim();
   else {
     var t = String(valor == null ? '' : valor).trim();
-    cur.valor = t === '' ? null : (parseFloat(t.replace(',', '.')) || 0);
+    cur.valor = t === '' ? null : parseValorBR(t);
   }
   sv('orcamentos');
   rOrcProposta(orc);
@@ -515,7 +515,7 @@ function propostaSetValorHoraExtra(orcId, valor) {
   var orc = (D.orcamentos || []).find(function(o) { return o.id === orcId; });
   if (!orc) return;
   var t = String(valor == null ? '' : valor).trim();
-  orc.propostaValorHoraExtra = t === '' ? null : (parseFloat(t.replace(',', '.')) || 0);
+  orc.propostaValorHoraExtra = t === '' ? null : parseValorBR(t);
   sv('orcamentos');
   rOrcProposta(orc);
 }
@@ -551,7 +551,7 @@ function _propostaOpcionaisHtml(orc) {
       '<td style="padding:5px 8px;font-size:12px;color:' + (s.on ? 'var(--text)' : 'var(--text3)') + '">' + _propostaEsc(o.nome || '') + '</td>' +
       '<td style="padding:5px 8px;font-size:10px;color:var(--text3);text-align:right;white-space:nowrap">' +
         (alterado ? 'cadastro: ' + fR(cadastro) + ' · <a href="#" onclick="propostaSetOpcional(\'' + orc.id + '\',\'' + o.id + '\',\'valor\',\'\');return false" style="color:var(--blue)">voltar</a>' : '') + '</td>' +
-      '<td style="padding:5px 0;text-align:right"><input type="number" min="0" step="0.01" value="' + (s.valor != null ? s.valor : (cadastro || '')) + '" placeholder="0,00"' +
+      '<td style="padding:5px 0;text-align:right"><input type="text" inputmode="decimal" value="' + (s.valor != null ? fmtValorBR(s.valor) : (cadastro ? fmtValorBR(cadastro) : '')) + '" placeholder="0,00"' +
         ' onchange="propostaSetOpcional(\'' + orc.id + '\',\'' + o.id + '\',\'valor\',this.value)" style="' + campo + (alterado ? ';border-color:var(--blue)' : '') + '"></td>' +
     '</tr>' + (s.on ? _propostaOpcDescLinha(orc, o, s) : '');
   }).join('');
@@ -564,7 +564,7 @@ function _propostaOpcionaisHtml(orc) {
       : '<div style="font-size:12px;color:var(--text3)">Nenhum opcional cadastrado.</div>') +
     '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-top:1px solid var(--border);margin-top:12px;padding-top:12px">' +
       '<label class="lbl" style="margin:0">Valor da hora extra (R$)</label>' +
-      '<input type="number" min="0" step="0.01" value="' + (valHE != null ? valHE : '') + '" placeholder="digite o valor"' +
+      '<input type="text" inputmode="decimal" value="' + (valHE != null ? fmtValorBR(valHE) : '') + '" placeholder="digite o valor"' +
         ' onchange="propostaSetValorHoraExtra(\'' + orc.id + '\',this.value)" style="' + campo + ';width:130px">' +
       '<span style="font-size:10px;color:var(--text3)">Sai na proposta em {VALOR_HORA_EXTRA}. Em branco: texto padrão (20% do total).</span>' +
     '</div>' +

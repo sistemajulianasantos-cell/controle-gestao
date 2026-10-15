@@ -52,3 +52,18 @@ function aplicarMesFechado(anoId, mesId, iniId, fimId, fn) {
   if (typeof fn === 'function') fn();
 }
 
+
+// Valor em reais digitado do jeito brasileiro → número. "1.200,00" → 1200,
+// "1200" → 1200, "5,5" → 5.5, "1.200" → 1200 (ponto de milhar). Campo
+// type="number" lia "1.200,00" como 1,2 (pedido dela 10-15).
+function parseValorBR(v) {
+  var s = String(v == null ? '' : v).replace(/[R$\s]/g, '');
+  if (!s) return 0;
+  if (s.indexOf(',') >= 0) s = s.replace(/\./g, '').replace(',', '.');
+  else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
+  return parseFloat(s) || 0;
+}
+// Número → "1.200,00" (sem R$), pra valor de campo de texto.
+function fmtValorBR(n) {
+  return (Number(n) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}

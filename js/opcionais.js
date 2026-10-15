@@ -78,7 +78,7 @@ function rOpcionaisLista() {
             '<input type="text" value="' + (o.nome || '').replace(/"/g, '&quot;') + '" onchange="opcionalSet(\'' + o.id + '\',\'nome\',this.value)" ' +
               'style="width:100%;font-size:12px;padding:5px 7px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)"></div>' +
           '<div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Preço (R$)</div>' +
-            '<input type="number" min="0" step="0.01" value="' + (o.precoPadrao || '') + '" onchange="opcionalSet(\'' + o.id + '\',\'precoPadrao\',this.value)" ' +
+            '<input type="text" inputmode="decimal" placeholder="0,00" value="' + (o.precoPadrao ? fmtValorBR(o.precoPadrao) : '') + '" onchange="opcionalSet(\'' + o.id + '\',\'precoPadrao\',this.value)" ' +
               'style="width:100%;font-size:12px;padding:5px 7px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:right;font-family:var(--mono)"></div>' +
           '<div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Serviço vinculado (opcional)</div>' +
             '<select onchange="opcionalSet(\'' + o.id + '\',\'servicoId\',this.value)" ' +
@@ -142,7 +142,7 @@ function opcionalSet(id, campo, valor) {
   var o = buscarOpcionalPorId(id);
   if (!o) return;
   if (campo === 'precoPadrao') {
-    o.precoPadrao = parseFloat(valor) || 0;
+    o.precoPadrao = parseValorBR(valor);
   } else if (campo === 'nome') {
     o.nome = (valor || '').trim().toUpperCase();
   } else if (campo === 'descricao') {
