@@ -610,6 +610,7 @@ function recalcularAutos(opts) {
   orc.insumos = (orc.insumos || []).filter(i => !i.autoRegra);
   // Regras do Orçamento (lista única)
   if (typeof _sincronizarItensAutoGlobais === 'function') _sincronizarItensAutoGlobais(orc, pax, qt.bt, eqTotal, qt);
+  (orc.insumos || []).forEach(_orcCaixaCheia); // copo: caixa fechada
 
   sv('orcamentos');
   if (!(opts && opts.semRender)) rOrcCalc();
@@ -814,6 +815,7 @@ function calcUpdateInsumo(itemId, campo, valor) {
   if (campo === 'qtdGarrafas')  item.manualQtd = true;
   if (campo === 'custoGarrafa') item.manualPreco = true;
   item.total  = Math.round(item.qtdGarrafas * item.custoGarrafa * 100) / 100;
+  if (campo === 'qtdGarrafas' || campo === 'custoGarrafa') _orcCaixaCheia(item); // copo: caixa fechada
   sv('orcamentos');
   _rTabContent();
 }
@@ -843,6 +845,8 @@ function _orcCalcResumo(orc) {
   // categoria traz de volta sem precisar recalcular cada orçamento.
   const itens  = (orc.calcItens || []).filter(i => !_orcItemPausado(i));
   const insumos = orc.insumos || [];
+  // Copos e Taças sempre em caixa fechada (vale pra orçamento já salvo também).
+  insumos.forEach(_orcCaixaCheia);
 
   // Insumos com preço de revenda por temporada (viaRevenda, ver
   // orcAplicarCardapio/_orcPrecoInsumoComTemporada em orcamento.js) já têm
@@ -1419,21 +1423,41 @@ function _getEmbalagemProduto(nome) {
   return (p && p.tamanhoEmbalagem > 1) ? p.tamanhoEmbalagem : 1;
 }
 
-function _calcInsumoQtdCell(ins) {
+// Copos e Taças saem em caixa fechada: a quantidade sobe pro múltiplo da
+// caixa (nunca caixa pela metade) e o total é cobrado nas unidades da caixa
+// cheia. Ela digita em UNIDADES e vê ao lado quantas caixas dá (10-16).
+function _orcEmbCopo(ins) {
   const insumo = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(ins.nome) : null;
   const catNorm = s => (typeof _orcNormNome === 'function') ? _orcNormNome(s) : String(s || '').toUpperCase();
   const isCopo = catNorm((insumo && insumo.categoria) || ins.cat) === catNorm('COPOS E TAÇAS');
-  const emb    = isCopo ? _getEmbalagemProduto(ins.nome) : 1;
+  return isCopo ? _getEmbalagemProduto(ins.nome) : 1;
+}
+
+function _orcCaixaCheia(ins) {
+  const emb = _orcEmbCopo(ins);
+  if (!(emb > 1)) return false;
+  const q = Number(ins.qtdGarrafas) || 0;
+  const cheia = Math.ceil(q / emb) * emb;
+  if (cheia === q) return false;
+  ins.qtdGarrafas = cheia;
+  ins.total = Math.round(cheia * (Number(ins.custoGarrafa) || 0) * 100) / 100;
+  return true;
+}
+
+function _calcInsumoQtdCell(ins) {
+  const insumo = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(ins.nome) : null;
+  const emb    = _orcEmbCopo(ins);
   if (emb > 1) {
-    const cx = Math.ceil((ins.qtdGarrafas||0) / emb);
+    const q  = ins.qtdGarrafas || 0;
+    const cx = Math.ceil(q / emb);
     return `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
       <div style="display:flex;align-items:center;justify-content:flex-end;gap:4px">
-        <input type="number" value="${cx}" min="0" step="1"
-          onchange="calcUpdateInsumo('${ins.id}','qtdGarrafas',this.value*${emb})"
+        <input type="number" value="${q}" min="0" step="1" title="Em unidades — arredonda pra caixa fechada de ${emb} un"
+          onchange="calcUpdateInsumo('${ins.id}','qtdGarrafas',this.value)"
           style="width:60px;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono)">
-        <span style="font-size:9px;color:var(--text3);white-space:nowrap;display:inline-block;width:22px;text-align:left">cx</span>
+        <span style="font-size:9px;color:var(--text3);white-space:nowrap;display:inline-block;width:22px;text-align:left">un</span>
       </div>
-      <div style="font-size:9px;color:var(--text3)">${ins.qtdGarrafas||0} uni · ${emb}/cx</div>
+      <div style="font-size:9px;color:var(--text3)">= ${cx} cx · ${emb} un/cx</div>
     </div>`;
   }
   return `<div style="display:flex;align-items:center;justify-content:flex-end;gap:4px">

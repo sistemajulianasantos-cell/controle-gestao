@@ -1618,6 +1618,7 @@ function _orcAtualizarValores(orc) {
       : null;
     if (qtd != null) ins.qtdGarrafas = qtd;
     ins.total = Math.round((ins.qtdGarrafas||0) * (ins.custoGarrafa||0) * 100) / 100;
+    if (typeof _orcCaixaCheia === 'function') _orcCaixaCheia(ins); // copo: caixa fechada
   });
 
   sv('orcamentos');
