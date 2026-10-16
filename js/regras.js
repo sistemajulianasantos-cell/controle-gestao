@@ -1381,9 +1381,11 @@ function adicionarItemRegra() { regraKitAdd(); }
 function _ensureOrcPrecos() {
   // Semeia quando ainda não tem os preços (pode já ter só "adicionais").
   if (!D.orcPrecos || !D.orcPrecos.locais) {
-    var adicionais = D.orcPrecos && D.orcPrecos.adicionais;
+    var ant = D.orcPrecos || {};
     D.orcPrecos = JSON.parse(JSON.stringify(getOrcPrecos()));
-    if (adicionais) D.orcPrecos.adicionais = adicionais;
+    ['adicionais', 'equipeRegra', 'itensLocaisExtras', 'nomesLocais'].forEach(function(k) {
+      if (ant[k]) D.orcPrecos[k] = ant[k];
+    });
   }
   return D.orcPrecos;
 }
@@ -1415,7 +1417,13 @@ function salvarPrecosOrcamento() {
 function resetarPrecosOrcamento() {
   if (!confirm('Restaurar todos os preços do orçamento para o padrão?')) return;
   // Taxas e adicionais têm botão próprio de pausa — não entram no reset.
-  D.orcPrecos = (D.orcPrecos && D.orcPrecos.adicionais) ? { adicionais: D.orcPrecos.adicionais } : {};
+  // Regra de equipe e itens por local criados por ela também ficam (só os
+  // valores de preço voltam ao padrão).
+  var ant = D.orcPrecos || {};
+  D.orcPrecos = {};
+  if (ant.adicionais) D.orcPrecos.adicionais = ant.adicionais;
+  if (ant.equipeRegra) D.orcPrecos.equipeRegra = ant.equipeRegra;
+  if (ant.itensLocaisExtras) D.orcPrecos.itensLocaisExtras = ant.itensLocaisExtras;
   sv('orcPrecos');
   rPrecosOrcamento();
 }
@@ -1431,17 +1439,21 @@ function rPrecosOrcamento() {
   // Cargos agora. Só Refrigério/Limpeza/Carregamento continuam editáveis
   // nesta tela (não fazem parte do Cadastro de Cargos).
   // Nome de cada item é editável (vira o nome da linha na Calculadora).
-  var colsLocais = ['rf', 'la', 'ca'].map(function(k) { return [k, _orcNomeItemLocal(k)]; });
+  // + itens extras criados por ela (ex: Refrigério jantar) — c[2] = tipo.
+  var colsLocais = [['rf', _orcNomeItemLocal('rf'), 'colaborador'], ['la', _orcNomeItemLocal('la'), 'colaborador'], ['ca', _orcNomeItemLocal('ca'), 'evento']]
+    .concat(getOrcItensLocaisExtras().map(function(x) { return [x.id, x.nome, x.tipo, true]; }));
 
   var htmlLocais = '<div class="sec" style="margin-bottom:14px">' +
     '<div class="sec-head"><span class="sec-title">📍 Preços por Local (' + colsLocais.map(function(c) { return c[1]; }).join(', ') + ')</span></div>' +
     '<div style="padding:12px 16px;overflow-x:auto">' +
-    '<div style="font-size:10px;color:var(--text3);margin-bottom:8px">Clique no nome da coluna pra renomear o item. ' + _orcNomeItemLocal('rf') + ' e ' + _orcNomeItemLocal('la') + ' são por colaborador; ' + _orcNomeItemLocal('ca') + ' é por evento.</div>' +
+    '<div style="font-size:10px;color:var(--text3);margin-bottom:8px">Clique no nome da coluna pra renomear o item. Embaixo de cada nome diz se o valor é por colaborador ou por evento.</div>' +
     '<table style="width:100%;border-collapse:collapse;font-size:11px">' +
     '<thead><tr style="color:var(--text3);text-transform:uppercase;font-size:9px">' +
       '<th style="text-align:left;padding:4px 8px">Local</th>' +
-      colsLocais.map(function(c){ return '<th style="text-align:center;padding:4px 6px"><input type="text" value="' + c[1].replace(/"/g, '&quot;') + '" onchange="renomearItemLocalOrc(\'' + c[0] + '\',this.value)" title="Renomear" ' +
-        'style="width:100px;text-align:center;font-size:9px;font-weight:700;text-transform:uppercase;background:transparent;border:none;border-bottom:1px dashed var(--border2);color:var(--text3);padding:2px 0"></th>'; }).join('') +
+      colsLocais.map(function(c){ return '<th style="text-align:center;padding:4px 6px;vertical-align:bottom"><input type="text" value="' + c[1].replace(/"/g, '&quot;') + '" onchange="renomearItemLocalOrc(\'' + c[0] + '\',this.value)" title="Renomear" ' +
+        'style="width:100px;text-align:center;font-size:9px;font-weight:700;text-transform:uppercase;background:transparent;border:none;border-bottom:1px dashed var(--border2);color:var(--text3);padding:2px 0">' +
+        '<div style="font-size:8px;font-weight:400;margin-top:2px">' + (c[2] === 'evento' ? 'por evento' : 'por colaborador') +
+          (c[3] ? ' · <a href="#" onclick="excluirItemLocalOrc(\'' + c[0] + '\');return false" style="color:var(--red)">excluir</a>' : '') + '</div></th>'; }).join('') +
     '</tr></thead><tbody>' +
     Object.entries(precos.locais).map(function(entry) {
       var key = entry[0], v = entry[1];
@@ -1458,7 +1470,17 @@ function rPrecosOrcamento() {
         }).join('') +
       '</tr>';
     }).join('') +
-    '</tbody></table></div></div>';
+    '</tbody></table>' +
+    '<div style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">' +
+      '<span style="font-size:12px;font-weight:600;color:var(--text);align-self:center">Incluir item</span>' +
+      '<input id="pl-extra-nome" type="text" placeholder="Ex: Refrigério jantar" onkeydown="if(event.key===\'Enter\')adicionarItemLocalOrc()" ' +
+        'style="width:200px;font-size:12px;padding:4px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">' +
+      '<select id="pl-extra-tipo" style="font-size:12px;padding:4px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">' +
+        '<option value="colaborador">Por colaborador</option><option value="evento">Por evento</option></select>' +
+      '<button class="btn-sm" style="background:var(--green);color:#fff" onclick="adicionarItemLocalOrc()">+ Incluir</button>' +
+      '<span style="font-size:10px;color:var(--text3)">Vira uma coluna nova aqui e uma linha automática em Logística no orçamento.</span>' +
+    '</div>' +
+    '</div></div>';
 
   // Preço de equipe (bt/bb/hb/cd/cp) — editável aqui, grava direto no
   // Cadastro de Cargos (mesma fonte: precoOrcamento de cada faixa). Bônus do
@@ -1495,6 +1517,7 @@ function rPrecosOrcamento() {
         'style="width:90px;text-align:right;font-size:12px;padding:4px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">' +
       '<span style="font-size:11px;color:var(--text3)">por evento, × convidados/100 (mínimo 1×) — mesmo valor de Equipe → Regras de Pagamento</span>' +
     '</div>' +
+    _htmlRegraEquipeOrc() +
     '</div></div>';
 
   var ordem = getOrcBlocosOrdem();
@@ -1628,9 +1651,74 @@ function _htmlAdicionaisOrcamento() {
     '</div></div>';
 }
 
+// Regra de equipe sugerida (quantos de cada cargo por convidados) — usada
+// pela Calculadora do orçamento (_calcAutoStaff, js/orcCalc.js) e por tudo
+// que lê a equipe sugerida do orçamento (Proposta, Regras do Orçamento).
+function _htmlRegraEquipeOrc() {
+  if (typeof getOrcEquipeRegra !== 'function' || typeof _CARGOS_DEF === 'undefined') return '';
+  var regra = getOrcEquipeRegra();
+  var inp = function(k, campo, v) {
+    return '<input type="number" min="0" step="1" value="' + (v != null ? v : 0) + '" onchange="atualizarRegraEquipeOrc(\'' + k + '\',\'' + campo + '\',this.value)" ' +
+      'style="width:70px;text-align:right;font-size:12px;padding:4px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">';
+  };
+  var t = function(s) { return '<span style="font-size:11px;color:var(--text3)">' + s + '</span>'; };
+  return '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">' +
+    '<div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px">Regra de equipe (quantidade sugerida por convidados)</div>' +
+    '<div style="font-size:10px;color:var(--text3);margin-bottom:6px">Ex: Bartender 1 a cada 30 convidados. "A cada" 0 = não aumenta com convidados (fica só o mínimo). "Só acima de" 0 = vale pra qualquer evento. Dá pra mudar a quantidade dentro de cada orçamento.</div>' +
+    _CARGOS_DEF.map(function(c) {
+      var r = regra[c.key] || {};
+      return '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:5px 0;border-bottom:1px solid var(--border)">' +
+        '<span style="font-size:12px;color:var(--text);min-width:130px">' + c.nome + '</span>' +
+        t('1 a cada') + inp(c.key, 'aCada', r.aCada) + t('convidados · mínimo') + inp(c.key, 'min', r.min) +
+        t('· só acima de') + inp(c.key, 'acima', r.acima) + t('convidados') +
+      '</div>';
+    }).join('') +
+  '</div>';
+}
+
+function atualizarRegraEquipeOrc(cargoKey, campo, valor) {
+  var p = _ensureOrcPrecos();
+  if (!p.equipeRegra) p.equipeRegra = {};
+  p.equipeRegra[cargoKey] = Object.assign({}, getOrcEquipeRegra()[cargoKey], p.equipeRegra[cargoKey] || {});
+  p.equipeRegra[cargoKey][campo] = Math.max(0, parseInt(valor, 10) || 0);
+  sv('orcPrecos');
+  alert2('Regra de equipe salva — vale pros orçamentos ao recalcular.');
+}
+
+function adicionarItemLocalOrc() {
+  var nome = (document.getElementById('pl-extra-nome')?.value || '').trim();
+  var tipo = document.getElementById('pl-extra-tipo')?.value === 'evento' ? 'evento' : 'colaborador';
+  if (!nome) { alert2('Digite o nome do item.', 'error'); return; }
+  var p = _ensureOrcPrecos();
+  if (!p.itensLocaisExtras) p.itensLocaisExtras = [];
+  p.itensLocaisExtras.push({ id: _gerarId('lx'), nome: nome, tipo: tipo });
+  sv('orcPrecos');
+  rPrecosOrcamento();
+  alert2('"' + nome + '" incluído — preencha o valor de cada local.');
+}
+
+function excluirItemLocalOrc(id) {
+  var p = _ensureOrcPrecos();
+  var x = (p.itensLocaisExtras || []).find(function(i) { return i.id === id; });
+  if (!x || !confirm('Excluir "' + x.nome + '"? Ele sai dos orçamentos no próximo recálculo.')) return;
+  p.itensLocaisExtras = p.itensLocaisExtras.filter(function(i) { return i.id !== id; });
+  Object.keys(p.locais || {}).forEach(function(k) { if (p.locais[k]) delete p.locais[k][id]; });
+  sv('orcPrecos');
+  rPrecosOrcamento();
+}
+
 function renomearItemLocalOrc(campo, nome) {
   nome = (nome || '').trim();
   var p = _ensureOrcPrecos();
+  var extra = (p.itensLocaisExtras || []).find(function(i) { return i.id === campo; });
+  if (extra) {
+    if (!nome) { rPrecosOrcamento(); return; }
+    extra.nome = nome;
+    sv('orcPrecos');
+    rPrecosOrcamento();
+    alert2('Nome atualizado — os orçamentos mostram o nome novo ao recalcular.');
+    return;
+  }
   if (!p.nomesLocais) p.nomesLocais = {};
   if (nome) p.nomesLocais[campo] = nome; else delete p.nomesLocais[campo];
   sv('orcPrecos');

@@ -1504,7 +1504,7 @@ function _orcItensParaFicha(orc, fichaId) {
     + (p.barback != null ? Number(p.barback) : (autoS.bb||0))
     + (p.head    != null ? Number(p.head)    : (autoS.hb||0))
     + (p.coord   != null ? Number(p.coord)   : (autoS.cd||0))
-    + (p.copeiro != null ? Number(p.copeiro) : 0);
+    + (p.copeiro != null ? Number(p.copeiro) : (autoS.cp || 0));
 
   // Nome oficial do item: se bater (sem acento/caixa) com um insumo do
   // Cadastro, usa a grafia dele — evita duas fichas com o mesmo ingrediente
@@ -1604,7 +1604,7 @@ function _orcAtualizarValores(orc) {
     + (p.barback != null ? Number(p.barback) : (autoS.bb||0))
     + (p.head    != null ? Number(p.head)    : (autoS.hb||0))
     + (p.coord   != null ? Number(p.coord)   : (autoS.cd||0))
-    + (p.copeiro != null ? Number(p.copeiro) : 0);
+    + (p.copeiro != null ? Number(p.copeiro) : (autoS.cp || 0));
 
   (orc.insumos||[]).forEach(ins => {
     if (ins.autoGlobal) return; // já recalculado por recalcularAutos (Itens automáticos)

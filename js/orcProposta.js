@@ -411,7 +411,7 @@ function _propostaDadosComputados(orc) {
   var qBarback   = p.barback   != null ? p.barback   : (autoS.bb || 0);
   var qHead      = p.head      != null ? p.head      : (autoS.hb || 0);
   var qCoord     = p.coord     != null ? p.coord     : (autoS.cd || 0);
-  var qCopeiro   = p.copeiro   != null ? p.copeiro   : 0;
+  var qCopeiro   = p.copeiro   != null ? p.copeiro   : (autoS.cp || 0);
 
   // Comparação sem acento/caixa — categoria às vezes gravada sem acento
   // ("BEBIDAS ALCOOLICAS") em insumo/item antigo (ver mesmo ajuste em

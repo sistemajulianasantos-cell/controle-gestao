@@ -291,13 +291,43 @@ function _calcGetOrc() {
   return (D.orcamentos || []).find(o => o.id === orcAtualId);
 }
 
+// Regra de equipe sugerida por cargo (Cálculos do Orçamento → Preços, Equipe
+// e Taxas → "Regra de equipe"). Por cargo: 1 a cada `aCada` convidados (0 =
+// não escala com convidados), no mínimo `min`, e só entra acima de `acima`
+// convidados (0 = sempre). Padrão = a regra fixa que existia antes (10-16).
+var ORC_EQUIPE_REGRA_PADRAO = {
+  bt: { aCada: 50,  min: 1, acima: 0 },
+  bb: { aCada: 100, min: 1, acima: 0 },
+  hb: { aCada: 0,   min: 1, acima: 500 },
+  cd: { aCada: 0,   min: 1, acima: 1000 },
+  cp: { aCada: 0,   min: 0, acima: 0 },
+};
+function getOrcEquipeRegra() {
+  var salvo = (D.orcPrecos && D.orcPrecos.equipeRegra) || {};
+  var out = {};
+  Object.keys(ORC_EQUIPE_REGRA_PADRAO).forEach(function(k) {
+    out[k] = Object.assign({}, ORC_EQUIPE_REGRA_PADRAO[k], salvo[k] || {});
+  });
+  return out;
+}
+
 function _calcAutoStaff(pax) {
-  return {
-    bt: Math.max(1, Math.ceil(pax / 50)),
-    bb: Math.max(1, Math.ceil(pax / 100)),
-    hb: pax > 500  ? 1 : 0,
-    cd: pax > 1000 ? 1 : 0,
-  };
+  var regra = getOrcEquipeRegra();
+  var out = {};
+  Object.keys(regra).forEach(function(k) {
+    var r = regra[k];
+    var aCada = Number(r.aCada) || 0, min = Number(r.min) || 0, acima = Number(r.acima) || 0;
+    if (acima > 0 && pax <= acima) { out[k] = 0; return; }
+    out[k] = Math.max(min, aCada > 0 ? Math.ceil(pax / aCada) : 0);
+  });
+  return out;
+}
+
+// Itens extras por local criados por ela (ex: Refrigério jantar), além dos 3
+// fixos rf/la/ca. Valor de cada local fica em D.orcPrecos.locais[local][id].
+// tipo 'colaborador' = valor × colaboradores; 'evento' = valor 1× por evento.
+function getOrcItensLocaisExtras() {
+  return (D.orcPrecos && D.orcPrecos.itensLocaisExtras) || [];
 }
 
 function _mk(id, secao, nome, qtd, preco) {
@@ -394,7 +424,7 @@ function _orcColaboradores(orc) {
     + (p.barback != null ? Number(p.barback) : autoS.bb)
     + (p.head    != null ? Number(p.head)    : autoS.hb)
     + (p.coord   != null ? Number(p.coord)   : autoS.cd)
-    + (p.copeiro != null ? Number(p.copeiro) : 0);
+    + (p.copeiro != null ? Number(p.copeiro) : (autoS.cp || 0));
 }
 
 function _orcAplicarAdicionais(adic, base, colab) {
@@ -511,7 +541,7 @@ function recalcularAutos(opts) {
     bb: p.barback   != null ? Number(p.barback)   : autoS.bb,
     hb: p.head      != null ? Number(p.head)      : autoS.hb,
     cd: p.coord     != null ? Number(p.coord)     : autoS.cd,
-    cp: p.copeiro   != null ? Number(p.copeiro)   : 0,
+    cp: p.copeiro   != null ? Number(p.copeiro)   : (autoS.cp || 0),
   };
   const eqTotal = qt.bt + qt.bb + qt.hb + qt.cd + qt.cp;
 
@@ -537,6 +567,9 @@ function recalcularAutos(opts) {
     _mk('auto-ca',   'logistica', _orcNomeItemLocal('ca'), 1,       loc.ca),
     _mk('auto-rf',   'logistica', _orcNomeItemLocal('rf'), eqTotal, loc.rf),
     _mk('auto-la',   'logistica', _orcNomeItemLocal('la'), eqTotal, loc.la),
+    ...getOrcItensLocaisExtras().map(function(x) {
+      return _mk('auto-' + x.id, 'logistica', x.nome, x.tipo === 'evento' ? 1 : eqTotal, Number(loc[x.id]) || 0);
+    }),
     ...getOrcFatores().map(function(fator) {
       var qtd = fator.tipoValor === 'porConvidado' ? pax : 1;
       var valor;
@@ -934,7 +967,7 @@ function rOrcCalc() {
       <div style="border-top:1px solid var(--border);padding-top:12px;margin-bottom:12px">
         <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:10px">
           👥 Equipe — sugestão automática para ${pax} pax:
-          ${autoS.bt} bartender · ${autoS.bb} bar back${autoS.hb?' · 1 head BT':''}${autoS.cd?' · 1 coord':''}
+          ${autoS.bt} bartender · ${autoS.bb} bar back${autoS.hb?' · '+autoS.hb+' head BT':''}${autoS.cd?' · '+autoS.cd+' coord':''}${autoS.cp?' · '+autoS.cp+' copeiro':''}
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px">
           ${[
@@ -942,7 +975,7 @@ function rOrcCalc() {
             ['Bar Back',      'barback',   autoS.bb],
             ['Head Bartender','head',      autoS.hb],
             ['Coordenador',   'coord',     autoS.cd],
-            ['Copeiro',       'copeiro',   0],
+            ['Copeiro',       'copeiro',   autoS.cp || 0],
           ].map(([label, key, def]) => `
             <div>
               <label style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:3px">${label}</label>
