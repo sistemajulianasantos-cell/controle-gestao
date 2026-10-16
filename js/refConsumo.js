@@ -4,6 +4,8 @@
 var _rcView      = 'tabela';
 var _rcGrupo     = 'CASAMENTO';
 var _rcPax       = 100;
+var _rcConvMin   = '';  // faixa de convidados da Estimativa (vazio = sem limite)
+var _rcConvMax   = '';
 var _rcFiltro    = '';
 var _rcNovoBev   = '';
 var _rcNovoForm  = {};
@@ -208,10 +210,19 @@ function _rcGetEventosDasFestas() {
 }
 
 // ── Cálculo de stats a partir de todos os eventos ─────────────────────────────
-function _rcGetStats() {
+function _rcGetStats(faixa) {
   const dasFestas = _rcGetEventosDasFestas();
   const manual    = _rcGetEventos();
-  const all       = [...dasFestas, ...manual];
+  let all         = [...dasFestas, ...manual];
+  // Faixa "de X até Y convidados" (tela Estimativa) — o orçamento chama sem faixa.
+  if (faixa) {
+    const mn = parseFloat(faixa.min), mx = parseFloat(faixa.max);
+    all = all.filter(e => {
+      const c = parseFloat(e.convidados) || 0;
+      return (isNaN(mn) || c >= mn) && (isNaN(mx) || c <= mx);
+    });
+    if (!all.length) return {};
+  }
   if (!all.length) return (typeof REF_CONSUMO !== 'undefined') ? REF_CONSUMO : {};
   return _rcComputeStats(all);
 }
@@ -311,7 +322,7 @@ function rRefConsumo() {
 function _rcBuildTabela() {
   const dasFestas = _rcGetEventosDasFestas();
   const manual    = _rcGetEventos();
-  const stats     = _rcGetStats();
+  const stats     = _rcGetStats(_rcFaixaTela());
   const total     = dasFestas.length + manual.length;
 
   // Cabeçalho segue o Cadastro → Tipos de Evento (grupo/subgrupo de lá),
@@ -389,10 +400,15 @@ function _rcBuildTabela() {
 
   <div style="display:flex;align-items:center;gap:16px;margin-bottom:14px;flex-wrap:wrap">
     <div style="display:flex;align-items:center;gap:8px">
-      <label style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Convidados</label>
-      <input id="rc-pax" type="number" min="1" value="${_rcPax}"
+      <label style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Convidados de</label>
+      <input id="rc-conv-min" type="number" min="0" value="${_rcConvMin}" placeholder="mín."
         style="width:90px;padding:7px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:16px;font-weight:700;text-align:center"
-        oninput="_rcSetPax(this.value)">
+        oninput="_rcSetConvFaixa('min',this.value)">
+      <label style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">até</label>
+      <input id="rc-conv-max" type="number" min="0" value="${_rcConvMax}" placeholder="máx."
+        style="width:90px;padding:7px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:16px;font-weight:700;text-align:center"
+        oninput="_rcSetConvFaixa('max',this.value)">
+      <span id="rc-conv-info" style="font-size:11px;color:var(--text3)">${_rcFaixaInfo()}</span>
     </div>
     <div style="display:flex;align-items:center;gap:8px">
       <label style="font-size:12px;color:var(--text3)">Filtrar:</label>
@@ -463,7 +479,7 @@ function _rcCategoriaDoItem(nome) {
 }
 
 function _rcBuildComparativaRows(statsArg, groupsArg) {
-  const stats  = statsArg  || _rcGetStats();
+  const stats  = statsArg  || _rcGetStats(_rcFaixaTela());
   const groups = groupsArg || (_rcGruposVisiveis.length ? _rcGruposVisiveis : ['CASAMENTO']);
   const filtro = _rcFiltro.toLowerCase().trim();
   const ceil   = v => v == null ? '—' : Math.ceil(v);
@@ -1418,4 +1434,19 @@ function _rcToggleGrupo(g) {
   rRefConsumo();
 }
 function _rcSetPax(v)    { _rcPax=parseFloat(v)||100; const tb=document.getElementById('rc-cmp-tbody'); if(tb) tb.innerHTML=_rcBuildComparativaRows(); }
+function _rcFaixaTela() { return (_rcConvMin === '' && _rcConvMax === '') ? null : { min: _rcConvMin, max: _rcConvMax }; }
+function _rcFaixaInfo() {
+  const f = _rcFaixaTela();
+  if (!f) return 'todos os eventos';
+  const n = [..._rcGetEventosDasFestas(), ..._rcGetEventos()].filter(e => {
+    const c = parseFloat(e.convidados) || 0, mn = parseFloat(f.min), mx = parseFloat(f.max);
+    return (isNaN(mn) || c >= mn) && (isNaN(mx) || c <= mx);
+  }).length;
+  return n + ' evento' + (n !== 1 ? 's' : '') + ' nessa faixa';
+}
+function _rcSetConvFaixa(lado, v) {
+  if (lado === 'min') _rcConvMin = v; else _rcConvMax = v;
+  const tb = document.getElementById('rc-cmp-tbody'); if (tb) tb.innerHTML = _rcBuildComparativaRows();
+  const info = document.getElementById('rc-conv-info'); if (info) info.textContent = _rcFaixaInfo();
+}
 function _rcSetFiltro(v) { _rcFiltro=v; const tb=document.getElementById('rc-cmp-tbody'); if(tb) tb.innerHTML=_rcBuildComparativaRows(); }
