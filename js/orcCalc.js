@@ -1228,16 +1228,11 @@ function rOrcCalc() {
                 <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_escI(ins.nome)}</div>
                 ${_origemHtml(ins)}
               </div>
-              ${(() => { const emb = _orcEmbCopo(ins); return emb > 1
-                ? `<div style="flex-shrink:0;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:4px 10px;text-align:center;line-height:1.25">
-                    <div style="font-size:13px;font-weight:700;color:var(--text);font-family:var(--mono)">${Math.ceil((ins.qtdGarrafas || 0) / emb)} cx</div>
-                    <div style="font-size:10px;color:var(--text2)">${emb} un por cx</div>
-                  </div>`
-                : ''; })()}
+              ${(!consulta && _orcEmbCopo(ins) > 1) ? _orcCardsCaixa(ins, _orcEmbCopo(ins)) : ''}
             </div>
           </td>
           <td style="padding:4px 6px;text-align:right" title="${_escI(unid)}">
-            ${consulta ? `<span style="font-family:var(--mono);color:var(--text3)">${ins.qtdGarrafas || 0}</span>`
+            ${(!consulta && _orcEmbCopo(ins) > 1) ? '' : consulta ? `<span style="font-family:var(--mono);color:var(--text3)">${ins.qtdGarrafas || 0}</span>`
               : `<input type="number" value="${ins.qtdGarrafas || 0}" min="0" step="1" onchange="calcUpdateInsumo('${ins.id}','qtdGarrafas',this.value)" style="${_inpStyle}${ins.manualQtd ? ';border-color:var(--amber)' : ''}">`}
           </td>
           <td style="padding:4px 6px;text-align:right">
@@ -1452,6 +1447,31 @@ function _orcCaixaCheia(ins) {
   ins.qtdGarrafas = cheia;
   ins.total = Math.round(cheia * (Number(ins.custoGarrafa) || 0) * 100) / 100;
   return true;
+}
+
+// Dois cards ligados (CX e UN) na tabela por categoria da Calculadora: digitar
+// 2 cx mostra 48 un na hora, digitar 48 un mostra 2 cx. Ao sair do campo
+// grava em unidades (calcUpdateInsumo já fecha a caixa).
+function _orcCardsCaixa(ins, emb) {
+  const q  = ins.qtdGarrafas || 0;
+  const cx = Math.ceil(q / emb);
+  const card = (label, valor, tipo) =>
+    `<div style="flex-shrink:0;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:4px 8px;text-align:center;line-height:1.2">
+      <input type="number" min="0" step="1" value="${valor}" data-orc-cx="${ins.id}" data-tipo="${tipo}"
+        oninput="_orcSyncCaixa(this,${emb})" onchange="calcUpdateInsumo('${ins.id}','qtdGarrafas',${tipo === 'cx' ? 'this.value*' + emb : 'this.value'})"
+        style="width:60px;text-align:center;font-size:14px;font-weight:700;padding:2px 4px;background:var(--bg);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono)${ins.manualQtd ? ';border-color:var(--amber)' : ''}">
+      <div style="font-size:10px;color:var(--text2);margin-top:2px">${label}</div>
+    </div>`;
+  return `<div style="display:flex;gap:6px;align-items:stretch" title="Caixa com ${emb} un">
+    ${card('cx (' + emb + ' un)', cx, 'cx')}${card('un', q, 'un')}
+  </div>`;
+}
+
+function _orcSyncCaixa(inp, emb) {
+  const outro = document.querySelector('[data-orc-cx="' + inp.dataset.orcCx + '"][data-tipo="' + (inp.dataset.tipo === 'cx' ? 'un' : 'cx') + '"]');
+  if (!outro) return;
+  const v = parseFloat(inp.value) || 0;
+  outro.value = inp.dataset.tipo === 'cx' ? Math.round(v * emb) : Math.ceil(v / emb);
 }
 
 function _calcInsumoQtdCell(ins) {
