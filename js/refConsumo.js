@@ -251,9 +251,10 @@ function _rcComputeStats(evts) {
   const pontoMedio = list => (Math.min(...list) + Math.max(...list)) / 2;
 
   // Stats globais (fallback para grupos sem histórico naquele insumo)
-  const globalAvg = {};
+  const globalAvg = {}, globalMax = {};
   Object.entries(qtysAll).forEach(([bev, list]) => {
     globalAvg[bev] = pontoMedio(list);
+    globalMax[bev] = Math.max(...list);
   });
 
   const allBevs = Object.keys(qtysAll);
@@ -268,7 +269,7 @@ function _rcComputeStats(evts) {
         const avg = (mn + mx) / 2;
         out[g][bev] = { min:mn, max:mx, avg:avg, mediaGeral:null, count:list.length };
       } else {
-        out[g][bev] = { min:null, max:null, avg:null, mediaGeral: globalAvg[bev]??null, count:0 };
+        out[g][bev] = { min:null, max:null, avg:null, mediaGeral: globalAvg[bev]??null, maxGeral: globalMax[bev]??null, count:0 };
       }
     });
   });
@@ -426,7 +427,7 @@ function _rcBuildTabela() {
 
   <div style="margin-top:14px;padding:12px 16px;background:var(--bg3);border-radius:8px;border-left:3px solid var(--blue);font-size:11px;color:var(--text3);line-height:1.7">
     <strong style="color:var(--text2)">Mínimo</strong> = piso histórico (nunca levar menos).&nbsp;
-    <strong style="color:var(--text2)">Sugestão</strong> = média × convidados + margem de segurança (<strong>×1,20</strong> se &lt; 18 unid., <strong>×1,15</strong> se ≥ 18 unid.) — sempre arredondado para cima.&nbsp;
+    <strong style="color:var(--text2)">Sugestão</strong> = meio do caminho entre o Médio e o Máximo ((Méd + Máx) ÷ 2) — sempre arredondado para cima.&nbsp;
     <sup style="color:var(--amber)">*</sup> = apenas 1 evento registrado nessa categoria. Itens sem histórico mostram sugestão global.
   </div>
 </div>
@@ -466,8 +467,11 @@ function _rcBuildTabelaComparativa(stats) {
 </table>`;
 }
 
-function _rcSugestao(avgQty) {
-  return Math.ceil(avgQty * (avgQty < 18 ? 1.20 : 1.15));
+// Sugestão = meio do caminho entre o Médio e o Máximo, arredondado pra cima.
+// Sem o antigo ×1,20/×1,15 (decisão dela 10-16: "margem sobre margem").
+function _rcSugestao(avgQty, maxQty) {
+  const mx = maxQty != null ? maxQty : avgQty;
+  return Math.ceil(Math.round((avgQty + mx) / 2 * 1000) / 1000);
 }
 
 // Categoria de um item na Tabela comparativa vem do Cadastro de Insumos
@@ -519,10 +523,10 @@ function _rcBuildComparativaRows(statsArg, groupsArg) {
           return `<td style="padding:7px 8px;text-align:right;color:var(--text3);${sep}">—</td><td style="padding:7px 8px;text-align:right;color:var(--text3)">—</td><td style="padding:7px 8px;text-align:right;color:var(--text3)">—</td><td style="padding:7px 8px;text-align:right;color:var(--text3);background:rgba(196,98,45,.04)">—</td>`;
         }
         if (d.count <= 0) {
-          return `<td style="padding:7px 8px;text-align:right;color:var(--text3);opacity:.55;${sep}">—</td><td style="padding:7px 8px;text-align:right;color:var(--text3);opacity:.55">—</td><td style="padding:7px 8px;text-align:right;color:var(--text3);opacity:.55">—</td><td style="padding:7px 8px;text-align:right;font-weight:600;color:var(--blue);opacity:.65;background:rgba(196,98,45,.04)">${d.mediaGeral!=null?_rcSugestao(d.mediaGeral):'—'}</td>`;
+          return `<td style="padding:7px 8px;text-align:right;color:var(--text3);opacity:.55;${sep}">—</td><td style="padding:7px 8px;text-align:right;color:var(--text3);opacity:.55">—</td><td style="padding:7px 8px;text-align:right;color:var(--text3);opacity:.55">—</td><td style="padding:7px 8px;text-align:right;font-weight:600;color:var(--blue);opacity:.65;background:rgba(196,98,45,.04)">${d.mediaGeral!=null?_rcSugestao(d.mediaGeral, d.maxGeral):'—'}</td>`;
         }
         const suf = d.count===1 ? '<sup style="color:var(--amber);font-size:9px">*</sup>' : '';
-        return `<td style="padding:7px 8px;text-align:right;color:var(--text2);${sep}">${ceil(d.min)}</td><td style="padding:7px 8px;text-align:right;color:var(--text2)">${ceil(d.avg)}</td><td style="padding:7px 8px;text-align:right;color:var(--text2)">${ceil(d.max)}</td><td style="padding:7px 8px;text-align:right;font-weight:700;color:var(--blue);font-size:12px;background:rgba(196,98,45,.04)">${d.avg!=null?_rcSugestao(d.avg):'—'}${suf}</td>`;
+        return `<td style="padding:7px 8px;text-align:right;color:var(--text2);${sep}">${ceil(d.min)}</td><td style="padding:7px 8px;text-align:right;color:var(--text2)">${ceil(d.avg)}</td><td style="padding:7px 8px;text-align:right;color:var(--text2)">${ceil(d.max)}</td><td style="padding:7px 8px;text-align:right;font-weight:700;color:var(--blue);font-size:12px;background:rgba(196,98,45,.04)">${d.avg!=null?_rcSugestao(d.avg, d.max):'—'}${suf}</td>`;
       }).join('');
 
       html.push(`<tr><td style="padding:7px 14px 7px 22px;color:var(--text);font-weight:500;white-space:nowrap">${b}</td>${cells}</tr>`);
@@ -764,8 +768,7 @@ function _rcHistResultadosHTML() {
       const mx        = Math.max(...qtys);
       const avgQty    = (mn + mx) / 2; // ponto médio entre mín. e máx., não a média aritmética
       const totalQty  = qtys.reduce((a,b)=>a+b,0);
-      const margem    = avgQty < 18 ? 1.20 : 1.15;
-      const sug       = Math.ceil(avgQty * margem);
+      const sug       = _rcSugestao(avgQty, mx);
       const convLabel = (_rcHistConvMin||_rcHistConvMax)
         ? ` · ${_rcHistConvMin||'?'}–${_rcHistConvMax||'?'} conv.` : '';
       auditSummary = `
@@ -780,7 +783,7 @@ function _rcHistResultadosHTML() {
             <div style="text-align:center;background:rgba(196,98,45,.12);border-radius:6px;padding:4px 16px"><div style="font-size:10px;color:var(--blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Sugestão</div><strong style="color:var(--blue);font-size:22px">${sug}</strong></div>
             ${_rcSugOrcCardHTML(dados)}
           </div>
-          <div style="margin-top:8px;font-size:10px;color:var(--text3)">Média histórica: ${avgQty.toFixed(1)} unid. · Margem: ×${margem.toFixed(2)} · total histórico: ${totalQty} unid. em ${dados.length} eventos</div>
+          <div style="margin-top:8px;font-size:10px;color:var(--text3)">Sugestão = (Médio + Máximo) ÷ 2 = (${_rcNum(avgQty)} + ${mx}) ÷ 2 = ${_rcNum((avgQty + mx) / 2)} → arredonda pra cima · total histórico: ${totalQty} unid. em ${dados.length} eventos</div>
           ${_rcSugOrcRodapeHTML(dados)}
         </div>`;
     }
