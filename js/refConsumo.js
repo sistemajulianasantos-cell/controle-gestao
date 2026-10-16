@@ -602,6 +602,83 @@ function _rcHistRefresh() {
   if (btnLimpar) btnLimpar.style.display = _rcHistTemFiltro() ? '' : 'none';
 }
 
+// ─── Sugestão Orçamento (card na Auditoria) ─────────────────────────────────
+// Mesma conta da "Sugestão", mas só com os eventos recentes (últimos N meses,
+// pra não pegar consumo antigo) e com margem de segurança por cima. Período e
+// margem ficam editáveis na própria tela (D.rcConfig), não só no código.
+function _rcSugOrcCfg() {
+  const c = D.rcConfig || {};
+  return {
+    meses:  c.sugOrcMeses  != null ? Number(c.sugOrcMeses)  : 3,
+    margem: c.sugOrcMargem != null ? Number(c.sugOrcMargem) : 50,
+  };
+}
+
+function _rcSugOrcSet(campo, valor) {
+  if (!D.rcConfig) D.rcConfig = {};
+  const v = Math.max(0, parseFloat(String(valor).replace(',', '.')) || 0);
+  if (campo === 'meses') D.rcConfig.sugOrcMeses = Math.max(1, Math.round(v));
+  else D.rcConfig.sugOrcMargem = v;
+  sv('rcConfig');
+  _rcHistRefresh();
+}
+
+// Datas chegam como AAAA-MM-DD (festas/manual) ou DD/MM/AAAA (planilha importada).
+function _rcDataIso(d) {
+  const s = String(d || '').trim();
+  let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  if (m) return m[1] + '-' + m[2] + '-' + m[3];
+  m = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/.exec(s);
+  if (m) {
+    const ano = m[3].length === 2 ? '20' + m[3] : m[3];
+    return ano + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+  }
+  return '';
+}
+
+function _rcSugOrcCalc(dados) {
+  const cfg = _rcSugOrcCfg();
+  const hoje = new Date();
+  const ini = new Date(hoje.getFullYear(), hoje.getMonth() - cfg.meses, hoje.getDate());
+  const iniIso = ini.toISOString().slice(0, 10);
+  const fimIso = hoje.toISOString().slice(0, 10);
+  const recentes = dados.filter(d => d.data && d.data >= iniIso && d.data <= fimIso);
+  const semData = dados.filter(d => !d.data).length;
+  let sugBase = null, sug = null;
+  if (recentes.length) {
+    const q = recentes.map(d => d.qty);
+    const avg = (Math.min(...q) + Math.max(...q)) / 2; // mesma conta da Sugestão
+    sugBase = Math.ceil(avg * (avg < 18 ? 1.20 : 1.15));
+    sug = Math.ceil(sugBase * (1 + cfg.margem / 100));
+  }
+  return { cfg, iniIso, fimIso, recentes, semData, sugBase, sug };
+}
+
+function _rcSugOrcCardHTML(dados) {
+  const r = _rcSugOrcCalc(dados);
+  return `<div style="text-align:center;background:rgba(60,140,90,.12);border:1px solid rgba(60,140,90,.35);border-radius:6px;padding:4px 16px">
+    <div style="font-size:10px;color:var(--green);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Sugestão orçamento</div>
+    <strong style="color:var(--green);font-size:22px">${r.sug != null ? r.sug : '—'}</strong>
+  </div>`;
+}
+
+function _rcSugOrcRodapeHTML(dados) {
+  const r = _rcSugOrcCalc(dados);
+  const fd = iso => iso.split('-').reverse().join('/');
+  const inp = (campo, val, w) => `<input type="number" min="${campo === 'meses' ? 1 : 0}" step="1" value="${val}" onchange="_rcSugOrcSet('${campo}',this.value)"
+    style="width:${w}px;font-size:11px;padding:2px 5px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:center">`;
+  const conta = r.sug != null
+    ? `Sugestão dos últimos ${r.cfg.meses} meses: ${r.sugBase} unid. + ${r.cfg.margem}% = <strong style="color:var(--green)">${r.sug}</strong>`
+    : `<span style="color:var(--amber)">Nenhum evento com este insumo nesse período</span>`;
+  return `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border2);font-size:11px;color:var(--text2);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <strong style="color:var(--green)">Sugestão orçamento:</strong>
+    <span>últimos</span>${inp('meses', r.cfg.meses, 50)}<span>meses</span>
+    <span>· margem de segurança</span>${inp('margem', r.cfg.margem, 55)}<span>%</span>
+    <span>· período ${fd(r.iniIso)} a ${fd(r.fimIso)} · ${r.recentes.length} evento${r.recentes.length !== 1 ? 's' : ''}${r.semData ? ' (' + r.semData + ' sem data fora da conta)' : ''}</span>
+    <span>· ${conta}</span>
+  </div>`;
+}
+
 function _rcEscHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
 
 function _rcHistResultadosHTML() {
@@ -652,7 +729,7 @@ function _rcHistResultadosHTML() {
       .map(e => {
         const qty  = parseFloat((e.consumo||{})[auditBev] || 0);
         const conv = parseFloat(e.convidados) || 0;
-        return (qty > 0 && conv > 0) ? { qty, conv } : null;
+        return (qty > 0 && conv > 0) ? { qty, conv, data: _rcDataIso(e.data) } : null;
       })
       .filter(d => d !== null);
     if (dados.length) {
@@ -675,8 +752,10 @@ function _rcHistResultadosHTML() {
             <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Médio</div><strong style="color:var(--text);font-size:18px">${Math.ceil(avgQty)}</strong></div>
             <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Máximo</div><strong style="color:var(--text);font-size:18px">${mx}</strong></div>
             <div style="text-align:center;background:rgba(196,98,45,.12);border-radius:6px;padding:4px 16px"><div style="font-size:10px;color:var(--blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Sugestão</div><strong style="color:var(--blue);font-size:22px">${sug}</strong></div>
+            ${_rcSugOrcCardHTML(dados)}
           </div>
           <div style="margin-top:8px;font-size:10px;color:var(--text3)">Média histórica: ${avgQty.toFixed(1)} unid. · Margem: ×${margem.toFixed(2)} · total histórico: ${totalQty} unid. em ${dados.length} eventos</div>
+          ${_rcSugOrcRodapeHTML(dados)}
         </div>`;
     }
   }

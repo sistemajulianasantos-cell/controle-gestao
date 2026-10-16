@@ -2470,7 +2470,7 @@
 <script src="js/orcCalculos.js?v=20261016c"></script>
 <script src="js/orcProposta.js?v=20261016b"></script>
 <script src="js/_refConsumoData.js?v=20260610z"></script>
-<script src="js/refConsumo.js?v=20261014a"></script>
+<script src="js/refConsumo.js?v=20261016h"></script>
 <script src="js/seguranca-admin.js?v=20261012e"></script>
 
 <script type="module">
@@ -2562,6 +2562,7 @@ window.svFirebase = async function(chave) {
     if(chave==='rcEventos')          campo.rcEventos           = D.rcEventos;
     if(chave==='rcEventosImportados')campo.rcEventosImportados = D.rcEventosImportados;
     if(chave==='rcEventosExcluidos') campo.rcEventosExcluidos  = D.rcEventosExcluidos;
+    if(chave==='rcConfig')           campo.rcConfig            = D.rcConfig;
     if(chave==='despesas')           campo.despesas            = D.despesas;
     if(chave==='categoriasDespesas') campo.categoriasDespesas  = D.categoriasDespesas;
     if(chave==='fechamentos')        campo.fechamentos         = D.fechamentos;
@@ -2897,6 +2898,7 @@ async function carregarDados() {
     D.rcEventos             = r.rcEventos             || [];
     D.rcEventosImportados   = r.rcEventosImportados   || [];
     D.rcEventosExcluidos    = r.rcEventosExcluidos    || [];
+    D.rcConfig              = r.rcConfig              || {};
     D.despesas              = r.despesas              || [];
     D.categoriasDespesas    = r.categoriasDespesas    || [];
     D.fechamentos           = r.fechamentos           || [];
