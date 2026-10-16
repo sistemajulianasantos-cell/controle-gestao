@@ -660,16 +660,17 @@ function _rcSugOrcCalc(dados) {
   const fimIso = hoje.toISOString().slice(0, 10);
   const recentes = dados.filter(d => d.data && d.data >= iniIso && d.data <= fimIso);
   const semData = dados.filter(d => !d.data).length;
-  let sugBase = null, sug = null, mn = null, mx = null, avg = null, fator = null;
+  // Base = meio do caminho entre o Médio e o Máximo do período, + só a margem
+  // da tela (sem o ×1,20/×1,15 da Sugestão — senão fica margem sobre margem).
+  let sugBase = null, sug = null, mn = null, mx = null, avg = null;
   if (recentes.length) {
     const q = recentes.map(d => d.qty);
     mn = Math.min(...q); mx = Math.max(...q);
-    avg = (mn + mx) / 2; // mesma conta da Sugestão
-    fator = avg < 18 ? 1.20 : 1.15;
-    sugBase = Math.ceil(avg * fator);
-    sug = Math.ceil(sugBase * (1 + cfg.margem / 100));
+    avg = (mn + mx) / 2; // Médio = ponto médio entre mín. e máx.
+    sugBase = (avg + mx) / 2;
+    sug = Math.ceil(Math.round(sugBase * (1 + cfg.margem / 100) * 1000) / 1000); // round evita 6,0000001 virar 7
   }
-  return { cfg, iniIso, fimIso, recentes, semData, sugBase, sug, mn, mx, avg, fator };
+  return { cfg, iniIso, fimIso, recentes, semData, sugBase, sug, mn, mx, avg };
 }
 
 function _rcSugOrcCardHTML(dados) {
@@ -680,13 +681,15 @@ function _rcSugOrcCardHTML(dados) {
   </div>`;
 }
 
+function _rcNum(v) { return (Math.round(v * 100) / 100).toLocaleString('pt-BR'); }
+
 function _rcSugOrcRodapeHTML(dados) {
   const r = _rcSugOrcCalc(dados);
   const fd = iso => iso.split('-').reverse().join('/');
   const inp = (campo, val, w) => `<input type="number" min="${campo === 'meses' ? 1 : 0}" step="1" value="${val}" onchange="_rcSugOrcSet('${campo}',this.value)"
     style="width:${w}px;font-size:11px;padding:2px 5px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:center">`;
   const conta = r.sug != null
-    ? `Base só desse período: mín. ${r.mn} · méd. ${Math.ceil(r.avg)} · máx. ${r.mx} → méd. ${r.avg.toFixed(1)} × ${r.fator.toFixed(2).replace('.', ',')} = ${r.sugBase} → + ${r.cfg.margem}% = <strong style="color:var(--green)">${r.sug}</strong>`
+    ? `Base só desse período: mín. ${r.mn} · méd. ${Math.ceil(r.avg)} · máx. ${r.mx} → entre méd. e máx.: (${_rcNum(r.avg)} + ${r.mx}) ÷ 2 = ${_rcNum(r.sugBase)} → + ${r.cfg.margem}% = ${_rcNum(r.sugBase * (1 + r.cfg.margem / 100))} → arredonda pra cima = <strong style="color:var(--green)">${r.sug}</strong>`
     : `<span style="color:var(--amber)">Nenhum evento com este insumo nesse período</span>`;
   return `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border2);font-size:11px;color:var(--text2);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
     <strong style="color:var(--green)">Sugestão orçamento:</strong>
