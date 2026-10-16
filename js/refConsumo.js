@@ -709,6 +709,59 @@ function _rcSugOrcRodapeHTML(dados) {
   </div>` : ''}`;
 }
 
+function _rcNormEst(s) { return _rcNomeNormalizado(s).normalize('NFD').replace(/\p{Mn}/gu, ''); }
+
+// ─── Estimativa dentro do orçamento (coluna "Estimativa" na Calculadora) ────
+// Mesma conta do card "Sugestão orçamento": eventos do mesmo grupo, numa
+// faixa de convidados em volta do orçamento (± faixaPct%), só dos últimos N
+// meses → (Médio + Máximo) ÷ 2 + margem. Devolve um índice por insumo.
+function _rcEstimativaOrc(grupo, conv) {
+  const cfg = _rcSugOrcCfg();
+  const c = D.rcConfig || {};
+  const faixaPct = c.sugOrcFaixaPct != null ? Number(c.sugOrcFaixaPct) : 20;
+  const de  = Math.floor(conv * (1 - faixaPct / 100));
+  const ate = Math.ceil(conv * (1 + faixaPct / 100));
+  const hoje = new Date();
+  const iniIso = new Date(hoje.getFullYear(), hoje.getMonth() - cfg.meses, hoje.getDate()).toISOString().slice(0, 10);
+  const fimIso = hoje.toISOString().slice(0, 10);
+  const g = String(grupo || '').toUpperCase();
+  const eventos = [..._rcGetEventosDasFestas(), ..._rcGetEventos()].filter(e => {
+    if (g && (e.grupo || '').toUpperCase() !== g) return false;
+    const cv = parseFloat(e.convidados) || 0;
+    if (!(cv >= de && cv <= ate)) return false;
+    const d = _rcDataIso(e.data);
+    return d && d >= iniIso && d <= fimIso;
+  });
+  const qtys = {}; // nome normalizado → [qtd...]
+  eventos.forEach(e => Object.entries(e.consumo || {}).forEach(([nome, q]) => {
+    q = parseFloat(q) || 0;
+    if (q <= 0) return;
+    const k = _rcNormEst(nome);
+    (qtys[k] || (qtys[k] = [])).push(q);
+  }));
+  const porItem = {};
+  Object.keys(qtys).forEach(k => {
+    const l = qtys[k];
+    const mn = Math.min(...l), mx = Math.max(...l);
+    const base = ((mn + mx) / 2 + mx) / 2;
+    porItem[k] = { sug: Math.ceil(Math.round(base * (1 + cfg.margem / 100) * 1000) / 1000), n: l.length, mn, mx };
+  });
+  return { porItem, grupo: g, de, ate, faixaPct, iniIso, fimIso, nEventos: eventos.length, meses: cfg.meses, margem: cfg.margem };
+}
+
+// Acha a estimativa de um insumo do orçamento: nome igual (sem acento/caixa)
+// ou o mesmo insumo do Cadastro (apelido/nome antigo).
+function _rcEstimativaDoItem(est, nome) {
+  if (!est) return null;
+  const k = _rcNormEst(nome);
+  if (est.porItem[k]) return est.porItem[k];
+  const ins = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(nome) : null;
+  if (!ins) return null;
+  const nomes = [ins.nome].concat(ins.aliases || []).map(_rcNormEst);
+  for (const n of nomes) if (est.porItem[n]) return est.porItem[n];
+  return null;
+}
+
 function _rcEscHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
 
 function _rcHistResultadosHTML() {

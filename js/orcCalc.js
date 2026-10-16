@@ -677,6 +677,7 @@ function calcVoltarAutomatico(itemId, ehInsumo) {
   if (!item) return;
   delete item.manualQtd;
   delete item.manualPreco;
+  delete item.fonteQtd;
   if (ehInsumo && !item.autoGlobal && typeof _orcPrecoInsumoComTemporada === 'function') {
     const pr = orc.calcParams || {};
     const p = _orcPrecoInsumoComTemporada(item.nome, pr.temporada || 'baixa');
@@ -812,12 +813,57 @@ function calcUpdateInsumo(itemId, campo, valor) {
   if (!item) return;
   item[campo] = parseFloat(valor) || 0;
   // Ajuste à mão: "Atualizar valores"/recálculo não mexe mais nesse valor
-  if (campo === 'qtdGarrafas')  item.manualQtd = true;
+  if (campo === 'qtdGarrafas')  { item.manualQtd = true; item.fonteQtd = 'manual'; }
   if (campo === 'custoGarrafa') item.manualPreco = true;
   item.total  = Math.round(item.qtdGarrafas * item.custoGarrafa * 100) / 100;
   if (campo === 'qtdGarrafas' || campo === 'custoGarrafa') _orcCaixaCheia(item); // copo: caixa fechada
   sv('orcamentos');
   _rTabContent();
+}
+
+// Botões das colunas Regra / Estimativa: põe aquela quantidade no item.
+// Regra = volta a seguir o cálculo (recalcula sozinho se mudar convidados);
+// Estimativa = fica fixa como ajuste (manualQtd) até ela trocar.
+function calcUsarQtdFonte(itemId, fonte, valor) {
+  const orc = _calcGetOrc();
+  if (!orc) return;
+  const item = (orc.insumos || []).find(i => i.id === itemId);
+  if (!item) return;
+  item.qtdGarrafas = Number(valor) || 0;
+  if (fonte === 'regra') delete item.manualQtd;
+  else item.manualQtd = true;
+  item.fonteQtd = fonte;
+  item.total = Math.round(item.qtdGarrafas * (item.custoGarrafa || 0) * 100) / 100;
+  _orcCaixaCheia(item);
+  sv('orcamentos');
+  _rTabContent();
+}
+
+// Barra acima dos insumos: de onde vem a coluna Estimativa (grupo, faixa de
+// convidados, período, margem) — tudo editável aqui mesmo. Os mesmos valores
+// de período/margem do card "Sugestão orçamento" (D.rcConfig).
+function _orcBarraEstimativa(est) {
+  const fd = iso => iso.split('-').reverse().join('/');
+  const inp = (campo, val, w) => `<input type="number" min="${campo === 'meses' ? 1 : 0}" step="1" value="${val}" onchange="calcSetEstCfg('${campo}',this.value)"
+    style="width:${w}px;font-size:11px;padding:2px 5px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:center">`;
+  return `<div style="background:var(--bg2);border:1px solid var(--border);border-left:3px solid var(--green);border-radius:var(--radius);margin-bottom:10px;padding:8px 14px;font-size:11px;color:var(--text2);display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+    <strong style="color:var(--green)">Estimativa:</strong>
+    <span>${est.grupo || 'todos os tipos'} · ${est.de}–${est.ate} conv. (±</span>${inp('faixa', est.faixaPct, 50)}<span>%)</span>
+    <span>· últimos</span>${inp('meses', est.meses, 45)}<span>meses (${fd(est.iniIso)} a ${fd(est.fimIso)})</span>
+    <span>· margem</span>${inp('margem', est.margem, 50)}<span>%</span>
+    <span>· <strong style="color:${est.nEventos ? 'var(--text)' : 'var(--amber)'}">${est.nEventos} evento${est.nEventos !== 1 ? 's' : ''}</strong> na base</span>
+    <span style="color:var(--text3)">· conta: (Médio + Máximo) ÷ 2 + margem. Clique no número da Regra ou da Estimativa pra usar.</span>
+  </div>`;
+}
+
+function calcSetEstCfg(campo, valor) {
+  if (!D.rcConfig) D.rcConfig = {};
+  const v = Math.max(0, parseFloat(String(valor).replace(',', '.')) || 0);
+  if (campo === 'meses') D.rcConfig.sugOrcMeses = Math.max(1, Math.round(v));
+  else if (campo === 'faixa') D.rcConfig.sugOrcFaixaPct = v;
+  else D.rcConfig.sugOrcMargem = v;
+  sv('rcConfig');
+  rOrcCalc();
 }
 
 function calcRemoveInsumo(itemId) {
@@ -1207,6 +1253,25 @@ function rOrcCalc() {
   };
   const _inpStyle = 'width:100%;text-align:right;font-size:12px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:var(--mono);box-sizing:border-box';
 
+  // Colunas "Regra" e "Estimativa" (10-16): quem orça escolhe qual seguir; as
+  // duas ficam guardadas no item (qtdRegra/qtdEstimativa) pra comparar depois
+  // com o consumo real e ver qual chega mais perto.
+  const _tipoEvtEst = p.tipoEvento || 'outros';
+  const _grupoEst = ((typeof _rcResolverGrupoPorTipoEventoId === 'function') && _rcResolverGrupoPorTipoEventoId(_tipoEvtEst)) || _calcTipoToGrupoRC(_tipoEvtEst);
+  const _est = (typeof _rcEstimativaOrc === 'function' && pax > 0) ? _rcEstimativaOrc(_grupoEst, pax) : null;
+  const _qtCargos = {
+    bt: p.bartender != null ? Number(p.bartender) : autoS.bt, bb: p.barback != null ? Number(p.barback) : autoS.bb,
+    hb: p.head != null ? Number(p.head) : autoS.hb, cd: p.coord != null ? Number(p.coord) : autoS.cd, cp: p.copeiro != null ? Number(p.copeiro) : (autoS.cp || 0),
+  };
+  const _qtdRegraDe = ins => (typeof calcQtdItemOrcamento === 'function')
+    ? calcQtdItemOrcamento(_tipoEvtEst, ins.nome, pax, _qtCargos.bt, colab, _qtCargos) : null;
+  const _celFonte = (ins, fonte, valor, cor, bg, titulo) => {
+    if (valor == null) return '<span style="color:var(--text3);font-size:11px" title="' + _escI(titulo) + '">—</span>';
+    const ativo = (ins.fonteQtd || (ins.manualQtd ? 'manual' : 'regra')) === fonte;
+    return `<button onclick="calcUsarQtdFonte('${ins.id}','${fonte}',${valor})" title="${_escI(titulo)}"
+      style="width:100%;font-family:var(--mono);font-size:12px;font-weight:700;padding:3px 4px;border-radius:4px;cursor:pointer;border:1px solid ${ativo ? cor : 'var(--border2)'};background:${ativo ? bg : 'var(--bg3)'};color:${ativo ? cor : 'var(--text2)'}">${valor}</button>`;
+  };
+
   const insumosHtmlArr = catsInsumos.map(cat => {
     const itensCat  = insumosPorCat[cat].slice().sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'));
     // Valor teto: só soma o que é item automático (regra dela); o resto é consulta
@@ -1220,6 +1285,10 @@ function rOrcCalc() {
     const linhas = itensCat.map(ins => {
       const consulta = semValorItem(ins);
       const unid = (typeof _orcGetUnit === 'function') ? _orcGetUnit(ins.nome) : '';
+      const qRegra = consulta ? null : _qtdRegraDe(ins);
+      const eItem  = consulta ? null : _rcEstimativaDoItem(_est, ins.nome);
+      const qEst   = eItem ? eItem.sug : null;
+      if (!consulta) { ins.qtdRegra = qRegra; ins.qtdEstimativa = qEst; }
       return `
         <tr style="border-bottom:1px solid var(--border)${consulta ? ';opacity:.6' : ''}">
           <td style="padding:6px 10px;color:var(--text);font-weight:500;overflow:hidden">
@@ -1231,6 +1300,8 @@ function rOrcCalc() {
               ${(!consulta && _orcEmbCopo(ins) > 1) ? _orcCardsCaixa(ins, _orcEmbCopo(ins)) : ''}
             </div>
           </td>
+          <td style="padding:4px 6px;text-align:center">${consulta ? '' : _celFonte(ins, 'regra', qRegra, 'var(--purple)', 'rgba(139,92,246,.14)', qRegra == null ? 'Sem regra de cálculo pra este item (Cálculos do Orçamento → Regras do Orçamento)' : 'Usar a quantidade da regra de cálculo')}</td>
+          <td style="padding:4px 6px;text-align:center">${consulta ? '' : _celFonte(ins, 'estimativa', qEst, 'var(--green)', 'rgba(60,140,90,.14)', eItem ? ('Usar a estimativa — ' + eItem.n + ' evento(s) na base · mín. ' + eItem.mn + ' · máx. ' + eItem.mx) : 'Sem consumo registrado deste item nos eventos da base da estimativa')}</td>
           <td style="padding:4px 6px;text-align:right" title="${_escI(unid)}">
             ${(!consulta && _orcEmbCopo(ins) > 1) ? '' : consulta ? `<span style="font-family:var(--mono);color:var(--text3)">${ins.qtdGarrafas || 0}</span>`
               : `<input type="number" value="${ins.qtdGarrafas || 0}" min="0" step="1" onchange="calcUpdateInsumo('${ins.id}','qtdGarrafas',this.value)" style="${_inpStyle}${ins.manualQtd ? ';border-color:var(--amber)' : ''}">`}
@@ -1248,7 +1319,15 @@ function rOrcCalc() {
 
     const tabela = `
       <table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed">
-        <colgroup><col><col style="width:80px"><col style="width:105px"><col style="width:100px"><col style="width:30px"></colgroup>
+        <colgroup><col><col style="width:70px"><col style="width:70px"><col style="width:80px"><col style="width:105px"><col style="width:100px"><col style="width:30px"></colgroup>
+        <thead><tr style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">
+          <th style="text-align:left;padding:4px 10px;font-weight:600">Item</th>
+          <th style="padding:4px 6px;font-weight:700;color:var(--purple)" title="Quantidade pela regra de cálculo">Regra</th>
+          <th style="padding:4px 6px;font-weight:700;color:var(--green)" title="Quantidade pela estimativa de consumo real">Estimativa</th>
+          <th style="text-align:right;padding:4px 6px;font-weight:600">Qtd</th>
+          <th style="text-align:right;padding:4px 6px;font-weight:600">Valor un.</th>
+          <th style="text-align:right;padding:4px 8px;font-weight:600">Total</th><th></th>
+        </tr></thead>
         <tbody>${linhas}</tbody>
       </table>`;
 
@@ -1295,7 +1374,8 @@ function rOrcCalc() {
       ${qtdRemovidos} item(ns) automático(s) removido(s) deste orçamento — não voltam sozinhos.
       <a href="#" onclick="calcRestaurarRemovidos();return false" style="color:var(--blue)">restaurar</a>
     </div>` : '';
-  const blocosOrdenados = avisoRemovidos + _orcOrdenarBlocos(Object.keys(blocoHtml)).map(k => blocoHtml[k]).join('');
+  const barraEst = _est ? _orcBarraEstimativa(_est) : '';
+  const blocosOrdenados = avisoRemovidos + barraEst + _orcOrdenarBlocos(Object.keys(blocoHtml)).map(k => blocoHtml[k]).join('');
 
   el.innerHTML = paramHtml + `
     <div style="display:grid;grid-template-columns:1fr 270px;gap:14px;align-items:start">
