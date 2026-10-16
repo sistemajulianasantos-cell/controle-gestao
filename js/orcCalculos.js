@@ -383,6 +383,7 @@ function ocoRegraSet(id, campo, valorRaw) {
   else if (campo === 'valor' || campo === 'ref' || campo === 'min') r[campo] = parseFloat(valorRaw) || 0;
   delete r.pendente; // mexeu na quantidade → regra passa a valer
   rOrcCalculos();
+  _ocoAutoSalvar();
 }
 
 // "Incluir" do alerta de item sem Cadastro: reaponta a linha pra um insumo
@@ -395,6 +396,7 @@ function ocoRevincular(id, novoNome) {
   r.item = novoNome;
   r.cat = (typeof categoriaAtualDoInsumo === 'function') ? categoriaAtualDoInsumo(novoNome, r.cat) : r.cat;
   rOrcCalculos();
+  _ocoAutoSalvar();
 }
 
 function ocoToggleCargo(id, cargoKey, checked) {
@@ -404,6 +406,7 @@ function ocoToggleCargo(id, cargoKey, checked) {
   var i = r.cargos.indexOf(cargoKey);
   if (checked && i === -1) r.cargos.push(cargoKey);
   else if (!checked && i !== -1) r.cargos.splice(i, 1);
+  _ocoAutoSalvar();
 }
 
 // Campo de busca do "+ Adicionar item": digita e só aparece o que contém o
@@ -462,6 +465,7 @@ function ocoAdicionarItem() {
   lista.push(nova);
   D.calculosOrcamento[_ocoListaId()] = lista;
   rOrcCalculos();
+  _ocoAutoSalvar();
 }
 
 function ocoRemoverItem(id) {
@@ -470,6 +474,7 @@ function ocoRemoverItem(id) {
     : 'Remover este item dos Cálculos do Orçamento (só deste Tipo de Evento)?')) return;
   D.calculosOrcamento[_ocoListaId()] = _ocoRegras(_ocoListaId()).filter(function(r) { return r.id !== id; });
   rOrcCalculos();
+  _ocoAutoSalvar();
 }
 
 function ocoZerarTipo() {
@@ -477,6 +482,7 @@ function ocoZerarTipo() {
   if (!confirm('Zerar todas as quantidades de "' + (atual ? atual.nome : _ocoTipoAtual) + '"? Os itens continuam na lista, só voltam pra 0.')) return;
   _ocoRegras(_ocoTipoAtual).forEach(function(r) { r.valor = 0; });
   rOrcCalculos();
+  _ocoAutoSalvar();
 }
 
 // Esvazia a lista inteira (diferente de ocoZerarTipo, que só zera o valor
@@ -491,11 +497,21 @@ function ocoLimparTudo() {
   D.calculosOrcamento[_ocoTipoAtual] = [];
   _ocoMarcarSincronizado(_ocoTipoAtual);
   rOrcCalculos();
+  _ocoAutoSalvar();
 }
 
-// Botão "💾 Salvar" — só aqui grava de fato no Firestore. Tudo antes disso
-// (marcar coquetel, mudar base/qtd, duplicar, limpar) mexe só em memória.
+// Mudança numa regra (qtd, base, cargo, incluir/remover item) grava sozinha
+// — antes ficava só em memória até o "Salvar", e ao atualizar a página a
+// quantidade voltava pra anterior (10-16). Debounce pra digitação seguida.
+var _ocoAutoSalvarTimer = null;
+function _ocoAutoSalvar() {
+  clearTimeout(_ocoAutoSalvarTimer);
+  _ocoAutoSalvarTimer = setTimeout(function() { sv('calculosOrcamento'); }, 400);
+}
+
+// Botão "💾 Salvar" — grava na hora (as edições já gravam sozinhas).
 function ocoSalvar() {
+  clearTimeout(_ocoAutoSalvarTimer);
   sv('calculosOrcamento');
   alert('💾 Cálculos do Orçamento salvos!');
 }
@@ -1406,6 +1422,7 @@ function ocoTodosSetCardapio(id, checked) {
   if (!r) return;
   r.soSeCardapio = !!checked;
   rOrcCalculos();
+  _ocoAutoSalvar();
 }
 
 
