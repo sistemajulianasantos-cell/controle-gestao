@@ -660,14 +660,16 @@ function _rcSugOrcCalc(dados) {
   const fimIso = hoje.toISOString().slice(0, 10);
   const recentes = dados.filter(d => d.data && d.data >= iniIso && d.data <= fimIso);
   const semData = dados.filter(d => !d.data).length;
-  let sugBase = null, sug = null;
+  let sugBase = null, sug = null, mn = null, mx = null, avg = null, fator = null;
   if (recentes.length) {
     const q = recentes.map(d => d.qty);
-    const avg = (Math.min(...q) + Math.max(...q)) / 2; // mesma conta da Sugestão
-    sugBase = Math.ceil(avg * (avg < 18 ? 1.20 : 1.15));
+    mn = Math.min(...q); mx = Math.max(...q);
+    avg = (mn + mx) / 2; // mesma conta da Sugestão
+    fator = avg < 18 ? 1.20 : 1.15;
+    sugBase = Math.ceil(avg * fator);
     sug = Math.ceil(sugBase * (1 + cfg.margem / 100));
   }
-  return { cfg, iniIso, fimIso, recentes, semData, sugBase, sug };
+  return { cfg, iniIso, fimIso, recentes, semData, sugBase, sug, mn, mx, avg, fator };
 }
 
 function _rcSugOrcCardHTML(dados) {
@@ -684,15 +686,20 @@ function _rcSugOrcRodapeHTML(dados) {
   const inp = (campo, val, w) => `<input type="number" min="${campo === 'meses' ? 1 : 0}" step="1" value="${val}" onchange="_rcSugOrcSet('${campo}',this.value)"
     style="width:${w}px;font-size:11px;padding:2px 5px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text);text-align:center">`;
   const conta = r.sug != null
-    ? `Sugestão dos últimos ${r.cfg.meses} meses: ${r.sugBase} unid. + ${r.cfg.margem}% = <strong style="color:var(--green)">${r.sug}</strong>`
+    ? `Base só desse período: mín. ${r.mn} · méd. ${Math.ceil(r.avg)} · máx. ${r.mx} → méd. ${r.avg.toFixed(1)} × ${r.fator.toFixed(2).replace('.', ',')} = ${r.sugBase} → + ${r.cfg.margem}% = <strong style="color:var(--green)">${r.sug}</strong>`
     : `<span style="color:var(--amber)">Nenhum evento com este insumo nesse período</span>`;
   return `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border2);font-size:11px;color:var(--text2);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
     <strong style="color:var(--green)">Sugestão orçamento:</strong>
     <span>últimos</span>${inp('meses', r.cfg.meses, 50)}<span>meses</span>
     <span>· margem de segurança</span>${inp('margem', r.cfg.margem, 55)}<span>%</span>
     <span>· período ${fd(r.iniIso)} a ${fd(r.fimIso)} · ${r.recentes.length} evento${r.recentes.length !== 1 ? 's' : ''}${r.semData ? ' (' + r.semData + ' sem data fora da conta)' : ''}</span>
-    <span>· ${conta}</span>
-  </div>`;
+  </div>
+  <div style="margin-top:6px;font-size:12px;color:var(--text)">${conta}</div>
+  ${r.recentes.length ? `<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+    ${r.recentes.slice().sort((a, b) => a.data.localeCompare(b.data)).map(d =>
+      `<span style="font-size:10px;color:var(--text2);background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:2px 8px">${fd(d.data)} · ${_rcEscHtml(d.cliente || 'sem nome')} · ${d.conv} conv. · <strong style="color:var(--text)">${d.qty}</strong></span>`
+    ).join('')}
+  </div>` : ''}`;
 }
 
 function _rcEscHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
@@ -745,7 +752,7 @@ function _rcHistResultadosHTML() {
       .map(e => {
         const qty  = parseFloat((e.consumo||{})[auditBev] || 0);
         const conv = parseFloat(e.convidados) || 0;
-        return (qty > 0 && conv > 0) ? { qty, conv, data: _rcDataIso(e.data) } : null;
+        return (qty > 0 && conv > 0) ? { qty, conv, data: _rcDataIso(e.data), cliente: e.cliente || '' } : null;
       })
       .filter(d => d !== null);
     if (dados.length) {
