@@ -1229,6 +1229,9 @@ function rOrcCalc() {
           <td style="padding:4px 6px;text-align:right" title="${_escI(unid)}">
             ${consulta ? `<span style="font-family:var(--mono);color:var(--text3)">${ins.qtdGarrafas || 0}</span>`
               : `<input type="number" value="${ins.qtdGarrafas || 0}" min="0" step="1" onchange="calcUpdateInsumo('${ins.id}','qtdGarrafas',this.value)" style="${_inpStyle}${ins.manualQtd ? ';border-color:var(--amber)' : ''}">`}
+            ${(() => { const emb = _orcEmbCopo(ins); return emb > 1
+              ? `<div style="font-size:9px;color:var(--text3);margin-top:2px;white-space:nowrap">= ${Math.ceil((ins.qtdGarrafas || 0) / emb)} cx · ${emb} un/cx</div>`
+              : ''; })()}
           </td>
           <td style="padding:4px 6px;text-align:right">
             ${consulta ? `<span style="font-family:var(--mono);color:var(--text3)">${Number(ins.custoGarrafa || 0).toFixed(2)}</span>`
