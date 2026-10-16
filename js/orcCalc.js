@@ -1223,15 +1223,22 @@ function rOrcCalc() {
       return `
         <tr style="border-bottom:1px solid var(--border)${consulta ? ';opacity:.6' : ''}">
           <td style="padding:6px 10px;color:var(--text);font-weight:500;overflow:hidden">
-            <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_escI(ins.nome)}</div>
-            ${_origemHtml(ins)}
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="flex:1;min-width:0">
+                <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_escI(ins.nome)}</div>
+                ${_origemHtml(ins)}
+              </div>
+              ${(() => { const emb = _orcEmbCopo(ins); return emb > 1
+                ? `<div style="flex-shrink:0;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:4px 10px;text-align:center;line-height:1.25">
+                    <div style="font-size:13px;font-weight:700;color:var(--text);font-family:var(--mono)">${Math.ceil((ins.qtdGarrafas || 0) / emb)} cx</div>
+                    <div style="font-size:10px;color:var(--text2)">${emb} un por cx</div>
+                  </div>`
+                : ''; })()}
+            </div>
           </td>
           <td style="padding:4px 6px;text-align:right" title="${_escI(unid)}">
             ${consulta ? `<span style="font-family:var(--mono);color:var(--text3)">${ins.qtdGarrafas || 0}</span>`
               : `<input type="number" value="${ins.qtdGarrafas || 0}" min="0" step="1" onchange="calcUpdateInsumo('${ins.id}','qtdGarrafas',this.value)" style="${_inpStyle}${ins.manualQtd ? ';border-color:var(--amber)' : ''}">`}
-            ${(() => { const emb = _orcEmbCopo(ins); return emb > 1
-              ? `<div style="font-size:9px;color:var(--text3);margin-top:2px;white-space:nowrap">= ${Math.ceil((ins.qtdGarrafas || 0) / emb)} cx · ${emb} un/cx</div>`
-              : ''; })()}
           </td>
           <td style="padding:4px 6px;text-align:right">
             ${consulta ? `<span style="font-family:var(--mono);color:var(--text3)">${Number(ins.custoGarrafa || 0).toFixed(2)}</span>`
