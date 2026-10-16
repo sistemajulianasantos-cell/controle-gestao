@@ -464,7 +464,7 @@ function salvarImportacao() {
     origem: 'importado'
   };
 
-  salvarContratoCompleto(contrato);
+  if (!salvarContratoCompleto(contrato)) return;
   limparImportacao();
   alert('Contrato importado! Agenda, financeiro e produção atualizados.');
   setContratoView('lista');
@@ -627,7 +627,7 @@ function salvarContrato(c) {
   const equipeArray = Array.isArray(c.equipe) ? c.equipe : [];
   const parcelas = c.parcelas || [];
 
-  salvarContratoCompleto({...c,
+  return salvarContratoCompleto({...c,
     equipe: equipeArray,
     equipeTexto: c.equipeTexto || (equipeArray.map(e=>`${e.qtd} ${e.cargo}`).join(' · ')) || '',
     equipeTotal: c.equipeTotal || equipeArray.reduce((s,e)=>s+(e.qtd||0),0) || 0,
@@ -642,30 +642,48 @@ function salvarContrato(c) {
 
 var _salvandoContrato = false;
 function salvarContratoCompleto(c) {
-  if (_salvandoContrato) { _logErro('Contratos', 'salvarContratoCompleto', 'Duplo clique bloqueado'); return; }
+  if (_salvandoContrato) { _logErro('Contratos', 'salvarContratoCompleto', 'Duplo clique bloqueado'); return false; }
   _salvandoContrato = true;
-  if (!D.contratos) D.contratos = [];
-  const id = _gerarId('CON');
-  // ⚠️ cComId garante que o id correto seja propagado para agenda/financeiro/produção
-  const cComId = { ...c, id, criadoEm: new Date().toISOString() };
-  D.contratos.push(cComId);
-  sv('contratos');
+  // try/finally: antes, qualquer erro no meio (agenda/financeiro/produção)
+  // deixava a trava ligada pra sempre — daí em diante todo contrato novo dava
+  // "Contrato salvo!" mas não entrava na lista nem nos totais do cabeçalho.
+  try {
+    if (!D.contratos) D.contratos = [];
+    const id = _gerarId('CON');
+    // ⚠️ cComId garante que o id correto seja propagado para agenda/financeiro/produção
+    const cComId = { ...c, id, criadoEm: new Date().toISOString() };
+    D.contratos.push(cComId);
+    sv('contratos');
 
-  // → AGENDA com equipe detalhada
-  registrarEventoNaAgenda({
-    contratoId: id,                           // ← CORRIGIDO: era c.id||'' (undefined)
-    nome: c.nomeEvento||c.nome, data: c.data, tipo: c.tipo,
-    local: c.local, conv: c.convidados,
-    hrIni: c.hrInicio, hrFim: c.hrFim, duracao: c.duracao,
-    equipe: c.equipe||[], equipeTexto: c.equipeTexto||'', equipeTotal: c.equipeTotal||0
-  });
+    try {
+      // → AGENDA com equipe detalhada
+      registrarEventoNaAgenda({
+        contratoId: id,                           // ← CORRIGIDO: era c.id||'' (undefined)
+        nome: c.nomeEvento||c.nome, data: c.data, tipo: c.tipo,
+        local: c.local, conv: c.convidados,
+        hrIni: c.hrInicio, hrFim: c.hrFim, duracao: c.duracao,
+        equipe: c.equipe||[], equipeTexto: c.equipeTexto||'', equipeTotal: c.equipeTotal||0
+      });
 
-  // → FINANCEIRO com parcelas reais do contrato
-  registrarParcelasContratoFinanceiro(cComId); // ← CORRIGIDO: passa cComId com .id
+      // → FINANCEIRO com parcelas reais do contrato
+      registrarParcelasContratoFinanceiro(cComId); // ← CORRIGIDO: passa cComId com .id
 
-  // → PRODUÇÃO com ficha pré-preenchida
-  registrarFichaProducao(cComId);              // ← CORRIGIDO: passa cComId com .id
-  _salvandoContrato = false;
+      // → PRODUÇÃO com ficha pré-preenchida
+      registrarFichaProducao(cComId);              // ← CORRIGIDO: passa cComId com .id
+    } catch (e) {
+      // O contrato já está salvo; só o vínculo falhou — "Reparar vínculos" refaz.
+      _logErro('Contratos', 'salvarContratoCompleto/vinculos', e);
+      alert2('Contrato salvo, mas houve erro ao lançar agenda/financeiro/produção: ' + e.message + '. Use "Reparar vínculos".', 'error');
+    }
+    return true;
+  } catch (e) {
+    _logErro('Contratos', 'salvarContratoCompleto', e);
+    alert2('Erro ao salvar o contrato: ' + e.message, 'error');
+    return false;
+  } finally {
+    _salvandoContrato = false;
+    if (typeof rContratos === 'function') rContratos();
+  }
 }
 
 function registrarParcelasContratoFinanceiro(c) {
@@ -1677,7 +1695,7 @@ function salvarContratoManual() {
     origem: 'manual'
   };
 
-  salvarContratoCompleto(contrato);
+  if (!salvarContratoCompleto(contrato)) return;
   limparContratoManual();
   alert('Contrato salvo! Agenda, financeiro e produção atualizados.');
   setContratoView('lista');
