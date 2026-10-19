@@ -537,17 +537,49 @@ function _solCloneVincularHtml() {
   var o = _solOrcClonado();
   if (!o) return '';
   var esc = function(x) { return String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
-  var livres = (D.solicitacoesOrcamento || []).filter(function(s) { return !(typeof _orcSolTemOrc === 'function' ? _orcSolTemOrc(s) : s.orcamentoId); })
-    .sort(function(a, b) { return (_solChaveNumero(b.numero) || 0) - (_solChaveNumero(a.numero) || 0); });
+  // Todas as solicitações (10-19 — antes só as sem orçamento, e ela não achava
+  // a do cliente). Sem orçamento: o clone fica ligado a ela. Já com orçamento:
+  // só copia os dados dela pro formulário (vira um pedido novo, mesmo cliente).
+  var temOrc = function(s) { return typeof _orcSolTemOrc === 'function' ? _orcSolTemOrc(s) : !!s.orcamentoId; };
+  var ordenar = function(a, b) { return (_solChaveNumero(b.numero) || 0) - (_solChaveNumero(a.numero) || 0); };
+  var todas = (D.solicitacoesOrcamento || []).slice().sort(ordenar);
+  var livres = todas.filter(function(s) { return !temOrc(s); });
+  var comOrc = todas.filter(temOrc);
+  var opt = function(s) { return '<option value="' + s.id + '">' + esc([_solNumeroTexto(s.numero), s.cliente, s.dataEvento ? fd(s.dataEvento) : '', s.pax ? s.pax + ' pax' : ''].filter(Boolean).join(' · ')) + '</option>'; };
   return '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--text2)">' +
     'Copiando cardápio, insumos, serviços e Calculadora de <strong>' + esc((o.numeroProposta ? o.numeroProposta + ' ' : '') + (o.nomeCliente || 'Sem nome')) + '</strong>. Preencha o pedido abaixo' +
-    (livres.length
-      ? ' ou use uma solicitação já cadastrada: <select class="inp" style="width:auto;display:inline-block;max-width:420px;margin-left:6px" onchange="if(this.value)_solClonarParaExistente(this.value)">' +
+    (todas.length
+      ? ' ou use uma solicitação já cadastrada: <select class="inp" style="width:auto;display:inline-block;max-width:420px;margin-left:6px" onchange="if(this.value)_solCloneEscolher(this.value)">' +
           '<option value="">— escolher solicitação —</option>' +
-          livres.map(function(s) { return '<option value="' + s.id + '">' + esc([_solNumeroTexto(s.numero), s.cliente, s.dataEvento ? fd(s.dataEvento) : '', s.pax ? s.pax + ' pax' : ''].filter(Boolean).join(' · ')) + '</option>'; }).join('') +
+          (livres.length ? '<optgroup label="Sem orçamento — o clone fica ligado a ela">' + livres.map(opt).join('') + '</optgroup>' : '') +
+          (comOrc.length ? '<optgroup label="Já têm orçamento — copia os dados pro formulário">' + comOrc.map(opt).join('') + '</optgroup>' : '') +
         '</select>'
       : '.') +
   '</div>';
+}
+
+function _solCloneEscolher(solId) {
+  var s = _solBuscar(solId);
+  if (!s) return;
+  var temOrc = typeof _orcSolTemOrc === 'function' ? _orcSolTemOrc(s) : !!s.orcamentoId;
+  if (!temOrc) { _solClonarParaExistente(solId); return; }
+  // Já tem orçamento: copia o cabeçalho dela pro formulário (Nº continua novo)
+  var set = function(id, v) { var el = document.getElementById(id); if (el) el.value = v == null ? '' : v; };
+  set('sol-solicitado-por', s.solicitadoPor);
+  set('sol-cliente', s.cliente);
+  set('sol-contato', s.celular || s.telefoneFixo || s.contatoCliente);
+  set('sol-tipo', s.tipoEvento);
+  set('sol-data', s.dataEvento);
+  set('sol-pax', s.pax || '');
+  set('sol-local', s.localEvento);
+  set('sol-centro-custo', s.centroCusto);
+  set('sol-servicos', s.servicosOrcados);
+  set('sol-hora', _solHoraTexto(s.hora));
+  set('sol-bebidas', s.bebidas);
+  set('sol-obs', s.observacao);
+  set('sol-modelo', s.modeloUtilizado);
+  set('sol-bv', s.bonificacaoCerimonial);
+  alert2('Dados de "' + (s.cliente || _solNumeroTexto(s.numero)) + '" copiados — confira e clique em Clonar orçamento.');
 }
 
 function _solClonarParaExistente(solId) {
