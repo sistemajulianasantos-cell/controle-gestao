@@ -385,6 +385,10 @@ function _solBuildForm(id) {
   var s = id ? _solBuscar(id) : null;
   // Clonando: tipo, PAX e centro de custo já vêm do orçamento original.
   var p = s || _solPrefillClone();
+  // Clonando: cabeçalho (cliente, contato, data, local, hora…) já vem do
+  // pedido do orçamento original — clone costuma ser pro mesmo cliente
+  // (10-19). Nº é novo; dá pra mudar qualquer campo antes de salvar.
+  var f = s || _solCloneFonte();
   var regioes = (typeof REGIOES_LOCAL !== 'undefined' ? REGIOES_LOCAL : []);
 
   return '<div style="padding:20px 24px;max-width:900px">' +
@@ -396,13 +400,13 @@ function _solBuildForm(id) {
     _solCloneVincularHtml() +
     '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">' +
       '<div><label class="lbl">Nº</label><input class="inp" id="sol-numero" type="text" value="' + (s ? s.numero : _solProximoNumero()) + '"></div>' +
-      '<div><label class="lbl">Solicitado por</label><input class="inp" id="sol-solicitado-por" type="text" placeholder="Quem atendeu/recebeu o pedido" value="' + (s ? s.solicitadoPor || '' : '') + '"></div>' +
-      '<div style="grid-column:span 2"><label class="lbl">Cliente (noivos / aniversariante) *</label><input class="inp" id="sol-cliente" type="text" placeholder="Ex: Ana e Pedro / 15 anos da Maria" value="' + (s ? _solEscAttr(s.cliente) : '') + '"></div>' +
-      '<div><label class="lbl">Contato</label><input class="inp" id="sol-contato" type="text" placeholder="(31) 9 9999-9999" value="' + (s ? _solEscAttr(s.celular || s.telefoneFixo || s.contatoCliente) : '') + '"></div>' +
+      '<div><label class="lbl">Solicitado por</label><input class="inp" id="sol-solicitado-por" type="text" placeholder="Quem atendeu/recebeu o pedido" value="' + (f ? f.solicitadoPor || '' : '') + '"></div>' +
+      '<div style="grid-column:span 2"><label class="lbl">Cliente (noivos / aniversariante) *</label><input class="inp" id="sol-cliente" type="text" placeholder="Ex: Ana e Pedro / 15 anos da Maria" value="' + (f ? _solEscAttr(f.cliente) : '') + '"></div>' +
+      '<div><label class="lbl">Contato</label><input class="inp" id="sol-contato" type="text" placeholder="(31) 9 9999-9999" value="' + (f ? _solEscAttr(f.celular || f.telefoneFixo || f.contatoCliente) : '') + '"></div>' +
       '<div><label class="lbl">Tipo de Evento</label><select class="inp" id="sol-tipo">' + _solTipoOptionsHtml(p ? p.tipoEvento || '' : '') + '</select></div>' +
-      '<div><label class="lbl">Data do Evento</label><input class="inp" id="sol-data" type="date" value="' + (s ? s.dataEvento || '' : '') + '"></div>' +
+      '<div><label class="lbl">Data do Evento</label><input class="inp" id="sol-data" type="date" value="' + (f ? f.dataEvento || '' : '') + '"></div>' +
       '<div><label class="lbl">PAX</label><input class="inp" id="sol-pax" type="number" min="0" placeholder="Nº de convidados" value="' + (p ? p.pax || '' : '') + '"></div>' +
-      '<div style="grid-column:span 2"><label class="lbl">Local do Evento</label><input class="inp" id="sol-local" type="text" placeholder="Nome do espaço / endereço" value="' + (s ? s.localEvento || '' : '') + '"></div>' +
+      '<div style="grid-column:span 2"><label class="lbl">Local do Evento</label><input class="inp" id="sol-local" type="text" placeholder="Nome do espaço / endereço" value="' + (f ? f.localEvento || '' : '') + '"></div>' +
       '<div><label class="lbl">Centro de Custo do Local</label><select class="inp" id="sol-centro-custo">' +
         '<option value="">— Selecione —</option>' +
         regioes.map(function(r) { return '<option value="' + r.key + '"' + (p && p.centroCusto === r.key ? ' selected' : '') + '>' + r.label + '</option>'; }).join('') +
@@ -410,12 +414,12 @@ function _solBuildForm(id) {
       '<div><label class="lbl">Status</label><select class="inp" id="sol-status">' +
         SOL_STATUS_PADRAO.map(function(st) { return '<option value="' + st + '"' + (s && (s.status || 'PENDENTE') === st ? ' selected' : '') + '>' + st + '</option>'; }).join('') +
       '</select></div>' +
-      '<div style="grid-column:1/-1"><label class="lbl">Serviços Orçados</label><input class="inp" id="sol-servicos" type="text" placeholder="Ex: Whiskeria opcional" value="' + (s ? s.servicosOrcados || '' : '') + '"></div>' +
-      '<div><label class="lbl">Hora</label><input class="inp" id="sol-hora" type="text" placeholder="Ex: 06:00 07:00 (tempo de festa)" value="' + (s ? _solHoraTexto(s.hora) : '') + '"></div>' +
-      '<div style="grid-column:span 2"><label class="lbl">Bebidas</label><input class="inp" id="sol-bebidas" type="text" placeholder="Ex: Vinho e Whisky" value="' + (s ? s.bebidas || '' : '') + '"></div>' +
-      '<div style="grid-column:1/-1"><label class="lbl">Observação</label><textarea class="inp" id="sol-obs" rows="2" style="resize:vertical">' + (s ? s.observacao || '' : '') + '</textarea></div>' +
-      '<div><label class="lbl">Modelo Utilizado</label><input class="inp" id="sol-modelo" type="text" placeholder="Modelo de proposta" value="' + (s ? s.modeloUtilizado || '' : '') + '"></div>' +
-      '<div><label class="lbl">Bonificação Cerimonial (bv)</label><input class="inp" id="sol-bv" type="text" placeholder="Ex: nome / % / valor" value="' + (s ? s.bonificacaoCerimonial || '' : '') + '"></div>' +
+      '<div style="grid-column:1/-1"><label class="lbl">Serviços Orçados</label><input class="inp" id="sol-servicos" type="text" placeholder="Ex: Whiskeria opcional" value="' + (f ? f.servicosOrcados || '' : '') + '"></div>' +
+      '<div><label class="lbl">Hora</label><input class="inp" id="sol-hora" type="text" placeholder="Ex: 06:00 07:00 (tempo de festa)" value="' + (f ? _solHoraTexto(f.hora) : '') + '"></div>' +
+      '<div style="grid-column:span 2"><label class="lbl">Bebidas</label><input class="inp" id="sol-bebidas" type="text" placeholder="Ex: Vinho e Whisky" value="' + (f ? f.bebidas || '' : '') + '"></div>' +
+      '<div style="grid-column:1/-1"><label class="lbl">Observação</label><textarea class="inp" id="sol-obs" rows="2" style="resize:vertical">' + (f ? f.observacao || '' : '') + '</textarea></div>' +
+      '<div><label class="lbl">Modelo Utilizado</label><input class="inp" id="sol-modelo" type="text" placeholder="Modelo de proposta" value="' + (f ? f.modeloUtilizado || '' : '') + '"></div>' +
+      '<div><label class="lbl">Bonificação Cerimonial (bv)</label><input class="inp" id="sol-bv" type="text" placeholder="Ex: nome / % / valor" value="' + (f ? f.bonificacaoCerimonial || '' : '') + '"></div>' +
     '</div>' +
     '<div style="margin-top:16px;display:flex;gap:8px">' +
       '<button class="btn" style="background:var(--green);color:#fff" onclick="_solSalvar()">' + (_solClonarDeId ? 'Clonar orçamento' : _solCriarOrc ? 'Criar orçamento' : '💾 Salvar') + '</button>' +
@@ -516,6 +520,15 @@ function _solPrefillClone() {
   var p = o.calcParams || {};
   var t = (typeof buscarTipoEventoPorId === 'function') ? buscarTipoEventoPorId(p.tipoEvento) : null;
   return { pax: o.convidados || '', tipoEvento: t ? t.nome : '', centroCusto: p.local || '' };
+}
+
+function _solCloneFonte() {
+  var o = _solOrcClonado();
+  if (!o) return null;
+  var sol = (typeof _orcSolVinculada === 'function') ? _orcSolVinculada(o) : null;
+  if (sol) return sol;
+  var info = function(campo) { return (typeof _orcInfo === 'function') ? _orcInfo(o, campo) : (o[campo] || ''); };
+  return { cliente: o.nomeCliente || '', celular: o.telefone || '', dataEvento: o.dataEvento || '', localEvento: o.local || '', hora: o.hora || '', servicosOrcados: info('servicosOrcados'), observacao: info('observacao') };
 }
 
 // No modo Clonar: aviso + atalho pra usar uma Solicitação já cadastrada (sem
