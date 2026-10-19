@@ -540,22 +540,46 @@ function _solCloneVincularHtml() {
   // Todas as solicitações (10-19 — antes só as sem orçamento, e ela não achava
   // a do cliente). Sem orçamento: o clone fica ligado a ela. Já com orçamento:
   // só copia os dados dela pro formulário (vira um pedido novo, mesmo cliente).
-  var temOrc = function(s) { return typeof _orcSolTemOrc === 'function' ? _orcSolTemOrc(s) : !!s.orcamentoId; };
-  var ordenar = function(a, b) { return (_solChaveNumero(b.numero) || 0) - (_solChaveNumero(a.numero) || 0); };
-  var todas = (D.solicitacoesOrcamento || []).slice().sort(ordenar);
-  var livres = todas.filter(function(s) { return !temOrc(s); });
-  var comOrc = todas.filter(temOrc);
-  var opt = function(s) { return '<option value="' + s.id + '">' + esc([_solNumeroTexto(s.numero), s.cliente, s.dataEvento ? fd(s.dataEvento) : '', s.pax ? s.pax + ' pax' : ''].filter(Boolean).join(' · ')) + '</option>'; };
+  // 10-19: campo de busca (nº da proposta, cliente, data) no lugar do select.
+  var temSol = (D.solicitacoesOrcamento || []).length > 0;
   return '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--text2)">' +
     'Copiando cardápio, insumos, serviços e Calculadora de <strong>' + esc((o.numeroProposta ? o.numeroProposta + ' ' : '') + (o.nomeCliente || 'Sem nome')) + '</strong>. Preencha o pedido abaixo' +
-    (todas.length
-      ? ' ou use uma solicitação já cadastrada: <select class="inp" style="width:auto;display:inline-block;max-width:420px;margin-left:6px" onchange="if(this.value)_solCloneEscolher(this.value)">' +
-          '<option value="">— escolher solicitação —</option>' +
-          (livres.length ? '<optgroup label="Sem orçamento — o clone fica ligado a ela">' + livres.map(opt).join('') + '</optgroup>' : '') +
-          (comOrc.length ? '<optgroup label="Já têm orçamento — copia os dados pro formulário">' + comOrc.map(opt).join('') + '</optgroup>' : '') +
-        '</select>'
+    (temSol
+      ? ' ou puxe os dados de uma solicitação já cadastrada:' +
+        '<div style="position:relative;margin-top:8px;max-width:520px">' +
+          '<input class="inp" id="sol-clone-busca" type="text" autocomplete="off" placeholder="Digite o nº da proposta, cliente ou data (ex: 0926-097)" ' +
+            'oninput="_solCloneBuscar(this.value)" onfocus="_solCloneBuscar(this.value)" onblur="setTimeout(function(){var d=document.getElementById(\'sol-clone-res\');if(d)d.style.display=\'none\';},200)">' +
+          '<div id="sol-clone-res" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:40;max-height:320px;overflow:auto;background:var(--bg2);border:1px solid var(--border2);border-radius:6px;box-shadow:0 8px 20px rgba(0,0,0,.35)"></div>' +
+        '</div>'
       : '.') +
   '</div>';
+}
+
+function _solCloneBuscar(termo) {
+  var box = document.getElementById('sol-clone-res');
+  if (!box) return;
+  var esc = function(x) { return String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
+  var norm = function(x) { return String(x == null ? '' : x).normalize('NFD').replace(/\p{Mn}/gu, '').toLowerCase(); };
+  var temOrc = function(s) { return typeof _orcSolTemOrc === 'function' ? _orcSolTemOrc(s) : !!s.orcamentoId; };
+  var t = norm(termo).trim();
+  var lista = (D.solicitacoesOrcamento || []).slice()
+    .sort(function(a, b) { return (_solChaveNumero(b.numero) || 0) - (_solChaveNumero(a.numero) || 0); })
+    .filter(function(s) {
+      if (!t) return true;
+      var alvo = norm([_solNumeroTexto(s.numero), s.cliente, s.dataEvento ? fd(s.dataEvento) : '', s.localEvento, s.tipoEvento].join(' '));
+      return t.split(/\s+/).every(function(p) { return alvo.indexOf(p) !== -1; });
+    })
+    .slice(0, 50);
+  box.innerHTML = lista.length ? lista.map(function(s) {
+    var ja = temOrc(s);
+    return '<div onmousedown="_solCloneEscolher(\'' + s.id + '\')" style="padding:7px 12px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center" ' +
+      'onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'\'">' +
+      '<span style="font-family:var(--mono);font-weight:700;color:var(--text)">' + esc(_solNumeroTexto(s.numero)) + '</span>' +
+      '<span style="flex:1;color:var(--text)">' + esc([s.cliente, s.dataEvento ? fd(s.dataEvento) : '', s.pax ? s.pax + ' pax' : ''].filter(Boolean).join(' · ')) + '</span>' +
+      '<span style="font-size:10px;white-space:nowrap;color:' + (ja ? 'var(--text3)' : 'var(--green)') + '">' + (ja ? 'copia os dados' : 'sem orçamento · liga o clone') + '</span>' +
+    '</div>';
+  }).join('') : '<div style="padding:10px 12px;color:var(--text3)">Nenhuma solicitação encontrada.</div>';
+  box.style.display = '';
 }
 
 function _solCloneEscolher(solId) {
