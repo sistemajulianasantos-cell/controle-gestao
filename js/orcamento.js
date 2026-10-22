@@ -208,7 +208,7 @@ function _orcListaCardsHTML(listaToda) {
             <div style="display:flex;align-items:center;gap:6px">
               ${temValor ? '' : `<span style="background:var(--bg3);color:var(--text3);font-size:9px;padding:2px 7px;border-radius:3px">Sem cálculo</span>`}
               <button class="btn-sm" onclick="event.stopPropagation();clonarOrc('${o.id}')" title="Criar um novo orçamento igual a este" style="background:var(--bg3)">Clonar</button>
-              <button class="btn-sm btn-red" onclick="event.stopPropagation();excluirOrc('${o.id}')" title="Excluir">✕</button>
+              ${typeof orcContratoBotaoHTML === 'function' ? orcContratoBotaoHTML(o, true) : ''}
             </div>
           </div>`;
       }).join('')}
@@ -314,6 +314,7 @@ function rOrcDetalhe() {
         ${_orcNomesUsuarios().map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('')}
       </select>` : ''}
       <button class="btn-sm" onclick="clonarOrc('${orc.id}')" title="Criar um novo orçamento igual a este" style="background:var(--bg3)">Clonar</button>
+      ${typeof orcContratoBotaoHTML === 'function' ? orcContratoBotaoHTML(orc, false) : ''}
     </div>
     ${!sol ? `
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--bg3);border:1px dashed var(--border2);border-radius:var(--radius);padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--text3)">
@@ -763,18 +764,7 @@ function _orcCopiaClone(orig) {
   return copia;
 }
 
-// ─── EXCLUIR ─────────────────────────────────────────────────────────────────
-
-function excluirOrc(id) {
-  if (!confirm('Excluir este orçamento e todos os seus itens?')) return;
-  D.orcamentos = (D.orcamentos||[]).filter(o => o.id !== id);
-  sv('orcamentos');
-  // Solicitação que gerou este orçamento volta a ficar livre ("Gerar Orçamento")
-  let soltou = false;
-  (D.solicitacoesOrcamento || []).forEach(s => { if (s.orcamentoId === id) { s.orcamentoId = ''; soltou = true; } });
-  if (soltou) sv('solicitacoesOrcamento');
-  rOrcLista();
-}
+// Orçamento não se exclui (pedido dela 10-22) — o botão ✕ da lista saiu.
 
 function excluirItemOrc(orcId, itemId) {
   const orc = (D.orcamentos||[]).find(o => o.id === orcId);

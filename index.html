@@ -2465,10 +2465,11 @@
 <script src="js/separacao.js?v=20261015a"></script>
 <script src="js/equipe.js?v=20261012e"></script>
 <script src="js/solicitacaoOrcamento.js?v=20261019c"></script>
-<script src="js/orcamento.js?v=20261016d"></script>
+<script src="js/orcamento.js?v=20261022a"></script>
 <script src="js/orcCalc.js?v=20261016m"></script>
 <script src="js/orcCalculos.js?v=20261016c"></script>
 <script src="js/orcProposta.js?v=20261016b"></script>
+<script src="js/orcContrato.js?v=20261022a"></script>
 <script src="js/_refConsumoData.js?v=20260610z"></script>
 <script src="js/refConsumo.js?v=20261016m"></script>
 <script src="js/seguranca-admin.js?v=20261012e"></script>
@@ -2616,21 +2617,21 @@ window.svFirebase = async function(chave) {
       await batch.commit();
     }
 
-    if (chave === 'propostaTemplateDocx') {
+    if (chave === 'propostaTemplateDocx' || chave === 'contratoTemplateDocx') {
       // O .docx do modelo (com fotos) facilmente passa de 1MB, o limite por
       // documento do Firestore — fatia o base64 em vários documentos
       // (propostaTemplateDocx_chunk0, _chunk1, ...) igual ao financeiro por
       // ano acima, só que por pedaço de texto em vez de por ano.
-      const tpl = D.propostaTemplateDocx;
+      const tpl = D[chave];
       if (tpl && tpl.base64) {
         const TAM_CHUNK = 900000; // chars de base64 por documento, com folga sob o limite de 1MiB
         const total = Math.ceil(tpl.base64.length / TAM_CHUNK);
         const batchTpl = writeBatch(db);
         for (let i = 0; i < total; i++) {
-          batchTpl.set(doc(db, "dados", "propostaTemplateDocx_chunk" + i),
+          batchTpl.set(doc(db, "dados", chave + "_chunk" + i),
             { valor: tpl.base64.slice(i * TAM_CHUNK, (i + 1) * TAM_CHUNK) });
         }
-        batchTpl.set(doc(db, "dados", "propostaTemplateDocx_meta"),
+        batchTpl.set(doc(db, "dados", chave + "_meta"),
           { valor: { nome: tpl.nome, tamanho: tpl.tamanho, importadoEm: tpl.importadoEm, totalChunks: total } });
         await batchTpl.commit();
       }
@@ -2893,6 +2894,15 @@ async function carregarDados() {
       D.propostaTemplateDocx = { base64, nome: propMeta.nome, tamanho: propMeta.tamanho, importadoEm: propMeta.importadoEm };
     } else {
       D.propostaTemplateDocx = null;
+    }
+    // Modelo do Contrato (Orçamento → Gerar contrato), fatiado do mesmo jeito.
+    const contMeta = r.contratoTemplateDocx_meta;
+    if (contMeta && contMeta.totalChunks) {
+      let base64 = '';
+      for (let i = 0; i < contMeta.totalChunks; i++) base64 += (r['contratoTemplateDocx_chunk' + i] || '');
+      D.contratoTemplateDocx = { base64, nome: contMeta.nome, tamanho: contMeta.tamanho, importadoEm: contMeta.importadoEm };
+    } else {
+      D.contratoTemplateDocx = null;
     }
     D.senhas                = r.senhas                || {};
     D.rcEventos             = r.rcEventos             || [];
