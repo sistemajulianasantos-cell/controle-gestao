@@ -110,6 +110,14 @@ function _orcContratoRender(orc) {
       opcPacote('essencial', 'Pacote Essencial', r.valorTotalEssencial, r.porPessoaEssencial, 'var(--blue)') +
       opcPacote('completo', 'Pacote Completo', r.valorTotal, r.porPessoa, 'var(--green)') +
     '</div>' +
+    // No Essencial a bebida pode ser nossa ou do cliente (no Completo é sempre nossa).
+    '<div id="morc-bebidas-row" style="display:none;margin:-4px 0 14px">' +
+      '<label class="lbl">Bebidas (destilados) fornecidas por *</label>' +
+      '<div style="display:flex;gap:16px;font-size:13px;color:var(--text)">' +
+        '<label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="radio" name="morc-bebidas" value="romero" style="width:auto;margin:0"> Romero</label>' +
+        '<label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="radio" name="morc-bebidas" value="cliente" style="width:auto;margin:0"> Cliente</label>' +
+      '</div>' +
+    '</div>' +
 
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
       '<div style="grid-column:1/-1"><label class="lbl">Nome completo *</label><input id="morc-nome" class="inp" type="text" value="' + esc(typeof _propostaCliente === 'function' ? _propostaCliente(orc) : orc.nomeCliente) + '" style="width:100%;box-sizing:border-box"></div>' +
@@ -157,6 +165,8 @@ function _orcContratoAtualizarTotal() {
   var el = document.getElementById('morc-total');
   if (!el) return;
   var v = _orcContratoLerValores();
+  var linhaBebidas = document.getElementById('morc-bebidas-row');
+  if (linhaBebidas) linhaBebidas.style.display = v.pacote === 'essencial' ? '' : 'none';
   if (!v.pacote) { el.innerHTML = 'Escolha o pacote para ver o valor final.'; return; }
   var porPessoa = v.convidados ? ' · ' + fR(v.final / v.convidados) + ' / pessoa' : '';
   el.innerHTML = (v.desconto ? fR(v.bruto) + ' − ' + fR(v.desconto) + ' = ' : '') +
@@ -187,9 +197,11 @@ function orcConfirmarGerarContrato() {
     enderecoEvento: val('morc-endereco-evento'),
     hrInicio: val('morc-hora'),
     vencRestante: val('morc-venc'),
+    bebidasPor: vals.pacote === 'completo' ? 'romero' : ((document.querySelector('input[name="morc-bebidas"]:checked') || {}).value || ''),
   };
   var faltam = [];
   if (!dados.pacote) faltam.push('pacote fechado');
+  else if (!dados.bebidasPor) faltam.push('quem fornece as bebidas');
   if (!dados.nome) faltam.push('nome completo');
   if (!dados.cpf) faltam.push('CPF/CNPJ');
   if (!dados.endereco) faltam.push('endereço residencial');
@@ -225,7 +237,10 @@ function orcConfirmarGerarContrato() {
         { valor: fmt(info.sinal), descricao: 'Sinal — assinatura do contrato', vencimento: td() },
         { valor: fmt(info.restante), descricao: 'Restante', vencimento: dados.vencRestante || '' },
       ],
-      cardapio: info.coqueteis, bebidasRomero: info.destilados,
+      cardapio: info.coqueteis,
+      bebidasPor: dados.bebidasPor,
+      bebidasRomero: dados.bebidasPor === 'romero' ? info.destilados : '',
+      bebidasCliente: dados.bebidasPor === 'cliente' ? 'Destilados fornecidos pelo cliente' : '',
       proposta: orc.numeroProposta || '',
       pacote: dados.pacote, vencRestante: dados.vencRestante || '',
       valorBruto: dados.valorBruto, desconto: dados.desconto, descontoTexto: dados.descontoTexto,
@@ -257,6 +272,7 @@ function orcBaixarContrato(orcId) {
   var c = _orcContratoDoOrc(orc);
   if (!c) return;
   var dados = { pacote: c.pacote || orc.pacoteFechado || 'completo', nome: c.nome, cpf: c.cpf, endereco: c.endereco || '', enderecoEvento: c.enderecoEvento || '', hrInicio: c.hrInicio || '', vencRestante: c.vencRestante || '',
+    bebidasPor: c.bebidasPor || (c.pacote === 'essencial' && !c.bebidasRomero ? 'cliente' : 'romero'),
     valorBruto: Number(c.valorBruto) || Number(c.valorNum) || 0, desconto: Number(c.desconto) || 0, descontoTexto: c.descontoTexto || '' };
   _orcContratoBaixarDocx(_orcContratoInfo(orc, dados, Number(c.valorNum) || 0));
 }
@@ -283,9 +299,9 @@ function _orcContratoInfo(orc, dados, valor) {
 
   var coqueteis = Array.from(new Set((orc.insumos || []).flatMap(function(i) { return i.coqueteis || []; })))
     .map(_propostaFrase).join(', ');
-  var destilados = completo
+  var destilados = (completo || dados.bebidasPor !== 'cliente')
     ? _propostaRotulos(d.destilados).join(', ')
-    : 'Pacote Essencial — destilados por conta do CONTRATANTE';
+    : 'destilados fornecidos pelo(a) CONTRATANTE';
 
   var sinal = Math.round(valor * 0.2 * 100) / 100;
   var r = d.resumo || {};
@@ -333,6 +349,7 @@ function _orcContratoMarcacoes(info) {
     EQUIPE: info.equipe.map(function(e) { return e.qtd + ' ' + e.cargo + (e.qtd > 1 ? (e.cargo === 'Coordenador' ? 'es' : 's') : ''); }).join(', '),
     COQUETEIS: info.coqueteis, CARDAPIO: info.coqueteis,
     DESTILADOS: info.destilados,
+    BEBIDAS_FORNECIDAS_POR: dados.bebidasPor === 'cliente' ? 'CONTRATANTE' : 'CONTRATADA (Romero Coquetéis)',
     MODULOS: info.opcionais, OPCIONAIS: info.opcionais,
     VALOR_HORA_EXTRA: valHE ? fR(valHE) : '',
     VALOR_CONVIDADO_EXTRA: info.porPessoa ? fR(info.porPessoa) : '',
