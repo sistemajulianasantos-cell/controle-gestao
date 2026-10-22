@@ -36,7 +36,8 @@ function rOrcLista() {
       ${tpl
         ? `<span style="font-size:12px;color:var(--green)">✓ ${tpl.nome || 'modelo.docx'}${tpl.importadoEm ? ' · ' + new Date(tpl.importadoEm).toLocaleDateString('pt-BR') : ''}</span>`
         : `<span style="font-size:12px;color:var(--text3)">Nenhum modelo importado — a Proposta sai numa versão simplificada até você importar um.</span>`}
-      <label class="btn-sm" style="background:var(--bg3);cursor:pointer;margin-left:auto">
+      ${tpl ? `<button class="btn-sm" onclick="baixarModeloDocx('proposta')" title="Baixa o modelo que o sistema está usando, pra editar e importar de novo" style="background:var(--bg3);margin-left:auto">Baixar modelo</button>` : ''}
+      <label class="btn-sm" style="background:var(--bg3);cursor:pointer${tpl ? '' : ';margin-left:auto'}">
         📤 ${tpl ? 'Substituir modelo' : 'Importar modelo'}
         <input type="file" accept=".docx" onchange="propostaImportarModelo(this)" style="display:none">
       </label>

@@ -33,7 +33,8 @@ function contratoModelosBarraHTML() {
       (tpl
         ? '<span style="font-size:12px;color:var(--green)">✓ ' + _propostaEsc(tpl.nome || 'modelo.docx') + (tpl.importadoEm ? ' · ' + new Date(tpl.importadoEm).toLocaleDateString('pt-BR') : '') + '</span>'
         : '<span style="font-size:12px;color:var(--text3)">Nenhum modelo importado — usa o modelo padrão do sistema.</span>') +
-      '<label class="btn-sm" style="background:var(--bg3);cursor:pointer;margin-left:auto">' + (tpl ? 'Substituir modelo' : 'Importar modelo') +
+      '<button class="btn-sm" onclick="baixarModeloDocx(\'' + pacote + '\')" title="Baixa o modelo que o sistema está usando, pra editar e importar de novo" style="background:var(--bg3);margin-left:auto">Baixar modelo</button>' +
+      '<label class="btn-sm" style="background:var(--bg3);cursor:pointer">' + (tpl ? 'Substituir modelo' : 'Importar modelo') +
         '<input type="file" accept=".docx" onchange="contratoImportarModelo(this,\'' + pacote + '\')" style="display:none"></label>' +
     '</div>';
   };
@@ -359,6 +360,35 @@ function _orcContratoMarcacoes(info) {
 // O modelo embutido saiu de um contrato antigo e tem por extenso e data fixos
 // ("(novecentos reais)", "(três mil e seiscentos reais) para o dia
 // 21/08/2025") — troca por marcações antes de preencher.
+// Baixa o modelo em uso ('proposta', 'essencial' ou 'completo') — o importado
+// fica só no sistema, ela queria o arquivo de volta pra editar (10-22).
+// Contrato sem modelo importado: baixa o padrão do sistema (já corrigido).
+function baixarModeloDocx(qual) {
+  var tpl = qual === 'proposta' ? D.propostaTemplateDocx : _contratoModelo(qual);
+  var nome, bytes;
+  try {
+    if (tpl && tpl.base64) {
+      bytes = Uint8Array.from(atob(tpl.base64), function(c) { return c.charCodeAt(0); });
+      nome = tpl.nome || ('Modelo ' + qual + '.docx');
+    } else if (qual !== 'proposta' && window.TEMPLATE_B64_GLOBAL && window.PizZip) {
+      var zip = new PizZip(Uint8Array.from(atob(window.TEMPLATE_B64_GLOBAL), function(c) { return c.charCodeAt(0); }));
+      _orcContratoCorrigirModeloPadrao(zip);
+      bytes = zip.generate({ type: 'uint8array' });
+      nome = 'Modelo contrato padrao do sistema.docx';
+    } else {
+      alert2('Nenhum modelo para baixar.', 'error');
+      return;
+    }
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }));
+    a.download = /\.docx$/i.test(nome) ? nome : nome + '.docx';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (e) {
+    alert2('Erro ao baixar o modelo: ' + e.message, 'error');
+  }
+}
+
 function _orcContratoCorrigirModeloPadrao(zip) {
   var f = zip.file('word/document.xml');
   if (!f) return;
