@@ -2465,11 +2465,11 @@
 <script src="js/separacao.js?v=20261015a"></script>
 <script src="js/equipe.js?v=20261012e"></script>
 <script src="js/solicitacaoOrcamento.js?v=20261019c"></script>
-<script src="js/orcamento.js?v=20261022a"></script>
+<script src="js/orcamento.js?v=20261022b"></script>
 <script src="js/orcCalc.js?v=20261016m"></script>
 <script src="js/orcCalculos.js?v=20261016c"></script>
 <script src="js/orcProposta.js?v=20261016b"></script>
-<script src="js/orcContrato.js?v=20261022a"></script>
+<script src="js/orcContrato.js?v=20261022b"></script>
 <script src="js/_refConsumoData.js?v=20260610z"></script>
 <script src="js/refConsumo.js?v=20261016m"></script>
 <script src="js/seguranca-admin.js?v=20261012e"></script>
@@ -2617,7 +2617,7 @@ window.svFirebase = async function(chave) {
       await batch.commit();
     }
 
-    if (chave === 'propostaTemplateDocx' || chave === 'contratoTemplateDocx') {
+    if (chave === 'propostaTemplateDocx' || chave === 'contratoTemplateEssencial' || chave === 'contratoTemplateCompleto' || chave === 'contratoTemplateDocx') {
       // O .docx do modelo (com fotos) facilmente passa de 1MB, o limite por
       // documento do Firestore — fatia o base64 em vários documentos
       // (propostaTemplateDocx_chunk0, _chunk1, ...) igual ao financeiro por
@@ -2895,15 +2895,19 @@ async function carregarDados() {
     } else {
       D.propostaTemplateDocx = null;
     }
-    // Modelo do Contrato (Orçamento → Gerar contrato), fatiado do mesmo jeito.
-    const contMeta = r.contratoTemplateDocx_meta;
-    if (contMeta && contMeta.totalChunks) {
-      let base64 = '';
-      for (let i = 0; i < contMeta.totalChunks; i++) base64 += (r['contratoTemplateDocx_chunk' + i] || '');
-      D.contratoTemplateDocx = { base64, nome: contMeta.nome, tamanho: contMeta.tamanho, importadoEm: contMeta.importadoEm };
-    } else {
-      D.contratoTemplateDocx = null;
-    }
+    // Modelos do Contrato (Orçamento → Gerar contrato), um por pacote, fatiados
+    // do mesmo jeito. contratoTemplateDocx = modelo único antigo (10-22), só
+    // usado se o do pacote não tiver sido importado.
+    ['contratoTemplateEssencial', 'contratoTemplateCompleto', 'contratoTemplateDocx'].forEach(k => {
+      const meta = r[k + '_meta'];
+      if (meta && meta.totalChunks) {
+        let base64 = '';
+        for (let i = 0; i < meta.totalChunks; i++) base64 += (r[k + '_chunk' + i] || '');
+        D[k] = { base64, nome: meta.nome, tamanho: meta.tamanho, importadoEm: meta.importadoEm };
+      } else {
+        D[k] = null;
+      }
+    });
     D.senhas                = r.senhas                || {};
     D.rcEventos             = r.rcEventos             || [];
     D.rcEventosImportados   = r.rcEventosImportados   || [];

@@ -31,7 +31,7 @@ function rOrcLista() {
         style="margin-left:auto">+ Novo orçamento</button>
     </div>
 
-    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
       <span style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">📁 Modelo da proposta (.docx)</span>
       ${tpl
         ? `<span style="font-size:12px;color:var(--green)">✓ ${tpl.nome || 'modelo.docx'}${tpl.importadoEm ? ' · ' + new Date(tpl.importadoEm).toLocaleDateString('pt-BR') : ''}</span>`
@@ -41,6 +41,7 @@ function rOrcLista() {
         <input type="file" accept=".docx" onchange="propostaImportarModelo(this)" style="display:none">
       </label>
     </div>
+    ${typeof contratoModelosBarraHTML === 'function' ? contratoModelosBarraHTML() : ''}
 
     ${!lista.length ? `
       <div style="text-align:center;padding:60px 20px;color:var(--text3)">

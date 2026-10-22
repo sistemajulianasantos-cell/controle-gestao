@@ -6,11 +6,49 @@
 // financeiro + ficha de produção). O orçamento fica ligado ao contrato
 // (orc.contratoId) — clicar de novo só baixa o .docx outra vez, sem duplicar.
 //
-// Modelo: o que ela importar aqui (D.contratoTemplateDocx); sem isso, o modelo
+// Modelos: um por pacote (D.contratoTemplateEssencial / Completo), importados
+// na barra da lista de Orçamentos, igual ao modelo da proposta. Sem o do
+// pacote: o modelo único antigo (D.contratoTemplateDocx) e, por último, o
 // embutido (window.TEMPLATE_B64_GLOBAL, js/nav.js), que usa {{MARCAÇÃO}}.
+//
+// Desconto (negociação): % ou R$ sobre o valor do pacote; o contrato, as
+// parcelas e o Financeiro usam o valor final.
 
 var CONTRATO_TEMPLATE_MAX_BYTES = 15 * 1024 * 1024;
+var CONTRATO_MODELO_CHAVE = { essencial: 'contratoTemplateEssencial', completo: 'contratoTemplateCompleto' };
 var _orcContratoId = null;
+
+function _contratoModelo(pacote) {
+  var tpl = D[CONTRATO_MODELO_CHAVE[pacote]];
+  if (tpl && tpl.base64) return tpl;
+  return (D.contratoTemplateDocx && D.contratoTemplateDocx.base64) ? D.contratoTemplateDocx : null;
+}
+
+// Barra "Modelo do contrato" na lista de Orçamentos (abaixo da da proposta).
+function contratoModelosBarraHTML() {
+  var linha = function(pacote, rotulo, cor) {
+    var tpl = D[CONTRATO_MODELO_CHAVE[pacote]];
+    return '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;flex:1;min-width:300px">' +
+      '<span style="font-size:11px;font-weight:700;color:' + cor + ';text-transform:uppercase;letter-spacing:.5px">Contrato ' + rotulo + ' (.docx)</span>' +
+      (tpl
+        ? '<span style="font-size:12px;color:var(--green)">✓ ' + _propostaEsc(tpl.nome || 'modelo.docx') + (tpl.importadoEm ? ' · ' + new Date(tpl.importadoEm).toLocaleDateString('pt-BR') : '') + '</span>'
+        : '<span style="font-size:12px;color:var(--text3)">Nenhum modelo importado — usa o modelo padrão do sistema.</span>') +
+      '<label class="btn-sm" style="background:var(--bg3);cursor:pointer;margin-left:auto">' + (tpl ? 'Substituir modelo' : 'Importar modelo') +
+        '<input type="file" accept=".docx" onchange="contratoImportarModelo(this,\'' + pacote + '\')" style="display:none"></label>' +
+    '</div>';
+  };
+  return '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;display:flex;gap:10px 24px;flex-wrap:wrap">' +
+    linha('essencial', 'Essencial', 'var(--blue)') + linha('completo', 'Completo', 'var(--green)') +
+  '</div>';
+}
+
+// Valor final com o desconto: tipo '%' ou 'R$'.
+function _orcContratoAplicarDesconto(bruto, tipo, qtd) {
+  var n = Math.max(0, Number(qtd) || 0);
+  var desc = tipo === '%' ? bruto * n / 100 : n;
+  desc = Math.round(Math.min(desc, bruto) * 100) / 100;
+  return { bruto: bruto, desconto: desc, final: Math.round((bruto - desc) * 100) / 100 };
+}
 
 function _orcContratoDoOrc(orc) {
   if (!orc || !orc.contratoId) return null;
@@ -55,10 +93,9 @@ function _orcContratoRender(orc) {
   if (!corpo) return;
   var esc = function(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); };
   var r = (typeof _orcCalcResumo === 'function') ? _orcCalcResumo(orc) : {};
-  var tpl = D.contratoTemplateDocx;
   var opcPacote = function(valor, rotulo, total, porPessoa, cor) {
     return '<label style="flex:1;min-width:180px;display:flex;gap:8px;align-items:flex-start;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);padding:10px 12px;cursor:pointer">' +
-      '<input type="radio" name="morc-pacote" value="' + valor + '" style="width:auto;margin:3px 0 0">' +
+      '<input type="radio" name="morc-pacote" value="' + valor + '" onchange="_orcContratoAtualizarTotal()" style="width:auto;margin:3px 0 0">' +
       '<span><span style="display:block;font-size:10px;font-weight:700;text-transform:uppercase;color:' + cor + '">' + rotulo + '</span>' +
       '<span style="display:block;font-family:var(--mono);font-size:15px;font-weight:600;color:' + cor + '">' + fR(total) + '</span>' +
       '<span style="display:block;font-size:10px;color:var(--text3)">' + (porPessoa ? fR(porPessoa) + ' / pessoa' : '') + '</span></span></label>';
@@ -82,10 +119,13 @@ function _orcContratoRender(orc) {
       '<div style="font-size:10px;color:var(--text3);align-self:end;padding-bottom:6px">Em branco: sai "a combinar" no contrato.</div>' +
     '</div>' +
 
-    '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid var(--border);margin-top:14px;padding-top:10px;font-size:11px;color:var(--text3)">' +
-      'Modelo: ' + (tpl ? '<span style="color:var(--green)">' + esc(tpl.nome || 'modelo.docx') + '</span>' : 'modelo padrão do sistema') +
-      '<label class="btn-sm" style="background:var(--bg3);cursor:pointer;margin-left:auto">' + (tpl ? 'Substituir modelo' : 'Importar modelo (.docx)') +
-        '<input type="file" accept=".docx" onchange="contratoImportarModelo(this)" style="display:none"></label>' +
+    '<div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px">' +
+      '<label class="lbl">Desconto (valor negociado)</label>' +
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+        '<select id="morc-desc-tipo" class="inp" onchange="_orcContratoAtualizarTotal()" style="width:auto"><option value="%">%</option><option value="R$">R$</option></select>' +
+        '<input id="morc-desc" class="inp" type="text" inputmode="decimal" placeholder="0" oninput="_orcContratoAtualizarTotal()" style="width:120px;text-align:right">' +
+        '<div id="morc-total" style="margin-left:auto;text-align:right;font-size:12px;color:var(--text3)"></div>' +
+      '</div>' +
     '</div>' +
 
     '<div style="font-size:11px;color:var(--text3);margin-top:10px">Ao gerar: o contrato entra em Contratos, o evento na Agenda, o sinal (20%) e o restante (80%) como pendentes no Financeiro, e a ficha em Produção.</div>' +
@@ -93,6 +133,33 @@ function _orcContratoRender(orc) {
       '<button class="btn" onclick="closeM(\'morc-contrato\')" style="background:var(--bg3)">Cancelar</button>' +
       '<button class="btn" id="btn-morc-gerar" onclick="orcConfirmarGerarContrato()" style="background:var(--blue);color:#fff">Gerar contrato (.docx)</button>' +
     '</div>';
+  _orcContratoAtualizarTotal();
+}
+
+// Lê pacote + desconto da janela → { pacote, bruto, desconto, final, tipo, qtd }.
+function _orcContratoLerValores() {
+  var orc = (D.orcamentos || []).find(function(o) { return o.id === _orcContratoId; });
+  var marcado = document.querySelector('input[name="morc-pacote"]:checked');
+  var pacote = marcado ? marcado.value : '';
+  var r = orc && typeof _orcCalcResumo === 'function' ? _orcCalcResumo(orc) : {};
+  var bruto = pacote === 'completo' ? (r.valorTotal || 0) : pacote === 'essencial' ? (r.valorTotalEssencial || 0) : 0;
+  var tipo = (document.getElementById('morc-desc-tipo') || {}).value || '%';
+  var txt = ((document.getElementById('morc-desc') || {}).value || '').trim();
+  var qtd = txt ? parseValorBR(txt) : 0;
+  var v = _orcContratoAplicarDesconto(bruto, tipo, qtd);
+  v.pacote = pacote; v.tipo = tipo; v.qtd = qtd; v.convidados = orc ? Number(orc.convidados) || 0 : 0;
+  return v;
+}
+
+function _orcContratoAtualizarTotal() {
+  var el = document.getElementById('morc-total');
+  if (!el) return;
+  var v = _orcContratoLerValores();
+  if (!v.pacote) { el.innerHTML = 'Escolha o pacote para ver o valor final.'; return; }
+  var porPessoa = v.convidados ? ' · ' + fR(v.final / v.convidados) + ' / pessoa' : '';
+  el.innerHTML = (v.desconto ? fR(v.bruto) + ' − ' + fR(v.desconto) + ' = ' : '') +
+    '<span style="font-family:var(--mono);font-size:15px;font-weight:600;color:var(--text)">' + fR(v.final) + '</span>' +
+    '<div style="font-size:10px">valor final do contrato' + porPessoa + '</div>';
 }
 
 // CPF (11 dígitos) ou CNPJ (14) com a máscara; outra coisa fica como digitou.
@@ -108,9 +175,9 @@ function orcConfirmarGerarContrato() {
   if (!orc) return;
   if (_orcContratoDoOrc(orc)) { closeM('morc-contrato'); orcBaixarContrato(orc.id); return; }
   var val = function(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; };
-  var marcado = document.querySelector('input[name="morc-pacote"]:checked');
+  var vals = _orcContratoLerValores();
   var dados = {
-    pacote: marcado ? marcado.value : '',
+    pacote: vals.pacote,
     nome: val('morc-nome'),
     cpf: _orcFormatarDoc(val('morc-cpf')),
     endereco: val('morc-endereco'),
@@ -127,9 +194,13 @@ function orcConfirmarGerarContrato() {
   var digitos = dados.cpf.replace(/\D/g, '').length;
   if (digitos !== 11 && digitos !== 14) { alert2('CPF deve ter 11 dígitos e CNPJ 14.', 'error'); return; }
 
-  var r = (typeof _orcCalcResumo === 'function') ? _orcCalcResumo(orc) : {};
-  var valor = dados.pacote === 'completo' ? (r.valorTotal || 0) : (r.valorTotalEssencial || 0);
-  if (!(valor > 0)) { alert2('Este orçamento está sem valor calculado para o pacote escolhido — confira a Calculadora antes de gerar o contrato.', 'error'); return; }
+  if (!(vals.bruto > 0)) { alert2('Este orçamento está sem valor calculado para o pacote escolhido — confira a Calculadora antes de gerar o contrato.', 'error'); return; }
+  if (!(vals.final > 0)) { alert2('O desconto não pode ser igual ou maior que o valor do pacote.', 'error'); return; }
+  if (vals.tipo === '%' && vals.qtd > 100) { alert2('Desconto em % não pode passar de 100.', 'error'); return; }
+  dados.valorBruto = vals.bruto;
+  dados.desconto = vals.desconto;
+  dados.descontoTexto = vals.desconto ? (vals.tipo === '%' ? String(vals.qtd).replace('.', ',') + '%' : fR(vals.desconto)) : '';
+  var valor = vals.final;
 
   var btn = document.getElementById('btn-morc-gerar');
   if (btn) { btn.disabled = true; btn.textContent = 'Gerando…'; }
@@ -151,6 +222,7 @@ function orcConfirmarGerarContrato() {
       cardapio: info.coqueteis, bebidasRomero: info.destilados,
       proposta: orc.numeroProposta || '',
       pacote: dados.pacote, vencRestante: dados.vencRestante || '',
+      valorBruto: dados.valorBruto, desconto: dados.desconto, descontoTexto: dados.descontoTexto,
       orcamentoId: orc.id,
       status: 'ativo', origem: 'orcamento',
     });
@@ -178,7 +250,8 @@ function orcBaixarContrato(orcId) {
   var orc = (D.orcamentos || []).find(function(o) { return o.id === orcId; });
   var c = _orcContratoDoOrc(orc);
   if (!c) return;
-  var dados = { pacote: c.pacote || orc.pacoteFechado || 'completo', nome: c.nome, cpf: c.cpf, endereco: c.endereco || '', hrInicio: c.hrInicio || '', vencRestante: c.vencRestante || '' };
+  var dados = { pacote: c.pacote || orc.pacoteFechado || 'completo', nome: c.nome, cpf: c.cpf, endereco: c.endereco || '', hrInicio: c.hrInicio || '', vencRestante: c.vencRestante || '',
+    valorBruto: Number(c.valorBruto) || Number(c.valorNum) || 0, desconto: Number(c.desconto) || 0, descontoTexto: c.descontoTexto || '' };
   _orcContratoBaixarDocx(_orcContratoInfo(orc, dados, Number(c.valorNum) || 0));
 }
 
@@ -214,7 +287,8 @@ function _orcContratoInfo(orc, dados, valor) {
     orc: orc, dados: dados, valor: valor, sinal: sinal, restante: Math.round((valor - sinal) * 100) / 100,
     tempo: tempo, hrFim: hrFim, equipe: equipe, coqueteis: coqueteis, destilados: destilados,
     tipo: _propostaTipoEvento(orc), local: _propostaLocalEvento(orc),
-    porPessoa: completo ? r.porPessoa : r.porPessoaEssencial,
+    // Com desconto, o convidado extra segue o por pessoa negociado.
+    porPessoa: orc.convidados ? valor / Number(orc.convidados) : (completo ? r.porPessoa : r.porPessoaEssencial),
     opcionais: _propostaOpcionaisMarcados(orc).map(function(o) { return o.nome; }).join(', '),
   };
 }
@@ -240,6 +314,10 @@ function _orcContratoMarcacoes(info) {
     HORARIO_FIM: info.hrFim,
     DURACAO: info.tempo.texto, TEMPO_FESTA: info.tempo.texto, TEMPO_FESTA_COMPLETO: info.tempo.completo,
     VALOR_TOTAL: _propostaValorTexto(info.valor), VALOR_TOTAL_NUMERO: fR(info.valor), VALOR_TOTAL_EXTENSO: _propostaExtenso(info.valor),
+    VALOR_FINAL: _propostaValorTexto(info.valor),
+    VALOR_PACOTE: dados.valorBruto ? _propostaValorTexto(dados.valorBruto) : '', VALOR_PACOTE_NUMERO: dados.valorBruto ? fR(dados.valorBruto) : '',
+    DESCONTO: dados.desconto ? fR(dados.desconto) + (dados.descontoTexto && dados.descontoTexto.indexOf('%') !== -1 ? ' (' + dados.descontoTexto + ')' : '') : '',
+    DESCONTO_EXTENSO: dados.desconto ? _propostaValorTexto(dados.desconto) : '',
     VALOR_SINAL: fR(info.sinal), VALOR_SINAL_EXTENSO: _propostaExtenso(info.sinal),
     VALOR_RESTANTE: fR(info.restante), VALOR_RESTANTE_EXTENSO: _propostaExtenso(info.restante),
     VENCIMENTO_RESTANTE: dados.vencRestante ? fd(dados.vencRestante) : 'data a combinar',
@@ -267,7 +345,7 @@ function _orcContratoCorrigirModeloPadrao(zip) {
 
 function _orcContratoBaixarDocx(info) {
   if (!window.PizZip || !window.Docxtemplater) { alert2('Bibliotecas de geração de Word ainda não carregaram — aguarde e tente novamente.', 'error'); return false; }
-  var tpl = D.contratoTemplateDocx;
+  var tpl = _contratoModelo(info.dados.pacote);
   var b64 = (tpl && tpl.base64) || window.TEMPLATE_B64_GLOBAL;
   if (!b64) { alert2('Modelo do contrato não carregado.', 'error'); return false; }
   try {
@@ -308,7 +386,9 @@ function _orcContratoBaixarDocx(info) {
   }
 }
 
-function contratoImportarModelo(inputEl) {
+function contratoImportarModelo(inputEl, pacote) {
+  var chave = CONTRATO_MODELO_CHAVE[pacote];
+  if (!chave) return;
   var file = inputEl.files && inputEl.files[0];
   if (!file) return;
   if (file.size > CONTRATO_TEMPLATE_MAX_BYTES) {
@@ -321,11 +401,10 @@ function contratoImportarModelo(inputEl) {
     var bytes = new Uint8Array(e.target.result);
     var binario = '';
     for (var i = 0; i < bytes.length; i++) binario += String.fromCharCode(bytes[i]);
-    D.contratoTemplateDocx = { base64: btoa(binario), nome: file.name, tamanho: file.size, importadoEm: new Date().toISOString() };
-    sv('contratoTemplateDocx');
-    alert2('Modelo do contrato importado!');
-    var orc = (D.orcamentos || []).find(function(o) { return o.id === _orcContratoId; });
-    if (orc) _orcContratoRender(orc);
+    D[chave] = { base64: btoa(binario), nome: file.name, tamanho: file.size, importadoEm: new Date().toISOString() };
+    sv(chave);
+    alert2('Modelo do contrato ' + (pacote === 'completo' ? 'Completo' : 'Essencial') + ' importado!');
+    if (typeof orcView !== 'undefined' && orcView === 'lista' && typeof rOrcLista === 'function') rOrcLista();
   };
   reader.onerror = function() { alert2('Erro ao ler o arquivo.', 'error'); };
   reader.readAsArrayBuffer(file);
