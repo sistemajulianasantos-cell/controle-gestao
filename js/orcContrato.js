@@ -42,10 +42,11 @@ function contratoModelosBarraHTML() {
   '</div>';
 }
 
-// Valor final com o desconto: tipo '%' ou 'R$'.
+// Valor final com o desconto: tipo '%', 'R$' ou 'final' (ela digita direto o
+// valor fechado na negociação e o desconto sai da diferença).
 function _orcContratoAplicarDesconto(bruto, tipo, qtd) {
   var n = Math.max(0, Number(qtd) || 0);
-  var desc = tipo === '%' ? bruto * n / 100 : n;
+  var desc = tipo === '%' ? bruto * n / 100 : tipo === 'final' ? (n ? Math.max(0, bruto - n) : 0) : n;
   desc = Math.round(Math.min(desc, bruto) * 100) / 100;
   return { bruto: bruto, desconto: desc, final: Math.round((bruto - desc) * 100) / 100 };
 }
@@ -115,6 +116,7 @@ function _orcContratoRender(orc) {
       '<div><label class="lbl">CPF/CNPJ *</label><input id="morc-cpf" class="inp" type="text" inputmode="numeric" placeholder="000.000.000-00" onblur="this.value=_orcFormatarDoc(this.value)" style="width:100%;box-sizing:border-box"></div>' +
       '<div><label class="lbl">Horário de início da festa *</label><input id="morc-hora" class="inp" type="time" style="width:100%;box-sizing:border-box"></div>' +
       '<div style="grid-column:1/-1"><label class="lbl">Endereço residencial *</label><input id="morc-endereco" class="inp" type="text" placeholder="Rua, número, bairro, cidade/UF" style="width:100%;box-sizing:border-box"></div>' +
+      '<div style="grid-column:1/-1"><label class="lbl">Endereço do evento *</label><input id="morc-endereco-evento" class="inp" type="text" placeholder="' + esc((_propostaLocalEvento(orc) ? _propostaLocalEvento(orc) + ' — ' : '') + 'Rua, número, bairro, cidade/UF') + '" style="width:100%;box-sizing:border-box"></div>' +
       '<div><label class="lbl">Vencimento do restante (80%)</label><input id="morc-venc" class="inp" type="date" style="width:100%;box-sizing:border-box"></div>' +
       '<div style="font-size:10px;color:var(--text3);align-self:end;padding-bottom:6px">Em branco: sai "a combinar" no contrato.</div>' +
     '</div>' +
@@ -122,8 +124,8 @@ function _orcContratoRender(orc) {
     '<div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px">' +
       '<label class="lbl">Desconto (valor negociado)</label>' +
       '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
-        '<select id="morc-desc-tipo" class="inp" onchange="_orcContratoAtualizarTotal()" style="width:auto"><option value="%">%</option><option value="R$">R$</option></select>' +
-        '<input id="morc-desc" class="inp" type="text" inputmode="decimal" placeholder="0" oninput="_orcContratoAtualizarTotal()" style="width:120px;text-align:right">' +
+        '<select id="morc-desc-tipo" class="inp" onchange="_orcContratoAtualizarTotal()" style="width:auto"><option value="final">Valor fechado (R$)</option><option value="%">Desconto em %</option><option value="R$">Desconto em R$</option></select>' +
+        '<input id="morc-desc" class="inp" type="text" inputmode="decimal" placeholder="ex: 3.300,00" oninput="_orcContratoAtualizarTotal()" style="width:130px;text-align:right">' +
         '<div id="morc-total" style="margin-left:auto;text-align:right;font-size:12px;color:var(--text3)"></div>' +
       '</div>' +
     '</div>' +
@@ -159,7 +161,8 @@ function _orcContratoAtualizarTotal() {
   var porPessoa = v.convidados ? ' · ' + fR(v.final / v.convidados) + ' / pessoa' : '';
   el.innerHTML = (v.desconto ? fR(v.bruto) + ' − ' + fR(v.desconto) + ' = ' : '') +
     '<span style="font-family:var(--mono);font-size:15px;font-weight:600;color:var(--text)">' + fR(v.final) + '</span>' +
-    '<div style="font-size:10px">valor final do contrato' + porPessoa + '</div>';
+    '<div style="font-size:10px">valor final do contrato' + porPessoa +
+      (v.desconto && v.bruto ? ' · desconto de ' + (v.desconto / v.bruto * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%' : '') + '</div>';
 }
 
 // CPF (11 dígitos) ou CNPJ (14) com a máscara; outra coisa fica como digitou.
@@ -181,6 +184,7 @@ function orcConfirmarGerarContrato() {
     nome: val('morc-nome'),
     cpf: _orcFormatarDoc(val('morc-cpf')),
     endereco: val('morc-endereco'),
+    enderecoEvento: val('morc-endereco-evento'),
     hrInicio: val('morc-hora'),
     vencRestante: val('morc-venc'),
   };
@@ -189,12 +193,14 @@ function orcConfirmarGerarContrato() {
   if (!dados.nome) faltam.push('nome completo');
   if (!dados.cpf) faltam.push('CPF/CNPJ');
   if (!dados.endereco) faltam.push('endereço residencial');
+  if (!dados.enderecoEvento) faltam.push('endereço do evento');
   if (!dados.hrInicio) faltam.push('horário de início');
   if (faltam.length) { alert2('Preencha: ' + faltam.join(', ') + '.', 'error'); return; }
   var digitos = dados.cpf.replace(/\D/g, '').length;
   if (digitos !== 11 && digitos !== 14) { alert2('CPF deve ter 11 dígitos e CNPJ 14.', 'error'); return; }
 
   if (!(vals.bruto > 0)) { alert2('Este orçamento está sem valor calculado para o pacote escolhido — confira a Calculadora antes de gerar o contrato.', 'error'); return; }
+  if (vals.tipo === 'final' && vals.qtd > vals.bruto) { alert2('O valor fechado (' + fR(vals.qtd) + ') está acima do valor do pacote (' + fR(vals.bruto) + ').', 'error'); return; }
   if (!(vals.final > 0)) { alert2('O desconto não pode ser igual ou maior que o valor do pacote.', 'error'); return; }
   if (vals.tipo === '%' && vals.qtd > 100) { alert2('Desconto em % não pode passar de 100.', 'error'); return; }
   dados.valorBruto = vals.bruto;
@@ -210,7 +216,7 @@ function orcConfirmarGerarContrato() {
 
     var fmt = function(v) { return v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
     var ok = salvarContrato({
-      nome: dados.nome, cpf: dados.cpf, endereco: dados.endereco,
+      nome: dados.nome, cpf: dados.cpf, endereco: dados.endereco, enderecoEvento: dados.enderecoEvento,
       tipo: info.tipo, data: orc.dataEvento || '', local: info.local, convidados: String(orc.convidados || ''),
       hrInicio: dados.hrInicio, hrFim: info.hrFim, duracao: info.tempo.texto,
       equipe: info.equipe, equipeTexto: info.equipe.map(function(e) { return e.qtd + ' ' + e.cargo; }).join(' · '),
@@ -250,7 +256,7 @@ function orcBaixarContrato(orcId) {
   var orc = (D.orcamentos || []).find(function(o) { return o.id === orcId; });
   var c = _orcContratoDoOrc(orc);
   if (!c) return;
-  var dados = { pacote: c.pacote || orc.pacoteFechado || 'completo', nome: c.nome, cpf: c.cpf, endereco: c.endereco || '', hrInicio: c.hrInicio || '', vencRestante: c.vencRestante || '',
+  var dados = { pacote: c.pacote || orc.pacoteFechado || 'completo', nome: c.nome, cpf: c.cpf, endereco: c.endereco || '', enderecoEvento: c.enderecoEvento || '', hrInicio: c.hrInicio || '', vencRestante: c.vencRestante || '',
     valorBruto: Number(c.valorBruto) || Number(c.valorNum) || 0, desconto: Number(c.desconto) || 0, descontoTexto: c.descontoTexto || '' };
   _orcContratoBaixarDocx(_orcContratoInfo(orc, dados, Number(c.valorNum) || 0));
 }
@@ -286,7 +292,9 @@ function _orcContratoInfo(orc, dados, valor) {
   return {
     orc: orc, dados: dados, valor: valor, sinal: sinal, restante: Math.round((valor - sinal) * 100) / 100,
     tempo: tempo, hrFim: hrFim, equipe: equipe, coqueteis: coqueteis, destilados: destilados,
-    tipo: _propostaTipoEvento(orc), local: _propostaLocalEvento(orc),
+    // Local = nome do espaço + endereço do evento ("Casa Marble — Rua X, 10, Bairro").
+    tipo: _propostaTipoEvento(orc), localNome: _propostaLocalEvento(orc),
+    local: [_propostaLocalEvento(orc), dados.enderecoEvento].filter(Boolean).join(' — '),
     // Com desconto, o convidado extra segue o por pessoa negociado.
     porPessoa: orc.convidados ? valor / Number(orc.convidados) : (completo ? r.porPessoa : r.porPessoaEssencial),
     opcionais: _propostaOpcionaisMarcados(orc).map(function(o) { return o.nome; }).join(', '),
@@ -310,6 +318,7 @@ function _orcContratoMarcacoes(info) {
     DIA_FESTA: fd(orc.dataEvento),
     CONVIDADOS: String(orc.convidados || ''),
     LOCAL_EVENTO: info.local,
+    LOCAL_NOME: info.localNome, ENDERECO_EVENTO: dados.enderecoEvento || '',
     HORARIO_INICIO: dados.hrInicio,
     HORARIO_FIM: info.hrFim,
     DURACAO: info.tempo.texto, TEMPO_FESTA: info.tempo.texto, TEMPO_FESTA_COMPLETO: info.tempo.completo,
