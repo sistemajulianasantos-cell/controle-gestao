@@ -2478,7 +2478,7 @@
 <script src="js/orcCalc.js?v=20261016m"></script>
 <script src="js/orcCalculos.js?v=20261016c"></script>
 <script src="js/orcProposta.js?v=20261016b"></script>
-<script src="js/orcContrato.js?v=20261023a"></script>
+<script src="js/orcContrato.js?v=20261023b"></script>
 <script src="js/degustacao.js?v=20261023a"></script>
 <script src="js/_refConsumoData.js?v=20260610z"></script>
 <script src="js/refConsumo.js?v=20261016m"></script>
@@ -2628,7 +2628,7 @@ window.svFirebase = async function(chave) {
       await batch.commit();
     }
 
-    if (chave === 'propostaTemplateDocx' || chave === 'contratoTemplateEssencial' || chave === 'contratoTemplateCompleto' || chave === 'contratoTemplateDocx') {
+    if (chave === 'propostaTemplateDocx' || /^contratoTemplate/.test(chave)) {
       // O .docx do modelo (com fotos) facilmente passa de 1MB, o limite por
       // documento do Firestore — fatia o base64 em vários documentos
       // (propostaTemplateDocx_chunk0, _chunk1, ...) igual ao financeiro por
@@ -2907,10 +2907,10 @@ async function carregarDados() {
     } else {
       D.propostaTemplateDocx = null;
     }
-    // Modelos do Contrato (Orçamento → Gerar contrato), um por pacote, fatiados
-    // do mesmo jeito. contratoTemplateDocx = modelo único antigo (10-22), só
-    // usado se o do pacote não tiver sido importado.
-    ['contratoTemplateEssencial', 'contratoTemplateCompleto', 'contratoTemplateDocx'].forEach(k => {
+    // Modelos do Contrato (Orçamento → Gerar contrato), um por forma de
+    // fornecimento das bebidas (cliente/consignadas/Romero, 10-23), fatiados do
+    // mesmo jeito. Os por pacote e o único antigo (10-22) ficam de reserva.
+    ['contratoTemplateBebCliente', 'contratoTemplateBebConsignadas', 'contratoTemplateBebRomero', 'contratoTemplateEssencial', 'contratoTemplateCompleto', 'contratoTemplateDocx'].forEach(k => {
       const meta = r[k + '_meta'];
       if (meta && meta.totalChunks) {
         let base64 = '';
