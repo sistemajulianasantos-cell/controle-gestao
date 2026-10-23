@@ -126,8 +126,9 @@ function _orcContratoRender(orc) {
       '<div><label class="lbl">Horário de início da festa *</label><input id="morc-hora" class="inp" type="time" style="width:100%;box-sizing:border-box"></div>' +
       '<div style="grid-column:1/-1"><label class="lbl">Endereço residencial *</label><input id="morc-endereco" class="inp" type="text" placeholder="Rua, número, bairro, cidade/UF" style="width:100%;box-sizing:border-box"></div>' +
       '<div style="grid-column:1/-1"><label class="lbl">Endereço do evento *</label><input id="morc-endereco-evento" class="inp" type="text" placeholder="' + esc((_propostaLocalEvento(orc) ? _propostaLocalEvento(orc) + ' — ' : '') + 'Rua, número, bairro, cidade/UF') + '" style="width:100%;box-sizing:border-box"></div>' +
-      '<div><label class="lbl">Vencimento do restante (80%)</label><input id="morc-venc" class="inp" type="date" style="width:100%;box-sizing:border-box"></div>' +
-      '<div style="font-size:10px;color:var(--text3);align-self:end;padding-bottom:6px">Em branco: sai "a combinar" no contrato.</div>' +
+      '<div><label class="lbl">Módulos de bar (1,20m cada) *</label><input id="morc-modulos" class="inp" type="number" min="1" step="1" placeholder="ex: 2" style="width:100%;box-sizing:border-box"></div>' +
+      '<div><label class="lbl">Vencimento do restante (80%)</label><input id="morc-venc" class="inp" type="date" value="' + _orcContratoVencPadrao(orc) + '" style="width:100%;box-sizing:border-box"></div>' +
+      '<div style="grid-column:1/-1;font-size:10px;color:var(--text3);margin-top:-6px">Vencimento já vem 7 dias antes do evento (como na proposta) — dá pra trocar.</div>' +
     '</div>' +
 
     '<div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px">' +
@@ -176,6 +177,22 @@ function _orcContratoAtualizarTotal() {
       (v.desconto && v.bruto ? ' · desconto de ' + (v.desconto / v.bruto * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%' : '') + '</div>';
 }
 
+// Restante = 7 dias antes do evento (mesma regra da proposta: "80% até 7
+// dias antes do evento").
+function _orcContratoVencPadrao(orc) {
+  if (!orc || !/^\d{4}-\d{2}-\d{2}$/.test(orc.dataEvento || '')) return '';
+  var d = new Date(orc.dataEvento + 'T12:00:00');
+  d.setDate(d.getDate() - 7);
+  return d.toISOString().slice(0, 10);
+}
+
+// "2" → "2 (dois) módulos"
+function _orcContratoModulosTexto(n) {
+  n = parseInt(n, 10) || 0;
+  if (!n) return '';
+  return n + ' (' + _propostaNumExtenso(n) + ') ' + (n === 1 ? 'módulo' : 'módulos');
+}
+
 // CPF (11 dígitos) ou CNPJ (14) com a máscara; outra coisa fica como digitou.
 function _orcFormatarDoc(v) {
   var d = String(v || '').replace(/\D/g, '');
@@ -197,7 +214,8 @@ function orcConfirmarGerarContrato() {
     endereco: val('morc-endereco'),
     enderecoEvento: val('morc-endereco-evento'),
     hrInicio: val('morc-hora'),
-    vencRestante: val('morc-venc'),
+    vencRestante: val('morc-venc') || _orcContratoVencPadrao(orc),
+    modulos: parseInt(val('morc-modulos'), 10) || 0,
     bebidasPor: vals.pacote === 'completo' ? 'romero' : ((document.querySelector('input[name="morc-bebidas"]:checked') || {}).value || ''),
   };
   var faltam = [];
@@ -208,6 +226,7 @@ function orcConfirmarGerarContrato() {
   if (!dados.endereco) faltam.push('endereço residencial');
   if (!dados.enderecoEvento) faltam.push('endereço do evento');
   if (!dados.hrInicio) faltam.push('horário de início');
+  if (!(dados.modulos > 0)) faltam.push('módulos de bar');
   if (faltam.length) { alert2('Preencha: ' + faltam.join(', ') + '.', 'error'); return; }
   var digitos = dados.cpf.replace(/\D/g, '').length;
   if (digitos !== 11 && digitos !== 14) { alert2('CPF deve ter 11 dígitos e CNPJ 14.', 'error'); return; }
@@ -243,7 +262,7 @@ function orcConfirmarGerarContrato() {
       bebidasRomero: dados.bebidasPor === 'romero' ? info.destilados : '',
       bebidasCliente: dados.bebidasPor === 'cliente' ? 'Destilados fornecidos pelo cliente' : '',
       proposta: orc.numeroProposta || '',
-      pacote: dados.pacote, vencRestante: dados.vencRestante || '',
+      pacote: dados.pacote, vencRestante: dados.vencRestante || '', modulos: dados.modulos,
       valorBruto: dados.valorBruto, desconto: dados.desconto, descontoTexto: dados.descontoTexto,
       orcamentoId: orc.id,
       status: 'ativo', origem: 'orcamento',
@@ -272,7 +291,7 @@ function orcBaixarContrato(orcId) {
   var orc = (D.orcamentos || []).find(function(o) { return o.id === orcId; });
   var c = _orcContratoDoOrc(orc);
   if (!c) return;
-  var dados = { pacote: c.pacote || orc.pacoteFechado || 'completo', nome: c.nome, cpf: c.cpf, endereco: c.endereco || '', enderecoEvento: c.enderecoEvento || '', hrInicio: c.hrInicio || '', vencRestante: c.vencRestante || '',
+  var dados = { pacote: c.pacote || orc.pacoteFechado || 'completo', nome: c.nome, cpf: c.cpf, endereco: c.endereco || '', enderecoEvento: c.enderecoEvento || '', hrInicio: c.hrInicio || '', vencRestante: c.vencRestante || '', modulos: c.modulos || 0,
     bebidasPor: c.bebidasPor || (c.pacote === 'essencial' && !c.bebidasRomero ? 'cliente' : 'romero'),
     valorBruto: Number(c.valorBruto) || Number(c.valorNum) || 0, desconto: Number(c.desconto) || 0, descontoTexto: c.descontoTexto || '' };
   _orcContratoBaixarDocx(_orcContratoInfo(orc, dados, Number(c.valorNum) || 0));
@@ -322,7 +341,12 @@ function _orcContratoMarcacoes(info) {
   var orc = info.orc, dados = info.dados;
   var dt = orc.dataEvento ? new Date(orc.dataEvento + 'T12:00:00') : null;
   var dataLonga = dt ? dt.toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '';
-  var valHE = Number(orc.propostaValorHoraExtra) || 0;
+  // Hora extra: a digitada na aba Proposta; sem ela, 20% do total (mesma
+  // regra do texto padrão da proposta).
+  var valHE = Number(orc.propostaValorHoraExtra) || Math.round(info.valor * 0.2 * 100) / 100;
+  // Todo valor em R$ sai "R$ 900,00 (novecentos reais)"; _NUMERO = só o
+  // número, _EXTENSO = só por extenso.
+  var din = function(v) { return v ? _propostaValorTexto(v) : ''; };
   var pacote = dados.pacote === 'completo' ? 'Pacote Completo' : 'Pacote Essencial';
   return {
     CONTRATANTE: dados.nome, NOME_CLIENTE: dados.nome, CLIENTE: dados.nome,
@@ -333,27 +357,33 @@ function _orcContratoMarcacoes(info) {
     TIPO_EVENTO: info.tipo,
     DATA_EVENTO: dataLonga || fd(orc.dataEvento),
     DIA_FESTA: fd(orc.dataEvento),
+    // "23 de outubro de 2026" — dia em que o contrato foi gerado.
+    DATA_ASSINATURA: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }),
     CONVIDADOS: String(orc.convidados || ''),
     LOCAL_EVENTO: info.local,
     LOCAL_NOME: info.localNome, ENDERECO_EVENTO: dados.enderecoEvento || '',
     HORARIO_INICIO: dados.hrInicio,
     HORARIO_FIM: info.hrFim,
-    DURACAO: info.tempo.texto, TEMPO_FESTA: info.tempo.texto, TEMPO_FESTA_COMPLETO: info.tempo.completo,
+    // Modelo diz "duração de {DURACAO} horas" — só o número.
+    DURACAO: info.tempo.numero, DURACAO_TEXTO: info.tempo.texto, TEMPO_FESTA: info.tempo.texto, TEMPO_FESTA_COMPLETO: info.tempo.completo,
     VALOR_TOTAL: _propostaValorTexto(info.valor), VALOR_TOTAL_NUMERO: fR(info.valor), VALOR_TOTAL_EXTENSO: _propostaExtenso(info.valor),
     VALOR_FINAL: _propostaValorTexto(info.valor),
     VALOR_PACOTE: dados.valorBruto ? _propostaValorTexto(dados.valorBruto) : '', VALOR_PACOTE_NUMERO: dados.valorBruto ? fR(dados.valorBruto) : '',
     DESCONTO: dados.desconto ? fR(dados.desconto) + (dados.descontoTexto && dados.descontoTexto.indexOf('%') !== -1 ? ' (' + dados.descontoTexto + ')' : '') : '',
     DESCONTO_EXTENSO: dados.desconto ? _propostaValorTexto(dados.desconto) : '',
-    VALOR_SINAL: fR(info.sinal), VALOR_SINAL_EXTENSO: _propostaExtenso(info.sinal),
-    VALOR_RESTANTE: fR(info.restante), VALOR_RESTANTE_EXTENSO: _propostaExtenso(info.restante),
+    VALOR_SINAL: din(info.sinal), VALOR_SINAL_NUMERO: fR(info.sinal), VALOR_SINAL_EXTENSO: _propostaExtenso(info.sinal),
+    VALOR_RESTANTE: din(info.restante), VALOR_RESTANTE_NUMERO: fR(info.restante), VALOR_RESTANTE_EXTENSO: _propostaExtenso(info.restante),
     VENCIMENTO_RESTANTE: dados.vencRestante ? fd(dados.vencRestante) : 'data a combinar',
     EQUIPE: info.equipe.map(function(e) { return e.qtd + ' ' + e.cargo + (e.qtd > 1 ? (e.cargo === 'Coordenador' ? 'es' : 's') : ''); }).join(', '),
     COQUETEIS: info.coqueteis, CARDAPIO: info.coqueteis,
     DESTILADOS: info.destilados,
     BEBIDAS_FORNECIDAS_POR: dados.bebidasPor === 'cliente' ? 'CONTRATANTE' : 'CONTRATADA (Romero Coquetéis)',
-    MODULOS: info.opcionais, OPCIONAIS: info.opcionais,
-    VALOR_HORA_EXTRA: valHE ? fR(valHE) : '',
-    VALOR_CONVIDADO_EXTRA: info.porPessoa ? fR(info.porPessoa) : '',
+    MODULOS: _orcContratoModulosTexto(dados.modulos), MODULOS_NUMERO: dados.modulos ? String(dados.modulos) : '',
+    OPCIONAIS: info.opcionais,
+    VALOR_HORA_EXTRA: din(valHE), VALOR_HORA_EXTRA_NUMERO: valHE ? fR(valHE) : '', VALOR_HORA_EXTRA_EXTENSO: valHE ? _propostaExtenso(valHE) : '',
+    VALOR_CONVIDADO_EXTRA: din(info.porPessoa), VALOR_CONVIDADO_EXTRA_NUMERO: info.porPessoa ? fR(info.porPessoa) : '',
+    VALOR_CONVIDADO_EXTRA_EXTENSO: info.porPessoa ? _propostaExtenso(info.porPessoa) : '',
+    CONVIDADOS_EXTENSO: orc.convidados ? _propostaNumExtenso(orc.convidados) : '',
   };
 }
 
@@ -393,9 +423,11 @@ function _orcContratoCorrigirModeloPadrao(zip) {
   var f = zip.file('word/document.xml');
   if (!f) return;
   var xml = f.asText()
-    .replace(/<w:t>\(novecentos<\/w:t>([\s\S]*?)<w:t>reais\)<\/w:t>/, '<w:t>({{VALOR_SINAL_EXTENSO}})</w:t>$1<w:t></w:t>')
-    .replace(' (três mil e seiscentos reais) para o dia ', ' ({{VALOR_RESTANTE_EXTENSO}}) para o dia ')
-    .replace('>21/08/2025.<', '>{{VENCIMENTO_RESTANTE}}.<');
+    // VALOR_SINAL/VALOR_RESTANTE já saem com o extenso — só tira o fixo.
+    .replace(/<w:t>\(novecentos<\/w:t>([\s\S]*?)<w:t>reais\)<\/w:t>/, '<w:t></w:t>$1<w:t></w:t>')
+    .replace(' (três mil e seiscentos reais) para o dia ', ' para o dia ')
+    .replace('>21/08/2025.<', '>{{VENCIMENTO_RESTANTE}}.<')
+    .replace('<w:t>06 de Abril de 2026</w:t>', '<w:t>{{DATA_ASSINATURA}}</w:t>');
   zip.file('word/document.xml', xml);
 }
 
