@@ -29,6 +29,7 @@ var pageInfo={
   despesas:['Análise Financeira','Receita, despesas e KPIs financeiros'],
   equipe:['Equipe','Cadastro e escala de colaboradores'],
   orcamento:['Orçamentos','Cálculo, cardápio, serviços e proposta'],
+  degustacao:['Degustação','Andamento das degustações e quanto elas ajudam a fechar contrato'],
   orcCalculos:['Cálculos do Orçamento','Tudo que entra sozinho no orçamento: insumos, preços, equipe e taxas'],
   refconsumo:['Estimativa de Bebidas','Estimativa de consumo por tipo de evento e número de convidados'],
   seguranca: ['Segurança','Gestão de senhas e autenticação em dois fatores'],
@@ -69,6 +70,7 @@ function initPageRenders(){
     analise:rAnalise,
     equipe:rEquipe,
     orcamento:rOrcamento,
+    degustacao:()=>rDegustacao(), // arrow: se degustacao.js não carregar, só esta tela falha
     orcCalculos:initOrcCalculos,
     refconsumo:rRefConsumo,
     seguranca: rSeguranca,
