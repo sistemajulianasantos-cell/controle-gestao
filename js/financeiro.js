@@ -289,7 +289,7 @@ function _finAtualizarKpis(filtroIni, filtroFim) {
       const temAtraso = registros.some(f => f.status === 'pendente' && !f.aprovacaoPendente && (() => { const v = _finVencimentoEfetivo(f); return v && v < hoje; })());
       if (temAtraso) atrasado += restante; else pendente += restante;
     });
-    return { nome: 'Contrato (20% + 80%)', total, recebido, pendente, atrasado };
+    return { nome: 'Contrato', total, recebido, pendente, atrasado };
   })();
   const linhaFechamento = linhaCategoria('Fechamento', fechamentoRecs);
   const linhaGeral = {
@@ -653,6 +653,7 @@ function rFinanceiro() {
         </span>
         ${f.status==='pago' && f.dataPagamento ? `<div style="font-size:10px;color:var(--text3);margin-top:3px">${fd(f.dataPagamento)}${f.formaPagamento ? ' · ' + (FORMAS_PAGAMENTO[f.formaPagamento]||f.formaPagamento) : ''}</div>` : ''}
         ${f.status==='pago' && (f.comprovante || f.temComprovante) ? `<button class="btn-sm" onclick="verComprovante('${f.id}')" style="font-size:9px;padding:1px 6px;margin-top:3px" title="Ver comprovante">📎 Comprovante</button>` : ''}
+        ${f.status==='pago' && !(f.comprovante || f.temComprovante) && (f.extratoId || (f.extratoParciais || []).length) ? `<button class="btn-sm" onclick="finDetalheParcela('${f.id}')" style="font-size:9px;padding:1px 6px;margin-top:3px" title="PIX do extrato bancário ligado a esta parcela">Comprovante (extrato)</button>` : ''}
         ${_finExcedenteHTML(f)}
       `;
     }
@@ -908,9 +909,10 @@ function rFinanceiroSintetico() {
         ${contrato && typeof planoAbrir === 'function' ? `<div style="margin-top:4px"><button class="btn-sm" onclick="planoAbrir('${contrato.id}')" style="font-size:9px;padding:1px 6px" title="Ver ou mudar como o cliente vai pagar (20/80, 30/70, 50/50, parcelado…)">Plano: ${typeof planoRotulo === 'function' ? planoRotulo(contrato, g.parcelas.length) : ''}</button></div>` : ''}
       </td>
       <td style="padding:12px;font-size:11px;color:var(--text3)">${g.tipo}<br>${g.convidados !== '—' ? g.convidados+' conv.' : ''}</td>
-      <td style="padding:10px 14px">
-        <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center">
-          ${g.parcelas.length ? g.parcelas.map(p => _finPilula(p, hoje, { rotulo: _finRotuloParcela(p) })).join('') : '<span style="color:var(--text3);font-size:12px">—</span>'}
+      <td style="padding:8px 12px">
+        ${_finResumoParcelas(g.parcelas, hoje)}
+        <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:center">
+          ${g.parcelas.length ? g.parcelas.map(p => _finChipParcela(p, hoje)).join('') : '<span style="color:var(--text3);font-size:12px">—</span>'}
         </div>
       </td>
       <td style="padding:10px 14px;text-align:center">${_finPilula(g.pFch, hoje, { faltaValor: faltaFechamento && !fchDivergAprovada, aprovado: fchDivergAprovada, valorReal: valorFechamentoReal, diferenca: diferencaFechamento, refId: fchRecord?.id, aprovarFn: 'aprovarDivergenciaFechamento' })}</td>
@@ -925,11 +927,116 @@ function rFinanceiroSintetico() {
   });
 }
 
-// Rótulo curto da parcela na pílula: "Sinal", "Restante", "Parcela 2/7"…
+// Rótulo curto da parcela: "Sinal", "Restante", "Entrada", "2/7"…
 function _finRotuloParcela(p) {
   const d = String(p.descricao || '').trim();
+  const n = d.match(/^Parcela\s+(\d+\s*\/\s*\d+)/i);
+  if (n) return n[1].replace(/\s/g, '');
   const m = d.match(/^[^—–-]+/);
-  return (m ? m[0] : d).trim().slice(0, 22) || 'Parcela';
+  return (m ? m[0] : d).replace(/\s*\d+%\s*$/, '').trim().slice(0, 14) || 'Parcela';
+}
+
+// Situação da parcela para cor/legenda.
+function _finSituacaoParcela(p, hoje) {
+  if (p.aprovacaoPendente) return { cor: 'var(--amber)', bg: 'var(--amber-bg)', txt: 'Aguardando aprovação' };
+  if (p.status !== 'pago' && !p.valorNum) return { cor: 'var(--green)', bg: 'var(--green-bg)', txt: 'Sem cobrança' };
+  if (p.status === 'pago') return { cor: 'var(--green)', bg: 'var(--green-bg)', txt: 'Pago' };
+  const v = _finVencimentoEfetivo(p);
+  if (v && v < hoje) return { cor: 'var(--red)', bg: 'var(--red-bg)', txt: 'Atrasado' };
+  return { cor: 'var(--amber)', bg: 'var(--border)', txt: 'Pendente' };
+}
+
+// "6 de 8 pagas · falta R$ 4.772,56" acima dos chips.
+function _finResumoParcelas(parcelas, hoje) {
+  if (!parcelas.length) return '';
+  const pagas = parcelas.filter(p => p.status === 'pago' || (!p.valorNum && !p.aprovacaoPendente)).length;
+  const falta = parcelas.filter(p => p.status !== 'pago').reduce((s, p) => s + (Number(p.valorNum) || 0), 0);
+  const atrasadas = parcelas.filter(p => _finSituacaoParcela(p, hoje).txt === 'Atrasado').length;
+  const avisos = parcelas.filter(p => p.aprovacaoPendente || (p.excedente && p.excedente.status === 'pendente')).length;
+  return `<div style="font-size:10px;color:var(--text3);text-align:center;margin-bottom:4px">${pagas} de ${parcelas.length} paga${parcelas.length > 1 ? 's' : ''}` +
+    (falta > 0.009 ? ` · falta <b style="color:var(--text2)">${fR(falta)}</b>` : '') +
+    (atrasadas ? ` · <span style="color:var(--red)">${atrasadas} atrasada${atrasadas > 1 ? 's' : ''}</span>` : '') +
+    (avisos ? ` · <span style="color:var(--amber)">${avisos} aguardando decisão</span>` : '') + '</div>';
+}
+
+// Chip compacto da parcela (Sintético): nome curto + valor, cor da situação.
+// Clique abre o detalhe (datas, comprovante, ações).
+function _finChipParcela(p, hoje) {
+  const s = _finSituacaoParcela(p, hoje);
+  const valor = p.aprovacaoPendente ? p.aprovacaoPendente.valorPago : p.valorNum;
+  const venc = _finVencimentoEfetivo(p);
+  const dica = [p.descricao, fR(valor), s.txt, venc ? 'vence ' + fd(venc) : '', p.status === 'pago' && p.dataPagamento ? 'pago em ' + fd(p.dataPagamento) : '']
+    .filter(Boolean).join(' · ').replace(/"/g, '&quot;');
+  const marca = (p.excedente && p.excedente.status === 'pendente') || p.aprovacaoPendente ? '<span style="color:var(--amber);font-weight:700"> !</span>' : '';
+  return `<button onclick="finDetalheParcela('${p.id}')" title="${dica}" style="background:${s.bg};color:${s.cor};border:1px solid ${s.cor};border-radius:6px;padding:2px 7px;cursor:pointer;line-height:1.25;min-width:58px;text-align:center">
+    <div style="font-size:9px;font-weight:700;opacity:.85">${_finRotuloParcela(p)}${marca}</div>
+    <div style="font-family:var(--mono);font-size:11px;font-weight:700">${(Number(valor) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+  </button>`;
+}
+
+// Janela com o detalhe da parcela: valores, datas, comprovante (arquivo
+// anexado e/ou a linha do extrato da Conciliação Bancária) e ações.
+function finDetalheParcela(id) {
+  const f = (D.financeiro || []).find(x => x.id === id);
+  if (!f) return;
+  let el = document.getElementById('mfin-parcela');
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'modal-overlay';
+    el.id = 'mfin-parcela';
+    el.innerHTML = '<div class="modal" style="max-width:560px;width:95%"><div class="modal-head"><span class="modal-title" id="mfin-parcela-titulo">Parcela</span>' +
+      '<button class="modal-close" onclick="closeM(\'mfin-parcela\')">×</button></div><div id="mfin-parcela-corpo" style="padding:14px 18px;max-height:80vh;overflow:auto"></div></div>';
+    document.body.appendChild(el);
+  }
+  const hoje = new Date().toISOString().slice(0, 10);
+  const s = _finSituacaoParcela(f, hoje);
+  const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  const linha = (rot, val) => val ? `<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-top:1px solid var(--border);font-size:12px"><span style="color:var(--text3)">${rot}</span><span style="color:var(--text);text-align:right">${val}</span></div>` : '';
+  const fechar = "closeM('mfin-parcela');";
+  const venc = _finVencimentoEfetivo(f);
+
+  // Comprovante: arquivo anexado + PIX do extrato ligados a esta parcela.
+  const idsExtrato = [f.extratoId].concat(f.extratoParciais || []).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
+  const pix = idsExtrato.map(eid => (D.extratoBancario || []).find(e => e.id === eid)).filter(Boolean);
+  const temArquivo = f.comprovante || f.temComprovante || (f.aprovacaoPendente && f.aprovacaoPendente.temComprovante);
+  const comprovante =
+    (temArquivo ? `<button class="btn-sm" onclick="verComprovante('${f.id}')" style="background:var(--bg3);margin-bottom:6px">Ver comprovante anexado${f.comprovanteNome ? ' (' + esc(f.comprovanteNome) + ')' : ''}</button>` : '') +
+    pix.map(e => `<div style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);padding:8px 10px;margin-bottom:6px;font-size:12px">
+        <div style="display:flex;justify-content:space-between;gap:8px"><b style="color:var(--text)">${esc(e.razao || 'Lançamento do banco')}</b><span style="font-family:var(--mono);color:var(--green)">${fR(e.valor)}</span></div>
+        <div style="color:var(--text3);margin-top:2px">${fd(e.data)}${e.cpf ? ' · CPF/CNPJ ' + esc(e.cpf) : ''}</div>
+        <div style="color:var(--text3)">${esc(e.lancamento || '')}</div>
+        <div style="color:var(--text3);font-size:10px;margin-top:2px">Extrato bancário importado${e.arquivo ? ' do arquivo ' + esc(e.arquivo) : ''}${e.importadoEm ? ' em ' + new Date(e.importadoEm).toLocaleDateString('pt-BR') : ''}${e.conciliadoPor ? ' · conciliado por ' + esc(e.conciliadoPor) : ''}</div>
+      </div>`).join('') +
+    (!temArquivo && !pix.length ? `<div style="font-size:12px;color:var(--text3)">${f.status === 'pago' ? 'Nenhum comprovante anexado e nenhum PIX do extrato ligado a esta parcela.' : 'Ainda não recebida.'}</div>` : '');
+
+  const exc = f.excedente;
+  const souAdmin = _finSouAdmin();
+  let acoes = '';
+  if (f.aprovacaoPendente) {
+    acoes = souAdmin
+      ? `<button class="btn btn-green" onclick="${fechar}aprovarPagamentoMenor('${f.id}')">Aprovar valor menor</button><button class="btn" onclick="${fechar}rejeitarPagamentoMenor('${f.id}')" style="background:var(--bg3);color:var(--red)">Rejeitar</button>`
+      : '<span style="font-size:12px;color:var(--text3)">Aguardando o administrador aprovar o valor menor.</span>';
+  } else if (f.status === 'pago') {
+    if (exc && exc.status === 'pendente' && souAdmin) acoes += `<button class="btn" onclick="${fechar}finExcedenteAbater('${f.id}')" style="background:var(--bg3)">Abater ${fR(exc.valor)} nas próximas</button><button class="btn" onclick="${fechar}finExcedenteManter('${f.id}')" style="background:var(--bg3)">Manter como receita</button>`;
+    acoes += `<button class="btn" onclick="${fechar}marcarPendente('${f.id}')" style="background:var(--bg3);color:var(--red)">Desfazer pagamento</button>`;
+  } else {
+    acoes = `<button class="btn btn-green" onclick="${fechar}abrirModalPagamento('${f.id}')">Registrar recebimento</button>`;
+  }
+
+  document.getElementById('mfin-parcela-titulo').textContent = (f.evento || f.contrato || 'Parcela') + ' — ' + (f.descricao || '');
+  document.getElementById('mfin-parcela-corpo').innerHTML =
+    `<div style="display:inline-block;background:${s.bg};color:${s.cor};border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600;margin-bottom:8px">${s.txt}</div>` +
+    linha('Valor previsto', fR(f.valorOriginal !== undefined ? f.valorOriginal : f.valorNum)) +
+    linha('Vencimento', venc ? fd(venc) + (!f.vencimento ? ' (estimado)' : '') : '') +
+    linha('Valor pago', f.status === 'pago' ? fR(f.valorPago != null ? f.valorPago : f.valorNum) : (f.aprovacaoPendente ? fR(f.aprovacaoPendente.valorPago) + ' (aguardando aprovação)' : '')) +
+    linha('Pago em', f.status === 'pago' && f.dataPagamento ? fd(f.dataPagamento) + (f.formaPagamento ? ' · ' + (FORMAS_PAGAMENTO[f.formaPagamento] || f.formaPagamento) : '') : '') +
+    linha('Recebido em PIX parciais', Number(f.recebidoParcial) && f.status !== 'pago' ? fR(f.recebidoParcial) + ' — falta ' + fR((Number(f.valorNum) || 0) - Number(f.recebidoParcial)) : '') +
+    linha('Pago a mais', exc ? fR(exc.valor) + ' — ' + (exc.status === 'pendente' ? '<span style="color:var(--amber)">aguardando decisão</span>' : exc.status === 'receita' ? 'mantido como receita' + (exc.motivo ? ' (' + esc(exc.motivo) + ')' : '') : 'abatido nas próximas parcelas') : '') +
+    linha('Quitada automaticamente', f._quitadoPorAjuste ? 'sim — por valor pago a mais em outra parcela' : '') +
+    linha('Aprovado por', f.motivoAprovacao ? esc((f.aprovadoPor || 'admin') + ': ' + f.motivoAprovacao) : '') +
+    `<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 6px">Comprovante</div>` + comprovante +
+    `<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:14px">${acoes}</div>`;
+  openM('mfin-parcela');
 }
 
 function _finPilula(parc, hoje, opts) {
