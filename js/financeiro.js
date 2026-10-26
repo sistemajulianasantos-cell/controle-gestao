@@ -843,7 +843,7 @@ function rFinanceiroSintetico() {
   const linhas = Object.values(grupos).sort((a, b) => b.data.localeCompare(a.data));
 
   if (!linhas.length) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:24px">Nenhum lançamento encontrado</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text2);padding:24px">Nenhum lançamento encontrado</td></tr>';
     return;
   }
 
@@ -904,8 +904,7 @@ function rFinanceiroSintetico() {
       .reduce((s, p) => s + (p.valorPago != null ? Number(p.valorPago) || 0 : Number(p.valorNum) || 0), 0);
     const acima = Math.round((recebido - total) * 100) / 100;
     const recebidoHTML = recebido > 0
-      ? `<div style="font-size:10px;font-weight:600;color:var(--text3);margin-top:2px">recebido ${fR(recebido)}</div>` +
-        (acima > 0.01 ? `<div style="font-size:10px;font-weight:700;color:var(--amber)" title="Recebido além do valor do contrato + fechamento">+${fR(acima)} acima do contratado</div>` : '')
+      ? `<div style="font-size:10px;font-weight:600;color:var(--text3);margin-top:2px">recebido ${fR(recebido)}</div>`
       : '';
 
     const tr = document.createElement('tr');
@@ -933,6 +932,9 @@ function rFinanceiroSintetico() {
       <td style="padding:12px;text-align:right;font-family:var(--mono);font-weight:700;font-size:14px;color:${todoPago&&!algumaPendencia?'var(--green)':temAtras?'var(--red)':'var(--text)'}">
         ${fR(total)}
         ${recebidoHTML}
+      </td>
+      <td style="padding:12px;text-align:right;font-family:var(--mono);font-weight:700;font-size:13px;color:${acima > 0.01 ? 'var(--amber)' : 'var(--text3)'}" title="Recebido além do valor do contrato + fechamento">
+        ${acima > 0.01 ? '+' + fR(acima) : '—'}
       </td>`;
     tbody.appendChild(tr);
   });
