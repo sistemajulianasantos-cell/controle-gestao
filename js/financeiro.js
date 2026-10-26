@@ -653,7 +653,7 @@ function rFinanceiro() {
         </span>
         ${f.status==='pago' && f.dataPagamento ? `<div style="font-size:10px;color:var(--text3);margin-top:3px">${fd(f.dataPagamento)}${f.formaPagamento ? ' · ' + (FORMAS_PAGAMENTO[f.formaPagamento]||f.formaPagamento) : ''}</div>` : ''}
         ${f.status==='pago' && (f.comprovante || f.temComprovante) ? `<button class="btn-sm" onclick="verComprovante('${f.id}')" style="font-size:9px;padding:1px 6px;margin-top:3px" title="Ver comprovante">📎 Comprovante</button>` : ''}
-        ${f.status==='pago' && !(f.comprovante || f.temComprovante) && (f.extratoId || (f.extratoParciais || []).length) ? `<button class="btn-sm" onclick="finDetalheParcela('${f.id}')" style="font-size:9px;padding:1px 6px;margin-top:3px" title="PIX do extrato bancário ligado a esta parcela">Comprovante (extrato)</button>` : ''}
+        ${f.status==='pago' && !(f.comprovante || f.temComprovante) && (f.extratoId || (f.extratoParciais || []).length) ? `<button class="btn-sm" onclick="${typeof concAbrirPrintExtrato === 'function' ? 'concAbrirPrintExtrato' : 'finDetalheParcela'}('${f.id}')" style="font-size:9px;padding:1px 6px;margin-top:3px" title="Print do extrato com o PIX desta parcela">📎 Comprovante (extrato)</button>` : ''}
         ${_finExcedenteHTML(f)}
       `;
     }
@@ -1011,7 +1011,8 @@ function finDetalheParcela(id) {
   const pix = idsExtrato.map(eid => (D.extratoBancario || []).find(e => e.id === eid)).filter(Boolean);
   const temArquivo = f.comprovante || f.temComprovante || (f.aprovacaoPendente && f.aprovacaoPendente.temComprovante);
   const comprovante =
-    (temArquivo ? `<button class="btn-sm" onclick="verComprovante('${f.id}')" style="background:var(--bg3);margin-bottom:6px">Ver comprovante anexado${f.comprovanteNome ? ' (' + esc(f.comprovanteNome) + ')' : ''}</button>` : '') +
+    (temArquivo ? `<button class="btn-sm" onclick="verComprovante('${f.id}')" style="background:var(--bg3);margin-bottom:6px">Ver comprovante anexado${f.comprovanteNome ? ' (' + esc(f.comprovanteNome) + ')' : ''}</button> ` : '') +
+    (pix.length && typeof concAbrirPrintExtrato === 'function' ? `<button class="btn-sm" onclick="concAbrirPrintExtrato('${f.id}')" style="background:var(--bg3);margin-bottom:6px" title="Imagem do extrato com o(s) PIX desta parcela">Ver print do extrato</button>` : '') +
     pix.map(e => `<div style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);padding:8px 10px;margin-bottom:6px;font-size:12px">
         <div style="display:flex;justify-content:space-between;gap:8px"><b style="color:var(--text)">${esc(e.razao || 'Lançamento do banco')}</b><span style="font-family:var(--mono);color:var(--green)">${fR(e.valor)}</span></div>
         <div style="color:var(--text3);margin-top:2px">${fd(e.data)}${e.cpf ? ' · CPF/CNPJ ' + esc(e.cpf) : ''}</div>

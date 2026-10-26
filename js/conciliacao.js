@@ -163,6 +163,15 @@ function _concProcessarLinhas(linhas, arquivo) {
     }
   }
   if (iCab === -1) { alert2('Não achei as colunas Data e Valor nesse arquivo — confira se é o extrato de lançamentos do Itaú.', 'error'); return; }
+  // Cabeçalho do extrato (Nome / Agência / Conta) — vai no "print do extrato".
+  var conta = {};
+  for (var k = 0; k < iCab; k++) {
+    var rot = _concNorm(linhas[k][0]).replace(/:$/, '');
+    var val = String(linhas[k][1] == null ? '' : linhas[k][1]).trim();
+    if (rot === 'NOME') conta.titular = val;
+    else if (rot === 'AGENCIA') conta.agencia = val;
+    else if (rot === 'CONTA') conta.conta = val;
+  }
 
   var existentes = {};
   _concLista().forEach(function(e) { existentes[e.chave] = true; });
@@ -188,6 +197,7 @@ function _concProcessarLinhas(linhas, arquivo) {
     existentes[e.chave] = true;
     e.id = _gerarId('EXT');
     e.arquivo = arquivo;
+    if (conta.agencia || conta.conta) e.contaBanco = conta;
     e.importadoEm = agora;
     // Sem pagador (rendimento, resgate de aplicação): não é cliente — já
     // entra como ignorada; dá pra reativar.
@@ -536,6 +546,82 @@ function concIgnorar(entradaId, ignorar) {
   e.ignorado = false; e.motivoIgnorado = '';
   sv('extratoBancario');
   rConciliacao();
+}
+
+// ─── "PRINT DO EXTRATO" (comprovante em imagem) ─────────────────────────────
+// Os pagamentos antigos tinham um print do extrato anexado como comprovante;
+// os da conciliação não têm arquivo — esta imagem é desenhada na hora, a
+// partir da(s) linha(s) do extrato ligada(s) à parcela (pedido dela 10-26).
+function concAbrirPrintExtrato(parcelaId) {
+  var f = _concParcela(parcelaId);
+  if (!f) return;
+  var ids = [f.extratoId].concat(f.extratoParciais || []).filter(Boolean).filter(function(v, i, a) { return a.indexOf(v) === i; });
+  var lista = ids.map(function(id) { return _concLista().find(function(e) { return e.id === id; }); }).filter(Boolean)
+    .sort(function(a, b) { return a.data.localeCompare(b.data); });
+  if (!lista.length) { alert2('Nenhum PIX do extrato ligado a esta parcela.', 'error'); return; }
+  var png = _concDesenharPrint(f, lista);
+  if (typeof _abrirComprovanteJanela === 'function') _abrirComprovanteJanela(png, 'image/png', 'Extrato ' + (f.evento || f.contrato || '') + ' ' + (f.descricao || ''));
+}
+
+function _concDesenharPrint(f, lista) {
+  var W = 1100, linhaH = 34, topo = 150;
+  var H = topo + 40 + lista.length * linhaH + 110;
+  var cv = document.createElement('canvas');
+  var esc = window.devicePixelRatio > 1 ? 2 : 1;
+  cv.width = W * esc; cv.height = H * esc;
+  var g = cv.getContext('2d');
+  g.scale(esc, esc);
+  var fonte = function(px, peso) { g.font = (peso || '') + ' ' + px + 'px Arial, Helvetica, sans-serif'; };
+  var txt = function(s, x, y, alinhar) { g.textAlign = alinhar || 'left'; g.fillText(String(s == null ? '' : s), x, y); };
+  g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
+
+  // Extrato importado antes de guardar a conta: usa a da importação mais recente.
+  var c = lista[0].contaBanco || (_concLista().filter(function(e) { return e.contaBanco; })
+    .sort(function(a, b) { return (b.importadoEm || '').localeCompare(a.importadoEm || ''); })[0] || {}).contaBanco || {};
+  g.fillStyle = '#111111';
+  fonte(22, 'bold'); txt('Extrato de lançamentos', 30, 44);
+  fonte(13); g.fillStyle = '#444444';
+  var y = 70;
+  [['Titular', c.titular || 'ROMERO COQUETEIS'], ['Agência', c.agencia || ''], ['Conta', c.conta || '']].forEach(function(l) {
+    if (!l[1]) return;
+    fonte(13, 'bold'); g.fillStyle = '#444444'; txt(l[0] + ':', 30, y);
+    fonte(13); g.fillStyle = '#111111'; txt(l[1], 110, y);
+    y += 20;
+  });
+  fonte(12); g.fillStyle = '#666666';
+  txt('Recebimento referente a: ' + (f.evento || f.contrato || '') + ' — ' + (f.descricao || ''), W - 30, 70, 'right');
+
+  // Tabela: Data | Lançamento | Razão Social | CPF/CNPJ | Valor (R$)
+  var cols = [{ t: 'Data', x: 30 }, { t: 'Lançamento', x: 140 }, { t: 'Razão Social', x: 470 }, { t: 'CPF/CNPJ', x: 800 }, { t: 'Valor (R$)', x: W - 30, a: 'right' }];
+  var yCab = topo;
+  g.fillStyle = '#e9e9e9'; g.fillRect(20, yCab - 22, W - 40, 32);
+  g.fillStyle = '#111111'; fonte(13, 'bold');
+  cols.forEach(function(col) { txt(col.t, col.x, yCab, col.a); });
+  fonte(13);
+  lista.forEach(function(e, i) {
+    var yl = yCab + 34 + i * linhaH;
+    g.fillStyle = '#c9f0c9'; g.fillRect(20, yl - 22, W - 40, linhaH - 2);
+    g.fillStyle = '#111111';
+    txt(fd(e.data), cols[0].x, yl);
+    txt(String(e.lancamento || '').slice(0, 40), cols[1].x, yl);
+    txt(String(e.razao || '').slice(0, 38), cols[2].x, yl);
+    txt(e.cpf || '', cols[3].x, yl);
+    txt(e.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), cols[4].x, yl, 'right');
+  });
+  var yTot = yCab + 34 + lista.length * linhaH + 8;
+  if (lista.length > 1) {
+    fonte(13, 'bold');
+    var soma = lista.reduce(function(s, e) { return s + e.valor; }, 0);
+    txt('Total: ' + soma.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), W - 30, yTot + 6, 'right');
+  }
+  // Rodapé: de onde veio
+  var e0 = lista[0];
+  fonte(11); g.fillStyle = '#777777';
+  txt('Gerado pelo sistema a partir do extrato importado' + (e0.arquivo ? ' (' + e0.arquivo + ')' : '') +
+    (e0.importadoEm ? ' em ' + new Date(e0.importadoEm).toLocaleDateString('pt-BR') : '') +
+    (e0.conciliadoPor ? ' · conciliado por ' + e0.conciliadoPor : '') +
+    (e0.conciliadoEm ? ' em ' + new Date(e0.conciliadoEm).toLocaleDateString('pt-BR') : ''), 30, H - 30);
+  return cv.toDataURL('image/png');
 }
 
 // ─── VINCULAR À MÃO (janela) ─────────────────────────────────────────────────
