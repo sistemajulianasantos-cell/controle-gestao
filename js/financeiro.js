@@ -202,7 +202,7 @@ function _finAtualizarKpis(filtroIni, filtroFim) {
     if (contrato) {
       const valorContrato = parseFloat((contrato.opcao || '0').toString().replace(/[^\d,]/g, '').replace(',', '.')) || 0;
       if (valorContrato) {
-        const totalParcelas = (g.p20?.valorNum || 0) + (g.p80?.valorNum || 0);
+        const totalParcelas = g.parcelas.reduce((s, p) => s + _finValorNoContrato(p), 0);
         const saldo = Math.round((valorContrato - totalParcelas) * 100) / 100;
         if (Math.abs(saldo) > 0.01) {
           const aprovada = contrato.divergenciaAprovada && Math.abs(contrato.divergenciaAprovada.diferenca - saldo) < 0.01;
@@ -227,6 +227,8 @@ function _finAtualizarKpis(filtroIni, filtroFim) {
   if (alertaEl) {
     const partes = [];
     if (parcelasAguardando) partes.push(`${parcelasAguardando} pagamento(s) aguardando aprovação (valor abaixo do previsto)`);
+    const excedentesPendentes = fin.filter(f => f.excedente && f.excedente.status === 'pendente').length;
+    if (excedentesPendentes) partes.push(`${excedentesPendentes} pagamento(s) com valor a mais aguardando decisão (abater ou manter como receita)`);
     if (contratosDivergentes) partes.push(`${contratosDivergentes} contrato(s) com parcelas divergindo do valor cadastrado`);
     if (fechamentosDivergentes) partes.push(`${fechamentosDivergentes} fechamento(s) pagos com valor diferente do registrado`);
     if (partes.length) {
@@ -434,6 +436,13 @@ function sincronizarFechamentosFinanceiro() {
 // Detecta tanto parcela totalmente ausente quanto parcela que existe mas tem
 // valor diferente de 20%/80% do contrato (erro comum de cadastro/importação).
 // Só considera parcelas ainda PENDENTES — nunca mexe em nada já pago.
+// Contrato com plano de pagamento fora do 20/80 (escolhido em Plano de
+// pagamento) ou com mais de 2 parcelas lançadas.
+function _finPlanoNaoPadrao(c, g) {
+  const tipo = c && c.planoPagamento && c.planoPagamento.tipo;
+  return (tipo && tipo !== '20_80') || !!(g && g.parcelas && g.parcelas.length > 2);
+}
+
 function _finContratosComParcelaFaltando() {
   const grupos = _finAgruparEventos(D.financeiro || []);
   const porContratoId = {};
@@ -448,6 +457,9 @@ function _finContratosComParcelaFaltando() {
 
     const g = (c.id && porContratoId[c.id])
       || Object.values(grupos).find(x => norm(x.nome) === norm(c.nomeEvento || c.nome) && x.data === c.data);
+    // Plano de pagamento diferente de 20/80 (30/70, 50/50, parcelado…): esta
+    // conferência é só do 20/80 — não pode "corrigir" para 20/80.
+    if (_finPlanoNaoPadrao(c, g)) return;
 
     const faltaP20 = !g || !g.p20;
     const faltaP80 = !g || !g.p80;
@@ -483,6 +495,9 @@ function _finTodasDivergenciasValor() {
 
     const g = (c.id && porContratoId[c.id])
       || Object.values(grupos).find(x => norm(x.nome) === norm(c.nomeEvento || c.nome) && x.data === c.data);
+    // Plano de pagamento diferente de 20/80 (30/70, 50/50, parcelado…): esta
+    // conferência é só do 20/80 — não pode "corrigir" para 20/80.
+    if (_finPlanoNaoPadrao(c, g)) return;
 
     const esperadoP20 = Math.round(valorContrato * 0.2 * 100) / 100;
     const esperadoP80 = Math.round(valorContrato * 0.8 * 100) / 100;
@@ -638,6 +653,7 @@ function rFinanceiro() {
         </span>
         ${f.status==='pago' && f.dataPagamento ? `<div style="font-size:10px;color:var(--text3);margin-top:3px">${fd(f.dataPagamento)}${f.formaPagamento ? ' · ' + (FORMAS_PAGAMENTO[f.formaPagamento]||f.formaPagamento) : ''}</div>` : ''}
         ${f.status==='pago' && (f.comprovante || f.temComprovante) ? `<button class="btn-sm" onclick="verComprovante('${f.id}')" style="font-size:9px;padding:1px 6px;margin-top:3px" title="Ver comprovante">📎 Comprovante</button>` : ''}
+        ${_finExcedenteHTML(f)}
       `;
     }
 
@@ -783,9 +799,17 @@ function _finAgruparEventos(fin) {
       tipo:       f.tipo   || '—',
       convidados: f.convidados || '—',
       p20: null, p80: null, pFch: null,
+      // Todas as parcelas do contrato (sem o fechamento), em ordem de
+      // vencimento — contrato pode ter 20/80, 30/70, 50/50 ou parcelado
+      // (Plano de pagamento, 10-26). p20/p80 ficam para as rotinas antigas.
+      parcelas: [],
     };
     const g = grupos[chave];
     if (!g.contratoId && f.contratoId) g.contratoId = f.contratoId;
+    if (!f.isFechamento) {
+      g.parcelas.push(f);
+      g.parcelas.sort((a, b) => (_finVencimentoEfetivo(a) || '9999').localeCompare(_finVencimentoEfetivo(b) || '9999') || (a.ordemParcela || 0) - (b.ordemParcela || 0));
+    }
     const desc = (f.descricao || '').toLowerCase();
     if (f.isFechamento)                                                          g.pFch = f;
     else if (desc.includes('20%') || desc.includes('sinal') || desc.includes('assinatura')) g.p20 = g.p20 || f;
@@ -818,7 +842,7 @@ function rFinanceiroSintetico() {
   const linhas = Object.values(grupos).sort((a, b) => b.data.localeCompare(a.data));
 
   if (!linhas.length) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text2);padding:24px">Nenhum lançamento encontrado</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:24px">Nenhum lançamento encontrado</td></tr>';
     return;
   }
 
@@ -826,8 +850,9 @@ function rFinanceiroSintetico() {
 
   linhas.forEach(g => {
     const quitado = p => p.status === 'pago' || (!p.valorNum && !p.aprovacaoPendente);
-    const temAtras = [g.p20, g.p80, g.pFch].some(p => { if (!p || p.status !== 'pendente' || quitado(p)) return false; const v = _finVencimentoEfetivo(p); return v && v < hoje; });
-    const todoPago = [g.p20, g.p80, g.pFch].filter(Boolean).every(quitado);
+    const todas = g.parcelas.concat(g.pFch ? [g.pFch] : []);
+    const temAtras = todas.some(p => { if (!p || p.status !== 'pendente' || quitado(p)) return false; const v = _finVencimentoEfetivo(p); return v && v < hoje; });
+    const todoPago = todas.every(quitado);
 
     // Subtotal = valor do contrato direto da aba Contratos — NUNCA a soma das
     // parcelas 20%/80%, que pode ficar fora de sincronia (reconciliação de
@@ -836,7 +861,7 @@ function rFinanceiroSintetico() {
     // a soma das parcelas lançadas como única alternativa disponível.
     const contrato         = _finContratoDoGrupo(g);
     const valorContrato   = contrato ? (parseFloat((contrato.opcao || '0').toString().replace(/[^\d,]/g, '').replace(',', '.')) || 0) : 0;
-    const totalParcelas   = (g.p20?.valorNum||0) + (g.p80?.valorNum||0);
+    const totalParcelas   = g.parcelas.reduce((s, p) => s + _finValorNoContrato(p), 0);
     const subtotal         = valorContrato || totalParcelas;
 
     // Mesma lógica pro Fechamento: o valor real vem do registro em D.fechamentos
@@ -867,7 +892,7 @@ function rFinanceiroSintetico() {
       subtotalAviso = `<div style="font-size:10px;font-weight:600;color:var(--text3);margin-top:2px" title="Aprovado por ${dv.aprovadoPor||'admin'}: ${dv.motivo}">✓ divergência aprovada</div>`;
     } else if (faltaContrato) {
       subtotalAviso = `
-        <div style="font-size:10px;font-weight:600;color:var(--red);margin-top:2px" title="Valor do contrato: ${fR(valorContrato)} · Lançado nas parcelas 20%/80%: ${fR(totalParcelas)}">⚠ ${saldoContrato>0?'falta':'excedeu'} ${fR(Math.abs(saldoContrato))}</div>
+        <div style="font-size:10px;font-weight:600;color:var(--red);margin-top:2px" title="Valor do contrato: ${fR(valorContrato)} · Lançado nas parcelas: ${fR(totalParcelas)}">⚠ ${saldoContrato>0?'falta':'excedeu'} ${fR(Math.abs(saldoContrato))}</div>
         ${souAdminSub && contrato ? `<button class="btn-sm" onclick="aprovarDivergenciaContrato('${contrato.id}', ${saldoContrato})" style="font-size:9px;padding:1px 6px;margin-top:2px">✓ Aprovar</button>` : ''}
       `;
     }
@@ -880,10 +905,14 @@ function rFinanceiroSintetico() {
       <td style="padding:12px;font-size:11px;color:var(--text3);white-space:nowrap">${fd(g.data)||'—'}</td>
       <td style="padding:12px">
         <strong style="font-size:13px">${g.nome}</strong>
+        ${contrato && typeof planoAbrir === 'function' ? `<div style="margin-top:4px"><button class="btn-sm" onclick="planoAbrir('${contrato.id}')" style="font-size:9px;padding:1px 6px" title="Ver ou mudar como o cliente vai pagar (20/80, 30/70, 50/50, parcelado…)">Plano: ${typeof planoRotulo === 'function' ? planoRotulo(contrato, g.parcelas.length) : ''}</button></div>` : ''}
       </td>
       <td style="padding:12px;font-size:11px;color:var(--text3)">${g.tipo}<br>${g.convidados !== '—' ? g.convidados+' conv.' : ''}</td>
-      <td style="padding:10px 14px;text-align:center">${_finPilula(g.p20, hoje)}</td>
-      <td style="padding:10px 14px;text-align:center">${_finPilula(g.p80, hoje)}</td>
+      <td style="padding:10px 14px">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center">
+          ${g.parcelas.length ? g.parcelas.map(p => _finPilula(p, hoje, { rotulo: _finRotuloParcela(p) })).join('') : '<span style="color:var(--text3);font-size:12px">—</span>'}
+        </div>
+      </td>
       <td style="padding:10px 14px;text-align:center">${_finPilula(g.pFch, hoje, { faltaValor: faltaFechamento && !fchDivergAprovada, aprovado: fchDivergAprovada, valorReal: valorFechamentoReal, diferenca: diferencaFechamento, refId: fchRecord?.id, aprovarFn: 'aprovarDivergenciaFechamento' })}</td>
       <td style="padding:12px;text-align:right;font-family:var(--mono);font-weight:700;font-size:13px;color:${faltaContrato && !divergAprovada?'var(--red)':'var(--text)'}">
         ${fR(subtotal)}
@@ -894,6 +923,13 @@ function rFinanceiroSintetico() {
       </td>`;
     tbody.appendChild(tr);
   });
+}
+
+// Rótulo curto da parcela na pílula: "Sinal", "Restante", "Parcela 2/7"…
+function _finRotuloParcela(p) {
+  const d = String(p.descricao || '').trim();
+  const m = d.match(/^[^—–-]+/);
+  return (m ? m[0] : d).trim().slice(0, 22) || 'Parcela';
 }
 
 function _finPilula(parc, hoje, opts) {
@@ -957,10 +993,12 @@ function _finPilula(parc, hoje, opts) {
        </div>`
     : `<div style="margin-top:4px"><button class="btn-sm btn-green" onclick="abrirModalPagamento('${parc.id}')" style="font-size:9px;padding:1px 6px">Recebido</button></div>`;
   return `<div style="background:${pago && opts?.faltaValor ? 'var(--red-bg)' : bg};color:${pago && opts?.faltaValor ? 'var(--red)' : cor};border-radius:8px;padding:7px 10px;display:inline-block;min-width:110px;text-align:center">
+    ${opts?.rotulo ? `<div style="font-size:9px;font-weight:700;text-transform:uppercase;opacity:0.8;margin-bottom:2px">${opts.rotulo}</div>` : ''}
     <div style="font-family:var(--mono);font-weight:700;font-size:13px">${fR(parc.valorNum)}</div>
     ${venc}
     ${pagoEm}
     ${divergAviso}
+    ${_finExcedenteHTML(parc)}
     <div style="font-size:10px;margin-top:1px">${pago && opts?.faltaValor ? '⚠ Parcial' : label}</div>
     ${botao}
   </div>`;
@@ -1226,7 +1264,7 @@ async function confirmarPagamento() {
 // Registra o pagamento numa parcela (usado pelo modal "Registrar pagamento" e
 // pela Conciliação Bancária). Mesmas regras de sempre: valor abaixo do
 // previsto e quem lança não é admin → fica aguardando aprovação; valor acima
-// → excedente abate das próximas parcelas do contrato. Não grava (sv) nem
+// → excedente fica sinalizado (f.excedente) até o admin decidir. Não grava (sv) nem
 // redesenha — quem chama faz isso. Devolve { msg, ehErro, aguardandoAprovacao }.
 function _finAplicarPagamento(f, p) {
   const { valorPago, dataPagamento, formaPagamento } = p;
@@ -1263,31 +1301,21 @@ function _finAplicarPagamento(f, p) {
   f.aprovacaoPendente  = null;
   _finSincronizarStatusFechamento(f);
 
-  let resto = 0;
-  if (diff > 0) {
-    const r = _aplicarAjusteContrato(f, diff);
-    f._ajustes = r.ajustes;
-    resto = r.resto;
-  } else {
-    f._ajustes = [];
-  }
+  // Pagou a mais: NÃO abate sozinho em nada (pedido dela 10-26 — não dá pra
+  // saber de onde é esse dinheiro). Fica sinalizado em f.excedente e o
+  // administrador decide: abater nas próximas parcelas ou manter como receita.
+  f._ajustes = [];
+  f.excedente = diff > 0 ? {
+    valor: diff, status: 'pendente',
+    registradoPor: (typeof perfilAtual !== 'undefined' && perfilAtual) || '',
+    registradoEm: new Date().toISOString(),
+  } : null;
 
   let msg = 'Pagamento registrado com sucesso!';
   let ehErro = false;
   if (diff > 0) {
-    if (resto > 1) {
-      msg = `Pagamento registrado, mas sobraram ${fR(resto)} do excedente que NÃO foi possível aplicar a nenhuma parcela pendente do contrato (nenhuma parcela irmã encontrada, ou já estão todas quitadas). Verifique manualmente.`;
-      ehErro = true;
-    } else if (resto > 0) {
-      // Sobra de até R$1 — provavelmente diferença de centavos no pagamento
-      // real (arredondamento do cliente/banco), não um problema do sistema.
-      // Avisa sem soar alarme de erro.
-      msg = `Pagamento registrado! Excedente de ${fR(diff)} aplicado, com ${fR(resto)} de diferença de centavos que não afetou nenhuma parcela.`;
-    } else if (f._ajustes.length) {
-      msg = `Pagamento registrado! Excedente de ${fR(diff)} aplicado automaticamente à(s) próxima(s) parcela(s).`;
-    } else {
-      msg = `Pagamento registrado! O valor é maior que o previsto para esta parcela, mas o contrato já bate no total (outra parcela foi paga a menos, compensando).`;
-    }
+    msg = `Pagamento registrado com ${fR(diff)} a mais que o previsto. O excedente NÃO foi abatido em nenhuma parcela — ficou sinalizado para o administrador decidir (abater em outra parcela ou manter como receita).`;
+    ehErro = true;
   } else if (diff < 0) {
     msg = `Pagamento registrado com valor abaixo do previsto (faltam ${fR(-diff)}), autorizado como administrador.`;
   }
@@ -1329,6 +1357,68 @@ function aprovarPagamentoMenor(id) {
 
   sv('financeiro'); _finRefresh();
   alert2('Pagamento aprovado e quitado!', 'success');
+}
+
+// ── Excedente (pagou a mais): decisão do administrador ──────────────────────
+// O sistema só sinaliza (f.excedente.status 'pendente'). O admin escolhe:
+//   'abatido' — desconta das próximas parcelas pendentes do contrato
+//               (_aplicarAjusteContrato; "Desfazer" o pagamento reverte);
+//   'receita' — fica como receita extra (com motivo), nada mais muda.
+function _finSouAdmin() { return typeof perfilAtual !== 'undefined' && perfilAtual === 'admin'; }
+
+function finExcedenteAbater(id) {
+  if (!_finSouAdmin()) { alert2('Somente o administrador decide o que fazer com o valor pago a mais.', 'error'); return; }
+  const f = (D.financeiro || []).find(x => x.id === id);
+  if (!f || !f.excedente || f.excedente.status !== 'pendente') return;
+  if (!confirm(`Abater o excedente de ${fR(f.excedente.valor)} nas próximas parcelas pendentes deste contrato?`)) return;
+  const r = _aplicarAjusteContrato(f, f.excedente.valor);
+  f._ajustes = r.ajustes;
+  f.excedente.status = 'abatido';
+  f.excedente.decididoPor = (typeof perfilAtual !== 'undefined' && perfilAtual) || '';
+  f.excedente.decididoEm = new Date().toISOString();
+  sv('financeiro'); _finRefresh();
+  if (r.resto > 0.01) alert2(`Abatido nas parcelas pendentes, mas sobraram ${fR(r.resto)} sem parcela pendente para abater — confira o contrato.`, 'error');
+  else alert2(`Excedente de ${fR(f.excedente.valor)} abatido nas próximas parcelas.`, 'success');
+}
+
+function finExcedenteManter(id) {
+  if (!_finSouAdmin()) { alert2('Somente o administrador decide o que fazer com o valor pago a mais.', 'error'); return; }
+  const f = (D.financeiro || []).find(x => x.id === id);
+  if (!f || !f.excedente || f.excedente.status !== 'pendente') return;
+  const motivo = prompt(`Manter os ${fR(f.excedente.valor)} pagos a mais como receita extra (as outras parcelas continuam iguais)?\n\nMotivo (obrigatório):`);
+  if (motivo === null) return;
+  if (!motivo.trim()) { alert2('Informe o motivo.', 'error'); return; }
+  f.excedente.status = 'receita';
+  f.excedente.motivo = motivo.trim();
+  f.excedente.decididoPor = (typeof perfilAtual !== 'undefined' && perfilAtual) || '';
+  f.excedente.decididoEm = new Date().toISOString();
+  sv('financeiro'); _finRefresh();
+  alert2('Excedente mantido como receita extra.', 'success');
+}
+
+// Valor da parcela que conta contra o valor do contrato: o excedente ainda
+// não decidido, ou mantido como receita, não é "parcela do contrato".
+function _finValorNoContrato(p) {
+  if (!p) return 0;
+  const exc = p.excedente && p.excedente.status !== 'abatido' ? (Number(p.excedente.valor) || 0) : 0;
+  return (Number(p.valorNum) || 0) - exc;
+}
+
+// Selo do excedente (pílula do Sintético e status do Analítico).
+function _finExcedenteHTML(p) {
+  if (!p || !p.excedente) return '';
+  const e = p.excedente;
+  if (e.status === 'pendente') {
+    return `<div style="font-size:10px;font-weight:600;color:var(--amber);margin-top:3px">+${fR(e.valor)} pago a mais — aguardando decisão</div>` +
+      (_finSouAdmin()
+        ? `<div style="margin-top:3px;display:flex;gap:4px;justify-content:center;flex-wrap:wrap">
+             <button class="btn-sm" onclick="finExcedenteAbater('${p.id}')" style="font-size:9px;padding:1px 6px" title="Desconta das próximas parcelas pendentes do contrato">Abater</button>
+             <button class="btn-sm" onclick="finExcedenteManter('${p.id}')" style="font-size:9px;padding:1px 6px" title="Fica como receita extra">Manter como receita</button>
+           </div>`
+        : `<div style="font-size:9px;opacity:0.8">aguardando admin</div>`);
+  }
+  if (e.status === 'receita') return `<div style="font-size:10px;color:var(--text3);margin-top:3px" title="${(e.motivo || '').replace(/"/g, '&quot;')}">+${fR(e.valor)} mantido como receita</div>`;
+  return `<div style="font-size:10px;color:var(--text3);margin-top:3px">+${fR(e.valor)} abatido nas próximas parcelas</div>`;
 }
 
 function rejeitarPagamentoMenor(id) {
@@ -1391,6 +1481,7 @@ function marcarPendente(id) {
   f.aprovadoPor = '';
   // linhas do extrato (Conciliação Bancária) voltam a ficar pendentes
   f.extratoId = ''; f.extratoParciais = []; f.recebidoParcial = 0;
+  f.excedente = null;
   _finSincronizarStatusFechamento(f);
 
   sv('financeiro'); _finRefresh();

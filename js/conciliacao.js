@@ -7,7 +7,7 @@
 //     valor) — nada é quitado sem ela confirmar;
 //   - confirmar uma parcela pendente registra o pagamento pela mesma regra do
 //     modal "Registrar pagamento" (_finAplicarPagamento: valor menor → precisa
-//     de aprovação do admin; valor maior → abate das próximas parcelas);
+//     de aprovação do admin; valor maior → excedente fica sinalizado p/ o admin decidir);
 //   - parcela que ela já tinha dado baixa à mão é só marcada como conferida.
 //
 // D.extratoBancario = [{ id, chave, data, lancamento, razao, cpf, valor,
@@ -364,7 +364,7 @@ function _concVincular(e, f) {
   var jaRecebido = Number(f.recebidoParcial) ? 'Já recebido nessa parcela: ' + fR(f.recebidoParcial) + ' — falta ' + fR(restante) + '.\n' : '';
   if (dif >= 0) {
     if (confirm(cab + jaRecebido + (dif > 0
-      ? 'O valor é ' + fR(dif) + ' MAIOR que o que falta — o excedente abate das próximas parcelas do contrato.'
+      ? 'O valor é ' + fR(dif) + ' MAIOR que o que falta — o excedente NÃO é abatido em nada: fica sinalizado para o administrador decidir (abater em outra parcela ou manter como receita).'
       : 'O pagamento da parcela será registrado.'))) concluir('total');
     return;
   }

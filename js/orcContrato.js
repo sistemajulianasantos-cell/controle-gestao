@@ -195,8 +195,11 @@ function _orcContratoRender(orc) {
       '<div style="grid-column:1/-1;font-size:10px;color:var(--text3);margin-top:-4px">Equipe, coquetéis e destilados vêm do orçamento — ajuste o que for diferente no contrato.</div>' +
 
       secao('Pagamento') +
-      '<div><label class="lbl">Vencimento do restante (80%)</label><input id="morc-venc" class="inp" type="date" value="' + _orcContratoVencPadrao(orc) + '" style="' + campo + '"></div>' +
-      '<div style="font-size:10px;color:var(--text3);align-self:end;padding-bottom:6px">Vem 7 dias antes do evento — dá pra trocar.</div>' +
+      // Plano de pagamento (20/80, 30/70, 50/50, parcelado, personalizado) —
+      // a prévia acompanha o valor final (com desconto). js/planoPagamento.js
+      '<div style="grid-column:1/-1">' + planoFormHTML('morc', { tipo: '20_80' }, {
+        valor: function() { return _orcContratoLerValores().final; }, dataEvento: orc.dataEvento,
+      }) + '</div>' +
     '</div>' +
 
     '<div style="margin-top:10px">' +
@@ -264,6 +267,7 @@ function _orcContratoLerValores() {
 function _orcContratoAtualizarTotal() {
   var el = document.getElementById('morc-total');
   if (!el) return;
+  if (typeof planoPreview === 'function') planoPreview('morc');
   var v = _orcContratoLerValores();
   if (!v.pacote) { el.innerHTML = 'Escolha o pacote para ver o valor final.'; return; }
   var porPessoa = v.convidados ? ' · ' + fR(v.final / v.convidados) + ' / pessoa' : '';
@@ -326,7 +330,6 @@ function orcConfirmarGerarContrato() {
     equipeTexto: val('morc-equipe'),
     coqueteis: val('morc-coqueteis'),
     destilados: _orcContratoBebidasSel() === 'cliente' ? '' : val('morc-destilados'),
-    vencRestante: val('morc-venc'),
   };
   var faltam = [];
   if (!dados.pacote) faltam.push('pacote fechado');
@@ -353,6 +356,10 @@ function orcConfirmarGerarContrato() {
   dados.desconto = vals.desconto;
   dados.descontoTexto = vals.desconto ? (vals.tipo === '%' ? String(vals.qtd).replace('.', ',') + '%' : fR(vals.desconto)) : '';
   var valor = vals.final;
+  var plano = planoResultado('morc');
+  if (plano.erro) { alert2('Plano de pagamento: ' + plano.erro, 'error'); return; }
+  dados.plano = { tipo: plano.cfg.tipo, cfg: plano.cfg, parcelas: plano.parcelas };
+  dados.vencRestante = plano.parcelas[1] ? plano.parcelas[1].vencimento : '';
 
   var btn = document.getElementById('btn-morc-gerar');
   if (btn) { btn.disabled = true; btn.textContent = 'Gerando…'; }
@@ -368,10 +375,11 @@ function orcConfirmarGerarContrato() {
       hrInicio: dados.hrInicio, hrFim: info.hrFim, duracao: info.duracaoTexto,
       equipe: equipe, equipeTexto: dados.equipeTexto.split('\n').map(function(l) { return l.trim(); }).filter(Boolean).join(' · '),
       opcao: fmt(valor), valorNum: valor,
-      parcelas: [
-        { valor: fmt(info.sinal), descricao: 'Sinal — assinatura do contrato', vencimento: td() },
-        { valor: fmt(info.restante), descricao: 'Restante', vencimento: dados.vencRestante || '' },
-      ],
+      parcelas: dados.plano.parcelas.map(function(p) { return { valor: fmt(p.valor), descricao: p.descricao, vencimento: p.vencimento || '' }; }),
+      planoPagamento: {
+        tipo: dados.plano.tipo, cfg: dados.plano.cfg, parcelas: dados.plano.parcelas,
+        atualizadoEm: new Date().toISOString(), atualizadoPor: typeof _orcUsuarioAtual === 'function' ? _orcUsuarioAtual() : '',
+      },
       cardapio: dados.coqueteis,
       bebidasPor: dados.bebidasPor,
       bebidasRomero: dados.bebidasPor === 'cliente' ? '' : dados.destilados,
@@ -419,6 +427,10 @@ function orcBaixarContrato(orcId) {
     coqueteis: c.coqueteisTexto || c.cardapio || '', destilados: c.destiladosTexto || c.bebidasRomero || '',
     vencRestante: c.vencRestante || '',
     valorBruto: Number(c.valorBruto) || Number(c.valorNum) || 0, desconto: Number(c.desconto) || 0, descontoTexto: c.descontoTexto || '',
+    // Plano gravado no contrato; contrato antigo → as parcelas que ele guardou.
+    plano: c.planoPagamento || { tipo: '20_80', parcelas: (c.parcelas || []).map(function(p) {
+      return { descricao: p.descricao || '', valor: parseFloat(String(p.valor || '0').replace(/\./g, '').replace(',', '.')) || 0, vencimento: p.vencimento || '' };
+    }) },
   };
   _orcContratoBaixarDocx(_orcContratoInfo(orc, dados, Number(c.valorNum) || 0));
 }
@@ -432,9 +444,12 @@ function _orcContratoInfo(orc, dados, valor) {
     hrFim = String(Math.floor(mins / 60)).padStart(2, '0') + ':' + String(mins % 60).padStart(2, '0');
   }
   var dur = Number(dados.duracao) || 0;
-  var sinal = Math.round(valor * 0.2 * 100) / 100;
+  // Parcelas do plano de pagamento (sem plano: 20/80, como antes).
+  var parcelas = (dados.plano && dados.plano.parcelas && dados.plano.parcelas.length) ? dados.plano.parcelas : null;
+  var sinal = parcelas ? (Number(parcelas[0].valor) || 0) : Math.round(valor * 0.2 * 100) / 100;
   return {
     orc: orc, dados: dados, valor: valor, sinal: sinal, restante: Math.round((valor - sinal) * 100) / 100,
+    parcelas: parcelas || [],
     hrFim: hrFim,
     duracaoNumero: dur ? String(dur).replace('.', ',') : '',
     duracaoTexto: dur ? String(dur).replace('.', ',') + (dur === 1 ? ' hora' : ' horas') : '',
@@ -483,6 +498,15 @@ function _orcContratoMarcacoes(info) {
     VALOR_SINAL: din(info.sinal), VALOR_SINAL_NUMERO: num(info.sinal), VALOR_SINAL_EXTENSO: ext(info.sinal),
     VALOR_RESTANTE: din(info.restante), VALOR_RESTANTE_NUMERO: num(info.restante), VALOR_RESTANTE_EXTENSO: ext(info.restante),
     VENCIMENTO_RESTANTE: dados.vencRestante ? fd(dados.vencRestante) : '',
+    // Plano de pagamento: {PARCELAS} = uma linha por parcela ("Entrada —
+    // assinatura do contrato: R$ 4.176,00 (quatro mil…) em 24/09/2025");
+    // {#PARCELAS_LISTA}{DESCRICAO} {VALOR} {VENCIMENTO}{/PARCELAS_LISTA}.
+    PARCELAS: typeof planoTextoParcelas === 'function' ? planoTextoParcelas(info.parcelas) : '',
+    PARCELAS_LISTA: info.parcelas.map(function(p) {
+      return { DESCRICAO: p.descricao, VALOR: din(p.valor), VALOR_NUMERO: num(p.valor), VALOR_EXTENSO: ext(p.valor), VENCIMENTO: p.vencimento ? fd(p.vencimento) : '' };
+    }),
+    QTD_PARCELAS: String(info.parcelas.length || ''),
+    PLANO_PAGAMENTO: typeof planoRotulo === 'function' ? planoRotulo({ planoPagamento: dados.plano }, info.parcelas.length) : '',
     VALOR_HORA_EXTRA: din(dados.horaExtra), VALOR_HORA_EXTRA_NUMERO: num(dados.horaExtra), VALOR_HORA_EXTRA_EXTENSO: ext(dados.horaExtra),
     VALOR_CONVIDADO_EXTRA: din(dados.convExtra), VALOR_CONVIDADO_EXTRA_NUMERO: num(dados.convExtra), VALOR_CONVIDADO_EXTRA_EXTENSO: ext(dados.convExtra),
     MODULOS: _orcContratoModulosTexto(dados.modulos), MODULOS_NUMERO: dados.modulos ? String(dados.modulos) : '',

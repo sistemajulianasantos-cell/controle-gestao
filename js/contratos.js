@@ -1168,6 +1168,7 @@ function rContratos() {
       <td><span class="tag ${statCor[c.status]||'tag-yellow'}">${c.status||'ativo'}</span></td>
       <td style="white-space:nowrap">
         <button class="btn-sm" onclick="abrirEdicaoContrato('${c.id}')" title="Editar contrato">✏️</button>
+        ${typeof planoAbrir === 'function' ? `<button class="btn-sm" onclick="planoAbrir('${c.id}')" title="Como o cliente vai pagar (20/80, 30/70, 50/50, parcelado…)" style="background:var(--bg3)">Plano</button>` : ''}
         <button class="btn-sm btn-red" onclick="excluirContrato('${c.id}')">✕</button>
       </td>
     `;
