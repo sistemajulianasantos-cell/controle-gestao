@@ -564,6 +564,18 @@ function corrigirParcelasContratos(problemas) {
   alert2(`✅ ${criadas} parcela(s) criada(s), ${corrigidas} corrigida(s) para bater com o valor do contrato.`, 'success');
 }
 
+// Barra "Buscar cliente..." (vale para Sintético e Analítico): todas as
+// palavras digitadas precisam aparecer no nome do cliente/evento (ou no nome
+// do contrato vinculado), sem diferenciar acento e maiúscula.
+function _finBateBusca(f) {
+  const termo = (document.getElementById('fin-busca')?.value || '').trim();
+  if (!termo) return true;
+  const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const c = f.contratoId ? (D.contratos || []).find(x => x.id === f.contratoId) : null;
+  const texto = norm([f.contrato, f.evento, c && c.nome, c && c.proposta].join(' '));
+  return norm(termo).split(/\s+/).every(p => texto.includes(p));
+}
+
 // ── Vista Analítica ───────────────────────────────────────────────────────────
 function rFinanceiro() {
   rKpiFaturamento();
@@ -586,6 +598,7 @@ function rFinanceiro() {
   const filtroF = document.getElementById('fin-data-fim')?.value || '';
 
   const lista = fin
+    .filter(_finBateBusca)
     .filter(f => filtro === 'todos' || f.status === filtro)
     .filter(f => !filtroI || (f.vencimento && f.vencimento >= filtroI))
     .filter(f => !filtroF || (f.vencimento && f.vencimento <= filtroF))
@@ -795,6 +808,7 @@ function rFinanceiroSintetico() {
   _finAtualizarKpis(filtroI, filtroF);
 
   const grupos = _finAgruparEventos(fin
+    .filter(_finBateBusca)
     .filter(f => !filtroI || (f.data && f.data >= filtroI))
     .filter(f => !filtroF || (f.data && f.data <= filtroF)));
 

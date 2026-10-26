@@ -1463,6 +1463,8 @@
         <button class="sort-btn active" id="fin-tab-sint" onclick="finSetView('sintetico')">📊 Sintético</button>
         <button class="sort-btn"        id="fin-tab-anal" onclick="finSetView('analitico')">📋 Analítico</button>
         <button class="sort-btn" onclick="go('conciliacao')" title="Importar o extrato do banco e ligar os pagamentos às parcelas">Conciliação bancária</button>
+        <input id="fin-busca" class="inp" type="search" placeholder="Buscar cliente..." oninput="_finRefresh()" style="width:220px" title="Filtra pelo nome do cliente/evento nas duas vistas">
+
         <div style="margin-left:auto;display:flex;gap:8px">
           <button class="btn-sm" onclick="verificarDuplicatasFinanceiro()" style="background:var(--red-bg);color:var(--red);border:1px solid var(--red);font-weight:700" title="Confere se algum valor está contado duas vezes no total">🧮 Verificar duplicatas</button>
           <button class="btn-sm" onclick="migrarComprovantesEmbutidos()" style="background:var(--red-bg);color:var(--red);border:1px solid var(--red);font-weight:700" title="Se o Financeiro parou de salvar (documento acima de 1MB), clique aqui">🗜️ Corrigir erro de salvamento</button>
@@ -2464,7 +2466,7 @@
 <script src="js/contratos.js?v=20261016a"></script>
 <script src="js/agenda.js?v=20261012e"></script>
 <script src="js/producao.js?v=20261012e"></script>
-<script src="js/financeiro.js?v=20261026b"></script>
+<script src="js/financeiro.js?v=20261026c"></script>
 <script src="js/fechamento.js?v=20261012e"></script>
 <script src="js/despesas.js?v=20261012e"></script>
 <script src="js/producao2.js?v=20260610z"></script>
