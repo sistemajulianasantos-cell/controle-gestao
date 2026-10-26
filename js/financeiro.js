@@ -890,13 +890,23 @@ function rFinanceiroSintetico() {
     let subtotalAviso = '';
     if (faltaContrato && divergAprovada) {
       const dv = contrato.divergenciaAprovada;
-      subtotalAviso = `<div style="font-size:10px;font-weight:600;color:var(--text3);margin-top:2px" title="Aprovado por ${dv.aprovadoPor||'admin'}: ${dv.motivo}">✓ divergência aprovada</div>`;
+      subtotalAviso = `<div style="font-size:10px;font-weight:600;color:var(--text3);margin-top:2px" title="Aprovado por ${dv.aprovadoPor||'admin'}: ${dv.motivo}">✓ ${saldoContrato > 0 ? 'faltou' : 'excedeu'} ${fR(Math.abs(saldoContrato))} — aprovado</div>`;
     } else if (faltaContrato) {
       subtotalAviso = `
         <div style="font-size:10px;font-weight:600;color:var(--red);margin-top:2px" title="Valor do contrato: ${fR(valorContrato)} · Lançado nas parcelas: ${fR(totalParcelas)}">⚠ ${saldoContrato>0?'falta':'excedeu'} ${fR(Math.abs(saldoContrato))}</div>
         ${souAdminSub && contrato ? `<button class="btn-sm" onclick="aprovarDivergenciaContrato('${contrato.id}', ${saldoContrato})" style="font-size:9px;padding:1px 6px;margin-top:2px">✓ Aprovar</button>` : ''}
       `;
     }
+
+    // Dinheiro que de fato entrou (parcelas + fechamento pagos, com o que foi
+    // pago a mais) — mostra quanto passou do contratado.
+    const recebido = todas.filter(p => p.status === 'pago')
+      .reduce((s, p) => s + (p.valorPago != null ? Number(p.valorPago) || 0 : Number(p.valorNum) || 0), 0);
+    const acima = Math.round((recebido - total) * 100) / 100;
+    const recebidoHTML = recebido > 0
+      ? `<div style="font-size:10px;font-weight:600;color:var(--text3);margin-top:2px">recebido ${fR(recebido)}</div>` +
+        (acima > 0.01 ? `<div style="font-size:10px;font-weight:700;color:var(--amber)" title="Recebido além do valor do contrato + fechamento">+${fR(acima)} acima do contratado</div>` : '')
+      : '';
 
     const tr = document.createElement('tr');
     tr.style.borderBottom = '1px solid var(--border)';
@@ -922,6 +932,7 @@ function rFinanceiroSintetico() {
       </td>
       <td style="padding:12px;text-align:right;font-family:var(--mono);font-weight:700;font-size:14px;color:${todoPago&&!algumaPendencia?'var(--green)':temAtras?'var(--red)':'var(--text)'}">
         ${fR(total)}
+        ${recebidoHTML}
       </td>`;
     tbody.appendChild(tr);
   });
@@ -1090,7 +1101,7 @@ function _finPilula(parc, hoje, opts) {
       ${souAdminPil && opts.refId ? `<button class="btn-sm" onclick="${opts.aprovarFn}('${opts.refId}', ${opts.diferenca})" style="font-size:9px;padding:1px 6px;margin-top:2px">✓ Aprovar</button>` : ''}
     `;
   } else if (pago && opts?.aprovado) {
-    divergAviso = `<div style="font-size:10px;font-weight:600;color:var(--text3);margin-top:2px">✓ divergência aprovada</div>`;
+    divergAviso = `<div style="font-size:10px;font-weight:600;color:var(--text3);margin-top:2px">✓ ${opts.diferenca > 0 ? 'faltou' : 'a mais'} ${fR(Math.abs(opts.diferenca || 0))} — aprovado</div>`;
   }
 
   const botao = pago
