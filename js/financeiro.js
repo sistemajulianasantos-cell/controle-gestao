@@ -227,6 +227,8 @@ function _finAtualizarKpis(filtroIni, filtroFim) {
   if (alertaEl) {
     const partes = [];
     if (parcelasAguardando) partes.push(`${parcelasAguardando} pagamento(s) aguardando aprovação (valor abaixo do previsto)`);
+    const idRepetido = _finContratosIdRepetido().length;
+    if (idRepetido) partes.push(`${idRepetido} grupo(s) de contratos com código repetido — parcelas podem aparecer no contrato errado <button class="btn-sm" onclick="finCorrigirIdsRepetidos()" style="font-size:10px;padding:1px 7px;margin-left:4px">Corrigir códigos repetidos</button>`);
     const semParcelas = _finContratosSemParcelas().length;
     if (semParcelas) partes.push(`${semParcelas} contrato(s) sem parcelas no Contas a Receber (use "Lançar parcelas")`);
     const excedentesPendentes = fin.filter(f => f.excedente && f.excedente.status === 'pendente').length;
@@ -447,20 +449,92 @@ function sincronizarFechamentosFinanceiro() {
 // contrato salvo sem valor e editado depois nunca ganhava parcelas — e não
 // aparecia aqui). Mesmo vínculo de _planoParcelasDoContrato: contratoId ou
 // nome + data do evento.
+// ── Contrato de uma parcela, conferindo o NOME (10-26) ─────────────────────
+// Caso real: parcelas do "Casamento entre Maria Eduarda…" com o código
+// (contratoId) igual ao do contrato do Pedro Humberto Veloso — contratos
+// antigos com código repetido. Só confiar no código quando o nome bate (ou
+// quando não há outro contrato com o nome certo).
+const _finTokensCache = new Map();
+function _finTokensNome(s) {
+  const k = String(s || '');
+  if (_finTokensCache.has(k)) return _finTokensCache.get(k);
+  const t = k.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase()
+    .split(/[^A-Z0-9]+/).filter(t => t.length >= 2 && !/^(DE|DA|DO|DOS|DAS|E|CASAMENTO|ENTRE|ANIVERSARIO|FESTA)$/.test(t));
+  if (_finTokensCache.size > 5000) _finTokensCache.clear();
+  _finTokensCache.set(k, t);
+  return t;
+}
+function _finNomeBate(c, f) {
+  const tc = _finTokensNome([c.nome, c.nomeEvento].join(' '));
+  const tf = _finTokensNome([f.contrato, f.evento, f.nome].join(' '));
+  const comuns = tf.filter(t => tc.indexOf(t) !== -1).length;
+  return comuns >= 2 || (comuns === 1 && (tc.length === 1 || tf.length === 1));
+}
+function _finContratoDaParcela(f) {
+  if (!f) return null;
+  const lista = D.contratos || [];
+  const porId = f.contratoId ? lista.filter(c => c.id === f.contratoId) : [];
+  const idBate = porId.find(c => _finNomeBate(c, f));
+  if (idBate) return idBate;
+  const porNome = lista.filter(c => c.status !== 'cancelado' && _finNomeBate(c, f));
+  const mesmoDia = porNome.find(c => (c.data || '') === (f.data || ''));
+  if (porId.length === 1 && !porNome.length) return porId[0];
+  // Código aponta pra contrato de outro nome: vale o contrato com o nome certo.
+  return mesmoDia || porNome[0] || porId[0] ||
+    _finContratoDoGrupo({ contratoId: f.contratoId, nome: f.evento || f.contrato, data: f.data });
+}
+
+// Contratos que dividem o mesmo código (id) — origem do vínculo errado.
+function _finContratosIdRepetido() {
+  const vistos = {}, rep = {};
+  (D.contratos || []).forEach(c => { if (!c.id) return; if (vistos[c.id]) rep[c.id] = true; vistos[c.id] = true; });
+  return Object.keys(rep).map(id => (D.contratos || []).filter(c => c.id === id));
+}
+
+// Dá código novo aos contratos repetidos (mantém o 1º) e religa pelo nome as
+// parcelas, a agenda, a produção e o orçamento que são deles.
+function finCorrigirIdsRepetidos() {
+  const grupos = _finContratosIdRepetido();
+  if (!grupos.length) { alert2('Nenhum contrato com código repetido.'); return; }
+  const texto = 'Contratos com o mesmo código interno (por isso parcelas aparecem no contrato errado):\n\n' +
+    grupos.map(g => g.map(c => '• ' + (c.nome || '') + ' — evento ' + fd(c.data)).join('\n')).join('\n\n') +
+    '\n\nCorrigir? Cada um ganha um código próprio e as parcelas, agenda e produção são religadas pelo nome do contrato.';
+  const corrigir = () => {
+    let religados = 0;
+    grupos.forEach(g => {
+      const idAntigo = g[0].id;
+      g.slice(1).forEach(c => {
+        const novo = _gerarId('CON');
+        c.id = novo;
+        (D.financeiro || []).forEach(f => { if (f.contratoId === idAntigo && _finNomeBate(c, f) && !_finNomeBate(g[0], f)) { f.contratoId = novo; religados++; } });
+        (D.agenda || []).forEach(a => { if (a.contratoId === idAntigo && _finNomeBate(c, { nome: a.nome }) && !_finNomeBate(g[0], { nome: a.nome })) { a.contratoId = novo; religados++; } });
+        (D.producoes || []).forEach(p => { const x = { contrato: p.cliente, evento: p.evento }; if (p.contratoId === idAntigo && _finNomeBate(c, x) && !_finNomeBate(g[0], x)) { p.contratoId = novo; religados++; } });
+        const orc = c.orcamentoId && (D.orcamentos || []).find(o => o.id === c.orcamentoId);
+        if (orc) orc.contratoId = novo;
+      });
+    });
+    ['contratos', 'financeiro', 'agenda', 'producoes', 'orcamentos'].forEach(k => sv(k));
+    alert2(`Códigos corrigidos (${grupos.length} grupo(s)); ${religados} lançamento(s) religado(s) ao contrato certo.`);
+    if (typeof _finRefresh === 'function') _finRefresh();
+    if (typeof rContratos === 'function') rContratos();
+  };
+  if (typeof sisDialogo === 'function') sisDialogo(texto, corrigir, { ok: 'Corrigir códigos' }); else if (confirm(texto)) corrigir();
+}
+
 // Também entra contrato cujas parcelas lançadas estão todas com valor zero e
 // nenhuma paga (importado sem valor, "Sem cobrança") — pedido dela 10-26: sem
 // parcela ou sem valor, mostra o valor integral do contrato a receber.
 function _finParcelasDoContratoMapa() {
-  const norm = s => String(s || '').toLowerCase().trim();
-  const porId = {}, porNome = {};
+  // Mesmo vínculo de _finContratoDaParcela (código + nome).
+  const mapa = new Map();
   (D.financeiro || []).forEach(f => {
     if (f.isFechamento) return;
-    if (f.contratoId) (porId[f.contratoId] = porId[f.contratoId] || []).push(f);
-    const k1 = norm(f.contrato || f.evento) + '|' + (f.data || ''), k2 = norm(f.evento || f.contrato) + '|' + (f.data || '');
-    (porNome[k1] = porNome[k1] || []).push(f);
-    if (k2 !== k1) (porNome[k2] = porNome[k2] || []).push(f);
+    const c = _finContratoDaParcela(f);
+    if (!c) return;
+    if (!mapa.has(c)) mapa.set(c, []);
+    mapa.get(c).push(f);
   });
-  return c => (c.id && porId[c.id]) || porNome[norm(c.nomeEvento || c.nome) + '|' + (c.data || '')] || porNome[norm(c.nome) + '|' + (c.data || '')] || [];
+  return c => mapa.get(c) || [];
 }
 function _finValorDoContrato(c) {
   return parseFloat(String(c.opcao || '0').replace(/[^\d,]/g, '').replace(',', '.')) || Number(c.valorNum) || 0;

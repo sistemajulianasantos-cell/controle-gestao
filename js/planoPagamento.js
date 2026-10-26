@@ -228,6 +228,8 @@ function _planoParcelasDoContrato(c) {
   var norm = function(s) { return String(s || '').toLowerCase().trim(); };
   return (D.financeiro || []).filter(function(f) {
     if (f.isFechamento) return false;
+    // Confere o nome: parcela com código de outro contrato (código repetido) vai pro contrato certo.
+    if (typeof _finContratoDaParcela === 'function') return _finContratoDaParcela(f) === c;
     if (f.contratoId) return f.contratoId === c.id;
     return norm(f.contrato || f.evento) === norm(c.nomeEvento || c.nome) && (f.data || '') === (c.data || '');
   }).sort(function(a, b) { return (a.vencimento || '9999').localeCompare(b.vencimento || '9999'); });

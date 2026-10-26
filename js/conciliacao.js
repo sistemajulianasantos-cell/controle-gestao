@@ -69,6 +69,8 @@ function _concTokens(s) {
 function _concParcela(id) { return (D.financeiro || []).find(function(f) { return f.id === id; }) || null; }
 function _concContratoDaParcela(f) {
   if (!f) return null;
+  // Confere o nome (contratos antigos com código repetido) — js/financeiro.js
+  if (typeof _finContratoDaParcela === 'function') return _finContratoDaParcela(f);
   return (f.contratoId && (D.contratos || []).find(function(c) { return c.id === f.contratoId; })) ||
     (typeof _finContratoDoGrupo === 'function' ? _finContratoDoGrupo({ contratoId: f.contratoId, nome: f.evento || f.contrato, data: f.data }) : null);
 }
@@ -334,7 +336,7 @@ function _concCalcularSugestoes() {
           return (f.descricao || 'parcela') + ' ' + fR(f.status === 'pago' ? (f.valorPago || f.valorNum) : f.valorNum) + ' — ' +
             (f.status === 'pago' ? 'paga ' + fd(f.dataPagamento) : 'pendente') + _concOcupadaPor(f, reservadas[f.id]);
         });
-        sug[e.id] = { diag: true, contrato: p0.f.evento || p0.f.contrato || '', contratoId: p0.c ? p0.c.id : '', parcelas: irmas };
+        sug[e.id] = { diag: true, contrato: p0.f.evento || p0.f.contrato || '', contratoId: p0.c ? p0.c.id : '', contratoIdx: p0.c ? (D.contratos || []).indexOf(p0.c) : -1, parcelas: irmas };
       }
     });
   return sug;
@@ -683,7 +685,7 @@ function _concRenderBuscaParcelas() {
   var htmlContratos = contratos.length ? '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:4px 0">Vincular ao cliente (você distribui no que está em aberto)</div>' +
     contratos.map(function(c) {
       var aberto = _concParcelasAbertas(c).reduce(function(s, f) { return s + _concRestante(f); }, 0);
-      return '<div onclick="concAbrirDistribuir(\'' + _concVincularId + '\',\'' + c.id + '\')" style="display:flex;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--blue);border-radius:var(--radius);margin-bottom:4px;cursor:pointer;font-size:12px" onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'\'">' +
+      return '<div onclick="concAbrirDistribuir(\'' + _concVincularId + '\',\'' + c.id + '\',' + (D.contratos || []).indexOf(c) + ')" style="display:flex;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--blue);border-radius:var(--radius);margin-bottom:4px;cursor:pointer;font-size:12px" onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'\'">' +
         '<div style="flex:1"><b style="color:var(--text)">' + _concEsc(c.nome || '') + '</b><div style="color:var(--text3)">evento ' + fd(c.data) + '</div></div>' +
         '<div style="text-align:right;font-size:11px;color:var(--text3)">em aberto<div style="font-family:var(--mono);color:var(--text)">' + fR(aberto) + '</div></div></div>';
     }).join('') + '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:10px 0 4px">Ou uma parcela específica</div>' : '';
@@ -755,12 +757,15 @@ function _concCriarParcelaIntegral(c) {
   return f;
 }
 
-function concAbrirDistribuir(entradaId, contratoId) {
+// idx = posição do contrato em D.contratos (o código pode se repetir em
+// contratos antigos — a posição garante abrir exatamente o escolhido).
+function concAbrirDistribuir(entradaId, contratoId, idx) {
   var e = _concLista().find(function(x) { return x.id === entradaId; });
-  var c = (D.contratos || []).find(function(x) { return x.id === contratoId; });
+  var porIdx = idx != null && idx >= 0 ? (D.contratos || [])[idx] : null;
+  var c = porIdx && porIdx.id === contratoId ? porIdx : (D.contratos || []).find(function(x) { return x.id === contratoId; });
   if (!e || !c) return;
   var abertas = _concParcelasAbertas(c);
-  _concDistrib = { entradaId: entradaId, contratoId: contratoId, abertas: abertas.map(function(f) { return f.id; }), objs: abertas };
+  _concDistrib = { entradaId: entradaId, contratoId: contratoId, contrato: c, abertas: abertas.map(function(f) { return f.id; }), objs: abertas };
   _concModalEl();
   var emAberto = abertas.reduce(function(s, f) { return s + _concRestante(f); }, 0);
   document.getElementById('mconc-corpo').innerHTML =
@@ -768,7 +773,12 @@ function concAbrirDistribuir(entradaId, contratoId) {
       '<div style="font-weight:600;color:var(--text)">' + _concEsc(e.razao || e.lancamento) + ' <span style="font-family:var(--mono);color:var(--green);margin-left:6px">' + fR(e.valor) + '</span></div>' +
       '<div style="color:var(--text3)">' + fd(e.data) + (e.cpf ? ' · ' + _concEsc(e.cpf) : '') + ' · ' + _concEsc(e.lancamento) + '</div>' +
     '</div>' +
-    '<div style="font-size:13px;color:var(--text);margin-bottom:4px">Cliente: <b>' + _concEsc(c.nome || '') + '</b> <span style="color:var(--text3);font-size:11px">evento ' + fd(c.data) + '</span></div>' +
+    '<div style="font-size:13px;color:var(--text);margin-bottom:4px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">Cliente: <b>' + _concEsc(c.nome || '') + '</b> <span style="color:var(--text3);font-size:11px">evento ' + fd(c.data) + '</span>' +
+      '<button class="btn-sm" onclick="var b=document.getElementById(\'mconc-troca\');b.style.display=b.style.display===\'none\'?\'\':\'none\'" style="background:var(--bg3);margin-left:auto">Trocar cliente</button></div>' +
+    '<div id="mconc-troca" style="display:none;margin-bottom:10px">' +
+      '<input id="mconc-troca-busca" class="inp" type="text" placeholder="Buscar o cliente certo pelo nome" oninput="_concTrocaBuscar()" style="width:100%;box-sizing:border-box">' +
+      '<div id="mconc-troca-lista"></div>' +
+    '</div>' +
     '<div style="font-size:12px;color:var(--text2);margin-bottom:10px">Em aberto no contrato: <b>' + fR(emAberto) + '</b>. Distribua o PIX entre as parcelas:</div>' +
     (abertas.length ? '<table style="width:100%;border-collapse:collapse;font-size:12px">' + abertas.map(function(f, i) {
       return '<tr style="border-top:1px solid var(--border)">' +
@@ -785,6 +795,25 @@ function concAbrirDistribuir(entradaId, contratoId) {
     '</div>';
   _concDistribAuto();
   openM('mconc-vincular');
+}
+
+// "Trocar cliente" na distribuição: busca contratos pelo nome.
+function _concTrocaBuscar() {
+  var el = document.getElementById('mconc-troca-lista');
+  if (!el || !_concDistrib) return;
+  var termo = _concTokens((document.getElementById('mconc-troca-busca') || {}).value || '');
+  if (!termo.length) { el.innerHTML = ''; return; }
+  var lista = (D.contratos || []).map(function(c, i) { return { c: c, i: i }; }).filter(function(x) {
+    if (x.c.status === 'cancelado') return false;
+    var tok = _concTokens([x.c.nome, x.c.nomeEvento].filter(Boolean).join(' '));
+    return termo.every(function(t) { return tok.some(function(w) { return w.indexOf(t) === 0; }); });
+  }).slice(0, 8);
+  el.innerHTML = lista.length ? lista.map(function(x) {
+    var aberto = _concParcelasAbertas(x.c).reduce(function(s, f) { return s + _concRestante(f); }, 0);
+    return '<div onclick="concAbrirDistribuir(\'' + _concDistrib.entradaId + '\',\'' + x.c.id + '\',' + x.i + ')" style="display:flex;gap:10px;padding:7px 10px;border-bottom:1px solid var(--border);cursor:pointer;font-size:12px" onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'\'">' +
+      '<div style="flex:1"><b style="color:var(--text)">' + _concEsc(x.c.nome || '') + '</b><div style="color:var(--text3)">' + _concEsc(x.c.nomeEvento && x.c.nomeEvento !== x.c.nome ? x.c.nomeEvento + ' · ' : '') + 'evento ' + fd(x.c.data) + '</div></div>' +
+      '<div style="text-align:right;font-size:11px;color:var(--text3)">em aberto<div style="font-family:var(--mono);color:var(--text)">' + fR(aberto) + '</div></div></div>';
+  }).join('') : '<div style="font-size:12px;color:var(--text3);padding:6px 2px">Nenhum cliente com esse nome.</div>';
 }
 
 // Preenche das parcelas mais antigas para as mais novas, até acabar o PIX.
@@ -839,7 +868,7 @@ function concSalvarDistribuicao() {
   var r = _concDistribLer();
   if (r.erro) { alert2(r.erro, 'error'); return; }
   if (!r.alocs.length && !(r.sobra > 0.009)) { alert2('Distribua o valor em pelo menos uma parcela.', 'error'); return; }
-  var c = (D.contratos || []).find(function(x) { return x.id === _concDistrib.contratoId; });
+  var c = _concDistrib.contrato || (D.contratos || []).find(function(x) { return x.id === _concDistrib.contratoId; });
   var e = r.e;
   var resumo = r.alocs.map(function(a) {
     return '• ' + (a.f.descricao || 'Parcela') + ': ' + fR(a.valor) + (a.valor >= _concRestante(a.f) - 0.009 ? ' (quita)' : ' (parcial, falta ' + fR(_concRestante(a.f) - a.valor) + ')');
@@ -997,7 +1026,9 @@ function _concLinhaHTML(e, s) {
   var diag = s && s.diag ? s : null;
   if (diag) s = null;
   // Contrato da linha (reconhecido ou da parcela sugerida) — para "Ajustar parcelas".
-  var contratoIdLinha = diag ? diag.contratoId : (s ? ((_concContratoDaParcela(_concParcela(s.parcelaId)) || {}).id || '') : '');
+  var contratoLinha = diag ? ((D.contratos || [])[diag.contratoIdx] || (D.contratos || []).find(function(c) { return c.id === diag.contratoId; })) : (s ? _concContratoDaParcela(_concParcela(s.parcelaId)) : null);
+  var contratoIdLinha = contratoLinha ? contratoLinha.id || '' : '';
+  var contratoIdxLinha = contratoLinha ? (D.contratos || []).indexOf(contratoLinha) : -1; // posição: código pode se repetir
   var f = conciliada ? _concParcela(e.parcelaId) : (s ? _concParcela(s.parcelaId) : null);
   var parcialAberta = conciliada && e.modo === 'parcial' && f && f.status !== 'pago';
   var cor = parcialAberta ? 'var(--blue)' : conciliada ? 'var(--green)' : e.ignorado ? 'var(--text3)' : s ? 'var(--blue)' : 'var(--amber)';
@@ -1029,7 +1060,7 @@ function _concLinhaHTML(e, s) {
       '<div style="display:flex;gap:6px;justify-content:flex-end;margin-top:4px;flex-wrap:wrap">' +
         (s ? '<button class="btn-sm" onclick="concConfirmarSugestao(\'' + e.id + '\')" style="background:var(--green);color:#fff">Confirmar</button>' : '') +
         '<button class="btn-sm" onclick="concAbrirVincular(\'' + e.id + '\')" style="background:var(--bg3)">' + (s ? 'Outra parcela' : 'Vincular') + '</button>' +
-        (contratoIdLinha ? '<button class="btn-sm" onclick="concAbrirDistribuir(\'' + e.id + '\',\'' + contratoIdLinha + '\')" style="background:var(--blue);color:#fff" title="Liga o PIX ao cliente e você decide como distribuir no que está em aberto">Vincular ao cliente</button>' : '') +
+        (contratoIdLinha ? '<button class="btn-sm" onclick="concAbrirDistribuir(\'' + e.id + '\',\'' + contratoIdLinha + '\',' + contratoIdxLinha + ')" style="background:var(--blue);color:#fff" title="Liga o PIX ao cliente e você decide como distribuir no que está em aberto">Vincular ao cliente</button>' : '') +
         (contratoIdLinha && typeof planoAbrir === 'function' ? '<button class="btn-sm" onclick="concAjustarParcelas(\'' + e.id + '\',\'' + contratoIdLinha + '\')" style="background:var(--bg3)" title="Mudar o plano de pagamento deste contrato (nº de parcelas) a partir dos PIX dele — atualiza o contrato e o Contas a Receber">Ajustar parcelas</button>' : '') +
         '<button class="btn-sm" onclick="concIgnorar(\'' + e.id + '\',true)" style="background:var(--bg3)">Ignorar</button>' +
       '</div>';
