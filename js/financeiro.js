@@ -288,7 +288,12 @@ function _finAtualizarKpis(filtroIni, filtroFim) {
       const pago = registros.filter(f => f.status === 'pago').reduce((s, f) => s + (f.valorNum || 0), 0);
       recebido += pago;
       const restante = Math.max(0, Math.round((valorContrato - pago) * 100) / 100);
-      const temAtraso = registros.some(f => f.status === 'pendente' && !f.aprovacaoPendente && (() => { const v = _finVencimentoEfetivo(f); return v && v < hoje; })());
+      // Sem parcela (ou só parcelas zeradas): vale o valor integral, vencendo
+      // 7 dias antes do evento.
+      const semParcela = !registros.some(f => (Number(f.valorNum) || 0) > 0 || f.status === 'pago');
+      const temAtraso = semParcela
+        ? (() => { const v = _finVencimentoEfetivo({ data: c.data }); return v && v < hoje; })()
+        : registros.some(f => f.status === 'pendente' && !f.aprovacaoPendente && (() => { const v = _finVencimentoEfetivo(f); return v && v < hoje; })());
       if (temAtraso) atrasado += restante; else pendente += restante;
     });
     return { nome: 'Contrato', total, recebido, pendente, atrasado };
@@ -442,21 +447,58 @@ function sincronizarFechamentosFinanceiro() {
 // contrato salvo sem valor e editado depois nunca ganhava parcelas — e não
 // aparecia aqui). Mesmo vínculo de _planoParcelasDoContrato: contratoId ou
 // nome + data do evento.
-function _finContratosSemParcelas() {
+// Também entra contrato cujas parcelas lançadas estão todas com valor zero e
+// nenhuma paga (importado sem valor, "Sem cobrança") — pedido dela 10-26: sem
+// parcela ou sem valor, mostra o valor integral do contrato a receber.
+function _finParcelasDoContratoMapa() {
   const norm = s => String(s || '').toLowerCase().trim();
   const porId = {}, porNome = {};
   (D.financeiro || []).forEach(f => {
     if (f.isFechamento) return;
-    if (f.contratoId) porId[f.contratoId] = true;
-    porNome[norm(f.contrato || f.evento) + '|' + (f.data || '')] = true;
-    porNome[norm(f.evento || f.contrato) + '|' + (f.data || '')] = true;
+    if (f.contratoId) (porId[f.contratoId] = porId[f.contratoId] || []).push(f);
+    const k1 = norm(f.contrato || f.evento) + '|' + (f.data || ''), k2 = norm(f.evento || f.contrato) + '|' + (f.data || '');
+    (porNome[k1] = porNome[k1] || []).push(f);
+    if (k2 !== k1) (porNome[k2] = porNome[k2] || []).push(f);
   });
+  return c => (c.id && porId[c.id]) || porNome[norm(c.nomeEvento || c.nome) + '|' + (c.data || '')] || porNome[norm(c.nome) + '|' + (c.data || '')] || [];
+}
+function _finValorDoContrato(c) {
+  return parseFloat(String(c.opcao || '0').replace(/[^\d,]/g, '').replace(',', '.')) || Number(c.valorNum) || 0;
+}
+function _finContratosSemParcelas() {
+  const parcelasDe = _finParcelasDoContratoMapa();
   return (D.contratos || []).filter(c => {
     if (c.status === 'cancelado') return false;
-    const valor = parseFloat(String(c.opcao || '0').replace(/[^\d,]/g, '').replace(',', '.')) || Number(c.valorNum) || 0;
-    if (!(valor > 0)) return false;
-    return !porId[c.id] && !porNome[norm(c.nomeEvento || c.nome) + '|' + (c.data || '')] && !porNome[norm(c.nome) + '|' + (c.data || '')];
+    if (!(_finValorDoContrato(c) > 0)) return false;
+    const ps = parcelasDe(c);
+    if (!ps.length) return true;
+    return !ps.some(f => f.status === 'pago' || f.aprovacaoPendente) && ps.reduce((s, f) => s + (Number(f.valorNum) || 0), 0) <= 0.009;
   });
+}
+
+// Vencimento do valor integral (sem parcela): 7 dias antes do evento, mesma
+// regra das parcelas sem vencimento (_finVencimentoEfetivo).
+function _finVencIntegral(c) { return _finVencimentoEfetivo({ data: c.data }); }
+
+// "Recebido" no valor integral: cria uma parcela única com o valor do
+// contrato (no lugar das parcelas zeradas, se houver) e abre o registrar
+// pagamento de sempre.
+function finReceberIntegral(contratoId) {
+  const c = (D.contratos || []).find(x => x.id === contratoId);
+  if (!c) return;
+  const valor = _finValorDoContrato(c);
+  const criar = () => {
+    const zeradas = _finParcelasDoContratoMapa()(c).filter(f => f.status !== 'pago').map(f => f.id);
+    D.financeiro = (D.financeiro || []).filter(f => zeradas.indexOf(f.id) === -1);
+    const id = _gerarId('FIN');
+    D.financeiro.push({ id, contratoId: c.id, contrato: c.nome || '', evento: c.nomeEvento || c.nome || '', data: c.data || '',
+      tipo: c.tipo || '', convidados: c.convidados || '', descricao: 'Valor integral do contrato',
+      valorNum: valor, valor: 'R$ ' + valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), vencimento: _finVencIntegral(c), status: 'pendente' });
+    sv('financeiro');
+    abrirModalPagamento(id);
+  };
+  if (typeof sisDialogo === 'function') sisDialogo(`Registrar o recebimento do valor integral de ${fR(valor)} (${c.nome})?\n\nCria uma parcela única com o valor do contrato e abre o registro do pagamento. Se o cliente vai pagar dividido, use "Lançar parcelas".`, criar, { ok: 'Continuar' });
+  else criar();
 }
 
 // Contrato com plano de pagamento fora do 20/80 (escolhido em Plano de
@@ -882,8 +924,13 @@ function rFinanceiroSintetico() {
 
   tbody.innerHTML = '';
 
+  const idsSemParcelas = {};
+  semParcelas.forEach(x => { idsSemParcelas[x.contrato.id] = true; });
   linhas.forEach(g => {
     if (g.semParcelas) { tbody.appendChild(_finLinhaSemParcelas(g.contrato)); return; }
+    // Contrato com parcelas todas zeradas já aparece na linha de valor integral.
+    const cg = _finContratoDoGrupo(g);
+    if (cg && idsSemParcelas[cg.id]) return;
     const quitado = p => p.status === 'pago' || (!p.valorNum && !p.aprovacaoPendente);
     const todas = g.parcelas.concat(g.pFch ? [g.pFch] : []);
     const temAtras = todas.some(p => { if (!p || p.status !== 'pendente' || quitado(p)) return false; const v = _finVencimentoEfetivo(p); return v && v < hoje; });
@@ -976,8 +1023,12 @@ function rFinanceiroSintetico() {
 
 // Linha do Sintético para contrato sem nenhuma parcela lançada.
 function _finLinhaSemParcelas(c) {
-  const valor = parseFloat(String(c.opcao || '0').replace(/[^\d,]/g, '').replace(',', '.')) || Number(c.valorNum) || 0;
+  const valor = _finValorDoContrato(c);
   const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const hoje = new Date().toISOString().slice(0, 10);
+  const venc = _finVencIntegral(c);
+  const atrasado = venc && venc < hoje;
+  const cor = atrasado ? 'var(--red)' : 'var(--amber)', bg = atrasado ? 'var(--red-bg)' : 'var(--border)';
   const tr = document.createElement('tr');
   tr.style.borderBottom = '1px solid var(--border)';
   tr.innerHTML = `
@@ -985,8 +1036,15 @@ function _finLinhaSemParcelas(c) {
     <td style="padding:12px"><strong style="font-size:13px">${esc(c.nomeEvento || c.nome || '—')}</strong></td>
     <td style="padding:12px;font-size:11px;color:var(--text3)">${esc(c.tipo || '—')}<br>${c.convidados ? esc(c.convidados) + ' conv.' : ''}</td>
     <td style="padding:8px 12px;text-align:center">
-      <div style="font-size:11px;color:var(--amber);margin-bottom:4px">Nenhuma parcela lançada no Contas a Receber</div>
-      ${typeof planoAbrir === 'function' ? `<button class="btn-sm" onclick="planoAbrir('${c.id}')" style="background:var(--blue);color:#fff" title="Escolher o plano de pagamento (20/80, parcelado…) e criar as parcelas">Lançar parcelas</button>` : ''}
+      <div style="font-size:10px;color:var(--text3);margin-bottom:4px">sem parcelas lançadas · falta <b style="color:var(--text2)">${fR(valor)}</b>${atrasado ? ' · <span style="color:var(--red)">atrasado</span>' : ''}</div>
+      <div style="display:inline-block;background:${bg};color:${cor};border:1px solid ${cor};border-radius:6px;padding:2px 9px;line-height:1.25" title="Valor integral do contrato${venc ? ' · vence ' + fd(venc) + ' (7 dias antes do evento)' : ''}">
+        <div style="font-size:9px;font-weight:700;opacity:.85">Valor integral</div>
+        <div style="font-family:var(--mono);font-size:11px;font-weight:700">${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+      </div>
+      <div style="margin-top:4px;display:flex;gap:4px;justify-content:center;flex-wrap:wrap">
+        <button class="btn-sm btn-green" onclick="finReceberIntegral('${c.id}')" style="font-size:9px;padding:1px 7px" title="Registrar o pagamento do valor integral">Recebido</button>
+        ${typeof planoAbrir === 'function' ? `<button class="btn-sm" onclick="planoAbrir('${c.id}')" style="font-size:9px;padding:1px 7px" title="Dividir em parcelas (20/80, parcelado…)">Lançar parcelas</button>` : ''}
+      </div>
     </td>
     <td style="padding:10px 14px;text-align:center"><span style="color:var(--text3);font-size:12px">—</span></td>
     <td style="padding:12px;text-align:right;font-family:var(--mono);font-weight:700;font-size:13px">${fR(valor)}</td>
