@@ -227,6 +227,8 @@ function _finAtualizarKpis(filtroIni, filtroFim) {
   if (alertaEl) {
     const partes = [];
     if (parcelasAguardando) partes.push(`${parcelasAguardando} pagamento(s) aguardando aprovação (valor abaixo do previsto)`);
+    const semParcelas = _finContratosSemParcelas().length;
+    if (semParcelas) partes.push(`${semParcelas} contrato(s) sem parcelas no Contas a Receber (use "Lançar parcelas")`);
     const excedentesPendentes = fin.filter(f => f.excedente && f.excedente.status === 'pendente').length;
     if (excedentesPendentes) partes.push(`${excedentesPendentes} pagamento(s) com valor a mais aguardando decisão (abater ou manter como receita)`);
     if (contratosDivergentes) partes.push(`${contratosDivergentes} contrato(s) com parcelas divergindo do valor cadastrado`);
@@ -436,6 +438,27 @@ function sincronizarFechamentosFinanceiro() {
 // Detecta tanto parcela totalmente ausente quanto parcela que existe mas tem
 // valor diferente de 20%/80% do contrato (erro comum de cadastro/importação).
 // Só considera parcelas ainda PENDENTES — nunca mexe em nada já pago.
+// Contratos com valor e SEM nenhuma parcela no Contas a Receber (10-26:
+// contrato salvo sem valor e editado depois nunca ganhava parcelas — e não
+// aparecia aqui). Mesmo vínculo de _planoParcelasDoContrato: contratoId ou
+// nome + data do evento.
+function _finContratosSemParcelas() {
+  const norm = s => String(s || '').toLowerCase().trim();
+  const porId = {}, porNome = {};
+  (D.financeiro || []).forEach(f => {
+    if (f.isFechamento) return;
+    if (f.contratoId) porId[f.contratoId] = true;
+    porNome[norm(f.contrato || f.evento) + '|' + (f.data || '')] = true;
+    porNome[norm(f.evento || f.contrato) + '|' + (f.data || '')] = true;
+  });
+  return (D.contratos || []).filter(c => {
+    if (c.status === 'cancelado') return false;
+    const valor = parseFloat(String(c.opcao || '0').replace(/[^\d,]/g, '').replace(',', '.')) || Number(c.valorNum) || 0;
+    if (!(valor > 0)) return false;
+    return !porId[c.id] && !porNome[norm(c.nomeEvento || c.nome) + '|' + (c.data || '')] && !porNome[norm(c.nome) + '|' + (c.data || '')];
+  });
+}
+
 // Contrato com plano de pagamento fora do 20/80 (escolhido em Plano de
 // pagamento) ou com mais de 2 parcelas lançadas.
 function _finPlanoNaoPadrao(c, g) {
@@ -843,7 +866,14 @@ function rFinanceiroSintetico() {
   const tbody = document.getElementById('fins-body');
   if (!tbody) return;
 
-  const linhas = Object.values(grupos).sort((a, b) => b.data.localeCompare(a.data));
+  // Contratos com valor e sem nenhuma parcela lançada também aparecem (com
+  // "Lançar parcelas"), respeitando o período e a busca.
+  const semParcelas = _finContratosSemParcelas().filter(c =>
+    (!filtroI || (c.data && c.data >= filtroI)) && (!filtroF || (c.data && c.data <= filtroF)) &&
+    _finBateBusca({ contratoId: c.id, contrato: c.nome, evento: c.nomeEvento || c.nome }))
+    .map(c => ({ semParcelas: true, contrato: c, data: c.data || '' }));
+
+  const linhas = Object.values(grupos).concat(semParcelas).sort((a, b) => (b.data || '').localeCompare(a.data || ''));
 
   if (!linhas.length) {
     tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text2);padding:24px">Nenhum lançamento encontrado</td></tr>';
@@ -853,6 +883,7 @@ function rFinanceiroSintetico() {
   tbody.innerHTML = '';
 
   linhas.forEach(g => {
+    if (g.semParcelas) { tbody.appendChild(_finLinhaSemParcelas(g.contrato)); return; }
     const quitado = p => p.status === 'pago' || (!p.valorNum && !p.aprovacaoPendente);
     const todas = g.parcelas.concat(g.pFch ? [g.pFch] : []);
     const temAtras = todas.some(p => { if (!p || p.status !== 'pendente' || quitado(p)) return false; const v = _finVencimentoEfetivo(p); return v && v < hoje; });
@@ -941,6 +972,27 @@ function rFinanceiroSintetico() {
       </td>`;
     tbody.appendChild(tr);
   });
+}
+
+// Linha do Sintético para contrato sem nenhuma parcela lançada.
+function _finLinhaSemParcelas(c) {
+  const valor = parseFloat(String(c.opcao || '0').replace(/[^\d,]/g, '').replace(',', '.')) || Number(c.valorNum) || 0;
+  const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const tr = document.createElement('tr');
+  tr.style.borderBottom = '1px solid var(--border)';
+  tr.innerHTML = `
+    <td style="padding:12px;font-size:11px;color:var(--text3);white-space:nowrap">${fd(c.data) || '—'}</td>
+    <td style="padding:12px"><strong style="font-size:13px">${esc(c.nomeEvento || c.nome || '—')}</strong></td>
+    <td style="padding:12px;font-size:11px;color:var(--text3)">${esc(c.tipo || '—')}<br>${c.convidados ? esc(c.convidados) + ' conv.' : ''}</td>
+    <td style="padding:8px 12px;text-align:center">
+      <div style="font-size:11px;color:var(--amber);margin-bottom:4px">Nenhuma parcela lançada no Contas a Receber</div>
+      ${typeof planoAbrir === 'function' ? `<button class="btn-sm" onclick="planoAbrir('${c.id}')" style="background:var(--blue);color:#fff" title="Escolher o plano de pagamento (20/80, parcelado…) e criar as parcelas">Lançar parcelas</button>` : ''}
+    </td>
+    <td style="padding:10px 14px;text-align:center"><span style="color:var(--text3);font-size:12px">—</span></td>
+    <td style="padding:12px;text-align:right;font-family:var(--mono);font-weight:700;font-size:13px">${fR(valor)}</td>
+    <td style="padding:12px;text-align:right;font-family:var(--mono);font-weight:700;font-size:14px;color:var(--amber)">${fR(valor)}</td>
+    <td style="padding:12px;text-align:right;font-family:var(--mono);color:var(--text3)">—</td>`;
+  return tr;
 }
 
 // Rótulo curto da parcela: "Sinal", "Restante", "Entrada", "2/7"…

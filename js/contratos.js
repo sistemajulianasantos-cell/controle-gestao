@@ -1154,6 +1154,9 @@ function rContratos() {
     return;
   }
   const statCor = { ativo:'tag-blue', concluido:'tag-green', cancelado:'tag-red' };
+  // Contratos com valor e sem parcelas no Contas a Receber (não apareciam lá).
+  const semParcelas = {};
+  if (typeof _finContratosSemParcelas === 'function') _finContratosSemParcelas().forEach(c => { semParcelas[c.id] = true; });
   tbody.innerHTML = '';
   [...lista].sort((a,b) => (b.data||'').localeCompare(a.data||'')).forEach(c => {
     const tr = document.createElement('tr');
@@ -1164,7 +1167,7 @@ function rContratos() {
       <td style="text-align:center">${c.convidados||'—'}</td>
       <td style="font-size:12px">${c.local||'—'}</td>
       <td style="font-size:12px;color:var(--text2)">${c.equipeTexto||'—'}</td>
-      <td>${c.opcao ? 'R$ '+c.opcao : '—'}</td>
+      <td>${c.opcao ? 'R$ '+c.opcao : '—'}${semParcelas[c.id] && typeof planoAbrir === 'function' ? `<div><button class="btn-sm" onclick="planoAbrir('${c.id}')" style="font-size:9px;padding:1px 6px;margin-top:2px;background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber)" title="Este contrato não tem parcelas no Contas a Receber — clique para lançar">sem parcelas · lançar</button></div>` : ''}</td>
       <td><span class="tag ${statCor[c.status]||'tag-yellow'}">${c.status||'ativo'}</span></td>
       <td style="white-space:nowrap">
         <button class="btn-sm" onclick="abrirEdicaoContrato('${c.id}')" title="Editar contrato">✏️</button>
@@ -1292,6 +1295,16 @@ function salvarEdicaoContrato() {
   sv('contratos');
   rContratos();
   document.getElementById('m-edit-contrato').style.display = 'none';
+
+  // Ficou com valor mas sem nenhuma parcela no Contas a Receber (ex.: salvo sem
+  // valor e o valor digitado agora) → oferece lançar pelo plano de pagamento.
+  const editado = D.contratos[idx];
+  if (typeof _finContratosSemParcelas === 'function' && typeof planoAbrir === 'function' &&
+      _finContratosSemParcelas().some(c => c.id === editado.id)) {
+    const abrir = () => planoAbrir(editado.id);
+    if (typeof sisDialogo === 'function') sisDialogo('Este contrato não tem parcelas no Contas a Receber. Lançar agora (escolher o plano de pagamento)?', abrir, { ok: 'Lançar parcelas' });
+    else abrir();
+  }
 }
 
 // ─── SINCRONIZAÇÃO CONTRATO → ABAS ───────────────────────────────────────────
