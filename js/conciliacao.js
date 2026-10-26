@@ -77,9 +77,14 @@ function _concContratoDaParcela(f) {
 // inteiro em f.extratoId; parcial — cliente pagou a parcela em vários PIX —
 // em f.extratoParciais).
 function _concConciliada(e) {
-  if (!e.parcelaId) return false;
-  var f = _concParcela(e.parcelaId);
-  return !!(f && (f.extratoId === e.id || (f.extratoParciais || []).indexOf(e.id) !== -1));
+  // PIX distribuído entre várias parcelas do cliente (e.distribuicao =
+  // { parcelaId: valor }) ou ligado a uma só (e.parcelaId).
+  var ids = Object.keys(e.distribuicao || {});
+  if (e.parcelaId && ids.indexOf(e.parcelaId) === -1) ids.push(e.parcelaId);
+  return ids.some(function(pid) {
+    var f = _concParcela(pid);
+    return !!(f && (f.extratoId === e.id || (f.extratoParciais || []).indexOf(e.id) !== -1));
+  });
 }
 
 // Quanto falta receber da parcela (descontando PIX parciais já ligados).
@@ -89,7 +94,9 @@ function _concRestante(f) {
 function _concSomaParciais(f) {
   return (f.extratoParciais || []).reduce(function(s, id) {
     var e = _concLista().find(function(x) { return x.id === id; });
-    return s + (e ? e.valor : 0);
+    if (!e) return s;
+    // PIX distribuído: só a parte que ela pôs nesta parcela.
+    return s + (e.distribuicao && e.distribuicao[f.id] != null ? Number(e.distribuicao[f.id]) || 0 : e.valor);
   }, 0);
 }
 
@@ -267,7 +274,7 @@ function _concOcupadaPor(f, reservadaPor) {
 function _concCalcularSugestoes() {
   var aprendidos = _concCpfsAprendidos();
   var reservadas = {};
-  var parcelas = (D.financeiro || []).filter(function(f) { return !f.aprovacaoPendente; }).map(function(f) {
+  var parcelas = (D.financeiro || []).filter(function(f) { return !f.aprovacaoPendente && !f.isRecebidoAMais; }).map(function(f) {
     var c = _concContratoDaParcela(f);
     return {
       f: f, c: c,
@@ -457,6 +464,7 @@ function concConfirmarTodas() {
 function concDesfazer(entradaId) {
   var e = _concLista().find(function(x) { return x.id === entradaId; });
   if (!e) return;
+  if (e.modo === 'distribuido') { _concDesfazerDistribuicao(e); return; }
   var f = _concParcela(e.parcelaId);
   var limpar = function() {
     e.parcelaId = ''; e.modo = ''; e.conciliadoEm = ''; e.conciliadoPor = '';
@@ -665,7 +673,22 @@ function _concRenderBuscaParcelas() {
   var e = _concLista().find(function(x) { return x.id === _concVincularId; });
   var termo = _concTokens((document.getElementById('mconc-busca') || {}).value || '');
   var verPagas = (document.getElementById('mconc-pagas') || {}).checked;
+  // Clientes (contratos) com o nome buscado: "Vincular ao cliente" e distribuir.
+  var norm = function(s) { return _concTokens(s); };
+  var contratos = termo.length ? (D.contratos || []).filter(function(c) {
+    if (c.status === 'cancelado') return false;
+    var tok = norm([c.nome, c.nomeEvento].filter(Boolean).join(' '));
+    return termo.every(function(t) { return tok.some(function(x) { return x.indexOf(t) === 0; }); });
+  }).slice(0, 6) : [];
+  var htmlContratos = contratos.length ? '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:4px 0">Vincular ao cliente (você distribui no que está em aberto)</div>' +
+    contratos.map(function(c) {
+      var aberto = _concParcelasAbertas(c).reduce(function(s, f) { return s + _concRestante(f); }, 0);
+      return '<div onclick="concAbrirDistribuir(\'' + _concVincularId + '\',\'' + c.id + '\')" style="display:flex;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--blue);border-radius:var(--radius);margin-bottom:4px;cursor:pointer;font-size:12px" onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'\'">' +
+        '<div style="flex:1"><b style="color:var(--text)">' + _concEsc(c.nome || '') + '</b><div style="color:var(--text3)">evento ' + fd(c.data) + '</div></div>' +
+        '<div style="text-align:right;font-size:11px;color:var(--text3)">em aberto<div style="font-family:var(--mono);color:var(--text)">' + fR(aberto) + '</div></div></div>';
+    }).join('') + '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:10px 0 4px">Ou uma parcela específica</div>' : '';
   var lista = (D.financeiro || []).filter(function(f) {
+    if (f.isRecebidoAMais) return false;
     if (f.extratoId && f.extratoId !== _concVincularId) return false;
     if (f.aprovacaoPendente) return false;
     if (f.status === 'pago' && !verPagas) return false;
@@ -679,8 +702,8 @@ function _concRenderBuscaParcelas() {
     var ib = e && Math.abs((b.status === 'pago' ? b.valorPago || b.valorNum : _concRestante(b)) - e.valor) <= 0.01 ? 0 : 1;
     return ia - ib || (a.vencimento || a.data || '').localeCompare(b.vencimento || b.data || '');
   }).slice(0, 40);
-  if (!lista.length) { el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:8px 2px">Nenhuma parcela encontrada.</div>'; return; }
-  el.innerHTML = lista.map(function(f) {
+  if (!lista.length) { el.innerHTML = htmlContratos + '<div style="font-size:12px;color:var(--text3);padding:8px 2px">Nenhuma parcela encontrada.</div>'; return; }
+  el.innerHTML = htmlContratos + lista.map(function(f) {
     var valor = f.status === 'pago' ? (f.valorPago || f.valorNum) : _concRestante(f);
     var igual = e && Math.abs(valor - e.valor) <= 0.01;
     return '<div onclick="_concVincularManual(\'' + f.id + '\')" style="display:flex;gap:10px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;font-size:12px" onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'\'">' +
@@ -695,6 +718,187 @@ function _concRenderBuscaParcelas() {
 function _concVincularManual(parcelaId) {
   var e = _concLista().find(function(x) { return x.id === _concVincularId; });
   _concVincular(e, _concParcela(parcelaId));
+}
+
+// ─── VINCULAR AO CLIENTE E DISTRIBUIR (pedido dela 10-26) ───────────────────
+// Quando não dá pra saber de qual parcela é o PIX: liga ao contrato do
+// cliente e ela decide quanto vai pra cada parcela em aberto. Parte que
+// completa a parcela → paga; parte menor → parcial (quita quando completar);
+// sobra além do que está em aberto → lançamento "A mais" no contrato
+// (f.isRecebidoAMais, com f.excedente pendente) para o admin decidir abater
+// ou manter como receita — nada é abatido sozinho.
+// e.modo = 'distribuido'; e.distribuicao = { parcelaId: valor }.
+
+var _concDistrib = null; // { entradaId, contratoId, abertas: [ids] }
+
+function _concParcelasAbertas(c) {
+  return (typeof _planoParcelasDoContrato === 'function' ? _planoParcelasDoContrato(c) : [])
+    .filter(function(f) { return f.status !== 'pago' && !f.aprovacaoPendente && !f.isRecebidoAMais && _concRestante(f) > 0.009; });
+}
+
+function concAbrirDistribuir(entradaId, contratoId) {
+  var e = _concLista().find(function(x) { return x.id === entradaId; });
+  var c = (D.contratos || []).find(function(x) { return x.id === contratoId; });
+  if (!e || !c) return;
+  var abertas = _concParcelasAbertas(c);
+  _concDistrib = { entradaId: entradaId, contratoId: contratoId, abertas: abertas.map(function(f) { return f.id; }) };
+  _concModalEl();
+  var emAberto = abertas.reduce(function(s, f) { return s + _concRestante(f); }, 0);
+  document.getElementById('mconc-corpo').innerHTML =
+    '<div style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);padding:10px 12px;margin-bottom:12px;font-size:12px">' +
+      '<div style="font-weight:600;color:var(--text)">' + _concEsc(e.razao || e.lancamento) + ' <span style="font-family:var(--mono);color:var(--green);margin-left:6px">' + fR(e.valor) + '</span></div>' +
+      '<div style="color:var(--text3)">' + fd(e.data) + (e.cpf ? ' · ' + _concEsc(e.cpf) : '') + ' · ' + _concEsc(e.lancamento) + '</div>' +
+    '</div>' +
+    '<div style="font-size:13px;color:var(--text);margin-bottom:4px">Cliente: <b>' + _concEsc(c.nome || '') + '</b> <span style="color:var(--text3);font-size:11px">evento ' + fd(c.data) + '</span></div>' +
+    '<div style="font-size:12px;color:var(--text2);margin-bottom:10px">Em aberto no contrato: <b>' + fR(emAberto) + '</b>. Distribua o PIX entre as parcelas:</div>' +
+    (abertas.length ? '<table style="width:100%;border-collapse:collapse;font-size:12px">' + abertas.map(function(f, i) {
+      return '<tr style="border-top:1px solid var(--border)">' +
+        '<td style="padding:6px 4px;color:var(--text)">' + _concEsc(f.descricao || 'Parcela') + '<div style="font-size:10px;color:var(--text3)">' + (f.vencimento ? 'vence ' + fd(f.vencimento) + ' · ' : '') + 'falta ' + fR(_concRestante(f)) + '</div></td>' +
+        '<td style="padding:6px 4px;text-align:right;width:140px"><input id="mconc-dist-' + i + '" class="inp" type="text" inputmode="decimal" oninput="_concDistribAtualizar()" style="width:120px;text-align:right"></td>' +
+      '</tr>';
+    }).join('') + '</table>'
+      : '<div style="font-size:12px;color:var(--amber)">Este contrato não tem parcela em aberto — o PIX inteiro fica como "A mais", aguardando decisão do administrador.</div>') +
+    '<div id="mconc-dist-resumo" style="font-size:12px;margin-top:10px"></div>' +
+    '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap">' +
+      (abertas.length ? '<button class="btn" onclick="_concDistribAuto()" style="background:var(--bg3)">Preencher automático</button><button class="btn" onclick="_concDistribLimpar()" style="background:var(--bg3)">Limpar</button>' : '') +
+      '<button class="btn" onclick="closeM(\'mconc-vincular\')" style="background:var(--bg3)">Cancelar</button>' +
+      '<button class="btn" onclick="concSalvarDistribuicao()" style="background:var(--blue);color:#fff">Salvar</button>' +
+    '</div>';
+  _concDistribAuto();
+  openM('mconc-vincular');
+}
+
+// Preenche das parcelas mais antigas para as mais novas, até acabar o PIX.
+function _concDistribAuto() {
+  if (!_concDistrib) return;
+  var e = _concLista().find(function(x) { return x.id === _concDistrib.entradaId; });
+  var resto = e ? e.valor : 0;
+  _concDistrib.abertas.forEach(function(id, i) {
+    var f = _concParcela(id);
+    var v = Math.round(Math.min(resto, f ? _concRestante(f) : 0) * 100) / 100;
+    resto = Math.round((resto - v) * 100) / 100;
+    var el = document.getElementById('mconc-dist-' + i);
+    if (el) el.value = v > 0 ? v.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '';
+  });
+  _concDistribAtualizar();
+}
+function _concDistribLimpar() {
+  if (!_concDistrib) return;
+  _concDistrib.abertas.forEach(function(id, i) { var el = document.getElementById('mconc-dist-' + i); if (el) el.value = ''; });
+  _concDistribAtualizar();
+}
+
+function _concDistribLer() {
+  var e = _concLista().find(function(x) { return x.id === _concDistrib.entradaId; });
+  var alocs = [], erro = '';
+  _concDistrib.abertas.forEach(function(id, i) {
+    var el = document.getElementById('mconc-dist-' + i);
+    var v = el && el.value.trim() ? Math.round((parseValorBR(el.value) || 0) * 100) / 100 : 0;
+    var f = _concParcela(id);
+    if (v > 0 && f) {
+      if (v > _concRestante(f) + 0.009) erro = (f.descricao || 'Parcela') + ': ponha no máximo ' + fR(_concRestante(f)) + ' (o que falta) — o que sobrar do PIX vai para "A mais".';
+      alocs.push({ f: f, valor: v });
+    }
+  });
+  var soma = Math.round(alocs.reduce(function(s, a) { return s + a.valor; }, 0) * 100) / 100;
+  var sobra = Math.round(((e ? e.valor : 0) - soma) * 100) / 100;
+  if (sobra < -0.009) erro = 'A soma (' + fR(soma) + ') passa do valor do PIX (' + fR(e.valor) + ').';
+  return { e: e, alocs: alocs, soma: soma, sobra: Math.max(0, sobra), erro: erro };
+}
+
+function _concDistribAtualizar() {
+  var el = document.getElementById('mconc-dist-resumo');
+  if (!el || !_concDistrib) return;
+  var r = _concDistribLer();
+  el.innerHTML = 'Distribuído: <b style="font-family:var(--mono)">' + fR(r.soma) + '</b>' +
+    (r.sobra > 0.009 ? ' · <span style="color:var(--amber)">Sobra ' + fR(r.sobra) + ' → fica como "A mais" no contrato, aguardando decisão do administrador (abater ou manter como receita)</span>' : '') +
+    (r.erro ? '<div style="color:var(--red);margin-top:4px">' + _concEsc(r.erro) + '</div>' : '');
+}
+
+function concSalvarDistribuicao() {
+  if (!_concDistrib) return;
+  var r = _concDistribLer();
+  if (r.erro) { alert2(r.erro, 'error'); return; }
+  if (!r.alocs.length && !(r.sobra > 0.009)) { alert2('Distribua o valor em pelo menos uma parcela.', 'error'); return; }
+  var c = (D.contratos || []).find(function(x) { return x.id === _concDistrib.contratoId; });
+  var e = r.e;
+  var resumo = r.alocs.map(function(a) {
+    return '• ' + (a.f.descricao || 'Parcela') + ': ' + fR(a.valor) + (a.valor >= _concRestante(a.f) - 0.009 ? ' (quita)' : ' (parcial, falta ' + fR(_concRestante(a.f) - a.valor) + ')');
+  }).join('\n') + (r.sobra > 0.009 ? '\n• A mais: ' + fR(r.sobra) + ' (aguardando decisão do administrador)' : '');
+  sisDialogo('Distribuir o PIX de ' + fR(e.valor) + ' no contrato de ' + (c ? c.nome : '') + ':\n\n' + resumo, function() {
+    var msgs = _concAplicarDistribuicao(e, r.alocs, r.sobra, c);
+    sv('financeiro'); sv('extratoBancario');
+    closeM('mconc-vincular');
+    alert2(msgs.aguardando ? msgs.texto : 'PIX distribuído no contrato. ' + msgs.texto, msgs.aguardando || r.sobra > 0.009 ? 'error' : 'success');
+    rConciliacao();
+  }, { ok: 'Distribuir' });
+}
+
+// Aplica a distribuição. Não grava.
+function _concAplicarDistribuicao(e, alocs, sobra, c) {
+  e.distribuicao = {};
+  var textos = [], aguardando = false;
+  alocs.forEach(function(a) {
+    var f = a.f;
+    e.distribuicao[f.id] = a.valor;
+    f.extratoParciais = (f.extratoParciais || []).concat(e.id);
+    f.recebidoParcial = Math.round(_concSomaParciais(f) * 100) / 100;
+    if (f.recebidoParcial >= (Number(f.valorNum) || 0) - 0.009) {
+      var qtd = f.extratoParciais.length;
+      var res = _finAplicarPagamento(f, {
+        valorPago: f.recebidoParcial, dataPagamento: e.data,
+        formaPagamento: /PIX/i.test(e.lancamento) ? 'pix' : 'transferencia',
+        temComprovante: false, comprovanteTipo: '',
+        comprovanteNome: 'Extrato bancário ' + fd(e.data) + (qtd > 1 ? ' (' + qtd + ' PIX)' : ''),
+      });
+      f.extratoId = e.id; f.recebidoParcial = 0;
+      if (res.aguardandoAprovacao) aguardando = true;
+      textos.push((f.descricao || 'Parcela') + ' quitada');
+    } else {
+      textos.push((f.descricao || 'Parcela') + ': recebido ' + fR(f.recebidoParcial) + ', falta ' + fR(_concRestante(f)));
+    }
+  });
+  if (sobra > 0.009) {
+    var base = alocs[0] ? alocs[0].f : ((typeof _planoParcelasDoContrato === 'function' && c ? _planoParcelasDoContrato(c)[0] : null) || {});
+    var rec = {
+      id: _gerarId('FIN'), isRecebidoAMais: true,
+      contratoId: (c && c.id) || base.contratoId || '', contrato: (c && c.nome) || base.contrato || '', evento: (c && (c.nomeEvento || c.nome)) || base.evento || '',
+      data: (c && c.data) || base.data || '', tipo: (c && c.tipo) || base.tipo || '', convidados: (c && c.convidados) || base.convidados || '',
+      descricao: 'A mais — PIX ' + fd(e.data), valorNum: sobra, valor: 'R$ ' + sobra.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
+      valorOriginal: 0, valorPago: sobra, status: 'pago', dataPagamento: e.data, vencimento: e.data,
+      formaPagamento: /PIX/i.test(e.lancamento) ? 'pix' : 'transferencia', comprovanteNome: 'Extrato bancário ' + fd(e.data),
+      extratoId: e.id, _ajustes: [],
+      excedente: { valor: sobra, status: 'pendente', registradoPor: _concUsuario(), registradoEm: new Date().toISOString() },
+    };
+    (D.financeiro || (D.financeiro = [])).push(rec);
+    e.distribuicao[rec.id] = sobra;
+    textos.push('A mais ' + fR(sobra) + ' aguardando decisão do administrador');
+  }
+  e.modo = 'distribuido';
+  e.parcelaId = Object.keys(e.distribuicao)[0] || '';
+  e.conciliadoEm = new Date().toISOString(); e.conciliadoPor = _concUsuario();
+  return { texto: textos.join(' · ') + '.', aguardando: aguardando };
+}
+
+function _concDesfazerDistribuicao(e) {
+  var partes = Object.keys(e.distribuicao || {}).map(function(pid) { return _concParcela(pid); }).filter(Boolean);
+  sisDialogo('Desfazer a distribuição deste PIX de ' + fR(e.valor) + '?\n\n' + partes.map(function(f) { return '• ' + (f.descricao || 'Parcela') + ' (' + fR(e.distribuicao[f.id]) + ')'; }).join('\n') +
+    '\n\nParcelas quitadas por ele voltam a ficar pendentes (com os outros PIX ligados a elas); o "A mais" é apagado.', function() {
+    partes.forEach(function(f) {
+      if (f.isRecebidoAMais) {
+        if (f.excedente && f.excedente.status === 'abatido') marcarPendente(f.id, true); // reverte o abatimento
+        D.financeiro = (D.financeiro || []).filter(function(x) { return x.id !== f.id; });
+      } else if (f.status === 'pago' || f.aprovacaoPendente) {
+        if (f.extratoId === e.id || (f.extratoParciais || []).indexOf(e.id) !== -1) marcarPendente(f.id, true);
+      } else {
+        f.extratoParciais = (f.extratoParciais || []).filter(function(id) { return id !== e.id; });
+        f.recebidoParcial = Math.round(_concSomaParciais(f) * 100) / 100;
+      }
+    });
+    e.distribuicao = null; e.parcelaId = ''; e.modo = ''; e.conciliadoEm = ''; e.conciliadoPor = '';
+    sv('financeiro'); sv('extratoBancario');
+    rConciliacao();
+  }, { ok: 'Desfazer distribuição' });
 }
 
 // ─── TELA ────────────────────────────────────────────────────────────────────
@@ -779,9 +983,16 @@ function _concLinhaHTML(e, s) {
   var cor = parcialAberta ? 'var(--blue)' : conciliada ? 'var(--green)' : e.ignorado ? 'var(--text3)' : s ? 'var(--blue)' : 'var(--amber)';
   var direita;
   if (conciliada) {
-    direita = '<div style="font-size:12px;color:' + (parcialAberta ? 'var(--blue)' : 'var(--green)') + ';font-weight:600">' + _concEsc(_concTextoParcela(f)) + '</div>' +
+    var textoVinculo = e.modo === 'distribuido'
+      ? (f ? (f.evento || f.contrato || '') : '') + ' — distribuído: ' + Object.keys(e.distribuicao || {}).map(function(pid) {
+          var p = _concParcela(pid);
+          return (p ? (p.isRecebidoAMais ? 'A mais' : (p.descricao || 'parcela').split(' —')[0]) : 'parcela') + ' ' + fR(e.distribuicao[pid]) +
+            (p && !p.isRecebidoAMais && p.status !== 'pago' ? ' (parcial)' : '');
+        }).join(' · ')
+      : _concTextoParcela(f);
+    direita = '<div style="font-size:12px;color:' + (parcialAberta ? 'var(--blue)' : 'var(--green)') + ';font-weight:600">' + _concEsc(textoVinculo) + '</div>' +
       '<div style="font-size:10px;color:var(--text3)">' + (f && f.aprovacaoPendente ? '<span style="color:var(--amber)">aguardando aprovação do admin</span> · ' : '') +
-        (e.modo === 'jaPago' ? 'pagamento já estava registrado' : parcialAberta ? 'PIX parcial — parcela quitada quando a soma completar' : e.modo === 'parcial' ? 'parcela quitada com a soma dos PIX' : 'pagamento registrado pela conciliação') +
+        (e.modo === 'jaPago' ? 'pagamento já estava registrado' : e.modo === 'distribuido' ? 'vinculado ao cliente e distribuído por você' : parcialAberta ? 'PIX parcial — parcela quitada quando a soma completar' : e.modo === 'parcial' ? 'parcela quitada com a soma dos PIX' : 'pagamento registrado pela conciliação') +
         (e.conciliadoPor ? ' · ' + _concEsc(e.conciliadoPor) : '') + '</div>' +
       '<button class="btn-sm" onclick="concDesfazer(\'' + e.id + '\')" style="background:var(--bg3);margin-top:4px">Desfazer</button>';
   } else if (e.ignorado) {
@@ -798,6 +1009,7 @@ function _concLinhaHTML(e, s) {
       '<div style="display:flex;gap:6px;justify-content:flex-end;margin-top:4px;flex-wrap:wrap">' +
         (s ? '<button class="btn-sm" onclick="concConfirmarSugestao(\'' + e.id + '\')" style="background:var(--green);color:#fff">Confirmar</button>' : '') +
         '<button class="btn-sm" onclick="concAbrirVincular(\'' + e.id + '\')" style="background:var(--bg3)">' + (s ? 'Outra parcela' : 'Vincular') + '</button>' +
+        (contratoIdLinha ? '<button class="btn-sm" onclick="concAbrirDistribuir(\'' + e.id + '\',\'' + contratoIdLinha + '\')" style="background:var(--blue);color:#fff" title="Liga o PIX ao cliente e você decide como distribuir no que está em aberto">Vincular ao cliente</button>' : '') +
         (contratoIdLinha && typeof planoAbrir === 'function' ? '<button class="btn-sm" onclick="concAjustarParcelas(\'' + e.id + '\',\'' + contratoIdLinha + '\')" style="background:var(--bg3)" title="Mudar o plano de pagamento deste contrato (nº de parcelas) a partir dos PIX dele — atualiza o contrato e o Contas a Receber">Ajustar parcelas</button>' : '') +
         '<button class="btn-sm" onclick="concIgnorar(\'' + e.id + '\',true)" style="background:var(--bg3)">Ignorar</button>' +
       '</div>';

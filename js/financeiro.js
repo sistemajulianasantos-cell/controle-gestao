@@ -440,7 +440,7 @@ function sincronizarFechamentosFinanceiro() {
 // pagamento) ou com mais de 2 parcelas lançadas.
 function _finPlanoNaoPadrao(c, g) {
   const tipo = c && c.planoPagamento && c.planoPagamento.tipo;
-  return (tipo && tipo !== '20_80') || !!(g && g.parcelas && g.parcelas.length > 2);
+  return (tipo && tipo !== '20_80') || !!(g && g.parcelas && g.parcelas.filter(p => !p.isRecebidoAMais).length > 2);
 }
 
 function _finContratosComParcelaFaltando() {
@@ -811,6 +811,9 @@ function _finAgruparEventos(fin) {
       g.parcelas.push(f);
       g.parcelas.sort((a, b) => (_finVencimentoEfetivo(a) || '9999').localeCompare(_finVencimentoEfetivo(b) || '9999') || (a.ordemParcela || 0) - (b.ordemParcela || 0));
     }
+    // "A mais" (PIX distribuído com sobra, Conciliação): aparece entre as
+    // parcelas, mas não é sinal nem restante.
+    if (f.isRecebidoAMais) return;
     const desc = (f.descricao || '').toLowerCase();
     if (f.isFechamento)                                                          g.pFch = f;
     else if (desc.includes('20%') || desc.includes('sinal') || desc.includes('assinatura')) g.p20 = g.p20 || f;
