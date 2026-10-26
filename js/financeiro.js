@@ -918,7 +918,7 @@ function rFinanceiroSintetico() {
   const linhas = Object.values(grupos).concat(semParcelas).sort((a, b) => (b.data || '').localeCompare(a.data || ''));
 
   if (!linhas.length) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text2);padding:24px">Nenhum lançamento encontrado</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text2);padding:24px">Nenhum lançamento encontrado</td></tr>';
     return;
   }
 
@@ -984,6 +984,10 @@ function rFinanceiroSintetico() {
     const recebido = todas.filter(p => p.status === 'pago')
       .reduce((s, p) => s + (p.valorPago != null ? Number(p.valorPago) || 0 : Number(p.valorNum) || 0), 0);
     const acima = Math.round((recebido - total) * 100) / 100;
+    // O que não vai entrar: total − recebido − o que ainda está pendente
+    // (ex.: pagamento menor aprovado como valor final, parcelas somando menos).
+    const aReceber = todas.filter(p => p.status !== 'pago').reduce((s, p) => s + (Number(p.valorNum) || 0), 0);
+    const abaixo = Math.round((total - recebido - aReceber) * 100) / 100;
     const recebidoHTML = recebido > 0
       ? `<div style="font-size:10px;font-weight:600;color:var(--text3);margin-top:2px">recebido ${fR(recebido)}</div>`
       : '';
@@ -1016,6 +1020,9 @@ function rFinanceiroSintetico() {
       </td>
       <td style="padding:12px;text-align:right;font-family:var(--mono);font-weight:700;font-size:13px;color:${acima > 0.01 ? 'var(--amber)' : 'var(--text3)'}" title="Recebido além do valor do contrato + fechamento">
         ${acima > 0.01 ? '+' + fR(acima) : '—'}
+      </td>
+      <td style="padding:12px;text-align:right;font-family:var(--mono);font-weight:700;font-size:13px;color:${abaixo > 0.01 ? 'var(--red)' : 'var(--text3)'}" title="Total − recebido − pendente: o que não vai entrar do contrato + fechamento">
+        ${abaixo > 0.01 ? '−' + fR(abaixo) : '—'}
       </td>`;
     tbody.appendChild(tr);
   });
@@ -1049,6 +1056,7 @@ function _finLinhaSemParcelas(c) {
     <td style="padding:10px 14px;text-align:center"><span style="color:var(--text3);font-size:12px">—</span></td>
     <td style="padding:12px;text-align:right;font-family:var(--mono);font-weight:700;font-size:13px">${fR(valor)}</td>
     <td style="padding:12px;text-align:right;font-family:var(--mono);font-weight:700;font-size:14px;color:var(--amber)">${fR(valor)}</td>
+    <td style="padding:12px;text-align:right;font-family:var(--mono);color:var(--text3)">—</td>
     <td style="padding:12px;text-align:right;font-family:var(--mono);color:var(--text3)">—</td>`;
   return tr;
 }
