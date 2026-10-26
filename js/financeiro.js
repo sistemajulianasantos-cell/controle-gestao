@@ -1323,7 +1323,8 @@ function rejeitarPagamentoMenor(id) {
   if (!confirm('Rejeitar este pagamento? O comprovante enviado será descartado e a parcela volta a ficar pendente para lançar novamente.')) return;
   if (f.aprovacaoPendente.temComprovante && window.excluirComprovante) window.excluirComprovante(id);
   f.aprovacaoPendente = null;
-  f.extratoId = ''; // linha do extrato (Conciliação Bancária) volta a ficar pendente
+  // linhas do extrato (Conciliação Bancária) voltam a ficar pendentes
+  f.extratoId = ''; f.extratoParciais = []; f.recebidoParcial = 0;
   sv('financeiro'); _finRefresh();
   alert2('Pagamento rejeitado. A parcela voltou a ficar pendente.', 'success');
 }
@@ -1374,7 +1375,8 @@ function marcarPendente(id) {
   f._quitadoPorAjuste = false;
   f.motivoAprovacao = '';
   f.aprovadoPor = '';
-  f.extratoId = ''; // linha do extrato (Conciliação Bancária) volta a ficar pendente
+  // linhas do extrato (Conciliação Bancária) voltam a ficar pendentes
+  f.extratoId = ''; f.extratoParciais = []; f.recebidoParcial = 0;
   _finSincronizarStatusFechamento(f);
 
   sv('financeiro'); _finRefresh();

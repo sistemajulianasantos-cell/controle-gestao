@@ -38,11 +38,24 @@ function _concContratoDaParcela(f) {
     (typeof _finContratoDoGrupo === 'function' ? _finContratoDoGrupo({ contratoId: f.contratoId, nome: f.evento || f.contrato, data: f.data }) : null);
 }
 
-// Conciliada = ligada a uma parcela que ainda aponta pra ela.
+// Conciliada = ligada a uma parcela que ainda aponta pra ela (pagamento
+// inteiro em f.extratoId; parcial — cliente pagou a parcela em vários PIX —
+// em f.extratoParciais).
 function _concConciliada(e) {
   if (!e.parcelaId) return false;
   var f = _concParcela(e.parcelaId);
-  return !!(f && f.extratoId === e.id);
+  return !!(f && (f.extratoId === e.id || (f.extratoParciais || []).indexOf(e.id) !== -1));
+}
+
+// Quanto falta receber da parcela (descontando PIX parciais já ligados).
+function _concRestante(f) {
+  return Math.round(((Number(f.valorNum) || 0) - (Number(f.recebidoParcial) || 0)) * 100) / 100;
+}
+function _concSomaParciais(f) {
+  return (f.extratoParciais || []).reduce(function(s, id) {
+    var e = _concLista().find(function(x) { return x.id === id; });
+    return s + (e ? e.valor : 0);
+  }, 0);
 }
 
 // ─── IMPORTAÇÃO ──────────────────────────────────────────────────────────────
@@ -179,13 +192,27 @@ function _concDiasEntre(a, b) {
   return Math.abs(Math.round((new Date(a + 'T12:00:00') - new Date(b + 'T12:00:00')) / 86400000));
 }
 
-// Melhor parcela para cada entrada pendente. Uma parcela só é sugerida para
-// uma entrada (as mais antigas primeiro).
+// Como o nome do pagador bate com o do contrato:
+//   'completo' — 2+ palavras iguais (nome e sobrenome);
+//   'parcial'  — só 1 palavra (só o primeiro nome, ou só um sobrenome —
+//                parente pagando): só vale junto com valor igual.
+function _concComparaNome(tokPagador, tokContrato) {
+  var comuns = tokPagador.filter(function(t) { return tokContrato.indexOf(t) !== -1; });
+  if (comuns.length >= 2) return { nivel: 'completo', comuns: comuns.length };
+  if (comuns.length === 1) return { nivel: 'parcial', comuns: 1, sobrenome: comuns[0] !== tokPagador[0] };
+  return null;
+}
+
+// Melhor parcela para cada entrada pendente, somando os fatores: CPF do
+// contrato, CPF já vinculado antes, nome (completo ou parcial), valor igual ao
+// que falta da parcela, data do PIX perto do vencimento/antes do evento.
+// Parcela com valor igual fica reservada para um PIX só; com valor diferente
+// pode aparecer para mais de um (cliente pagando a parcela em vários PIX).
+// Sem parcela aberta, mas contrato reconhecido → devolve um diagnóstico.
 function _concCalcularSugestoes() {
   var aprendidos = _concCpfsAprendidos();
-  var usadas = {};
-  (D.financeiro || []).forEach(function(f) { if (f.extratoId) usadas[f.id] = true; });
-  var parcelas = (D.financeiro || []).filter(function(f) { return !usadas[f.id] && !f.aprovacaoPendente; }).map(function(f) {
+  var reservadas = {};
+  var parcelas = (D.financeiro || []).filter(function(f) { return !f.aprovacaoPendente; }).map(function(f) {
     var c = _concContratoDaParcela(f);
     return {
       f: f, c: c,
@@ -196,33 +223,53 @@ function _concCalcularSugestoes() {
   });
   var sug = {};
   _concLista().filter(function(e) { return !e.ignorado && !_concConciliada(e); })
-    .sort(function(a, b) { return a.data.localeCompare(b.data); })
+    .sort(function(a, b) { return a.data.localeCompare(b.data) || b.valor - a.valor; })
     .forEach(function(e) {
       var cpf = _concDig(e.cpf);
       var tok = _concTokens(e.razao);
-      var melhor = null;
+      var melhor = null, reconhecidas = [];
       parcelas.forEach(function(p) {
-        if (usadas[p.f.id]) return;
-        var porCpf = cpf && (cpf === p.cpf || (aprendidos[cpf] && aprendidos[cpf][p.chave]));
-        var comuns = tok.filter(function(t) { return p.tokens.indexOf(t) !== -1; }).length;
-        var porNome = comuns >= 2;
-        if (!porCpf && !porNome) return;
+        var porCpf = !!(cpf && (cpf === p.cpf || (aprendidos[cpf] && aprendidos[cpf][p.chave])));
+        var nome = _concComparaNome(tok, p.tokens);
+        var forte = porCpf || (nome && nome.nivel === 'completo');
+        if (!forte && !nome) return;
         var pago = p.f.status === 'pago';
-        var esperado = pago ? (Number(p.f.valorPago) || Number(p.f.valorNum) || 0) : (Number(p.f.valorNum) || 0);
+        var ocupada = !!p.f.extratoId || reservadas[p.f.id];
+        var esperado = pago ? (Number(p.f.valorPago) || Number(p.f.valorNum) || 0) : _concRestante(p.f);
         var valorIgual = Math.abs(esperado - e.valor) <= 0.01;
+        if (forte) reconhecidas.push(p);
+        if (ocupada) return;
+        // Só um nome/sobrenome em comum: precisa do valor igual.
+        if (!forte && !valorIgual) return;
         // Já baixada à mão: só casa se valor e data do pagamento baterem.
         if (pago && (!valorIgual || _concDiasEntre(p.f.dataPagamento, e.data) > 5)) return;
-        var nota = (valorIgual ? 100 : 0) + (porCpf ? 50 : 0) + comuns * 10 + (pago ? 5 : 0);
         var venc = p.f.vencimento || p.f.data || '9999';
-        if (!melhor || nota > melhor.nota || (nota === melhor.nota && venc < melhor.venc)) {
-          melhor = { p: p, nota: nota, venc: venc, valorIgual: valorIgual, porCpf: !!porCpf, comuns: comuns, pago: pago };
+        var antesDoEvento = !p.f.data || e.data <= p.f.data || p.f.isFechamento;
+        var nota = (valorIgual ? 100 : 0) + (porCpf ? 60 : 0) + (nome ? nome.comuns * 15 : 0) +
+          (antesDoEvento ? 10 : 0) + (pago ? 5 : 0) - Math.min(30, _concDiasEntre(venc, e.data) / 10);
+        if (!melhor || nota > melhor.nota) {
+          melhor = { p: p, nota: nota, valorIgual: valorIgual, porCpf: porCpf, nome: nome, forte: forte, pago: pago };
         }
       });
       if (melhor) {
-        usadas[melhor.p.f.id] = true;
-        var motivo = [melhor.porCpf ? 'CPF' : 'nome', melhor.valorIgual ? 'valor igual' : 'valor diferente'];
+        if (melhor.valorIgual) reservadas[melhor.p.f.id] = true;
+        var motivo = [];
+        if (melhor.porCpf) motivo.push('CPF');
+        if (melhor.nome) motivo.push(melhor.nome.nivel === 'completo' ? 'nome' : (melhor.nome.sobrenome ? 'mesmo sobrenome' : 'mesmo primeiro nome'));
+        motivo.push(melhor.valorIgual ? 'valor igual' : 'valor diferente');
         if (melhor.pago) motivo.push('já baixada em ' + fd(melhor.p.f.dataPagamento));
-        sug[e.id] = { parcelaId: melhor.p.f.id, alta: melhor.valorIgual, motivo: motivo.join(' · ') };
+        if (Number(melhor.p.f.recebidoParcial)) motivo.push('falta ' + fR(_concRestante(melhor.p.f)));
+        // "Alta" (entra no confirmar em lote): identificado por CPF/nome completo E valor igual.
+        sug[e.id] = { parcelaId: melhor.p.f.id, alta: melhor.valorIgual && melhor.forte, valorIgual: melhor.valorIgual, motivo: motivo.join(' · ') };
+      } else if (reconhecidas.length) {
+        // Contrato reconhecido, mas nenhuma parcela aberta pra esse PIX.
+        var p0 = reconhecidas[0];
+        var irmas = reconhecidas.filter(function(p) { return p.chave === p0.chave; }).map(function(p) {
+          var f = p.f;
+          return (f.descricao || 'parcela') + ' ' + fR(f.status === 'pago' ? (f.valorPago || f.valorNum) : f.valorNum) + ' — ' +
+            (f.status === 'pago' ? 'paga ' + fd(f.dataPagamento) : 'pendente') + (f.extratoId ? ' (ligada a outro PIX)' : '');
+        });
+        sug[e.id] = { diag: true, contrato: p0.f.evento || p0.f.contrato || '', parcelas: irmas };
       }
     });
   return sug;
@@ -232,57 +279,104 @@ function _concCalcularSugestoes() {
 
 function _concUsuario() { return typeof _orcUsuarioAtual === 'function' ? _orcUsuarioAtual() : ((typeof perfilAtual !== 'undefined' && perfilAtual) || ''); }
 
-// Liga a entrada à parcela. Parcela pendente → registra o pagamento (regras do
-// Contas a Receber); já paga → só marca como conferida. Não grava.
-function _concAplicarVinculo(e, f) {
-  var msg = '', aguardando = false;
-  if (f.status === 'pago') {
-    e.modo = 'jaPago';
-    msg = 'Pagamento já registrado — marcado como conferido no extrato.';
-  } else {
+// Liga a entrada à parcela. Não grava.
+//   tipo 'total'   — registra o pagamento (regras do Contas a Receber), somando
+//                    os PIX parciais que já estavam ligados à parcela;
+//   tipo 'parcial' — cliente vai pagar a parcela em mais de um PIX: guarda o
+//                    PIX e só quita quando a soma completar o valor;
+//   parcela já paga → só marca como conferida.
+function _concAplicarVinculo(e, f, tipo) {
+  var marcar = function(modo) {
+    e.modo = modo; e.parcelaId = f.id;
+    e.conciliadoEm = new Date().toISOString(); e.conciliadoPor = _concUsuario();
+  };
+  // Registra o pagamento da parcela com o total recebido (este PIX + parciais).
+  var registrar = function(total) {
+    var qtd = (f.extratoParciais || []).length;
     var r = _finAplicarPagamento(f, {
-      valorPago: e.valor, dataPagamento: e.data,
+      valorPago: Math.round(total * 100) / 100, dataPagamento: e.data,
       formaPagamento: /PIX/i.test(e.lancamento) ? 'pix' : 'transferencia',
-      temComprovante: false, comprovanteTipo: '', comprovanteNome: 'Extrato bancário ' + fd(e.data),
+      temComprovante: false, comprovanteTipo: '',
+      comprovanteNome: 'Extrato bancário ' + fd(e.data) + (qtd > 1 ? ' (' + qtd + ' PIX)' : ''),
     });
-    e.modo = 'registrado';
-    msg = r.msg; aguardando = r.aguardandoAprovacao;
+    f.extratoId = e.id;
+    f.recebidoParcial = 0;
+    return { msg: r.msg, aguardando: r.aguardandoAprovacao };
+  };
+
+  if (f.status === 'pago') {
+    f.extratoId = e.id; marcar('jaPago');
+    return { msg: 'Pagamento já registrado — marcado como conferido no extrato.', aguardando: false };
   }
-  f.extratoId = e.id;
-  e.parcelaId = f.id;
-  e.conciliadoEm = new Date().toISOString();
-  e.conciliadoPor = _concUsuario();
-  return { msg: msg, aguardando: aguardando };
+  if (tipo === 'parcial') {
+    f.extratoParciais = (f.extratoParciais || []).concat(e.id);
+    f.recebidoParcial = Math.round(_concSomaParciais(f) * 100) / 100;
+    marcar('parcial');
+    if (f.recebidoParcial < (Number(f.valorNum) || 0) - 0.01) {
+      return { msg: 'PIX parcial guardado — recebido ' + fR(f.recebidoParcial) + ' de ' + fR(f.valorNum) + ', falta ' + fR(_concRestante(f)) + '. A parcela é quitada quando a soma completar.', aguardando: false };
+    }
+    return registrar(_concSomaParciais(f)); // a soma completou a parcela
+  }
+  marcar('registrado');
+  return registrar(e.valor + _concSomaParciais(f));
 }
 
 function _concTextoParcela(f) {
   if (!f) return 'Parcela não encontrada';
-  return (f.evento || f.contrato || '—') + ' — ' + (f.descricao || '') + ' (' + fR(f.status === 'pago' ? (f.valorPago || f.valorNum) : f.valorNum) + ')';
+  return (f.evento || f.contrato || '—') + ' — ' + (f.descricao || '') + ' (' + fR(f.status === 'pago' ? (f.valorPago || f.valorNum) : f.valorNum) + ')' +
+    (f.status !== 'pago' && Number(f.recebidoParcial) ? ' · recebido ' + fR(f.recebidoParcial) + ', falta ' + fR(_concRestante(f)) : '');
 }
 
 function concConfirmarSugestao(entradaId) {
   var e = _concLista().find(function(x) { return x.id === entradaId; });
   var s = _concCalcularSugestoes()[entradaId];
-  if (!e || !s) return;
+  if (!e || !s || !s.parcelaId) return;
   _concVincular(e, _concParcela(s.parcelaId));
 }
 
 function _concVincular(e, f) {
   if (!e || !f) return;
   if (f.extratoId && f.extratoId !== e.id) { alert2('Essa parcela já está ligada a outro lançamento do extrato.', 'error'); return; }
-  var esperado = f.status === 'pago' ? (Number(f.valorPago) || Number(f.valorNum) || 0) : (Number(f.valorNum) || 0);
-  var dif = Math.round((e.valor - esperado) * 100) / 100;
-  var aviso = 'Ligar o PIX de ' + fR(e.valor) + ' (' + (e.razao || e.lancamento) + ', ' + fd(e.data) + ') a:\n\n' + _concTextoParcela(f) + '\n\n';
-  if (f.status === 'pago') aviso += 'A parcela já está paga — só vai ser marcada como conferida no extrato.';
-  else if (dif < 0) aviso += 'O valor é ' + fR(-dif) + ' MENOR que o previsto. ' + ((typeof perfilAtual !== 'undefined' && perfilAtual === 'admin') ? 'Como administrador, a parcela fica quitada com esse valor.' : 'Vai para aprovação do administrador.');
-  else if (dif > 0) aviso += 'O valor é ' + fR(dif) + ' MAIOR que o previsto — o excedente abate das próximas parcelas do contrato.';
-  else aviso += 'O pagamento será registrado nessa parcela.';
-  if (!confirm(aviso)) return;
-  var r = _concAplicarVinculo(e, f);
-  sv('financeiro'); sv('extratoBancario');
-  closeM('mconc-vincular');
-  alert2(r.msg, r.aguardando ? 'error' : 'success');
-  rConciliacao();
+  var cab = 'PIX de ' + fR(e.valor) + ' (' + (e.razao || e.lancamento) + ', ' + fd(e.data) + ') →\n' + _concTextoParcela(f) + '\n\n';
+  var concluir = function(tipo) {
+    var r = _concAplicarVinculo(e, f, tipo);
+    sv('financeiro'); sv('extratoBancario');
+    closeM('mconc-vincular');
+    alert2(r.msg, r.aguardando ? 'error' : 'success');
+    rConciliacao();
+  };
+  if (f.status === 'pago') {
+    if (confirm(cab + 'A parcela já está paga — só vai ser marcada como conferida no extrato.')) concluir('total');
+    return;
+  }
+  var restante = _concRestante(f);
+  var dif = Math.round((e.valor - restante) * 100) / 100;
+  var jaRecebido = Number(f.recebidoParcial) ? 'Já recebido nessa parcela: ' + fR(f.recebidoParcial) + ' — falta ' + fR(restante) + '.\n' : '';
+  if (dif >= 0) {
+    if (confirm(cab + jaRecebido + (dif > 0
+      ? 'O valor é ' + fR(dif) + ' MAIOR que o que falta — o excedente abate das próximas parcelas do contrato.'
+      : 'O pagamento da parcela será registrado.'))) concluir('total');
+    return;
+  }
+  // Valor menor que o que falta: parcial (vem mais PIX) ou valor final com desconto?
+  _concEscolherMenor(e, f, restante, concluir);
+}
+
+// Janela de escolha quando o PIX é menor do que falta pagar da parcela.
+function _concEscolherMenor(e, f, restante, concluir) {
+  _concModalEl();
+  var admin = typeof perfilAtual !== 'undefined' && perfilAtual === 'admin';
+  window._concConcluirMenor = concluir;
+  document.getElementById('mconc-corpo').innerHTML =
+    '<div style="font-size:13px;color:var(--text);margin-bottom:6px"><b>' + fR(e.valor) + '</b> de ' + _concEsc(e.razao || e.lancamento) + ' (' + fd(e.data) + ')</div>' +
+    '<div style="font-size:12px;color:var(--text2);margin-bottom:12px">' + _concEsc(_concTextoParcela(f)) + ' — falta ' + fR(restante) + '. O PIX é ' + fR(restante - e.valor) + ' menor.</div>' +
+    '<div style="display:grid;gap:8px">' +
+      '<button class="btn" onclick="window._concConcluirMenor(\'parcial\')" style="background:var(--blue);color:#fff;text-align:left">Pagamento parcial<br><span style="font-size:11px;font-weight:400">O cliente vai pagar o resto em outro(s) PIX. A parcela fica pendente e é quitada quando a soma completar.</span></button>' +
+      '<button class="btn" onclick="window._concConcluirMenor(\'total\')" style="background:var(--bg3);text-align:left">Valor final da parcela (desconto)<br><span style="font-size:11px;font-weight:400;color:var(--text3)">' +
+        (admin ? 'Quita a parcela com esse valor — a diferença fica como desconto.' : 'Vai para aprovação do administrador antes de quitar.') + '</span></button>' +
+      '<button class="btn" onclick="closeM(\'mconc-vincular\')" style="background:var(--bg3)">Cancelar</button>' +
+    '</div>';
+  openM('mconc-vincular');
 }
 
 function concConfirmarTodas() {
@@ -294,7 +388,7 @@ function concConfirmarTodas() {
   var ok = 0;
   lista.forEach(function(e) {
     var f = _concParcela(sug[e.id].parcelaId);
-    if (f && !f.extratoId) { _concAplicarVinculo(e, f); ok++; }
+    if (f && !f.extratoId) { _concAplicarVinculo(e, f, 'total'); ok++; }
   });
   sv('financeiro'); sv('extratoBancario');
   alert2(ok + ' lançamento(s) conciliado(s).');
@@ -305,17 +399,22 @@ function concDesfazer(entradaId) {
   var e = _concLista().find(function(x) { return x.id === entradaId; });
   if (!e) return;
   var f = _concParcela(e.parcelaId);
-  if (f && f.extratoId === e.id) {
-    if (e.modo === 'registrado') {
-      // Desfaz o pagamento lançado pela conciliação (mesmo botão do Contas a Receber).
-      var antes = f.status;
-      marcarPendente(f.id);
-      if (antes === 'pago' && f.status === 'pago') return; // ela cancelou o confirm
-      f.extratoId = '';
-    } else {
-      if (!confirm('Tirar o vínculo deste lançamento com a parcela? O pagamento que já estava registrado continua como está.')) return;
-      f.extratoId = '';
-    }
+  if (f && e.modo === 'parcial' && f.status !== 'pago' && !f.aprovacaoPendente) {
+    // Parcial com a parcela ainda aberta: só tira este PIX da soma.
+    if (!confirm('Tirar este PIX parcial de ' + fR(e.valor) + ' da parcela?')) return;
+    f.extratoParciais = (f.extratoParciais || []).filter(function(id) { return id !== e.id; });
+    f.recebidoParcial = Math.round(_concSomaParciais(f) * 100) / 100;
+  } else if (f && (f.extratoId === e.id || (f.extratoParciais || []).indexOf(e.id) !== -1) && e.modo !== 'jaPago') {
+    // Pagamento lançado pela conciliação (inteiro, ou parciais que completaram
+    // a parcela): desfaz pelo mesmo botão do Contas a Receber — todos os PIX
+    // dessa parcela voltam a ficar pendentes.
+    var antes = f.status;
+    marcarPendente(f.id);
+    if (antes === 'pago' && f.status === 'pago') return; // ela cancelou o confirm
+  } else if (f && f.extratoId === e.id) {
+    // Pagamento que ela já tinha registrado à mão: só tira o vínculo.
+    if (!confirm('Tirar o vínculo deste lançamento com a parcela? O pagamento que já estava registrado continua como está.')) return;
+    f.extratoId = '';
   }
   e.parcelaId = ''; e.modo = ''; e.conciliadoEm = ''; e.conciliadoPor = '';
   sv('financeiro'); sv('extratoBancario');
@@ -387,19 +486,19 @@ function _concRenderBuscaParcelas() {
     return termo.every(function(t) { return tok.some(function(x) { return x.indexOf(t) === 0; }); });
   }).sort(function(a, b) {
     // Valor igual ao do PIX primeiro, depois por vencimento.
-    var ia = e && Math.abs((a.status === 'pago' ? a.valorPago || a.valorNum : a.valorNum) - e.valor) <= 0.01 ? 0 : 1;
-    var ib = e && Math.abs((b.status === 'pago' ? b.valorPago || b.valorNum : b.valorNum) - e.valor) <= 0.01 ? 0 : 1;
+    var ia = e && Math.abs((a.status === 'pago' ? a.valorPago || a.valorNum : _concRestante(a)) - e.valor) <= 0.01 ? 0 : 1;
+    var ib = e && Math.abs((b.status === 'pago' ? b.valorPago || b.valorNum : _concRestante(b)) - e.valor) <= 0.01 ? 0 : 1;
     return ia - ib || (a.vencimento || a.data || '').localeCompare(b.vencimento || b.data || '');
   }).slice(0, 40);
   if (!lista.length) { el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:8px 2px">Nenhuma parcela encontrada.</div>'; return; }
   el.innerHTML = lista.map(function(f) {
-    var valor = f.status === 'pago' ? (f.valorPago || f.valorNum) : f.valorNum;
+    var valor = f.status === 'pago' ? (f.valorPago || f.valorNum) : _concRestante(f);
     var igual = e && Math.abs(valor - e.valor) <= 0.01;
     return '<div onclick="_concVincularManual(\'' + f.id + '\')" style="display:flex;gap:10px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;font-size:12px" onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'\'">' +
       '<div style="flex:1"><div style="color:var(--text);font-weight:600">' + _concEsc(f.evento || f.contrato || '—') + '</div>' +
         '<div style="color:var(--text3)">' + _concEsc(f.descricao || '') + ' · evento ' + fd(f.data) + (f.vencimento ? ' · vence ' + fd(f.vencimento) : '') + '</div></div>' +
       '<div style="text-align:right"><div style="font-family:var(--mono);color:' + (igual ? 'var(--green)' : 'var(--text)') + '">' + fR(valor) + '</div>' +
-        '<div style="font-size:10px;color:' + (f.status === 'pago' ? 'var(--green)' : 'var(--amber)') + '">' + (f.status === 'pago' ? 'paga ' + fd(f.dataPagamento) : 'pendente') + (igual ? ' · valor igual' : '') + '</div></div>' +
+        '<div style="font-size:10px;color:' + (f.status === 'pago' ? 'var(--green)' : 'var(--amber)') + '">' + (f.status === 'pago' ? 'paga ' + fd(f.dataPagamento) : (Number(f.recebidoParcial) ? 'falta (já recebido ' + fR(f.recebidoParcial) + ')' : 'pendente')) + (igual ? ' · valor igual' : '') + '</div></div>' +
     '</div>';
   }).join('');
 }
@@ -429,7 +528,7 @@ function rConciliacao() {
   var conc = todas.filter(_concConciliada);
   var ign = todas.filter(function(e) { return e.ignorado && !_concConciliada(e); });
   var pend = todas.filter(function(e) { return !e.ignorado && !_concConciliada(e); });
-  var comSug = pend.filter(function(e) { return sug[e.id]; });
+  var comSug = pend.filter(function(e) { return sug[e.id] && sug[e.id].parcelaId; });
   var altas = comSug.filter(function(e) { return sug[e.id].alta; });
   var soma = function(l) { return l.reduce(function(s, e) { return s + e.valor; }, 0); };
   var lista = _concFiltro === 'conciliados' ? conc : _concFiltro === 'ignorados' ? ign : _concFiltro === 'sugestoes' ? comSug : _concFiltro === 'todos' ? todas : pend;
@@ -481,13 +580,16 @@ function rConciliacao() {
 
 function _concLinhaHTML(e, s) {
   var conciliada = _concConciliada(e);
+  var diag = s && s.diag ? s : null;
+  if (diag) s = null;
   var f = conciliada ? _concParcela(e.parcelaId) : (s ? _concParcela(s.parcelaId) : null);
-  var cor = conciliada ? 'var(--green)' : e.ignorado ? 'var(--text3)' : s ? 'var(--blue)' : 'var(--amber)';
+  var parcialAberta = conciliada && e.modo === 'parcial' && f && f.status !== 'pago';
+  var cor = parcialAberta ? 'var(--blue)' : conciliada ? 'var(--green)' : e.ignorado ? 'var(--text3)' : s ? 'var(--blue)' : 'var(--amber)';
   var direita;
   if (conciliada) {
-    direita = '<div style="font-size:12px;color:var(--green);font-weight:600">' + _concEsc(_concTextoParcela(f)) + '</div>' +
+    direita = '<div style="font-size:12px;color:' + (parcialAberta ? 'var(--blue)' : 'var(--green)') + ';font-weight:600">' + _concEsc(_concTextoParcela(f)) + '</div>' +
       '<div style="font-size:10px;color:var(--text3)">' + (f && f.aprovacaoPendente ? '<span style="color:var(--amber)">aguardando aprovação do admin</span> · ' : '') +
-        (e.modo === 'jaPago' ? 'pagamento já estava registrado' : 'pagamento registrado pela conciliação') +
+        (e.modo === 'jaPago' ? 'pagamento já estava registrado' : parcialAberta ? 'PIX parcial — parcela quitada quando a soma completar' : e.modo === 'parcial' ? 'parcela quitada com a soma dos PIX' : 'pagamento registrado pela conciliação') +
         (e.conciliadoPor ? ' · ' + _concEsc(e.conciliadoPor) : '') + '</div>' +
       '<button class="btn-sm" onclick="concDesfazer(\'' + e.id + '\')" style="background:var(--bg3);margin-top:4px">Desfazer</button>';
   } else if (e.ignorado) {
@@ -497,7 +599,10 @@ function _concLinhaHTML(e, s) {
     direita = (s && f
       ? '<div style="font-size:11px;color:var(--text3)">Sugestão (' + _concEsc(s.motivo) + ')</div>' +
         '<div style="font-size:12px;color:' + (s.alta ? 'var(--text)' : 'var(--amber)') + ';font-weight:600">' + _concEsc(_concTextoParcela(f)) + '</div>'
-      : '<div style="font-size:11px;color:var(--amber)">Nenhum contrato encontrado — vincule à mão</div>') +
+      : diag
+        ? '<div style="font-size:11px;color:var(--amber)">Contrato encontrado: <b>' + _concEsc(diag.contrato) + '</b> — nenhuma parcela aberta para este valor</div>' +
+          '<div style="font-size:10px;color:var(--text3)">' + diag.parcelas.map(_concEsc).join('<br>') + '</div>'
+        : '<div style="font-size:11px;color:var(--amber)">Nenhum contrato encontrado — vincule à mão</div>') +
       '<div style="display:flex;gap:6px;justify-content:flex-end;margin-top:4px;flex-wrap:wrap">' +
         (s ? '<button class="btn-sm" onclick="concConfirmarSugestao(\'' + e.id + '\')" style="background:var(--green);color:#fff">Confirmar</button>' : '') +
         '<button class="btn-sm" onclick="concAbrirVincular(\'' + e.id + '\')" style="background:var(--bg3)">' + (s ? 'Outra parcela' : 'Vincular') + '</button>' +
