@@ -136,7 +136,10 @@ function alert2(msg,t='success'){
   }
 }
 function openM(id){document.getElementById(id).classList.add('open')}
-function closeM(id){document.getElementById(id).classList.remove('open')}
+// Sem a janela na página (ex.: modal criado só quando abre), não faz nada —
+// antes dava erro e interrompia o que vinha depois (10-26: conciliação
+// registrava o pagamento mas a tela não atualizava).
+function closeM(id){const el=document.getElementById(id);if(el)el.classList.remove('open')}
 function init(){
   initPageRenders();
   applyTheme();
