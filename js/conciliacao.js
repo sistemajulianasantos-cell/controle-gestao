@@ -203,6 +203,16 @@ function _concComparaNome(tokPagador, tokContrato) {
   return null;
 }
 
+// " (ligada ao PIX de 06/10/2025)" / " (sugerida para o PIX de 06/10/2025)"
+function _concOcupadaPor(f, reservadaPor) {
+  if (f.extratoId) {
+    var e = _concLista().find(function(x) { return x.id === f.extratoId; });
+    return ' (ligada ao PIX de ' + (e ? fd(e.data) + ' ' + fR(e.valor) : 'outro lançamento') + ')';
+  }
+  if (reservadaPor) return ' (sugerida para o PIX de ' + fd(reservadaPor.data) + ' ' + fR(reservadaPor.valor) + ')';
+  return '';
+}
+
 // Melhor parcela para cada entrada pendente, somando os fatores: CPF do
 // contrato, CPF já vinculado antes, nome (completo ou parcial), valor igual ao
 // que falta da parcela, data do PIX perto do vencimento/antes do evento.
@@ -252,7 +262,7 @@ function _concCalcularSugestoes() {
         }
       });
       if (melhor) {
-        if (melhor.valorIgual) reservadas[melhor.p.f.id] = true;
+        if (melhor.valorIgual) reservadas[melhor.p.f.id] = e;
         var motivo = [];
         if (melhor.porCpf) motivo.push('CPF');
         if (melhor.nome) motivo.push(melhor.nome.nivel === 'completo' ? 'nome' : (melhor.nome.sobrenome ? 'mesmo sobrenome' : 'mesmo primeiro nome'));
@@ -267,7 +277,7 @@ function _concCalcularSugestoes() {
         var irmas = reconhecidas.filter(function(p) { return p.chave === p0.chave; }).map(function(p) {
           var f = p.f;
           return (f.descricao || 'parcela') + ' ' + fR(f.status === 'pago' ? (f.valorPago || f.valorNum) : f.valorNum) + ' — ' +
-            (f.status === 'pago' ? 'paga ' + fd(f.dataPagamento) : 'pendente') + (f.extratoId ? ' (ligada a outro PIX)' : '');
+            (f.status === 'pago' ? 'paga ' + fd(f.dataPagamento) : 'pendente') + _concOcupadaPor(f, reservadas[f.id]);
         });
         sug[e.id] = { diag: true, contrato: p0.f.evento || p0.f.contrato || '', parcelas: irmas };
       }
@@ -513,8 +523,8 @@ function _concVincularManual(parcelaId) {
 function _concFiltradas() {
   var termo = _concNorm(_concBusca);
   return _concLista().filter(function(e) {
-    if (_concAno && e.data.slice(0, 4) !== _concAno) return false;
-    if (_concMes && e.data.slice(5, 7) !== _concMes) return false;
+    if (!termo && _concAno && e.data.slice(0, 4) !== _concAno) return false;
+    if (!termo && _concMes && e.data.slice(5, 7) !== _concMes) return false;
     if (termo && _concNorm([e.razao, e.lancamento, e.cpf, String(e.valor).replace('.', ',')].join(' ')).indexOf(termo) === -1) return false;
     return true;
   });
@@ -570,6 +580,7 @@ function rConciliacao() {
       '<select onchange="_concMes=this.value;rConciliacao()" style="' + sel + '"><option value="">Todos os meses</option>' +
         MESES.map(function(m, i) { var v = String(i + 1).padStart(2, '0'); return '<option value="' + v + '"' + (v === _concMes ? ' selected' : '') + '>' + m + '</option>'; }).join('') + '</select>' +
       '<input type="text" value="' + _concEsc(_concBusca) + '" placeholder="Buscar nome, CPF, valor" onchange="_concBusca=this.value;rConciliacao()" style="' + sel + ';min-width:180px">' +
+      (_concBusca.trim() ? '<span style="font-size:11px;color:var(--text3)">buscando em todos os anos e meses</span>' : '') +
       (altas.length ? '<button class="btn-sm" onclick="concConfirmarTodas()" style="margin-left:auto;background:var(--green);color:#fff">Confirmar sugestões com valor igual (' + altas.length + ')</button>' : '') +
     '</div>' +
 
