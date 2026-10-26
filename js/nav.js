@@ -24,6 +24,7 @@ var pageInfo={
   solicitacao:['Solicitação de Orçamento','Pedidos de orçamento recebidos — funil de entrada comercial'],
   agenda:['Agenda Operacional','Visão geral dos eventos por período'],
   financeiro:['Financeiro','Parcelas e status de pagamentos'],
+  conciliacao:['Conciliação Bancária','Extrato do banco ligado às parcelas do Contas a Receber'],
   fechamentos:['Fechamentos','Acerto pós-evento — cobranças além do contrato'],
   'fechamento-mensal':['Fechamento Mensal','Receitas, despesas e resultado do mês, em regime de competência'],
   despesas:['Análise Financeira','Receita, despesas e KPIs financeiros'],
@@ -64,6 +65,7 @@ function initPageRenders(){
     solicitacao:initSolicitacaoOrcamento,
     agenda:rAgenda,
     financeiro:rFinanceiro,
+    conciliacao:()=>rConciliacao(), // arrow: se conciliacao.js não carregar, só esta tela falha
     fechamentos:rFechamentos,
     'fechamento-mensal':initFechamentoMensal,
     despesas:rDespesas,

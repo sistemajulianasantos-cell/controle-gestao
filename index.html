@@ -266,6 +266,10 @@
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v1.5M8 9.5V11M6 7a2 2 0 0 1 4 0c0 1.5-2 2-2 3"/></svg>
           Contas a Receber
         </div>
+        <div class="nav-item" data-page="conciliacao" data-modulo="financeiro" onclick="go('conciliacao')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 5h9l-2-2M14 11H5l2 2"/></svg>
+          Conciliação Bancária
+        </div>
         <div class="nav-item" data-page="despesas" data-modulo="financeiro" onclick="go('despesas')">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 13l3-5 3 3 3-6 3 4"/><path d="M1 1v14h14"/></svg>
           Despesas
@@ -1438,6 +1442,11 @@
     </div>
 
     <!-- ═══ FINANCEIRO ═══ -->
+    <!-- ═══ CONCILIAÇÃO BANCÁRIA ═══ -->
+    <div id="page-conciliacao" class="page">
+      <div id="conciliacao-content"></div>
+    </div>
+
     <div id="page-financeiro" class="page">
 
       <!-- Alerta persistente: pendências de aprovação (só aparece se houver alguma) -->
@@ -1453,6 +1462,7 @@
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
         <button class="sort-btn active" id="fin-tab-sint" onclick="finSetView('sintetico')">📊 Sintético</button>
         <button class="sort-btn"        id="fin-tab-anal" onclick="finSetView('analitico')">📋 Analítico</button>
+        <button class="sort-btn" onclick="go('conciliacao')" title="Importar o extrato do banco e ligar os pagamentos às parcelas">Conciliação bancária</button>
         <div style="margin-left:auto;display:flex;gap:8px">
           <button class="btn-sm" onclick="verificarDuplicatasFinanceiro()" style="background:var(--red-bg);color:var(--red);border:1px solid var(--red);font-weight:700" title="Confere se algum valor está contado duas vezes no total">🧮 Verificar duplicatas</button>
           <button class="btn-sm" onclick="migrarComprovantesEmbutidos()" style="background:var(--red-bg);color:var(--red);border:1px solid var(--red);font-weight:700" title="Se o Financeiro parou de salvar (documento acima de 1MB), clique aqui">🗜️ Corrigir erro de salvamento</button>
@@ -2449,12 +2459,12 @@
 <script src="js/festas.js?v=20261012e"></script>
 <script src="js/relatorio.js?v=20260610z"></script>
 <script src="js/fornecedores.js?v=20261012e"></script>
-<script src="js/nav.js?v=20261023a"></script>
+<script src="js/nav.js?v=20261026a"></script>
 <script src="js/auth.js?v=20260930a"></script>
 <script src="js/contratos.js?v=20261016a"></script>
 <script src="js/agenda.js?v=20261012e"></script>
 <script src="js/producao.js?v=20261012e"></script>
-<script src="js/financeiro.js?v=20261012e"></script>
+<script src="js/financeiro.js?v=20261026a"></script>
 <script src="js/fechamento.js?v=20261012e"></script>
 <script src="js/despesas.js?v=20261012e"></script>
 <script src="js/producao2.js?v=20260610z"></script>
@@ -2480,6 +2490,7 @@
 <script src="js/orcProposta.js?v=20261016b"></script>
 <script src="js/orcContrato.js?v=20261023b"></script>
 <script src="js/degustacao.js?v=20261023a"></script>
+<script src="js/conciliacao.js?v=20261026a"></script>
 <script src="js/_refConsumoData.js?v=20260610z"></script>
 <script src="js/refConsumo.js?v=20261016m"></script>
 <script src="js/seguranca-admin.js?v=20261012e"></script>
@@ -2583,6 +2594,21 @@ window.svFirebase = async function(chave) {
     if(chave==='kitBaseInsumosExcluidos')  campo.kitBaseInsumosExcluidos  = D.kitBaseInsumosExcluidos;
     if(chave==='associacoes')              campo.associacoes              = D.associacoes;
     if(chave==='copos')                    campo.copos                    = D.copos;
+
+    if (chave === 'extratoBancario') {
+      // Extrato do banco (Conciliação Bancária) cresce a cada importação —
+      // fatiado por ano (extrato_AAAA) pelo mesmo motivo do financeiro.
+      const porAnoExt = {};
+      (D.extratoBancario || []).forEach(e => {
+        const ano = (e.data || '').slice(0, 4) || 'outros';
+        (porAnoExt[ano] || (porAnoExt[ano] = [])).push(e);
+      });
+      const batchExt = writeBatch(db);
+      for (const [ano, lista] of Object.entries(porAnoExt)) {
+        batchExt.set(doc(db, "dados", "extrato_" + ano), { valor: lista });
+      }
+      await batchExt.commit();
+    }
 
     if (chave === 'financeiro') {
       // Fatiado por ano (financeiro_AAAA) em vez de um documento único com
@@ -2865,6 +2891,10 @@ async function carregarDados() {
     // junta tudo num array só, como o resto do app já espera.
     D.financeiro   = Object.keys(r)
       .filter(k => k === 'financeiro' || /^financeiro_\d{4}$/.test(k))
+      .flatMap(k => r[k] || []);
+    // Extrato bancário (Conciliação Bancária), fatiado por ano (extrato_AAAA).
+    D.extratoBancario = Object.keys(r)
+      .filter(k => /^extrato_(\d{4}|outros)$/.test(k))
       .flatMap(k => r[k] || []);
     D.contratos    = r.contratos    || [];
     if (typeof atualizarStatusContratos === 'function') atualizarStatusContratos();

@@ -1202,6 +1202,24 @@ async function confirmarPagamento() {
     if (!comprovanteSalvo) avisoComprovante = ' ⚠️ O comprovante NÃO pôde ser salvo (erro acima) — anexe de novo quando o problema for resolvido.';
   }
 
+  const r = _finAplicarPagamento(f, { valorPago, dataPagamento, formaPagamento, temComprovante: comprovanteSalvo, comprovanteTipo, comprovanteNome });
+  sv('financeiro');
+  closeM('mpagamento');
+  _finRefresh();
+  alert2(r.msg + avisoComprovante, (avisoComprovante || r.ehErro) ? 'error' : 'success');
+}
+
+// Registra o pagamento numa parcela (usado pelo modal "Registrar pagamento" e
+// pela Conciliação Bancária). Mesmas regras de sempre: valor abaixo do
+// previsto e quem lança não é admin → fica aguardando aprovação; valor acima
+// → excedente abate das próximas parcelas do contrato. Não grava (sv) nem
+// redesenha — quem chama faz isso. Devolve { msg, ehErro, aguardandoAprovacao }.
+function _finAplicarPagamento(f, p) {
+  const { valorPago, dataPagamento, formaPagamento } = p;
+  const comprovanteSalvo = !!p.temComprovante;
+  const comprovanteTipo = p.comprovanteTipo || '';
+  const comprovanteNome = p.comprovanteNome || '';
+
   if (f.valorOriginal === undefined) f.valorOriginal = f.valorNum;
   const diff = Math.round((valorPago - f.valorOriginal) * 100) / 100;
   const souAdmin = typeof perfilAtual !== 'undefined' && perfilAtual === 'admin';
@@ -1215,11 +1233,8 @@ async function confirmarPagamento() {
       registradoPor: (typeof perfilAtual !== 'undefined' && perfilAtual) || '',
       registradoEm: new Date().toISOString(),
     };
-    sv('financeiro');
-    closeM('mpagamento');
-    _finRefresh();
-    alert2(`Valor pago (${fR(valorPago)}) é menor que o previsto (${fR(f.valorOriginal)}). Enviado para aprovação do administrador — só fica quitado depois da liberação.${avisoComprovante}`, 'error');
-    return;
+    return { aguardandoAprovacao: true, ehErro: true,
+      msg: `Valor pago (${fR(valorPago)}) é menor que o previsto (${fR(f.valorOriginal)}). Enviado para aprovação do administrador — só fica quitado depois da liberação.` };
   }
 
   f.status           = 'pago';
@@ -1243,10 +1258,6 @@ async function confirmarPagamento() {
     f._ajustes = [];
   }
 
-  sv('financeiro');
-  closeM('mpagamento');
-  _finRefresh();
-
   let msg = 'Pagamento registrado com sucesso!';
   let ehErro = false;
   if (diff > 0) {
@@ -1266,7 +1277,7 @@ async function confirmarPagamento() {
   } else if (diff < 0) {
     msg = `Pagamento registrado com valor abaixo do previsto (faltam ${fR(-diff)}), autorizado como administrador.`;
   }
-  alert2(msg + avisoComprovante, (avisoComprovante || ehErro) ? 'error' : 'success');
+  return { msg, ehErro, aguardandoAprovacao: false };
 }
 
 // ── Aprovação de pagamento abaixo do valor previsto (somente admin) ─────────
@@ -1312,6 +1323,7 @@ function rejeitarPagamentoMenor(id) {
   if (!confirm('Rejeitar este pagamento? O comprovante enviado será descartado e a parcela volta a ficar pendente para lançar novamente.')) return;
   if (f.aprovacaoPendente.temComprovante && window.excluirComprovante) window.excluirComprovante(id);
   f.aprovacaoPendente = null;
+  f.extratoId = ''; // linha do extrato (Conciliação Bancária) volta a ficar pendente
   sv('financeiro'); _finRefresh();
   alert2('Pagamento rejeitado. A parcela voltou a ficar pendente.', 'success');
 }
@@ -1362,6 +1374,7 @@ function marcarPendente(id) {
   f._quitadoPorAjuste = false;
   f.motivoAprovacao = '';
   f.aprovadoPor = '';
+  f.extratoId = ''; // linha do extrato (Conciliação Bancária) volta a ficar pendente
   _finSincronizarStatusFechamento(f);
 
   sv('financeiro'); _finRefresh();
