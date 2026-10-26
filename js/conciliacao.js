@@ -256,9 +256,12 @@ function _concCalcularSugestoes() {
         var venc = p.f.vencimento || p.f.data || '9999';
         var antesDoEvento = !p.f.data || e.data <= p.f.data || p.f.isFechamento;
         var nota = (valorIgual ? 100 : 0) + (porCpf ? 60 : 0) + (nome ? nome.comuns * 15 : 0) +
-          (antesDoEvento ? 10 : 0) + (pago ? 5 : 0) - Math.min(30, _concDiasEntre(venc, e.data) / 10);
-        if (!melhor || nota > melhor.nota) {
-          melhor = { p: p, nota: nota, valorIgual: valorIgual, porCpf: porCpf, nome: nome, forte: forte, pago: pago };
+          (antesDoEvento ? 10 : 0) + (pago ? 5 : 0) -
+          // Parcela que vence depois do PIX: quanto mais longe, menos provável.
+          // Já vencida: todas empatam e fica a mais antiga (quita em ordem).
+          (e.data < venc ? Math.min(30, _concDiasEntre(venc, e.data) / 10) : 0);
+        if (!melhor || nota > melhor.nota + 0.001 || (Math.abs(nota - melhor.nota) <= 0.001 && venc < melhor.venc)) {
+          melhor = { p: p, nota: nota, venc: venc, valorIgual: valorIgual, porCpf: porCpf, nome: nome, forte: forte, pago: pago };
         }
       });
       if (melhor) {
@@ -279,7 +282,7 @@ function _concCalcularSugestoes() {
           return (f.descricao || 'parcela') + ' ' + fR(f.status === 'pago' ? (f.valorPago || f.valorNum) : f.valorNum) + ' — ' +
             (f.status === 'pago' ? 'paga ' + fd(f.dataPagamento) : 'pendente') + _concOcupadaPor(f, reservadas[f.id]);
         });
-        sug[e.id] = { diag: true, contrato: p0.f.evento || p0.f.contrato || '', parcelas: irmas };
+        sug[e.id] = { diag: true, contrato: p0.f.evento || p0.f.contrato || '', contratoId: p0.c ? p0.c.id : '', parcelas: irmas };
       }
     });
   return sug;
@@ -429,6 +432,49 @@ function concDesfazer(entradaId) {
   e.parcelaId = ''; e.modo = ''; e.conciliadoEm = ''; e.conciliadoPor = '';
   sv('financeiro'); sv('extratoBancario');
   rConciliacao();
+}
+
+// "Ajustar parcelas" (pedido dela 10-26 — caminho reverso, sem abrir o
+// contrato): abre o Plano de pagamento do contrato já sugerindo parcelado a
+// partir dos PIX do cliente — valor da parcela = este PIX, dia = o dia em que
+// ele paga, 1º mês = o PIX mais antigo dele ainda sem vínculo. Ela confere e
+// salva; o contrato e o Contas a Receber são atualizados (planoSalvarContrato).
+function concAjustarParcelas(entradaId, contratoId) {
+  var e = _concLista().find(function(x) { return x.id === entradaId; });
+  var c = (D.contratos || []).find(function(x) { return x.id === contratoId; });
+  if (!e || !c) return;
+  var parcelas = typeof _planoParcelasDoContrato === 'function' ? _planoParcelasDoContrato(c) : [];
+  var jaPago = parcelas.filter(function(f) { return f.status === 'pago'; })
+    .reduce(function(s, f) { return s + (typeof _finValorNoContrato === 'function' ? _finValorNoContrato(f) : (Number(f.valorNum) || 0)); }, 0);
+  var falta = Math.round((_planoValorContrato(c) - jaPago) * 100) / 100;
+  // PIX do mesmo pagador (CPF, ou nome) com valor parecido, ainda sem vínculo.
+  var cpf = _concDig(e.cpf), nome = _concNorm(e.razao);
+  var irmaos = _concLista().filter(function(x) {
+    if (x.ignorado || _concConciliada(x)) return false;
+    var mesmo = cpf ? _concDig(x.cpf) === cpf : _concNorm(x.razao) === nome;
+    return mesmo && Math.abs(x.valor - e.valor) <= Math.max(1, e.valor * 0.01);
+  }).sort(function(a, b) { return a.data.localeCompare(b.data); });
+  var primeiro = irmaos[0] || e;
+  // Nada pago ainda e o cliente tem um PIX igual à 1ª parcela pendente (o
+  // sinal) → esse PIX é a entrada; as parcelas dividem o resto.
+  var entrada = 0, entradaVenc = primeiro.data;
+  var pagas = parcelas.filter(function(f) { return f.status === 'pago'; });
+  var pendentes = parcelas.filter(function(f) { return f.status !== 'pago'; });
+  var p1 = pendentes.find(function(f) { return /sinal|entrada|assinatura|20%|30%|50%/i.test(f.descricao || ''); }) || pendentes[0];
+  if (!pagas.length && p1) {
+    var pixSinal = _concLista().find(function(x) {
+      if (x.ignorado || _concConciliada(x) || Math.abs(x.valor - (Number(p1.valorNum) || 0)) > 0.01) return false;
+      return cpf ? _concDig(x.cpf) === cpf : _concNorm(x.razao) === nome;
+    });
+    if (pixSinal) { entrada = pixSinal.valor; entradaVenc = pixSinal.data; }
+  }
+  var resto = falta - entrada;
+  var cfg = {
+    tipo: 'parcelado', entradaModo: 'R$', entrada: entrada, entradaVenc: entradaVenc,
+    qtd: e.valor > 0 ? Math.max(1, Math.round(resto / e.valor)) : '',
+    dia: Number(primeiro.data.slice(8, 10)), primeiroMes: primeiro.data.slice(0, 7),
+  };
+  planoAbrir(contratoId, cfg);
 }
 
 function concIgnorar(entradaId, ignorar) {
@@ -593,6 +639,8 @@ function _concLinhaHTML(e, s) {
   var conciliada = _concConciliada(e);
   var diag = s && s.diag ? s : null;
   if (diag) s = null;
+  // Contrato da linha (reconhecido ou da parcela sugerida) — para "Ajustar parcelas".
+  var contratoIdLinha = diag ? diag.contratoId : (s ? ((_concContratoDaParcela(_concParcela(s.parcelaId)) || {}).id || '') : '');
   var f = conciliada ? _concParcela(e.parcelaId) : (s ? _concParcela(s.parcelaId) : null);
   var parcialAberta = conciliada && e.modo === 'parcial' && f && f.status !== 'pago';
   var cor = parcialAberta ? 'var(--blue)' : conciliada ? 'var(--green)' : e.ignorado ? 'var(--text3)' : s ? 'var(--blue)' : 'var(--amber)';
@@ -617,6 +665,7 @@ function _concLinhaHTML(e, s) {
       '<div style="display:flex;gap:6px;justify-content:flex-end;margin-top:4px;flex-wrap:wrap">' +
         (s ? '<button class="btn-sm" onclick="concConfirmarSugestao(\'' + e.id + '\')" style="background:var(--green);color:#fff">Confirmar</button>' : '') +
         '<button class="btn-sm" onclick="concAbrirVincular(\'' + e.id + '\')" style="background:var(--bg3)">' + (s ? 'Outra parcela' : 'Vincular') + '</button>' +
+        (contratoIdLinha && typeof planoAbrir === 'function' ? '<button class="btn-sm" onclick="concAjustarParcelas(\'' + e.id + '\',\'' + contratoIdLinha + '\')" style="background:var(--bg3)" title="Mudar o plano de pagamento deste contrato (nº de parcelas) a partir dos PIX dele — atualiza o contrato e o Contas a Receber">Ajustar parcelas</button>' : '') +
         '<button class="btn-sm" onclick="concIgnorar(\'' + e.id + '\',true)" style="background:var(--bg3)">Ignorar</button>' +
       '</div>';
   }

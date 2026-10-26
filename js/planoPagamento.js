@@ -249,7 +249,7 @@ function _planoModalEl() {
 
 var _planoContratoId = null;
 
-function planoAbrir(contratoId) {
+function planoAbrir(contratoId, cfgSugerido) {
   var c = (D.contratos || []).find(function(x) { return x.id === contratoId; });
   if (!c) return;
   var parcelas = _planoParcelasDoContrato(c);
@@ -277,7 +277,7 @@ function planoAbrir(contratoId) {
     (bloqueio ? '<div style="font-size:12px;color:var(--amber);background:var(--bg3);border-radius:var(--radius);padding:8px 10px">' + bloqueio + '</div>'
     : !(aRefazer > 0.01) ? '<div style="font-size:12px;color:var(--text3)">As parcelas pagas já cobrem o valor do contrato — não há saldo para redistribuir.</div>'
     : '<div style="font-size:12px;color:var(--text2);margin-bottom:8px">' + (pagas.length ? 'Já pago: ' + fR(jaPago) + '. O novo plano divide o que falta: <b>' + fR(aRefazer) + '</b> (as parcelas pagas não mudam).' : 'O plano divide o valor do contrato: <b>' + fR(aRefazer) + '</b>.') + '</div>' +
-      planoFormHTML('mplano', cfgAtual && (!pagas.length || !/^\d/.test(cfgAtual.tipo)) ? cfgAtual : (pagas.length ? { tipo: 'parcelado', entradaModo: 'R$', entrada: 0 } : null), {
+      planoFormHTML('mplano', cfgSugerido || ((cfgAtual && (!pagas.length || !/^\d/.test(cfgAtual.tipo))) ? cfgAtual : (pagas.length ? { tipo: 'parcelado', entradaModo: 'R$', entrada: 0 } : null)), {
         valor: function() { return aRefazer; }, dataEvento: c.data, soParcelado: pagas.length > 0,
       }) +
       '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">' +
@@ -322,4 +322,6 @@ function planoSalvarContrato() {
   alert2('Plano de pagamento salvo — ' + r.parcelas.length + ' parcela(s) no Contas a Receber.');
   if (typeof _finRefresh === 'function' && document.getElementById('page-financeiro') && document.getElementById('page-financeiro').classList.contains('active')) _finRefresh();
   if (typeof rContratos === 'function') rContratos();
+  // Veio da Conciliação Bancária ("Ajustar parcelas"): já mostra as novas sugestões.
+  if (typeof rConciliacao === 'function' && document.getElementById('page-conciliacao') && document.getElementById('page-conciliacao').classList.contains('active')) rConciliacao();
 }
