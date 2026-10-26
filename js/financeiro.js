@@ -1005,9 +1005,6 @@ function rFinanceiroSintetico() {
       <td style="padding:12px;font-size:11px;color:var(--text3)">${g.tipo}<br>${g.convidados !== '—' ? g.convidados+' conv.' : ''}</td>
       <td style="padding:8px 12px">
         ${_finResumoParcelas(g.parcelas, hoje, _finChaveGrupo(g))}
-        ${_finExpandidos[_finChaveGrupo(g)] ? `<div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:center;margin-top:6px">
-          ${g.parcelas.map(p => _finChipParcela(p, hoje)).join('')}
-        </div>` : ''}
       </td>
       <td style="padding:10px 14px;text-align:center">${_finPilula(g.pFch, hoje, { faltaValor: faltaFechamento && !fchDivergAprovada, aprovado: fchDivergAprovada, valorReal: valorFechamentoReal, diferenca: diferencaFechamento, refId: fchRecord?.id, aprovarFn: 'aprovarDivergenciaFechamento' })}</td>
       <td style="padding:12px;text-align:right;font-family:var(--mono);font-weight:700;font-size:13px;color:${faltaContrato && !divergAprovada?'var(--red)':'var(--text)'}">
@@ -1025,7 +1022,62 @@ function rFinanceiroSintetico() {
         ${abaixo > 0.01 ? '−' + fR(abaixo) : '—'}
       </td>`;
     tbody.appendChild(tr);
+    // Aberta (tocou em Pago/Pendente): lista detalhada das parcelas embaixo.
+    if (_finExpandidos[_finChaveGrupo(g)]) {
+      const trDet = document.createElement('tr');
+      trDet.innerHTML = `<td colspan="9" style="padding:0 12px 14px 12px;background:var(--bg3)">${_finListaDetalhada(g.parcelas.concat(g.pFch ? [g.pFch] : []), hoje)}</td>`;
+      tbody.appendChild(trDet);
+    }
   });
+}
+
+// Lista detalhada das parcelas de um contrato (aberta ao tocar na linha) —
+// as mesmas informações da janela de detalhe, uma linha por parcela.
+function _finListaDetalhada(parcelas, hoje) {
+  const souAdmin = _finSouAdmin();
+  const th = t => `<th style="padding:7px 8px;text-align:left;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;white-space:nowrap">${t}</th>`;
+  const td = (v, extra) => `<td style="padding:7px 8px;font-size:12px;color:var(--text);vertical-align:top;${extra || ''}">${v}</td>`;
+  const btn = (txt, acao, estilo) => `<button class="btn-sm" onclick="${acao}" style="font-size:10px;padding:2px 7px;${estilo || 'background:var(--bg2)'}">${txt}</button>`;
+  const linhas = parcelas.map(f => {
+    const s = _finSituacaoParcela(f, hoje);
+    const venc = _finVencimentoEfetivo(f);
+    const previsto = f.isRecebidoAMais ? '—' : fR(f.valorOriginal !== undefined ? f.valorOriginal : f.valorNum);
+    const pago = f.status === 'pago' ? fR(f.valorPago != null ? f.valorPago : f.valorNum)
+      : f.aprovacaoPendente ? fR(f.aprovacaoPendente.valorPago) + '<div style="font-size:10px;color:var(--amber)">aguardando aprovação</div>'
+      : Number(f.recebidoParcial) ? fR(f.recebidoParcial) + '<div style="font-size:10px;color:var(--text3)">parcial · falta ' + fR((Number(f.valorNum) || 0) - Number(f.recebidoParcial)) + '</div>' : '—';
+    const pagoEm = f.status === 'pago' && f.dataPagamento ? fd(f.dataPagamento) + (f.formaPagamento ? ' · ' + (FORMAS_PAGAMENTO[f.formaPagamento] || f.formaPagamento) : '') + (f._quitadoPorAjuste ? '<div style="font-size:10px;color:var(--text3)">quitada por valor a mais</div>' : '') : '—';
+    const exc = f.excedente;
+    const aMais = exc ? fR(exc.valor) + '<div style="font-size:10px;color:' + (exc.status === 'pendente' ? 'var(--amber)' : 'var(--text3)') + '">' +
+      (exc.status === 'pendente' ? 'aguardando decisão' : exc.status === 'receita' ? 'mantido como receita' : 'abatido nas próximas parcelas') + '</div>' : '—';
+    const temArquivo = f.comprovante || f.temComprovante || (f.aprovacaoPendente && f.aprovacaoPendente.temComprovante);
+    const temExtrato = f.extratoId || (f.extratoParciais || []).length;
+    const comprovante = [temArquivo ? btn('Anexo', `verComprovante('${f.id}')`) : '', temExtrato && typeof concAbrirPrintExtrato === 'function' ? btn('Print do extrato', `concAbrirPrintExtrato('${f.id}')`) : ''].filter(Boolean).join(' ') || '<span style="color:var(--text3)">—</span>';
+    let acoes = '';
+    if (f.aprovacaoPendente) {
+      acoes = souAdmin ? btn('Aprovar', `aprovarPagamentoMenor('${f.id}')`, 'background:var(--green-bg);color:var(--green)') + ' ' + btn('Rejeitar', `rejeitarPagamentoMenor('${f.id}')`, 'background:var(--bg2);color:var(--red)') : '<span style="font-size:10px;color:var(--text3)">aguardando admin</span>';
+    } else if (f.status === 'pago') {
+      if (exc && exc.status === 'pendente' && souAdmin) acoes += btn('Abater', `finExcedenteAbater('${f.id}')`) + ' ' + btn('Manter como receita', `finExcedenteManter('${f.id}')`) + ' ';
+      acoes += btn('Desfazer', `marcarPendente('${f.id}')`, 'background:var(--bg2);color:var(--red)');
+    } else if (f.valorNum) {
+      acoes = btn('Recebido', `abrirModalPagamento('${f.id}')`, 'background:var(--green-bg);color:var(--green)');
+    }
+    return `<tr style="border-top:1px solid var(--border)">` +
+      td(`<b>${String(f.isFechamento ? 'Fechamento' : (f.descricao || 'Parcela')).replace(/</g, '&lt;')}</b>`) +
+      td(venc ? fd(venc) + (!f.vencimento ? '<div style="font-size:10px;color:var(--text3)">estimado</div>' : '') : '—', 'white-space:nowrap') +
+      td(previsto, 'font-family:var(--mono);text-align:right;white-space:nowrap') +
+      td(pago, 'font-family:var(--mono);text-align:right;white-space:nowrap') +
+      td(pagoEm, 'white-space:nowrap') +
+      td(`<span style="display:inline-block;background:${s.bg};color:${s.cor};border-radius:5px;padding:1px 7px;font-size:11px;font-weight:600;white-space:nowrap">${s.txt}</span>`) +
+      td(aMais, 'font-family:var(--mono);text-align:right;white-space:nowrap') +
+      td(comprovante, 'white-space:nowrap') +
+      td(acoes, 'white-space:nowrap;text-align:right') +
+    `</tr>`;
+  }).join('');
+  return `<div style="overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg2);margin-top:2px">
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr>${th('Parcela')}${th('Vencimento')}${th('Previsto')}${th('Pago')}${th('Pago em')}${th('Situação')}${th('Pago a mais')}${th('Comprovante')}${th('')}</tr></thead>
+      <tbody>${linhas}</tbody>
+    </table></div>`;
 }
 
 // Linha do Sintético para contrato sem nenhuma parcela lançada.
