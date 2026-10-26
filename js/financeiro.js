@@ -1004,10 +1004,10 @@ function rFinanceiroSintetico() {
       </td>
       <td style="padding:12px;font-size:11px;color:var(--text3)">${g.tipo}<br>${g.convidados !== '—' ? g.convidados+' conv.' : ''}</td>
       <td style="padding:8px 12px">
-        ${_finResumoParcelas(g.parcelas, hoje)}
-        <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:center">
-          ${g.parcelas.length ? g.parcelas.map(p => _finChipParcela(p, hoje)).join('') : '<span style="color:var(--text3);font-size:12px">—</span>'}
-        </div>
+        ${_finResumoParcelas(g.parcelas, hoje, _finChaveGrupo(g))}
+        ${_finExpandidos[_finChaveGrupo(g)] ? `<div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:center;margin-top:6px">
+          ${g.parcelas.map(p => _finChipParcela(p, hoje)).join('')}
+        </div>` : ''}
       </td>
       <td style="padding:10px 14px;text-align:center">${_finPilula(g.pFch, hoje, { faltaValor: faltaFechamento && !fchDivergAprovada, aprovado: fchDivergAprovada, valorReal: valorFechamentoReal, diferenca: diferencaFechamento, refId: fchRecord?.id, aprovarFn: 'aprovarDivergenciaFechamento' })}</td>
       <td style="padding:12px;text-align:right;font-family:var(--mono);font-weight:700;font-size:13px;color:${faltaContrato && !divergAprovada?'var(--red)':'var(--text)'}">
@@ -1043,10 +1043,10 @@ function _finLinhaSemParcelas(c) {
     <td style="padding:12px"><strong style="font-size:13px">${esc(c.nomeEvento || c.nome || '—')}</strong></td>
     <td style="padding:12px;font-size:11px;color:var(--text3)">${esc(c.tipo || '—')}<br>${c.convidados ? esc(c.convidados) + ' conv.' : ''}</td>
     <td style="padding:8px 12px;text-align:center">
-      <div style="font-size:10px;color:var(--text3);margin-bottom:4px">sem parcelas lançadas · falta <b style="color:var(--text2)">${fR(valor)}</b>${atrasado ? ' · <span style="color:var(--red)">atrasado</span>' : ''}</div>
-      <div style="display:inline-block;background:${bg};color:${cor};border:1px solid ${cor};border-radius:6px;padding:2px 9px;line-height:1.25" title="Valor integral do contrato${venc ? ' · vence ' + fd(venc) + ' (7 dias antes do evento)' : ''}">
-        <div style="font-size:9px;font-weight:700;opacity:.85">Valor integral</div>
-        <div style="font-family:var(--mono);font-size:11px;font-weight:700">${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+      <div style="display:flex;gap:14px;align-items:center;justify-content:center" title="Valor integral do contrato — sem parcelas lançadas${venc ? ' · vence ' + fd(venc) + ' (7 dias antes do evento)' : ''}">
+        <div style="text-align:center;min-width:92px"><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3)">Pago</div><div style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--green)">—</div></div>
+        <div style="text-align:center;min-width:92px"><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3)">${atrasado ? 'Pendente · atrasado' : 'Pendente'}</div><div style="font-family:var(--mono);font-size:13px;font-weight:700;color:${cor}">${fR(valor)}</div></div>
+        <div style="font-size:10px;color:var(--text3)">valor integral<br>sem parcelas</div>
       </div>
       <div style="margin-top:4px;display:flex;gap:4px;justify-content:center;flex-wrap:wrap">
         <button class="btn-sm btn-green" onclick="finReceberIntegral('${c.id}')" style="font-size:9px;padding:1px 7px" title="Registrar o pagamento do valor integral">Recebido</button>
@@ -1080,17 +1080,32 @@ function _finSituacaoParcela(p, hoje) {
   return { cor: 'var(--amber)', bg: 'var(--border)', txt: 'Pendente' };
 }
 
-// "6 de 8 pagas · falta R$ 4.772,56" acima dos chips.
-function _finResumoParcelas(parcelas, hoje) {
-  if (!parcelas.length) return '';
-  const pagas = parcelas.filter(p => p.status === 'pago' || (!p.valorNum && !p.aprovacaoPendente)).length;
-  const falta = parcelas.filter(p => p.status !== 'pago').reduce((s, p) => s + (Number(p.valorNum) || 0), 0);
-  const atrasadas = parcelas.filter(p => _finSituacaoParcela(p, hoje).txt === 'Atrasado').length;
+// Parcelas do contrato na linha (pedido dela 10-26): só PAGO e PENDENTE; o
+// detalhe (Sinal, Restante, A mais…) abre ao tocar. _finExpandidos guarda
+// quais linhas estão abertas (por contrato) entre um redesenho e outro.
+var _finExpandidos = {};
+function _finChaveGrupo(g) { return g.contratoId ? 'id|' + g.contratoId : 'nd|' + String(g.nome || '').toLowerCase() + '|' + (g.data || ''); }
+function finToggleParcelas(chave) {
+  _finExpandidos[chave] = !_finExpandidos[chave];
+  rFinanceiroSintetico();
+}
+function _finResumoParcelas(parcelas, hoje, chave) {
+  if (!parcelas.length) return '<span style="color:var(--text3);font-size:12px">—</span>';
+  const pago = parcelas.filter(p => p.status === 'pago')
+    .reduce((s, p) => s + (p.valorPago != null ? Number(p.valorPago) || 0 : Number(p.valorNum) || 0), 0);
+  const pendentes = parcelas.filter(p => p.status !== 'pago');
+  const pendente = pendentes.reduce((s, p) => s + (Number(p.valorNum) || 0), 0);
+  const atrasado = pendentes.filter(p => _finSituacaoParcela(p, hoje).txt === 'Atrasado').reduce((s, p) => s + (Number(p.valorNum) || 0), 0);
   const avisos = parcelas.filter(p => p.aprovacaoPendente || (p.excedente && p.excedente.status === 'pendente')).length;
-  return `<div style="font-size:10px;color:var(--text3);text-align:center;margin-bottom:4px">${pagas} de ${parcelas.length} paga${parcelas.length > 1 ? 's' : ''}` +
-    (falta > 0.009 ? ` · falta <b style="color:var(--text2)">${fR(falta)}</b>` : '') +
-    (atrasadas ? ` · <span style="color:var(--red)">${atrasadas} atrasada${atrasadas > 1 ? 's' : ''}</span>` : '') +
-    (avisos ? ` · <span style="color:var(--amber)">${avisos} aguardando decisão</span>` : '') + '</div>';
+  const aberto = !!_finExpandidos[chave];
+  const bloco = (rot, val, cor) => `<div style="text-align:center;min-width:92px"><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3)">${rot}</div>` +
+    `<div style="font-family:var(--mono);font-size:13px;font-weight:700;color:${cor}">${val > 0.009 ? fR(val) : '—'}</div></div>`;
+  return `<div onclick="finToggleParcelas('${String(chave).replace(/'/g, "\\'")}')" title="${aberto ? 'Esconder' : 'Ver'} as parcelas" style="cursor:pointer;display:flex;gap:14px;align-items:center;justify-content:center;flex-wrap:wrap">` +
+    bloco('Pago', pago, 'var(--green)') +
+    bloco(atrasado > 0.009 ? 'Pendente · atrasado' : 'Pendente', pendente, atrasado > 0.009 ? 'var(--red)' : 'var(--amber)') +
+    `<div style="font-size:10px;color:var(--text3)">${aberto ? '▾' : '▸'} ${parcelas.length} parcela${parcelas.length > 1 ? 's' : ''}` +
+      (avisos ? `<div style="color:var(--amber);font-weight:600">! ${avisos} aguardando decisão</div>` : '') + '</div>' +
+  '</div>';
 }
 
 // Chip compacto da parcela (Sintético): nome curto + valor, cor da situação.

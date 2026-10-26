@@ -732,8 +732,27 @@ function _concVincularManual(parcelaId) {
 var _concDistrib = null; // { entradaId, contratoId, abertas: [ids] }
 
 function _concParcelasAbertas(c) {
+  // Contrato sem parcela (ou só parcelas zeradas): o aberto é o valor integral
+  // — antes a distribuição não via nada e mandava o PIX inteiro pra "A mais".
+  if (typeof _finContratosSemParcelas === 'function' && _finContratosSemParcelas().some(function(x) { return x.id === c.id; })) {
+    var v = _finValorDoContrato(c);
+    return [{ id: '__integral__', virtual: true, descricao: 'Valor integral do contrato', valorNum: v, vencimento: _finVencIntegral(c), status: 'pendente' }];
+  }
   return (typeof _planoParcelasDoContrato === 'function' ? _planoParcelasDoContrato(c) : [])
     .filter(function(f) { return f.status !== 'pago' && !f.aprovacaoPendente && !f.isRecebidoAMais && _concRestante(f) > 0.009; });
+}
+
+// Cria de verdade a parcela "Valor integral" (no lugar das zeradas) quando a
+// distribuição usa o valor integral de um contrato sem parcelas.
+function _concCriarParcelaIntegral(c) {
+  var zeradas = (typeof _planoParcelasDoContrato === 'function' ? _planoParcelasDoContrato(c) : []).filter(function(f) { return f.status !== 'pago'; }).map(function(f) { return f.id; });
+  D.financeiro = (D.financeiro || []).filter(function(f) { return zeradas.indexOf(f.id) === -1; });
+  var v = _finValorDoContrato(c);
+  var f = { id: _gerarId('FIN'), contratoId: c.id, contrato: c.nome || '', evento: c.nomeEvento || c.nome || '', data: c.data || '',
+    tipo: c.tipo || '', convidados: c.convidados || '', descricao: 'Valor integral do contrato',
+    valorNum: v, valor: 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), vencimento: _finVencIntegral(c), status: 'pendente' };
+  D.financeiro.push(f);
+  return f;
 }
 
 function concAbrirDistribuir(entradaId, contratoId) {
@@ -741,7 +760,7 @@ function concAbrirDistribuir(entradaId, contratoId) {
   var c = (D.contratos || []).find(function(x) { return x.id === contratoId; });
   if (!e || !c) return;
   var abertas = _concParcelasAbertas(c);
-  _concDistrib = { entradaId: entradaId, contratoId: contratoId, abertas: abertas.map(function(f) { return f.id; }) };
+  _concDistrib = { entradaId: entradaId, contratoId: contratoId, abertas: abertas.map(function(f) { return f.id; }), objs: abertas };
   _concModalEl();
   var emAberto = abertas.reduce(function(s, f) { return s + _concRestante(f); }, 0);
   document.getElementById('mconc-corpo').innerHTML =
@@ -774,7 +793,7 @@ function _concDistribAuto() {
   var e = _concLista().find(function(x) { return x.id === _concDistrib.entradaId; });
   var resto = e ? e.valor : 0;
   _concDistrib.abertas.forEach(function(id, i) {
-    var f = _concParcela(id);
+    var f = _concDistrib.objs[i];
     var v = Math.round(Math.min(resto, f ? _concRestante(f) : 0) * 100) / 100;
     resto = Math.round((resto - v) * 100) / 100;
     var el = document.getElementById('mconc-dist-' + i);
@@ -794,7 +813,7 @@ function _concDistribLer() {
   _concDistrib.abertas.forEach(function(id, i) {
     var el = document.getElementById('mconc-dist-' + i);
     var v = el && el.value.trim() ? Math.round((parseValorBR(el.value) || 0) * 100) / 100 : 0;
-    var f = _concParcela(id);
+    var f = _concDistrib.objs[i];
     if (v > 0 && f) {
       if (v > _concRestante(f) + 0.009) erro = (f.descricao || 'Parcela') + ': ponha no máximo ' + fR(_concRestante(f)) + ' (o que falta) — o que sobrar do PIX vai para "A mais".';
       alocs.push({ f: f, valor: v });
@@ -839,6 +858,7 @@ function _concAplicarDistribuicao(e, alocs, sobra, c) {
   e.distribuicao = {};
   var textos = [], aguardando = false;
   alocs.forEach(function(a) {
+    if (a.f.virtual && c) a.f = _concCriarParcelaIntegral(c); // valor integral → parcela de verdade
     var f = a.f;
     e.distribuicao[f.id] = a.valor;
     f.extratoParciais = (f.extratoParciais || []).concat(e.id);
