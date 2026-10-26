@@ -296,7 +296,13 @@ function planoSalvarContrato() {
   var parcelas = _planoParcelasDoContrato(c);
   var pendentes = parcelas.filter(function(f) { return f.status !== 'pago'; });
   var pagas = parcelas.filter(function(f) { return f.status === 'pago'; });
-  if (!confirm('Trocar as ' + pendentes.length + ' parcela(s) pendente(s) deste contrato por ' + r.parcelas.length + ' parcela(s) do novo plano (total ' + fR(r.valor) + ')?\n\n' + planoTextoParcelas(r.parcelas) + (pagas.length ? '\n\nAs ' + pagas.length + ' parcela(s) já paga(s) continuam como estão.' : ''))) return;
+  var texto = 'Trocar as ' + pendentes.length + ' parcela(s) pendente(s) deste contrato por ' + r.parcelas.length + ' parcela(s) do novo plano (total ' + fR(r.valor) + ')?\n\n' + planoTextoParcelas(r.parcelas) + (pagas.length ? '\n\nAs ' + pagas.length + ' parcela(s) já paga(s) continuam como estão.' : '');
+  // Janela do sistema (confirm() do navegador pode estar bloqueado).
+  if (typeof sisDialogo === 'function') sisDialogo(texto, function() { _planoAplicar(c, r, pendentes, pagas); }, { ok: 'Salvar plano' });
+  else if (confirm(texto)) _planoAplicar(c, r, pendentes, pagas);
+}
+
+function _planoAplicar(c, r, pendentes, pagas) {
   var base = pendentes[0] || pagas[0] || {};
   var idsPendentes = {};
   pendentes.forEach(function(f) { idsPendentes[f.id] = true; });

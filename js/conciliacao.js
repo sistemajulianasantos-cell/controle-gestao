@@ -24,6 +24,41 @@ var _concMes = '';
 var _concBusca = '';
 var _concVincularId = null;
 
+// Confirmação dentro do sistema, no lugar do confirm()/prompt() do navegador
+// (pedido 10-26: "toco em Confirmar e não faz nada" — com muitas caixas
+// seguidas o navegador oferece bloquear os diálogos da página e, bloqueado,
+// todo confirm() volta "Cancelar" na hora, sem aparecer nada).
+// opts: { ok: 'texto do botão', campo: 'placeholder' (pede um texto), valor }
+// onOk(textoDigitado) roda ao clicar no botão principal.
+function sisDialogo(texto, onOk, opts) {
+  opts = opts || {};
+  var el = document.getElementById('msis-dialogo');
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'modal-overlay';
+    el.id = 'msis-dialogo';
+    el.style.zIndex = '6000'; // acima das outras janelas (pode abrir de dentro delas)
+    el.innerHTML = '<div class="modal" style="max-width:520px;width:95%"><div id="msis-dialogo-corpo" style="padding:16px 18px"></div></div>';
+    document.body.appendChild(el);
+  }
+  window._sisDialogoOk = function() {
+    var campo = document.getElementById('msis-dialogo-campo');
+    var v = campo ? campo.value : '';
+    closeM('msis-dialogo');
+    onOk(v);
+  };
+  document.getElementById('msis-dialogo-corpo').innerHTML =
+    '<div style="font-size:13px;color:var(--text);white-space:pre-line;line-height:1.5">' + _concEsc(texto) + '</div>' +
+    (opts.campo !== undefined ? '<input id="msis-dialogo-campo" class="inp" type="text" value="' + _concEsc(opts.valor || '') + '" placeholder="' + _concEsc(opts.campo) + '" style="width:100%;box-sizing:border-box;margin-top:10px">' : '') +
+    '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">' +
+      '<button class="btn" onclick="closeM(\'msis-dialogo\')" style="background:var(--bg3)">Cancelar</button>' +
+      '<button class="btn" onclick="window._sisDialogoOk()" style="background:var(--blue);color:#fff">' + _concEsc(opts.ok || 'Confirmar') + '</button>' +
+    '</div>';
+  openM('msis-dialogo');
+  var campo = document.getElementById('msis-dialogo-campo');
+  if (campo && campo.focus) campo.focus();
+}
+
 function _concLista() { return D.extratoBancario || (D.extratoBancario = []); }
 function _concEsc(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
 function _concDig(s) { return String(s || '').replace(/\D/g, ''); }
@@ -359,16 +394,16 @@ function _concVincular(e, f) {
     rConciliacao();
   };
   if (f.status === 'pago') {
-    if (confirm(cab + 'A parcela já está paga — só vai ser marcada como conferida no extrato.')) concluir('total');
+    sisDialogo(cab + 'A parcela já está paga — só vai ser marcada como conferida no extrato.', function() { concluir('total'); }, { ok: 'Marcar como conferida' });
     return;
   }
   var restante = _concRestante(f);
   var dif = Math.round((e.valor - restante) * 100) / 100;
   var jaRecebido = Number(f.recebidoParcial) ? 'Já recebido nessa parcela: ' + fR(f.recebidoParcial) + ' — falta ' + fR(restante) + '.\n' : '';
   if (dif >= 0) {
-    if (confirm(cab + jaRecebido + (dif > 0
+    sisDialogo(cab + jaRecebido + (dif > 0
       ? 'O valor é ' + fR(dif) + ' MAIOR que o que falta — o excedente NÃO é abatido em nada: fica sinalizado para o administrador decidir (abater em outra parcela ou manter como receita).'
-      : 'O pagamento da parcela será registrado.'))) concluir('total');
+      : 'O pagamento da parcela será registrado.'), function() { concluir('total'); }, { ok: 'Registrar pagamento' });
     return;
   }
   // Valor menor que o que falta: parcial (vem mais PIX) ou valor final com desconto?
@@ -397,41 +432,51 @@ function concConfirmarTodas() {
   var lista = _concFiltradas().filter(function(e) { return sug[e.id] && sug[e.id].alta; });
   if (!lista.length) { alert2('Nenhuma sugestão com valor igual para confirmar.', 'error'); return; }
   var total = lista.reduce(function(s, e) { return s + e.valor; }, 0);
-  if (!confirm('Confirmar ' + lista.length + ' sugestão(ões) com valor igual (' + fR(total) + ')?\n\nCada uma registra o pagamento na parcela sugerida (ou marca como conferida, se já estava paga). Confira a lista antes — dá pra desfazer depois.')) return;
-  var ok = 0;
-  lista.forEach(function(e) {
-    var f = _concParcela(sug[e.id].parcelaId);
-    if (f && !f.extratoId) { _concAplicarVinculo(e, f, 'total'); ok++; }
-  });
-  sv('financeiro'); sv('extratoBancario');
-  alert2(ok + ' lançamento(s) conciliado(s).');
-  rConciliacao();
+  sisDialogo('Confirmar ' + lista.length + ' sugestão(ões) com valor igual (' + fR(total) + ')?\n\nCada uma registra o pagamento na parcela sugerida (ou marca como conferida, se já estava paga). Confira a lista antes — dá pra desfazer depois.', function() {
+    var ok = 0;
+    lista.forEach(function(e) {
+      var f = _concParcela(sug[e.id].parcelaId);
+      if (f && !f.extratoId) { _concAplicarVinculo(e, f, 'total'); ok++; }
+    });
+    sv('financeiro'); sv('extratoBancario');
+    alert2(ok + ' lançamento(s) conciliado(s).');
+    rConciliacao();
+  }, { ok: 'Confirmar ' + lista.length });
 }
 
 function concDesfazer(entradaId) {
   var e = _concLista().find(function(x) { return x.id === entradaId; });
   if (!e) return;
   var f = _concParcela(e.parcelaId);
+  var limpar = function() {
+    e.parcelaId = ''; e.modo = ''; e.conciliadoEm = ''; e.conciliadoPor = '';
+    sv('financeiro'); sv('extratoBancario');
+    rConciliacao();
+  };
   if (f && e.modo === 'parcial' && f.status !== 'pago' && !f.aprovacaoPendente) {
     // Parcial com a parcela ainda aberta: só tira este PIX da soma.
-    if (!confirm('Tirar este PIX parcial de ' + fR(e.valor) + ' da parcela?')) return;
-    f.extratoParciais = (f.extratoParciais || []).filter(function(id) { return id !== e.id; });
-    f.recebidoParcial = Math.round(_concSomaParciais(f) * 100) / 100;
+    sisDialogo('Tirar este PIX parcial de ' + fR(e.valor) + ' da parcela?', function() {
+      f.extratoParciais = (f.extratoParciais || []).filter(function(id) { return id !== e.id; });
+      f.recebidoParcial = Math.round(_concSomaParciais(f) * 100) / 100;
+      limpar();
+    }, { ok: 'Tirar' });
   } else if (f && (f.extratoId === e.id || (f.extratoParciais || []).indexOf(e.id) !== -1) && e.modo !== 'jaPago') {
     // Pagamento lançado pela conciliação (inteiro, ou parciais que completaram
-    // a parcela): desfaz pelo mesmo botão do Contas a Receber — todos os PIX
+    // a parcela): desfaz pelo mesmo caminho do Contas a Receber — todos os PIX
     // dessa parcela voltam a ficar pendentes.
-    var antes = f.status;
-    marcarPendente(f.id);
-    if (antes === 'pago' && f.status === 'pago') return; // ela cancelou o confirm
+    sisDialogo('Desfazer o pagamento registrado nesta parcela?\n' + _concTextoParcela(f) + '\n\nA parcela volta a ficar pendente (e todos os PIX ligados a ela voltam para "A conciliar").', function() {
+      marcarPendente(f.id, true);
+      limpar();
+    }, { ok: 'Desfazer pagamento' });
   } else if (f && f.extratoId === e.id) {
     // Pagamento que ela já tinha registrado à mão: só tira o vínculo.
-    if (!confirm('Tirar o vínculo deste lançamento com a parcela? O pagamento que já estava registrado continua como está.')) return;
-    f.extratoId = '';
+    sisDialogo('Tirar o vínculo deste lançamento com a parcela? O pagamento que já estava registrado continua como está.', function() {
+      f.extratoId = '';
+      limpar();
+    }, { ok: 'Tirar vínculo' });
+  } else {
+    limpar();
   }
-  e.parcelaId = ''; e.modo = ''; e.conciliadoEm = ''; e.conciliadoPor = '';
-  sv('financeiro'); sv('extratoBancario');
-  rConciliacao();
 }
 
 // "Ajustar parcelas" (pedido dela 10-26 — caminho reverso, sem abrir o
@@ -481,12 +526,14 @@ function concIgnorar(entradaId, ignorar) {
   var e = _concLista().find(function(x) { return x.id === entradaId; });
   if (!e) return;
   if (ignorar) {
-    var motivo = prompt('Por que ignorar este lançamento? (ex: transferência entre contas, devolução, não é de cliente)', '');
-    if (motivo === null) return;
-    e.ignorado = true; e.motivoIgnorado = motivo.trim() || 'Ignorado';
-  } else {
-    e.ignorado = false; e.motivoIgnorado = '';
+    sisDialogo('Por que ignorar este lançamento?\n' + (e.razao || e.lancamento) + ' — ' + fR(e.valor) + ' em ' + fd(e.data), function(motivo) {
+      e.ignorado = true; e.motivoIgnorado = String(motivo || '').trim() || 'Ignorado';
+      sv('extratoBancario');
+      rConciliacao();
+    }, { ok: 'Ignorar', campo: 'ex: pagamento de degustação, transferência entre contas, devolução' });
+    return;
   }
+  e.ignorado = false; e.motivoIgnorado = '';
   sv('extratoBancario');
   rConciliacao();
 }

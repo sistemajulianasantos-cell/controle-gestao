@@ -1370,7 +1370,10 @@ function finExcedenteAbater(id) {
   if (!_finSouAdmin()) { alert2('Somente o administrador decide o que fazer com o valor pago a mais.', 'error'); return; }
   const f = (D.financeiro || []).find(x => x.id === id);
   if (!f || !f.excedente || f.excedente.status !== 'pendente') return;
-  if (!confirm(`Abater o excedente de ${fR(f.excedente.valor)} nas próximas parcelas pendentes deste contrato?`)) return;
+  sisDialogo(`Abater o excedente de ${fR(f.excedente.valor)} nas próximas parcelas pendentes deste contrato?`, () => _finExcedenteAbaterConfirmado(f), { ok: 'Abater' });
+}
+
+function _finExcedenteAbaterConfirmado(f) {
   const r = _aplicarAjusteContrato(f, f.excedente.valor);
   f._ajustes = r.ajustes;
   f.excedente.status = 'abatido';
@@ -1385,9 +1388,13 @@ function finExcedenteManter(id) {
   if (!_finSouAdmin()) { alert2('Somente o administrador decide o que fazer com o valor pago a mais.', 'error'); return; }
   const f = (D.financeiro || []).find(x => x.id === id);
   if (!f || !f.excedente || f.excedente.status !== 'pendente') return;
-  const motivo = prompt(`Manter os ${fR(f.excedente.valor)} pagos a mais como receita extra (as outras parcelas continuam iguais)?\n\nMotivo (obrigatório):`);
-  if (motivo === null) return;
-  if (!motivo.trim()) { alert2('Informe o motivo.', 'error'); return; }
+  sisDialogo(`Manter os ${fR(f.excedente.valor)} pagos a mais como receita extra? As outras parcelas continuam iguais.\n\nMotivo (obrigatório):`, motivo => {
+    if (!String(motivo || '').trim()) { alert2('Informe o motivo.', 'error'); return; }
+    _finExcedenteManterConfirmado(f, motivo);
+  }, { ok: 'Manter como receita', campo: 'ex: gorjeta, acréscimo combinado, pagamento de outro serviço' });
+}
+
+function _finExcedenteManterConfirmado(f, motivo) {
   f.excedente.status = 'receita';
   f.excedente.motivo = motivo.trim();
   f.excedente.decididoPor = (typeof perfilAtual !== 'undefined' && perfilAtual) || '';
@@ -1433,10 +1440,16 @@ function rejeitarPagamentoMenor(id) {
   alert2('Pagamento rejeitado. A parcela voltou a ficar pendente.', 'success');
 }
 
-function marcarPendente(id) {
+// semConfirmar: quem chama já confirmou (ex.: Conciliação Bancária).
+function marcarPendente(id, semConfirmar) {
   const f = (D.financeiro || []).find(x => x.id === id);
   if (!f) return;
-  if (f.status === 'pago' && !confirm('Desfazer este pagamento? O comprovante e os ajustes automáticos aplicados às parcelas seguintes serão revertidos (quando possível).')) return;
+  if (f.status === 'pago' && !semConfirmar) {
+    const texto = 'Desfazer este pagamento? O comprovante e os ajustes automáticos aplicados às parcelas seguintes serão revertidos (quando possível).';
+    // Janela do sistema (confirm() do navegador pode estar bloqueado).
+    if (typeof sisDialogo === 'function') { sisDialogo(texto, () => marcarPendente(id, true), { ok: 'Desfazer pagamento' }); return; }
+    if (!confirm(texto)) return;
+  }
 
   if (f._ajustes && f._ajustes.length) {
     f._ajustes.forEach(a => {
