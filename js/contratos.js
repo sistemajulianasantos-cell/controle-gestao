@@ -1172,14 +1172,26 @@ function rContratos() {
       <td style="white-space:nowrap">
         <button class="btn-sm" onclick="abrirEdicaoContrato('${c.id}')" title="Editar contrato">✏️</button>
         ${typeof planoAbrir === 'function' ? `<button class="btn-sm" onclick="planoAbrir('${c.id}')" title="Como o cliente vai pagar (20/80, 30/70, 50/50, parcelado…)" style="background:var(--bg3)">Plano</button>` : ''}
-        <button class="btn-sm btn-red" onclick="excluirContrato('${c.id}')">✕</button>
+        <button class="btn-sm btn-red" onclick="excluirContrato('${c.id}', ${(D.contratos||[]).indexOf(c)})">✕</button>
       </td>
     `;
     tbody.appendChild(tr);
   });
 }
 
-function excluirContrato(id) {
+function excluirContrato(id, idx) {
+  // Código repetido (contratos antigos): excluir pelo código apagaria também
+  // as parcelas/agenda/produção do OUTRO contrato. Aí só tira este contrato.
+  const mesmoCodigo = (D.contratos||[]).filter(x => x.id === id);
+  if (mesmoCodigo.length > 1) {
+    const alvo = (idx != null && D.contratos[idx] && D.contratos[idx].id === id) ? D.contratos[idx] : null;
+    if (!alvo) { alert2('Contrato com código repetido — recarregue a tela e tente de novo.', 'error'); return; }
+    if (!confirm('Este contrato tem o mesmo código interno de outro contrato. Excluir só este cadastro (' + (alvo.nome||'') + ' — ' + fd(alvo.data) + ')?\n\nAs parcelas, agenda e produção NÃO serão apagadas, porque podem ser do outro contrato.')) return;
+    D.contratos = D.contratos.filter(x => x !== alvo);
+    sv('contratos');
+    rContratos();
+    return;
+  }
   if (!confirm('Excluir este contrato e todos os registros vinculados (agenda, financeiro, produção)?')) return;
   const c = (D.contratos||[]).find(x => x.id === id);
   const nomeC = c ? (c.nome||'').toLowerCase().trim() : '';

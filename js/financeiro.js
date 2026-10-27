@@ -229,6 +229,8 @@ function _finAtualizarKpis(filtroIni, filtroFim) {
     if (parcelasAguardando) partes.push(`${parcelasAguardando} pagamento(s) aguardando aprovação (valor abaixo do previsto)`);
     const idRepetido = _finContratosIdRepetido().length;
     if (idRepetido) partes.push(`${idRepetido} grupo(s) de contratos com código repetido — parcelas podem aparecer no contrato errado <button class="btn-sm" onclick="finCorrigirIdsRepetidos()" style="font-size:10px;padding:1px 7px;margin-left:4px">Corrigir códigos repetidos</button>`);
+    const duplicados = _finContratosDuplicados();
+    if (duplicados.length) partes.push(`${duplicados.length} contrato(s) cadastrado(s) em duplicidade (mesmo nome e data: ${duplicados.slice(0, 3).map(g => (g[0].nome || '') + ' ' + fd(g[0].data)).join(', ')}${duplicados.length > 3 ? '…' : ''}) — confira em Contratos e exclua o repetido`);
     const semParcelas = _finContratosSemParcelas().length;
     if (semParcelas) partes.push(`${semParcelas} contrato(s) sem parcelas no Contas a Receber (use "Lançar parcelas")`);
     const excedentesPendentes = fin.filter(f => f.excedente && f.excedente.status === 'pendente').length;
@@ -541,13 +543,31 @@ function _finValorDoContrato(c) {
 }
 function _finContratosSemParcelas() {
   const parcelasDe = _finParcelasDoContratoMapa();
+  const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const chave = c => norm(c.nomeEvento || c.nome) + '|' + (c.data || '');
+  // Contrato repetido (mesmo nome e data, ex.: "PATRÍCIA BARROS" 03/10 cadastrado
+  // 2x): as parcelas ficam num deles — o outro não é "sem parcelas".
+  const chavesComParcelas = {};
+  (D.contratos || []).forEach(c => { if (parcelasDe(c).length) chavesComParcelas[chave(c)] = true; });
   return (D.contratos || []).filter(c => {
     if (c.status === 'cancelado') return false;
     if (!(_finValorDoContrato(c) > 0)) return false;
     const ps = parcelasDe(c);
-    if (!ps.length) return true;
+    if (!ps.length) return !chavesComParcelas[chave(c)];
     return !ps.some(f => f.status === 'pago' || f.aprovacaoPendente) && ps.reduce((s, f) => s + (Number(f.valorNum) || 0), 0) <= 0.009;
   });
+}
+
+// Contratos cadastrados mais de uma vez (mesmo nome e data do evento).
+function _finContratosDuplicados() {
+  const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const grupos = {};
+  (D.contratos || []).forEach(c => {
+    if (c.status === 'cancelado') return;
+    const k = norm(c.nomeEvento || c.nome) + '|' + (c.data || '');
+    (grupos[k] = grupos[k] || []).push(c);
+  });
+  return Object.values(grupos).filter(g => g.length > 1);
 }
 
 // Vencimento do valor integral (sem parcela): 7 dias antes do evento, mesma
