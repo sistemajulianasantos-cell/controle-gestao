@@ -12,7 +12,7 @@
 // evento sem lançamento puxaria a média pra baixo.
 //
 // D.compraUso = { baseMeses: 3 } (o antigo `meses` digitado à mão não é mais usado).
-// Mínimo de estoque = campo "minimo" do Cadastro de Produtos (D.produtos).
+// Itens, unidade e Estoque mínimo = Cadastro de Insumos (D.insumos) — ver _cuIndice.
 // Estoque atual = coleção "estoque" do Sistema Separação, ao vivo (onSnapshot,
 // só leitura — window.escutarEstoqueSeparacao em index.html). Variantes do
 // mesmo produto (ex.: APEROL CONSIGNADO / APEROL ROMERO) são somadas.
@@ -66,56 +66,79 @@ function _cuMesDe(dataStr) {
 }
 function _cuNoMes(dataStr, anoMes) { return _cuMesDe(dataStr) === anoMes; }
 
-// ─── CASAMENTO DE NOMES (produto da compra x insumo da Estimativa) ──────────
-// Chave canônica = nome do insumo do Cadastro de Insumos quando o nome (ou um
-// apelido) bate; senão o próprio nome normalizado. Montado a cada render.
+// ─── ITENS CADASTRADOS (regra: tudo sai do Cadastro de Insumos) ─────────────
+// Toda linha da tela é um insumo do Cadastro de Insumos (fonte única): nome,
+// unidade, estoque mínimo e vínculo com o estoque vêm de lá. Compra (nome do
+// Cadastro de Produtos) e consumo da Estimativa são ligados ao insumo por:
+//   1) vínculo explícito insumo.origemProdutoId → produto (nome/apelidos do produto);
+//   2) nome ou apelido do insumo.
+// Nome que não liga a nenhum insumo NÃO vira linha: chave '#NOME' e aparece
+// na caixa "Nomes fora do Cadastro" para ela corrigir (apelido no cadastro).
 var _cuIdx = null;
 function _cuIndice() {
   if (_cuIdx) return _cuIdx;
-  var porNome = {};
+  var porNome = {}, porId = {};
+  var add = function(n, id) { var nn = _cuNorm(n); if (nn && !porNome[nn]) porNome[nn] = id; };
   (D.insumos || []).forEach(function(i) {
-    var k = _cuNorm(i.nome);
-    if (!k) return;
-    [i.nome].concat(i.aliases || []).forEach(function(n) {
-      var nn = _cuNorm(n);
-      if (nn && !porNome[nn]) porNome[nn] = k;
-    });
+    if (!i.id) return;
+    porId[i.id] = i;
+    add(i.nome, i.id);
   });
-  // Produto: nome e apelidos do Cadastro de Produtos também levam ao insumo.
-  var prodPorChave = {};
+  (D.insumos || []).forEach(function(i) { if (i.id) (i.aliases || []).forEach(function(a) { add(a, i.id); }); });
   (D.produtos || []).forEach(function(p) {
-    var nomes = [p.nome].concat(p.aliases || []);
-    var k = null;
-    for (var j = 0; j < nomes.length && !k; j++) k = porNome[_cuNorm(nomes[j])] || null;
-    k = k || _cuNorm(p.nome);
-    nomes.forEach(function(n) { var nn = _cuNorm(n); if (nn && !porNome[nn]) porNome[nn] = k; });
-    if (k && !prodPorChave[k]) prodPorChave[k] = p;
+    var ins = (D.insumos || []).find(function(i) { return i.origemProdutoId && i.origemProdutoId === p.id; });
+    var id = ins ? ins.id : porNome[_cuNorm(p.nome)];
+    if (!id) return;
+    [p.nome].concat(p.aliases || []).forEach(function(n) { add(n, id); });
   });
-  _cuIdx = { porNome: porNome, prodPorChave: prodPorChave };
+  _cuIdx = { porNome: porNome, porId: porId };
   return _cuIdx;
 }
+// Chave = id do insumo; fora do cadastro = '#' + nome normalizado.
 function _cuCanon(nome) {
   var n = _cuNorm(nome);
-  return _cuIndice().porNome[n] || n;
+  if (!n) return '';
+  return _cuIndice().porNome[n] || ('#' + n);
 }
+function _cuSemCadastro(k) { return k.charAt(0) === '#'; }
 
-// Nome de exibição + produto do cadastro, por chave canônica.
 function _cuMapaProdutos() {
   var idx = _cuIndice();
   var mapa = {};
-  Object.keys(idx.prodPorChave).forEach(function(k) {
-    mapa[k] = { nome: idx.prodPorChave[k].nome, prod: idx.prodPorChave[k] };
-  });
-  var add = function(nome) {
-    var k = _cuCanon(nome);
-    if (k && !mapa[k]) mapa[k] = { nome: nome, prod: null };
-  };
-  (D.insumos || []).forEach(function(i) { add(i.nome); });
-  (D.entradas || []).forEach(function(e) { add(e.prod); });
-  _cuEventosEstimativa().forEach(function(e) { Object.keys(e.consumo || {}).forEach(add); });
+  Object.keys(idx.porId).forEach(function(id) { mapa[id] = { nome: idx.porId[id].nome, ins: idx.porId[id] }; });
   return mapa;
 }
-function _cuInfo(mapa, k) { return mapa[k] || { nome: k, prod: null }; }
+function _cuInfo(mapa, k) { return mapa[k] || { nome: _cuSemCadastro(k) ? k.slice(1) : k, ins: null }; }
+function _cuUn(info) { return (info.ins && info.ins.unidadeCompra) || ''; }
+
+// Caixa com o que veio de nome não cadastrado (nada some calado).
+// itens: { '#NOME': { c: comprado, u: utilizado } }
+function _cuCaixaSemCadastro(itens) {
+  var ks = Object.keys(itens);
+  if (!ks.length) return '';
+  ks.sort(function(a, b) { return (itens[b].c + itens[b].u) - (itens[a].c + itens[a].u); });
+  return '<div class="sec" style="margin-top:14px;border-color:var(--amber)">' +
+    '<div class="sec-head"><span class="sec-title" style="color:var(--amber)">Nomes fora do Cadastro de Insumos (' + ks.length + ')</span></div>' +
+    '<div style="font-size:11px;color:var(--text3);padding:8px 16px 0;line-height:1.5">Estes nomes foram lançados na Entrada de NF ou na Estimativa de Bebidas, mas não batem com nenhum item do Cadastro de Insumos, então não entram na tabela. ' +
+      'Para juntar, abra o insumo certo em Cadastro → Insumos e coloque este nome como apelido (ou cadastre o item).</div>' +
+    '<div style="padding:8px 16px 12px">' + ks.map(function(k) {
+      return '<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px">' +
+        '<span>' + _cuEsc(k.slice(1)) + '</span>' +
+        '<span style="font-family:var(--mono);color:var(--text3)">' +
+          (itens[k].c ? 'comprado ' + _cuNum(itens[k].c) : '') + (itens[k].c && itens[k].u ? ' · ' : '') + (itens[k].u ? 'utilizado ' + _cuNum(itens[k].u) : '') +
+        '</span></div>';
+    }).join('') + '</div></div>';
+}
+// Separa as chaves fora do cadastro; devolve só as cadastradas.
+function _cuSepararSemCadastro(chaves, comprado, uso, destino) {
+  return chaves.filter(function(k) {
+    if (!_cuSemCadastro(k)) return true;
+    if (!destino[k]) destino[k] = { c: 0, u: 0 };
+    destino[k].c += comprado[k] || 0;
+    destino[k].u += uso[k] || 0;
+    return false;
+  });
+}
 
 // ─── DADOS POR MÊS ──────────────────────────────────────────────────────────
 // Agenda = contratos não cancelados com data no mês.
@@ -214,10 +237,12 @@ function _cuIniciarEstoqueAoVivo(forcar) {
   }
 }
 
-// Estoque do produto: { qtd, unidade } ou null (não conectado / não achado).
-function _cuEstoqueDe(info, chave) {
-  if (!_cuEstoque) return null;
-  var cand = [info.nome].concat((info.prod && info.prod.aliases) || [], chave ? [chave] : []);
+// Estoque do insumo: { qtd, unidade } ou null (não conectado / não achado).
+// Mesmo casamento do Cadastro de Insumos (_estoqueSeparacaoParaInsumo): nome
+// do insumo e cada apelido, na ordem.
+function _cuEstoqueDe(info) {
+  if (!_cuEstoque || !info.ins) return null;
+  var cand = [info.ins.nome].concat(info.ins.aliases || []);
   for (var i = 0; i < cand.length; i++) {
     var k = _cuChaveSep(cand[i]);
     if (k && _cuEstoque[k]) return _cuEstoque[k];
@@ -225,12 +250,12 @@ function _cuEstoqueDe(info, chave) {
   return null;
 }
 
-function _cuEstoqueCelula(info, chave) {
+function _cuEstoqueCelula(info) {
   if (!_cuEstoque) return '<span style="color:var(--text3)">—</span>';
-  var e = _cuEstoqueDe(info, chave);
-  if (!e) return '<span style="font-size:10px;color:var(--text3)" title="Nome não encontrado no estoque do Sistema Separação">não achado</span>';
-  var unProd = info.prod && info.prod.unidade;
-  var aviso = e.unidade && unProd && _cuNorm(e.unidade) !== _cuNorm(unProd)
+  var e = _cuEstoqueDe(info);
+  if (!e) return '<span style="font-size:10px;color:var(--text3)" title="Nome e apelidos do insumo não encontrados no estoque do Sistema Separação">não achado</span>';
+  var un = _cuUn(info);
+  var aviso = e.unidade && un && _cuNorm(e.unidade) !== _cuNorm(un)
     ? ' <span style="font-size:10px;color:var(--amber)">' + _cuEsc(e.unidade) + '</span>' : '';
   return _cuNum(e.qtd) + aviso;
 }
@@ -358,10 +383,14 @@ function _cuRenderMes(cont) {
   var r = _cuResumoMes(anoMes);
   var mapa = _cuMapaProdutos();
 
+  var semCad = {};
   var chaves = Array.from(new Set(Object.keys(r.comprado).concat(Object.keys(r.uso))));
+  chaves = _cuSepararSemCadastro(chaves, r.comprado, r.uso, semCad);
+  var nCadComprados = Object.keys(r.comprado).filter(function(k) { return !_cuSemCadastro(k); }).length;
+  var nCadUsados = Object.keys(r.uso).filter(function(k) { return !_cuSemCadastro(k); }).length;
   chaves = _cuFiltraBusca(chaves, mapa, busca);
   var mov = function(k) { return (r.comprado[k] || 0) + (r.uso[k] || 0); };
-  chaves.sort(function(x, y) { return mov(y) - mov(x) || x.localeCompare(y, 'pt-BR'); });
+  chaves.sort(function(x, y) { return mov(y) - mov(x) || _cuInfo(mapa, x).nome.localeCompare(_cuInfo(mapa, y).nome, 'pt-BR'); });
 
   var html =
     '<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">' +
@@ -370,8 +399,8 @@ function _cuRenderMes(cont) {
     '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">' +
       _cuCard('Eventos na agenda', r.agenda.qtd, fN(r.agenda.convidados) + ' convidados', 'var(--blue)') +
       _cuCard('Lançados na Estimativa', r.lancados, _cuCoberturaTxt(r.lancados, r.agenda.qtd), r.lancados < r.agenda.qtd ? 'var(--amber)' : 'var(--green)') +
-      _cuCard('Produtos comprados', Object.keys(r.comprado).length, 'pela Entrada de NF') +
-      _cuCard('Produtos utilizados', Object.keys(r.uso).length, 'nos eventos lançados') +
+      _cuCard('Itens comprados', nCadComprados, 'pela Entrada de NF') +
+      _cuCard('Itens utilizados', nCadUsados, 'nos eventos lançados') +
     '</div>' +
     '<div class="sec">' +
       '<div class="sec-head" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
@@ -383,14 +412,15 @@ function _cuRenderMes(cont) {
         _cuStatusEstoque() + '</div>';
 
   if (!chaves.length) {
-    html += '<div style="padding:16px;font-size:12px;color:var(--text3)">Nenhuma compra nem consumo lançado neste mês' + (busca.trim() ? ' com esse nome' : '') + '.</div></div>';
+    html += '<div style="padding:16px;font-size:12px;color:var(--text3)">Nenhuma compra nem consumo de item cadastrado neste mês' + (busca.trim() ? ' com esse nome' : '') + '.</div></div>' +
+      _cuCaixaSemCadastro(semCad);
     cont.innerHTML = html;
     return;
   }
 
   html += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">' +
     '<thead><tr style="border-bottom:1px solid var(--border);color:var(--text3);font-size:10px;text-transform:uppercase">' +
-      '<th style="text-align:left;padding:8px 12px">Produto</th>' +
+      '<th style="text-align:left;padding:8px 12px">Item</th>' +
       '<th style="text-align:left;padding:8px 6px">Un</th>' +
       '<th style="text-align:right;padding:8px 10px">Comprado</th>' +
       '<th style="text-align:right;padding:8px 10px">Utilizado</th>' +
@@ -410,15 +440,16 @@ function _cuRenderMes(cont) {
       var porEv = r.lancados ? _cuNum(u / r.lancados) : '—';
       return '<tr style="border-bottom:1px solid var(--border)">' +
         '<td style="padding:6px 12px;color:var(--text)">' + _cuEsc(info.nome) + '</td>' +
-        '<td style="padding:6px 6px;color:var(--text3)">' + _cuEsc((info.prod && info.prod.unidade) || '') + '</td>' +
+        '<td style="padding:6px 6px;color:var(--text3)">' + _cuEsc(_cuUn(info)) + '</td>' +
         '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + (c ? _cuNum(c) : '<span style="color:var(--text3)">0</span>') + '</td>' +
         '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + (u ? _cuNum(u) : '<span style="color:var(--text3)">0</span>') + '</td>' +
         '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + difTxt + '</td>' +
         '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + porEv + '</td>' +
-        '<td style="padding:6px 12px;text-align:right;font-family:var(--mono)">' + _cuEstoqueCelula(info, k) + '</td>' +
+        '<td style="padding:6px 12px;text-align:right;font-family:var(--mono)">' + _cuEstoqueCelula(info) + '</td>' +
       '</tr>';
     }).join('') +
-    '</tbody></table></div></div>';
+    '</tbody></table></div></div>' +
+    _cuCaixaSemCadastro(semCad);
 
   cont.innerHTML = html;
 }
@@ -449,8 +480,13 @@ function _cuRenderTodos(cont, ano) {
     Object.keys(pm.comprado).forEach(function(k) { (tot[k] || (tot[k] = { c: 0, u: 0 })).c += pm.comprado[k]; });
     Object.keys(pm.uso).forEach(function(k) { (tot[k] || (tot[k] = { c: 0, u: 0 })).u += pm.uso[k]; });
   });
-  var chaves = _cuFiltraBusca(Object.keys(tot), mapa, busca);
-  chaves.sort(function(x, y) { return (tot[y].c + tot[y].u) - (tot[x].c + tot[x].u) || x.localeCompare(y, 'pt-BR'); });
+  var semCad = {};
+  var cadastradas = Object.keys(tot).filter(function(k) {
+    if (_cuSemCadastro(k)) { semCad[k] = tot[k]; return false; }
+    return true;
+  });
+  var chaves = _cuFiltraBusca(cadastradas, mapa, busca);
+  chaves.sort(function(x, y) { return (tot[y].c + tot[y].u) - (tot[x].c + tot[x].u) || _cuInfo(mapa, x).nome.localeCompare(_cuInfo(mapa, y).nome, 'pt-BR'); });
 
   var totalAgenda = porMes.reduce(function(s, pm) { return s + pm.agenda.qtd; }, 0);
   var totalLanc = porMes.reduce(function(s, pm) { return s + pm.lancados; }, 0);
@@ -462,7 +498,7 @@ function _cuRenderTodos(cont, ano) {
       _cuCard('Meses', meses.length, meses.length ? _cuLabel(meses[0]) + ' a ' + _cuLabel(meses[meses.length - 1]) : '') +
       _cuCard('Eventos na agenda', fN(totalAgenda), meses.length ? 'média ' + _cuNum(totalAgenda / meses.length) + ' por mês' : '', 'var(--blue)') +
       _cuCard('Lançados na Estimativa', fN(totalLanc), _cuCoberturaTxt(totalLanc, totalAgenda), totalLanc < totalAgenda ? 'var(--amber)' : 'var(--green)') +
-      _cuCard('Produtos movimentados', Object.keys(tot).length, 'comprados ou utilizados') +
+      _cuCard('Itens movimentados', cadastradas.length, 'comprados ou utilizados') +
     '</div>' +
     '<div class="sec">' +
       '<div class="sec-head" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
@@ -474,7 +510,8 @@ function _cuRenderTodos(cont, ano) {
         _cuStatusEstoque() + '</div>';
 
   if (!chaves.length) {
-    html += '<div style="padding:16px;font-size:12px;color:var(--text3)">Nenhuma compra nem consumo lançado' + (busca.trim() ? ' com esse nome' : '') + '.</div></div>';
+    html += '<div style="padding:16px;font-size:12px;color:var(--text3)">Nenhuma compra nem consumo de item cadastrado' + (busca.trim() ? ' com esse nome' : '') + '.</div></div>' +
+      _cuCaixaSemCadastro(semCad);
     cont.innerHTML = html;
     return;
   }
@@ -487,7 +524,7 @@ function _cuRenderTodos(cont, ano) {
   html += '<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:12px;min-width:100%">' +
     '<thead>' +
       '<tr style="color:var(--text3);font-size:10px;text-transform:uppercase">' +
-        '<th rowspan="2" style="' + stickyTh + 'text-align:left;padding:8px 12px;min-width:180px;border-bottom:1px solid var(--border)">Produto</th>' +
+        '<th rowspan="2" style="' + stickyTh + 'text-align:left;padding:8px 12px;min-width:180px;border-bottom:1px solid var(--border)">Item</th>' +
         porMes.map(function(pm) {
           return '<th colspan="2" style="' + sep + 'padding:6px 8px;text-align:center;white-space:nowrap">' + _cuLabel(pm.anoMes) +
             '<div style="font-weight:400;text-transform:none;color:var(--blue)">' + pm.agenda.qtd + ' ev.</div>' +
@@ -519,10 +556,11 @@ function _cuRenderTodos(cont, ano) {
         '<td style="padding:5px 8px;text-align:right;font-family:var(--mono);font-weight:700">' + _cuNum(t.u) + '</td>' +
         '<td style="' + sep + 'padding:5px 8px;text-align:right;font-family:var(--mono)">' + _cuNum(t.c / meses.length) + '</td>' +
         '<td style="padding:5px 8px;text-align:right;font-family:var(--mono)">' + (totalLanc ? _cuNum(t.u / totalLanc) : '—') + '</td>' +
-        '<td style="padding:5px 12px;text-align:right;font-family:var(--mono)">' + _cuEstoqueCelula(info, k) + '</td>' +
+        '<td style="padding:5px 12px;text-align:right;font-family:var(--mono)">' + _cuEstoqueCelula(info) + '</td>' +
       '</tr>';
     }).join('') +
-    '</tbody></table></div></div>';
+    '</tbody></table></div></div>' +
+    _cuCaixaSemCadastro(semCad);
 
   cont.innerHTML = html;
 }
@@ -554,9 +592,16 @@ function _cuRenderSugestao(cont) {
     Object.keys(m.comprado).forEach(function(k) { chaves[k] = 1; });
     Object.keys(m.uso).forEach(function(k) { chaves[k] = 1; });
   });
-  (D.produtos || []).forEach(function(p) { if (p.minimo > 0) chaves[_cuCanon(p.nome)] = 1; });
+  (D.insumos || []).forEach(function(i) { if (i.id && Number(i.estoqueMinimo) > 0) chaves[i.id] = 1; });
 
   var conectado = !!_cuEstoque;
+  var semCad = {};
+  Object.keys(chaves).forEach(function(k) {
+    if (!_cuSemCadastro(k)) return;
+    semCad[k] = { c: 0, u: 0 };
+    base.forEach(function(m) { semCad[k].c += m.comprado[k] || 0; semCad[k].u += m.uso[k] || 0; });
+    delete chaves[k];
+  });
 
   var linhas = Object.keys(chaves).map(function(k) {
     var info = _cuInfo(mapa, k);
@@ -568,10 +613,10 @@ function _cuRenderSugestao(cont) {
     if (totalLancBase) { porEvento = somaUso / totalLancBase; fonte = 'uso'; }
     else if (totalAgendaBase) { porEvento = somaComp / totalAgendaBase; fonte = 'compra'; }
     var previsto = porEvento != null ? porEvento * evPrev : mediaCompra;
-    var minimo = info.prod ? (Number(info.prod.minimo) || 0) : 0;
+    var minimo = info.ins ? (Number(info.ins.estoqueMinimo) || 0) : 0;
 
     var est = null;
-    if (conectado) { var e = _cuEstoqueDe(info, k); if (e) est = e.qtd; }
+    if (conectado) { var e = _cuEstoqueDe(info); if (e) est = e.qtd; }
     else if (_cuTem(_cuEstoqueManual, k)) est = _cuEstoqueManual[k];
     var sugestao = Math.max(0, Math.ceil(previsto + minimo - (est || 0)));
     var abaixo = est != null && minimo > 0 && est < minimo;
@@ -583,7 +628,7 @@ function _cuRenderSugestao(cont) {
   var bk = _cuFiltraBusca(linhas.map(function(l) { return l.k; }), mapa, busca);
   linhas = linhas.filter(function(l) { return bk.indexOf(l.k) >= 0; });
   if (soAbaixo) linhas = linhas.filter(function(l) { return l.abaixo; });
-  linhas.sort(function(x, y) { return y.mov - x.mov || x.k.localeCompare(y.k, 'pt-BR'); });
+  linhas.sort(function(x, y) { return y.mov - x.mov || x.info.nome.localeCompare(y.info.nome, 'pt-BR'); });
   var qtdAbaixo = linhas.filter(function(l) { return l.abaixo; }).length;
 
   var nomeAlvo = _CU_MESES[parseInt(alvo.split('-')[1], 10) - 1] + ' ' + alvo.split('-')[0];
@@ -631,20 +676,20 @@ function _cuRenderSugestao(cont) {
     '</div>' +
     '<div style="font-size:11px;padding:8px 16px 0;color:var(--text3)">' + _cuStatusEstoque() +
       (conectado ? '' : ' Enquanto não conecta, dá para digitar o estoque (não fica salvo); vazio conta como zero.') +
-      ' O mínimo é o mesmo do Cadastro de Produtos. Ordenado pela maior movimentação nos meses-base.' +
+      ' O mínimo é o mesmo do Cadastro de Insumos (Estoque mínimo). Ordenado pela maior movimentação nos meses-base.' +
     '</div>';
 
   if (!linhas.length) {
     html += '<div style="padding:16px;font-size:12px;color:var(--text3)">' +
-      (soAbaixo ? 'Nenhum produto abaixo do mínimo.' : 'Nenhuma compra ou consumo nos meses-base' + (busca.trim() ? ' com esse nome' : '') + ', e nenhum produto com mínimo cadastrado.') +
-      '</div></div>';
+      (soAbaixo ? 'Nenhum item abaixo do mínimo.' : 'Nenhuma compra ou consumo de item cadastrado nos meses-base' + (busca.trim() ? ' com esse nome' : '') + ', e nenhum item com estoque mínimo.') +
+      '</div></div>' + _cuCaixaSemCadastro(semCad);
     cont.innerHTML = html;
     return;
   }
 
   html += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">' +
     '<thead><tr style="border-bottom:1px solid var(--border);color:var(--text3);font-size:10px;text-transform:uppercase">' +
-      '<th style="text-align:left;padding:8px 12px">Produto</th>' +
+      '<th style="text-align:left;padding:8px 12px">Item</th>' +
       '<th style="text-align:left;padding:8px 6px">Un</th>' +
       '<th style="text-align:right;padding:8px 10px">Média compra/mês</th>' +
       '<th style="text-align:right;padding:8px 10px">Uso por evento</th>' +
@@ -656,15 +701,13 @@ function _cuRenderSugestao(cont) {
     linhas.map(function(l) {
       var porEvTxt = l.porEvento == null ? '<span style="color:var(--text3)">—</span>'
         : _cuNum(l.porEvento) + (l.fonte === 'compra' ? ' <span style="font-size:10px;color:var(--amber)">pela compra</span>' : '');
-      var minCampo = l.info.prod
-        ? '<input class="inp" type="number" min="0" step="any" style="width:80px;text-align:right" value="' + (l.minimo || '') + '" placeholder="0" onchange="cuSalvarMinimo(\'' + _cuJs(l.info.prod.id) + '\',this.value)">'
-        : '<span style="font-size:10px;color:var(--text3)" title="Produto não está no Cadastro de Produtos">sem cadastro</span>';
+      var minCampo = '<input class="inp" type="number" min="0" step="any" style="width:80px;text-align:right" value="' + (l.minimo || '') + '" placeholder="0" onchange="cuSalvarMinimo(\'' + _cuJs(l.k) + '\',this.value)">';
       var estCampo = conectado
-        ? '<span style="font-family:var(--mono);' + (l.abaixo ? 'color:var(--red);font-weight:700' : '') + '">' + _cuEstoqueCelula(l.info, l.k) + '</span>'
+        ? '<span style="font-family:var(--mono);' + (l.abaixo ? 'color:var(--red);font-weight:700' : '') + '">' + _cuEstoqueCelula(l.info) + '</span>'
         : '<input class="inp" type="number" min="0" step="any" style="width:80px;text-align:right;' + (l.abaixo ? 'border-color:var(--red);color:var(--red)' : '') + '" value="' + (l.est != null ? l.est : '') + '" placeholder="—" onchange="cuEstoqueManual(\'' + _cuJs(l.k) + '\',this.value)">';
       return '<tr style="border-bottom:1px solid var(--border);' + (l.abaixo ? 'background:rgba(240,90,90,.06)' : '') + '">' +
         '<td style="padding:6px 12px;color:var(--text)">' + _cuEsc(l.info.nome) + (l.abaixo ? ' <span style="font-size:10px;font-weight:600;color:var(--red)">ABAIXO DO MÍNIMO</span>' : '') + '</td>' +
-        '<td style="padding:6px 6px;color:var(--text3)">' + _cuEsc((l.info.prod && l.info.prod.unidade) || '') + '</td>' +
+        '<td style="padding:6px 6px;color:var(--text3)">' + _cuEsc(_cuUn(l.info)) + '</td>' +
         '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + _cuNum(l.mediaCompra) + '</td>' +
         '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + porEvTxt + '</td>' +
         '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + _cuNum(l.previsto) + '</td>' +
@@ -673,7 +716,8 @@ function _cuRenderSugestao(cont) {
         '<td style="padding:6px 12px;text-align:right;font-family:var(--mono);font-weight:700;color:' + (l.sugestao > 0 ? 'var(--green)' : 'var(--text3)') + '">' + fN(l.sugestao) + '</td>' +
       '</tr>';
     }).join('') +
-    '</tbody></table></div></div>';
+    '</tbody></table></div></div>' +
+    _cuCaixaSemCadastro(semCad);
 
   cont.innerHTML = html;
 }
@@ -684,13 +728,14 @@ function cuSalvarBase(v) {
   rCompraUso();
 }
 
-function cuSalvarMinimo(prodId, v) {
-  var p = (D.produtos || []).find(function(x) { return x.id === prodId; });
-  if (!p) return;
+// Grava no Estoque mínimo do Cadastro de Insumos (mesmo campo da tela de lá).
+function cuSalvarMinimo(insumoId, v) {
+  var ins = (D.insumos || []).find(function(x) { return x.id === insumoId; });
+  if (!ins) return;
   var n = Number(String(v).replace(',', '.')) || 0;
   if (n < 0) n = 0;
-  p.minimo = n;
-  sv('produtos');
+  ins.estoqueMinimo = n;
+  sv('insumos');
   rCompraUso();
 }
 
