@@ -866,6 +866,12 @@ function sepCarregarProducao(prodId) {
   });
   html += '</div>';
 
+  // Colunas Estimativa / Sugestão (pedido 11-02, igual ao Orçamento): consumo
+  // real lançado na Estimativa de Bebidas, eventos do mesmo tipo e faixa de
+  // convidados. Clicar no número põe a quantidade no campo da linha.
+  var _prev = _sepPrevisao(p, conv);
+  html += _sepPrevLegenda(_prev);
+
   // Categorias de conferência calculadas
   var FORN_OPCOES = [['', 'Fornecedor…'], ['romero', 'Romero'], ['consignado', 'Consignado'], ['cliente', 'Cliente']];
 
@@ -895,7 +901,7 @@ function sepCarregarProducao(prodId) {
     // "BEBIDAS ALCOOLICAS" sem acento) fazia o seletor de fornecedor sumir
     // só nessas linhas, mesmo sendo bebida alcoólica de verdade.
     var isAlcoolica = _sepNormNome(cat) === _sepNormNome('BEBIDAS ALCOÓLICAS');
-    var cols = isAlcoolica ? '1fr 130px 100px' : '1fr 100px';
+    var cols = isAlcoolica ? '1fr 64px 64px 130px 100px' : '1fr 64px 64px 100px';
     html += '<div style="border-bottom:1px solid var(--border)">' +
       '<div style="padding:6px 14px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;background:var(--bg3)">' + cat + '</div>';
     itens.forEach(function(it) {
@@ -919,6 +925,7 @@ function sepCarregarProducao(prodId) {
         '<div style="font-size:12px;color:var(--text)">' + it.item + _sepBadgeSemCadastro(it.item) + badge + _sepBadgeAssoc(it) + _sepBadgeCaixa(it) + _sepUnReadoutSpan(it.item, qtdConf) +
           (it.obs ? '<span style="font-size:10px;color:var(--text3);margin-left:6px">' + it.obs + '</span>' : '') +
         '</div>' +
+        _sepPrevCelulas(_prev, it.item) +
         fornHtml +
         _sepQtdCell(it, catAttr, itemAttr, qtdConf, 'var(--text)') +
       '</div>';
@@ -952,7 +959,7 @@ function sepCarregarProducao(prodId) {
       var qtdKit = it.qtd;
       var salvoKit = qtdSalva(cat, it.item);
       if (salvoKit != null && !it.travado) qtdKit = salvoKit;
-      html += '<div style="display:grid;grid-template-columns:1fr 100px;gap:8px;align-items:center;padding:4px 14px;border-bottom:1px solid var(--border)">' +
+      html += '<div style="display:grid;grid-template-columns:1fr 64px 64px 100px;gap:8px;align-items:center;padding:4px 14px;border-bottom:1px solid var(--border)">' +
         '<span style="font-size:12px;color:var(--text2)">' + it.item + _sepBadgeSemCadastro(it.item) + _sepBadgeAssoc(it) + _sepBadgeCaixa(it) + _sepUnReadoutSpan(it.item, qtdKit) +
           (it.obs ? '<span style="font-size:10px;color:var(--text3);margin-left:6px">' + it.obs + '</span>' : '') +
           (it.calcInfo ? '<div style="font-size:10px;color:var(--text3);margin-top:1px">' + it.calcInfo + '</div>' : '') +
@@ -961,6 +968,7 @@ function sepCarregarProducao(prodId) {
           (salvoKit != null && it.calcInfo && Number(salvoKit) !== Number(it.qtd) && !it.travado
             ? '<div style="font-size:10px;color:var(--amber);margin-top:1px">salvo nesta folha: ' + salvoKit + ' — pela regra de hoje seria ' + it.qtd + '</div>' : '') +
         '</span>' +
+        _sepPrevCelulas(_prev, it.item) +
         _sepQtdCell(it, cat.replace(/"/g,''), it.item.replace(/"/g,''), qtdKit, 'var(--text2)') +
       '</div>';
     });
@@ -1544,3 +1552,75 @@ function _sepCargoCounts(equipe) {
 // (A antiga "tabela de estimativa" — D.sepCalculos, funções sepCalc* — foi
 // absorvida pela tabela única de Cálculo em 2026-08-28. Ver
 // migrarRegrasBaseCalculo em js/regras.js.)
+
+// ─── ESTIMATIVA / SUGESTÃO NA FOLHA (pedido 11-02, igual ao Orçamento) ──────
+// Base: consumo real lançado na Estimativa de Bebidas, eventos do mesmo tipo
+// (p.tipo → grupo da Estimativa) e com convidados na faixa ±faixaPct%.
+//   Estimativa = _rcEstimativaOrc (mesma do Orçamento: últimos N meses + margem).
+//   Sugestão   = todo o histórico da mesma faixa, ceil((médio + máximo) ÷ 2), sem margem.
+// Só leitura: nada muda na folha até ela clicar no número (sepUsarPrevisao).
+function _sepPrevisao(p, conv) {
+  if (typeof _rcEstimativaOrc !== 'function' || !(conv > 0)) return null;
+  var tipo = p.tipo || '';
+  var grupo = ((typeof _rcNormalizarTipo === 'function' && _rcNormalizarTipo(tipo)) || tipo).toUpperCase();
+  var est = _rcEstimativaOrc(grupo, conv);
+  var faixaPct = est.faixaPct;
+  var de = Math.floor(conv * (1 - faixaPct / 100)), ate = Math.ceil(conv * (1 + faixaPct / 100));
+  var eventos = _rcGetEventosDasFestas().concat(_rcGetEventos()).filter(function(e) {
+    if (grupo && (e.grupo || '').toUpperCase() !== grupo) return false;
+    var cv = parseFloat(e.convidados) || 0;
+    return cv >= de && cv <= ate;
+  });
+  var qtys = {};
+  eventos.forEach(function(e) {
+    Object.keys(e.consumo || {}).forEach(function(nome) {
+      var q = parseFloat(e.consumo[nome]) || 0;
+      if (q <= 0) return;
+      var k = _rcNormEst(nome);
+      (qtys[k] || (qtys[k] = [])).push(q);
+    });
+  });
+  var porItem = {};
+  Object.keys(qtys).forEach(function(k) {
+    var l = qtys[k], mn = Math.min.apply(null, l), mx = Math.max.apply(null, l);
+    porItem[k] = { sug: _rcSugestao((mn + mx) / 2, mx), n: l.length, mn: mn, mx: mx };
+  });
+  return { grupo: grupo, conv: conv, de: de, ate: ate, est: est, sug: { porItem: porItem }, nSug: eventos.length };
+}
+
+function _sepPrevLegenda(prev) {
+  var box = function(t) {
+    return '<div style="padding:8px 14px;font-size:11px;color:var(--text3);border-bottom:1px solid var(--border);background:var(--bg3);line-height:1.5">' + t + '</div>';
+  };
+  if (!prev) return box('Estimativa / Sugestão: informe os convidados do evento para comparar com o consumo real da Estimativa de Bebidas.');
+  return box(
+    '<span style="color:var(--green);font-weight:700">Estimativa</span> = mesma do Orçamento: ' + prev.est.nEventos + ' evento(s) ' + _escSep(prev.grupo || 'de qualquer tipo') +
+      ' de ' + prev.de + ' a ' + prev.ate + ' convidados nos últimos ' + prev.est.meses + ' meses, + ' + prev.est.margem + '% de margem. ' +
+    '<span style="color:var(--blue);font-weight:700">Sugestão</span> = todo o histórico da mesma faixa (' + prev.nSug + ' evento(s)), (médio + máximo) ÷ 2. ' +
+    'Clique no número para usar na folha. "—" = item sem consumo lançado nesses eventos.'
+  );
+}
+function _escSep(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
+
+function _sepPrevCelulas(prev, nome) {
+  var cel = function(item, cor, bg, rotulo) {
+    if (!item) return '<div style="text-align:center;font-size:11px;color:var(--text3)" title="' + rotulo + ': sem consumo lançado deste item nos eventos da base">—</div>';
+    var tit = rotulo + ' — ' + item.n + ' evento(s) · mín. ' + item.mn + ' · máx. ' + item.mx + '. Clique para usar na folha.';
+    return '<button type="button" onclick="sepUsarPrevisao(this,' + item.sug + ')" title="' + _escSep(tit) + '" ' +
+      'style="width:100%;font-family:var(--mono);font-size:12px;font-weight:700;padding:3px 4px;border-radius:4px;cursor:pointer;border:1px solid ' + cor + ';background:' + bg + ';color:' + cor + '">' + item.sug + '</button>';
+  };
+  if (!prev) return cel(null, '', '', 'Estimativa') + cel(null, '', '', 'Sugestão');
+  return cel(_rcEstimativaDoItem(prev.est, nome), 'var(--green)', 'rgba(60,140,90,.14)', 'Estimativa') +
+    cel(_rcEstimativaDoItem(prev.sug, nome), 'var(--blue)', 'rgba(196,98,45,.14)', 'Sugestão');
+}
+
+// Põe o valor (em unidades) no campo da linha; item de caixa vira nº de caixas.
+function sepUsarPrevisao(btn, valorUn) {
+  var linha = btn.parentElement;
+  var inp = linha && linha.querySelector('input[data-item]:not([type="hidden"])');
+  if (!inp) { if (typeof alert2 === 'function') alert2('Este item segue outro (associação) — a quantidade não é digitada.', 'error'); return; }
+  var m = parseInt(inp.getAttribute('data-cxsize'), 10) || 1;
+  inp.value = m > 1 ? Math.ceil(valorUn / m) : valorUn;
+  inp.dispatchEvent(new Event('input', { bubbles: true }));
+  inp.style.borderColor = 'var(--blue)';
+}
