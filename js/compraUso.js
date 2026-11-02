@@ -1,13 +1,18 @@
 // ─── COMPRADO x UTILIZADO / SUGESTÃO DE COMPRA ──────────────────────────────
 // Pedido 11-02: comparar, mês a mês, o que entrou (Entrada de NF, D.entradas)
-// com o que foi utilizado (preenchido à mão aqui), levando em conta quantos
-// eventos teve no mês (D.contratos não cancelados) — um mês de 125 eventos
-// não serve de base direto para um mês de 35. A aba Sugestão trabalha por
-// evento: uso por evento dos meses-base × eventos previstos + mínimo − estoque.
+// com o que foi utilizado, levando em conta quantos eventos teve no mês — um
+// mês de 125 eventos não serve de base direto para um mês de 35. A aba
+// Sugestão trabalha por evento: uso por evento × eventos previstos + mínimo − estoque.
 //
-// Dados: D.compraUso = { meses: { 'AAAA-MM': { 'PRODUTO': qtd } }, baseMeses: 3 }
-// Mínimo de estoque = campo "minimo" que já existe no Cadastro de Produtos
-// (D.produtos) — editar aqui é o mesmo que editar lá.
+// Utilizado = consumo lançado por evento na Estimativa de Bebidas (D.rcEventos,
+// chave = nome do insumo do Cadastro de Insumos), somado pelo mês da data do
+// evento. Compra (nome do Cadastro de Produtos) e consumo (nome de insumo) são
+// casados pelo nome + apelidos do insumo (_cuCanon). Uso por evento divide
+// pelos eventos LANÇADOS na Estimativa (não pelos contratos), senão mês com
+// evento sem lançamento puxaria a média pra baixo.
+//
+// D.compraUso = { baseMeses: 3 } (o antigo `meses` digitado à mão não é mais usado).
+// Mínimo de estoque = campo "minimo" do Cadastro de Produtos (D.produtos).
 // Estoque atual = coleção "estoque" do Sistema Separação, ao vivo (onSnapshot,
 // só leitura — window.escutarEstoqueSeparacao em index.html). Variantes do
 // mesmo produto (ex.: APEROL CONSIGNADO / APEROL ROMERO) são somadas.
@@ -29,12 +34,14 @@ function _cuNum(n) {
   var v = Math.round(Number(n || 0) * 100) / 100;
   return v.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 }
-function _cuChave(nome) { return String(nome || '').trim().toUpperCase(); }
+function _cuNorm(nome) {
+  return String(nome || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toUpperCase().replace(/\s+/g, ' ').trim();
+}
 function _cuTem(obj, k) { return Object.prototype.hasOwnProperty.call(obj, k); }
 
 function _cuDados() {
   if (!D.compraUso || typeof D.compraUso !== 'object') D.compraUso = {};
-  if (!D.compraUso.meses) D.compraUso.meses = {};
   if (!D.compraUso.baseMeses) D.compraUso.baseMeses = 3;
   return D.compraUso;
 }
@@ -48,15 +55,70 @@ function _cuLabel(anoMes) {
   var p = anoMes.split('-');
   return _CU_MESES_ABREV[parseInt(p[1], 10) - 1] + '/' + p[0].slice(2);
 }
+// Aceita AAAA-MM-DD e DD/MM/AAAA (eventos antigos da Estimativa).
 function _cuMesDe(dataStr) {
-  if (!dataStr) return null;
-  var p = String(dataStr).split(/[-T/]/);
-  if (p.length < 2 || p[0].trim().length !== 4) return null;
-  return p[0].trim() + '-' + p[1].trim().padStart(2, '0');
+  var s = String(dataStr || '').trim();
+  var m = /^(\d{4})-(\d{1,2})/.exec(s);
+  if (m) return m[1] + '-' + m[2].padStart(2, '0');
+  m = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/.exec(s);
+  if (m) return (m[3].length === 2 ? '20' + m[3] : m[3]) + '-' + m[2].padStart(2, '0');
+  return null;
 }
 function _cuNoMes(dataStr, anoMes) { return _cuMesDe(dataStr) === anoMes; }
 
-// Eventos do mês = contratos não cancelados com data no mês.
+// ─── CASAMENTO DE NOMES (produto da compra x insumo da Estimativa) ──────────
+// Chave canônica = nome do insumo do Cadastro de Insumos quando o nome (ou um
+// apelido) bate; senão o próprio nome normalizado. Montado a cada render.
+var _cuIdx = null;
+function _cuIndice() {
+  if (_cuIdx) return _cuIdx;
+  var porNome = {};
+  (D.insumos || []).forEach(function(i) {
+    var k = _cuNorm(i.nome);
+    if (!k) return;
+    [i.nome].concat(i.aliases || []).forEach(function(n) {
+      var nn = _cuNorm(n);
+      if (nn && !porNome[nn]) porNome[nn] = k;
+    });
+  });
+  // Produto: nome e apelidos do Cadastro de Produtos também levam ao insumo.
+  var prodPorChave = {};
+  (D.produtos || []).forEach(function(p) {
+    var nomes = [p.nome].concat(p.aliases || []);
+    var k = null;
+    for (var j = 0; j < nomes.length && !k; j++) k = porNome[_cuNorm(nomes[j])] || null;
+    k = k || _cuNorm(p.nome);
+    nomes.forEach(function(n) { var nn = _cuNorm(n); if (nn && !porNome[nn]) porNome[nn] = k; });
+    if (k && !prodPorChave[k]) prodPorChave[k] = p;
+  });
+  _cuIdx = { porNome: porNome, prodPorChave: prodPorChave };
+  return _cuIdx;
+}
+function _cuCanon(nome) {
+  var n = _cuNorm(nome);
+  return _cuIndice().porNome[n] || n;
+}
+
+// Nome de exibição + produto do cadastro, por chave canônica.
+function _cuMapaProdutos() {
+  var idx = _cuIndice();
+  var mapa = {};
+  Object.keys(idx.prodPorChave).forEach(function(k) {
+    mapa[k] = { nome: idx.prodPorChave[k].nome, prod: idx.prodPorChave[k] };
+  });
+  var add = function(nome) {
+    var k = _cuCanon(nome);
+    if (k && !mapa[k]) mapa[k] = { nome: nome, prod: null };
+  };
+  (D.insumos || []).forEach(function(i) { add(i.nome); });
+  (D.entradas || []).forEach(function(e) { add(e.prod); });
+  _cuEventosEstimativa().forEach(function(e) { Object.keys(e.consumo || {}).forEach(add); });
+  return mapa;
+}
+function _cuInfo(mapa, k) { return mapa[k] || { nome: k, prod: null }; }
+
+// ─── DADOS POR MÊS ──────────────────────────────────────────────────────────
+// Agenda = contratos não cancelados com data no mês.
 function _cuEventosMes(anoMes) {
   var lista = (D.contratos || []).filter(function(c) {
     return c.status !== 'cancelado' && _cuNoMes(c.data, anoMes);
@@ -65,37 +127,42 @@ function _cuEventosMes(anoMes) {
   return { qtd: lista.length, convidados: conv };
 }
 
-// Comprado no mês por produto (chave = nome em maiúsculas).
 function _cuCompradoMes(anoMes) {
   var r = {};
   (D.entradas || []).forEach(function(e) {
     if (!_cuNoMes(e.data, anoMes)) return;
-    var k = _cuChave(e.prod);
+    var k = _cuCanon(e.prod);
     if (!k) return;
     r[k] = (r[k] || 0) + (Number(e.qtd) || 0);
   });
   return r;
 }
 
-function _cuUtilizadoMes(anoMes) {
-  var m = _cuDados().meses[anoMes] || {};
-  var r = {};
-  Object.keys(m).forEach(function(k) { r[_cuChave(k)] = Number(m[k]) || 0; });
-  return r;
+// Eventos lançados na Estimativa de Bebidas (mesma lista "manual" do Histórico).
+function _cuEventosEstimativa() {
+  var excl = D.rcEventosExcluidos || [];
+  return (D.rcEventos || []).filter(function(e) { return excl.indexOf(e.id) < 0; });
 }
 
-// Nome de exibição + produto do cadastro, por chave.
-function _cuMapaProdutos() {
-  var mapa = {};
-  (D.produtos || []).forEach(function(p) {
-    var k = _cuChave(p.nome);
-    if (k) mapa[k] = { nome: p.nome, prod: p };
+// { uso: { chave: qtd }, eventos: nº de eventos lançados no mês }
+function _cuUsoMes(anoMes) {
+  var uso = {}, n = 0;
+  _cuEventosEstimativa().forEach(function(e) {
+    if (!_cuNoMes(e.data, anoMes)) return;
+    n++;
+    Object.keys(e.consumo || {}).forEach(function(nome) {
+      var q = parseFloat(e.consumo[nome]) || 0;
+      if (q <= 0) return;
+      var k = _cuCanon(nome);
+      uso[k] = (uso[k] || 0) + q;
+    });
   });
-  (D.entradas || []).forEach(function(e) {
-    var k = _cuChave(e.prod);
-    if (k && !mapa[k]) mapa[k] = { nome: e.prod, prod: null };
-  });
-  return mapa;
+  return { uso: uso, eventos: n };
+}
+
+function _cuResumoMes(anoMes) {
+  var u = _cuUsoMes(anoMes);
+  return { anoMes: anoMes, agenda: _cuEventosMes(anoMes), lancados: u.eventos, uso: u.uso, comprado: _cuCompradoMes(anoMes) };
 }
 
 // ─── ESTOQUE AO VIVO (Sistema Separação) ────────────────────────────────────
@@ -103,13 +170,12 @@ var _cuEstoque = null;        // null = não conectado; senão chave normalizada
 var _cuEstoqueItens = 0;
 var _cuEstoqueHora = '';
 var _cuEstoqueUnsub = null;
-
-function _cuChaveSep(nome) {
-  return typeof _normalizarChaveEstoqueSep === 'function' ? _normalizarChaveEstoqueSep(nome) : _cuChave(nome);
-}
-
 var _cuEstoqueFalhou = false;   // deu erro: só tenta de novo depois de um login novo
 var _cuEstoqueEsperando = false;
+
+function _cuChaveSep(nome) {
+  return typeof _normalizarChaveEstoqueSep === 'function' ? _normalizarChaveEstoqueSep(nome) : _cuNorm(nome);
+}
 
 // forcar = true vem do login (estoqueSeparacao.js): libera nova tentativa após erro.
 function _cuIniciarEstoqueAoVivo(forcar) {
@@ -149,9 +215,9 @@ function _cuIniciarEstoqueAoVivo(forcar) {
 }
 
 // Estoque do produto: { qtd, unidade } ou null (não conectado / não achado).
-function _cuEstoqueDe(info) {
+function _cuEstoqueDe(info, chave) {
   if (!_cuEstoque) return null;
-  var cand = [info.nome].concat((info.prod && info.prod.aliases) || []);
+  var cand = [info.nome].concat((info.prod && info.prod.aliases) || [], chave ? [chave] : []);
   for (var i = 0; i < cand.length; i++) {
     var k = _cuChaveSep(cand[i]);
     if (k && _cuEstoque[k]) return _cuEstoque[k];
@@ -159,12 +225,12 @@ function _cuEstoqueDe(info) {
   return null;
 }
 
-function _cuEstoqueCelula(info) {
-  var e = _cuEstoqueDe(info);
+function _cuEstoqueCelula(info, chave) {
   if (!_cuEstoque) return '<span style="color:var(--text3)">—</span>';
+  var e = _cuEstoqueDe(info, chave);
   if (!e) return '<span style="font-size:10px;color:var(--text3)" title="Nome não encontrado no estoque do Sistema Separação">não achado</span>';
   var unProd = info.prod && info.prod.unidade;
-  var aviso = e.unidade && unProd && _cuChave(e.unidade) !== _cuChave(unProd)
+  var aviso = e.unidade && unProd && _cuNorm(e.unidade) !== _cuNorm(unProd)
     ? ' <span style="font-size:10px;color:var(--amber)">' + _cuEsc(e.unidade) + '</span>' : '';
   return _cuNum(e.qtd) + aviso;
 }
@@ -203,11 +269,11 @@ function _cuMesAtualSelecionado(prefixo) {
 }
 function _cuEhTodos(sel) { return String(sel || '').indexOf('todos-') === 0; }
 
-// Anos com compra (Entrada de NF) ou utilizado preenchido.
+// Anos com compra (Entrada de NF) ou evento lançado na Estimativa.
 function _cuAnosComDados() {
   var anos = {};
   (D.entradas || []).forEach(function(e) { var m = _cuMesDe(e.data); if (m) anos[m.slice(0, 4)] = 1; });
-  Object.keys(_cuDados().meses).forEach(function(m) { anos[m.slice(0, 4)] = 1; });
+  _cuEventosEstimativa().forEach(function(e) { var m = _cuMesDe(e.data); if (m) anos[m.slice(0, 4)] = 1; });
   return Object.keys(anos);
 }
 
@@ -238,14 +304,26 @@ function _cuCard(titulo, valor, sub, cor) {
   '</div>';
 }
 
+// "lançados X de Y": em amarelo quando falta lançar evento da agenda.
+function _cuCoberturaTxt(lancados, agenda) {
+  var falta = agenda > lancados;
+  return '<span style="color:' + (falta ? 'var(--amber)' : 'var(--text3)') + '">' + lancados + ' de ' + agenda + ' lançados</span>';
+}
+
 function _cuBusca() { return ((document.getElementById('cu-busca') || {}).value || ''); }
 function _cuCampoBusca(busca) {
   return '<input id="cu-busca" class="inp" style="width:200px;margin-left:auto" placeholder="Buscar produto" value="' + _cuEsc(busca) + '" oninput="_cuRebuscar()">';
+}
+function _cuFiltraBusca(chaves, mapa, busca) {
+  var b = _cuNorm(busca);
+  if (!b) return chaves;
+  return chaves.filter(function(k) { return k.indexOf(b) >= 0 || _cuNorm(_cuInfo(mapa, k).nome).indexOf(b) >= 0; });
 }
 
 // ─── ENTRADA DA TELA ─────────────────────────────────────────────────────────
 function rCompraUso() {
   _cuDados();
+  _cuIdx = null; // cadastros podem ter mudado
   _cuIniciarEstoqueAoVivo();
   var cont = document.getElementById('cu-body');
   if (!cont) return;
@@ -266,6 +344,9 @@ function _cuRebuscar() {
   if (novo) { novo.focus(); try { novo.setSelectionRange(pos, pos); } catch (e) {} }
 }
 
+var _CU_TXT_FONTE = 'Comprado vem da Entrada de NF; utilizado vem do consumo lançado por evento na Estimativa de Bebidas. ' +
+  'Uso por evento = utilizado ÷ eventos lançados na Estimativa. Ordenado pela maior movimentação. ';
+
 // ─── ABA 1: COMPRADO x UTILIZADO DO MÊS ─────────────────────────────────────
 var _cuMesSel = null;
 var _CU_ONCHANGE_MES = '_cuMesSel=_cuMesAtualSelecionado(\'cu-m\');rCompraUso()';
@@ -274,42 +355,35 @@ function _cuRenderMes(cont) {
   if (!_cuMesSel) _cuMesSel = _cuSomaMes(_cuAnoMes(new Date()), -1); // padrão: mês passado (já fechado)
   var anoMes = _cuMesSel;
   var busca = _cuBusca();
-  var todos = !!(document.getElementById('cu-todos') || {}).checked;
-
-  var ev = _cuEventosMes(anoMes);
-  var comprado = _cuCompradoMes(anoMes);
-  var utilizado = _cuUtilizadoMes(anoMes);
+  var r = _cuResumoMes(anoMes);
   var mapa = _cuMapaProdutos();
 
-  var chaves = Array.from(new Set(Object.keys(todos ? mapa : {})
-    .concat(Object.keys(comprado), Object.keys(utilizado))));
-  var b = busca.trim().toUpperCase();
-  if (b) chaves = chaves.filter(function(k) { return k.indexOf(b) >= 0; });
-  var mov = function(k) { return (comprado[k] || 0) + (utilizado[k] || 0); };
+  var chaves = Array.from(new Set(Object.keys(r.comprado).concat(Object.keys(r.uso))));
+  chaves = _cuFiltraBusca(chaves, mapa, busca);
+  var mov = function(k) { return (r.comprado[k] || 0) + (r.uso[k] || 0); };
   chaves.sort(function(x, y) { return mov(y) - mov(x) || x.localeCompare(y, 'pt-BR'); });
-
-  var preenchidos = Object.keys(utilizado).length;
-  var comprados = Object.keys(comprado).length;
 
   var html =
     '<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">' +
       _cuOpcoesMesAno('cu-m', anoMes, _CU_ONCHANGE_MES, true) +
     '</div>' +
     '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">' +
-      _cuCard('Eventos no mês', ev.qtd, fN(ev.convidados) + ' convidados', 'var(--blue)') +
-      _cuCard('Produtos comprados', comprados, 'pela Entrada de NF') +
-      _cuCard('Utilizado preenchido', preenchidos + ' de ' + Math.max(comprados, preenchidos), 'produtos com uso informado', preenchidos < comprados ? 'var(--amber)' : 'var(--green)') +
+      _cuCard('Eventos na agenda', r.agenda.qtd, fN(r.agenda.convidados) + ' convidados', 'var(--blue)') +
+      _cuCard('Lançados na Estimativa', r.lancados, _cuCoberturaTxt(r.lancados, r.agenda.qtd), r.lancados < r.agenda.qtd ? 'var(--amber)' : 'var(--green)') +
+      _cuCard('Produtos comprados', Object.keys(r.comprado).length, 'pela Entrada de NF') +
+      _cuCard('Produtos utilizados', Object.keys(r.uso).length, 'nos eventos lançados') +
     '</div>' +
     '<div class="sec">' +
       '<div class="sec-head" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
         '<span class="sec-title">Comprado x Utilizado — ' + _CU_MESES[parseInt(anoMes.split('-')[1], 10) - 1] + ' ' + anoMes.split('-')[0] + '</span>' +
         _cuCampoBusca(busca) +
-        '<label style="font-size:12px;color:var(--text2);display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="cu-todos"' + (todos ? ' checked' : '') + ' onchange="rCompraUso()"> Mostrar todos os produtos</label>' +
       '</div>' +
-      '<div style="font-size:11px;color:var(--text3);padding:8px 16px 0">Comprado vem da Entrada de NF do mês. Preencha o Utilizado — salva sozinho ao sair do campo. Uso por evento = utilizado ÷ eventos do mês. Ordenado pela maior movimentação. ' + _cuStatusEstoque() + '</div>';
+      '<div style="font-size:11px;color:var(--text3);padding:8px 16px 0;line-height:1.5">' + _CU_TXT_FONTE +
+        (r.lancados < r.agenda.qtd ? '<span style="color:var(--amber)">Faltam ' + (r.agenda.qtd - r.lancados) + ' evento(s) da agenda para lançar na Estimativa — o utilizado do mês está incompleto. </span>' : '') +
+        _cuStatusEstoque() + '</div>';
 
   if (!chaves.length) {
-    html += '<div style="padding:16px;font-size:12px;color:var(--text3)">Nenhuma compra lançada neste mês' + (b ? ' com esse nome' : '') + '. Marque "Mostrar todos os produtos" para preencher o utilizado de um produto que não foi comprado no mês.</div></div>';
+    html += '<div style="padding:16px;font-size:12px;color:var(--text3)">Nenhuma compra nem consumo lançado neste mês' + (busca.trim() ? ' com esse nome' : '') + '.</div></div>';
     cont.innerHTML = html;
     return;
   }
@@ -325,24 +399,23 @@ function _cuRenderMes(cont) {
       '<th style="text-align:right;padding:8px 12px">Estoque atual</th>' +
     '</tr></thead><tbody>' +
     chaves.map(function(k) {
-      var info = mapa[k] || { nome: k, prod: null };
-      var c = comprado[k] || 0;
-      var temUso = _cuTem(utilizado, k);
-      var u = temUso ? utilizado[k] : null;
-      var dif = temUso ? c - u : null;
-      var difTxt = dif == null ? '<span style="color:var(--text3)">—</span>'
+      var info = _cuInfo(mapa, k);
+      var c = r.comprado[k] || 0;
+      var u = r.uso[k] || 0;
+      var dif = c - u;
+      var difTxt = !r.lancados ? '<span style="color:var(--text3)">—</span>'
         : dif > 0 ? '<span style="color:var(--green)">sobrou ' + _cuNum(dif) + '</span>'
         : dif < 0 ? '<span style="color:var(--amber)">usou ' + _cuNum(-dif) + ' do estoque</span>'
         : '<span style="color:var(--text3)">igual</span>';
-      var porEv = temUso && ev.qtd ? _cuNum(u / ev.qtd) : '—';
+      var porEv = r.lancados ? _cuNum(u / r.lancados) : '—';
       return '<tr style="border-bottom:1px solid var(--border)">' +
         '<td style="padding:6px 12px;color:var(--text)">' + _cuEsc(info.nome) + '</td>' +
         '<td style="padding:6px 6px;color:var(--text3)">' + _cuEsc((info.prod && info.prod.unidade) || '') + '</td>' +
         '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + (c ? _cuNum(c) : '<span style="color:var(--text3)">0</span>') + '</td>' +
-        '<td style="padding:4px 10px;text-align:right"><input class="inp" type="number" min="0" step="any" style="width:90px;text-align:right" value="' + (temUso ? u : '') + '" placeholder="—" onchange="cuSalvarUtilizado(\'' + anoMes + '\',\'' + _cuJs(info.nome) + '\',this.value)"></td>' +
+        '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + (u ? _cuNum(u) : '<span style="color:var(--text3)">0</span>') + '</td>' +
         '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + difTxt + '</td>' +
         '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + porEv + '</td>' +
-        '<td style="padding:6px 12px;text-align:right;font-family:var(--mono)">' + _cuEstoqueCelula(info) + '</td>' +
+        '<td style="padding:6px 12px;text-align:right;font-family:var(--mono)">' + _cuEstoqueCelula(info, k) + '</td>' +
       '</tr>';
     }).join('') +
     '</tbody></table></div></div>';
@@ -351,14 +424,15 @@ function _cuRenderMes(cont) {
 }
 
 // ─── ABA 1 / TODOS OS MESES: tabela produto × mês ───────────────────────────
+// Só o ano escolhido; sequência contínua do primeiro mês com dado até o último
+// (mês sem nada no meio aparece zerado).
 function _cuMesesComDados(ano) {
   var meses = {};
   var doAno = function(m) { if (m && m.slice(0, 4) === ano) meses[m] = 1; };
   (D.entradas || []).forEach(function(e) { doAno(_cuMesDe(e.data)); });
-  Object.keys(_cuDados().meses).forEach(doAno);
+  _cuEventosEstimativa().forEach(function(e) { doAno(_cuMesDe(e.data)); });
   var lista = Object.keys(meses).sort();
   if (!lista.length) return [];
-  // Só o ano escolhido; sequência contínua do primeiro mês com dado até o último (mês sem compra aparece zerado).
   var r = [], m = lista[0], fim = lista[lista.length - 1];
   while (m <= fim && r.length < 120) { r.push(m); m = _cuSomaMes(m, 1); }
   return r;
@@ -368,47 +442,39 @@ function _cuRenderTodos(cont, ano) {
   var busca = _cuBusca();
   var meses = _cuMesesComDados(ano);
   var mapa = _cuMapaProdutos();
-  var porMes = meses.map(function(m) {
-    return { anoMes: m, ev: _cuEventosMes(m).qtd, comprado: _cuCompradoMes(m), utilizado: _cuUtilizadoMes(m) };
-  });
+  var porMes = meses.map(_cuResumoMes);
 
   var tot = {};
   porMes.forEach(function(pm) {
-    Object.keys(pm.comprado).forEach(function(k) {
-      if (!tot[k]) tot[k] = { c: 0, u: 0, evUso: 0, mesesUso: 0 };
-      tot[k].c += pm.comprado[k];
-    });
-    Object.keys(pm.utilizado).forEach(function(k) {
-      if (!tot[k]) tot[k] = { c: 0, u: 0, evUso: 0, mesesUso: 0 };
-      tot[k].u += pm.utilizado[k];
-      tot[k].evUso += pm.ev;
-      tot[k].mesesUso++;
-    });
+    Object.keys(pm.comprado).forEach(function(k) { (tot[k] || (tot[k] = { c: 0, u: 0 })).c += pm.comprado[k]; });
+    Object.keys(pm.uso).forEach(function(k) { (tot[k] || (tot[k] = { c: 0, u: 0 })).u += pm.uso[k]; });
   });
-  var chaves = Object.keys(tot);
-  var b = busca.trim().toUpperCase();
-  if (b) chaves = chaves.filter(function(k) { return k.indexOf(b) >= 0; });
+  var chaves = _cuFiltraBusca(Object.keys(tot), mapa, busca);
   chaves.sort(function(x, y) { return (tot[y].c + tot[y].u) - (tot[x].c + tot[x].u) || x.localeCompare(y, 'pt-BR'); });
 
-  var totalEv = porMes.reduce(function(s, pm) { return s + pm.ev; }, 0);
+  var totalAgenda = porMes.reduce(function(s, pm) { return s + pm.agenda.qtd; }, 0);
+  var totalLanc = porMes.reduce(function(s, pm) { return s + pm.lancados; }, 0);
   var html =
     '<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">' +
       _cuOpcoesMesAno('cu-m', 'todos-' + ano, _CU_ONCHANGE_MES, true) +
     '</div>' +
     '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">' +
       _cuCard('Meses', meses.length, meses.length ? _cuLabel(meses[0]) + ' a ' + _cuLabel(meses[meses.length - 1]) : '') +
-      _cuCard('Eventos no período', fN(totalEv), meses.length ? 'média ' + _cuNum(totalEv / meses.length) + ' por mês' : '', 'var(--blue)') +
-      _cuCard('Produtos movimentados', Object.keys(tot).length, 'comprados ou com uso') +
+      _cuCard('Eventos na agenda', fN(totalAgenda), meses.length ? 'média ' + _cuNum(totalAgenda / meses.length) + ' por mês' : '', 'var(--blue)') +
+      _cuCard('Lançados na Estimativa', fN(totalLanc), _cuCoberturaTxt(totalLanc, totalAgenda), totalLanc < totalAgenda ? 'var(--amber)' : 'var(--green)') +
+      _cuCard('Produtos movimentados', Object.keys(tot).length, 'comprados ou utilizados') +
     '</div>' +
     '<div class="sec">' +
       '<div class="sec-head" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
         '<span class="sec-title">Comprado x Utilizado — todos os meses de ' + ano + '</span>' +
         _cuCampoBusca(busca) +
       '</div>' +
-      '<div style="font-size:11px;color:var(--text3);padding:8px 16px 0">Em cada mês: C = comprado, U = utilizado (em vermelho quando usou mais do que comprou). Embaixo do mês, quantos eventos ele teve. Ordenado pela maior movimentação no período. Para preencher o utilizado, escolha o mês acima. ' + _cuStatusEstoque() + '</div>';
+      '<div style="font-size:11px;color:var(--text3);padding:8px 16px 0;line-height:1.5">' + _CU_TXT_FONTE +
+        'Em cada mês: C = comprado, U = utilizado (em vermelho quando usou mais do que comprou). Embaixo do mês: eventos na agenda e quantos foram lançados na Estimativa. ' +
+        _cuStatusEstoque() + '</div>';
 
   if (!chaves.length) {
-    html += '<div style="padding:16px;font-size:12px;color:var(--text3)">Nenhuma compra ou uso registrado' + (b ? ' com esse nome' : '') + '.</div></div>';
+    html += '<div style="padding:16px;font-size:12px;color:var(--text3)">Nenhuma compra nem consumo lançado' + (busca.trim() ? ' com esse nome' : '') + '.</div></div>';
     cont.innerHTML = html;
     return;
   }
@@ -424,7 +490,8 @@ function _cuRenderTodos(cont, ano) {
         '<th rowspan="2" style="' + stickyTh + 'text-align:left;padding:8px 12px;min-width:180px;border-bottom:1px solid var(--border)">Produto</th>' +
         porMes.map(function(pm) {
           return '<th colspan="2" style="' + sep + 'padding:6px 8px;text-align:center;white-space:nowrap">' + _cuLabel(pm.anoMes) +
-            '<div style="font-weight:400;text-transform:none;color:var(--blue)">' + pm.ev + ' ev.</div></th>';
+            '<div style="font-weight:400;text-transform:none;color:var(--blue)">' + pm.agenda.qtd + ' ev.</div>' +
+            '<div style="font-weight:400;text-transform:none;color:' + (pm.lancados < pm.agenda.qtd ? 'var(--amber)' : 'var(--text3)') + '">' + pm.lancados + ' lanç.</div></th>';
         }).join('') +
         '<th colspan="2" style="' + sep + 'padding:6px 8px;text-align:center">Total</th>' +
         '<th rowspan="2" style="' + sep + th + ';border-bottom:1px solid var(--border)">Média<br>compra/mês</th>' +
@@ -437,46 +504,27 @@ function _cuRenderTodos(cont, ano) {
       '</tr>' +
     '</thead><tbody>' +
     chaves.map(function(k) {
-      var info = mapa[k] || { nome: k, prod: null };
+      var info = _cuInfo(mapa, k);
       var t = tot[k];
       var celulas = porMes.map(function(pm) {
         var c = pm.comprado[k] || 0;
-        var temU = _cuTem(pm.utilizado, k);
-        var u = temU ? pm.utilizado[k] : null;
+        var u = pm.uso[k] || 0;
         return '<td style="' + sep + 'padding:5px 8px;text-align:right;font-family:var(--mono);' + (c ? '' : 'color:var(--text3)') + '">' + (c ? _cuNum(c) : '·') + '</td>' +
-          '<td style="padding:5px 8px;text-align:right;font-family:var(--mono);' + (!temU ? 'color:var(--text3)' : u > c ? 'color:var(--red)' : '') + '">' + (temU ? _cuNum(u) : '·') + '</td>';
+          '<td style="padding:5px 8px;text-align:right;font-family:var(--mono);' + (!u ? 'color:var(--text3)' : u > c ? 'color:var(--red)' : '') + '">' + (u ? _cuNum(u) : '·') + '</td>';
       }).join('');
-      var porEv = t.mesesUso && t.evUso ? _cuNum(t.u / t.evUso) : '—';
       return '<tr style="border-bottom:1px solid var(--border)">' +
         '<td style="' + stickyTd + 'padding:5px 12px;color:var(--text);white-space:nowrap">' + _cuEsc(info.nome) + '</td>' +
         celulas +
         '<td style="' + sep + 'padding:5px 8px;text-align:right;font-family:var(--mono);font-weight:700">' + _cuNum(t.c) + '</td>' +
-        '<td style="padding:5px 8px;text-align:right;font-family:var(--mono);font-weight:700">' + (t.mesesUso ? _cuNum(t.u) : '—') + '</td>' +
+        '<td style="padding:5px 8px;text-align:right;font-family:var(--mono);font-weight:700">' + _cuNum(t.u) + '</td>' +
         '<td style="' + sep + 'padding:5px 8px;text-align:right;font-family:var(--mono)">' + _cuNum(t.c / meses.length) + '</td>' +
-        '<td style="padding:5px 8px;text-align:right;font-family:var(--mono)">' + porEv + '</td>' +
-        '<td style="padding:5px 12px;text-align:right;font-family:var(--mono)">' + _cuEstoqueCelula(info) + '</td>' +
+        '<td style="padding:5px 8px;text-align:right;font-family:var(--mono)">' + (totalLanc ? _cuNum(t.u / totalLanc) : '—') + '</td>' +
+        '<td style="padding:5px 12px;text-align:right;font-family:var(--mono)">' + _cuEstoqueCelula(info, k) + '</td>' +
       '</tr>';
     }).join('') +
     '</tbody></table></div></div>';
 
   cont.innerHTML = html;
-}
-
-function cuSalvarUtilizado(anoMes, nome, valor) {
-  var dados = _cuDados();
-  if (!dados.meses[anoMes]) dados.meses[anoMes] = {};
-  var mes = dados.meses[anoMes];
-  // Remove variações de caixa do mesmo nome antes de gravar
-  Object.keys(mes).forEach(function(k) { if (_cuChave(k) === _cuChave(nome)) delete mes[k]; });
-  var v = String(valor).trim();
-  if (v !== '') {
-    var n = Number(v.replace(',', '.'));
-    if (isNaN(n) || n < 0) { alert2('Quantidade inválida', 'error'); return; }
-    mes[nome] = n;
-  }
-  if (!Object.keys(mes).length) delete dados.meses[anoMes];
-  sv('compraUso');
-  rCompraUso();
 }
 
 // ─── ABA 2: SUGESTÃO DE COMPRA ──────────────────────────────────────────────
@@ -496,43 +544,34 @@ function _cuRenderSugestao(cont) {
 
   // Meses-base: os N meses imediatamente antes do mês a comprar.
   var base = [];
-  for (var i = nBase; i >= 1; i--) {
-    var am = _cuSomaMes(alvo, -i);
-    base.push({ anoMes: am, ev: _cuEventosMes(am).qtd, comprado: _cuCompradoMes(am), utilizado: _cuUtilizadoMes(am) });
-  }
-  var totalEvBase = base.reduce(function(s, m) { return s + m.ev; }, 0);
+  for (var i = nBase; i >= 1; i--) base.push(_cuResumoMes(_cuSomaMes(alvo, -i)));
+  var totalAgendaBase = base.reduce(function(s, m) { return s + m.agenda.qtd; }, 0);
+  var totalLancBase = base.reduce(function(s, m) { return s + m.lancados; }, 0);
 
   var mapa = _cuMapaProdutos();
   var chaves = {};
   base.forEach(function(m) {
     Object.keys(m.comprado).forEach(function(k) { chaves[k] = 1; });
-    Object.keys(m.utilizado).forEach(function(k) { chaves[k] = 1; });
+    Object.keys(m.uso).forEach(function(k) { chaves[k] = 1; });
   });
-  (D.produtos || []).forEach(function(p) { if (p.minimo > 0) chaves[_cuChave(p.nome)] = 1; });
+  (D.produtos || []).forEach(function(p) { if (p.minimo > 0) chaves[_cuCanon(p.nome)] = 1; });
 
   var conectado = !!_cuEstoque;
 
   var linhas = Object.keys(chaves).map(function(k) {
-    var info = mapa[k] || { nome: k, prod: null };
-    var somaComp = 0, somaUso = 0, evComUso = 0, mesesComUso = 0;
-    base.forEach(function(m) {
-      somaComp += m.comprado[k] || 0;
-      if (_cuTem(m.utilizado, k)) {
-        somaUso += m.utilizado[k];
-        evComUso += m.ev;
-        mesesComUso++;
-      }
-    });
+    var info = _cuInfo(mapa, k);
+    var somaComp = 0, somaUso = 0;
+    base.forEach(function(m) { somaComp += m.comprado[k] || 0; somaUso += m.uso[k] || 0; });
     var mediaCompra = somaComp / nBase;
-    // Uso por evento: só meses com utilizado preenchido; sem nenhum, usa a compra.
+    // Uso por evento: consumo ÷ eventos lançados na Estimativa; sem nenhum lançado, usa a compra ÷ agenda.
     var porEvento = null, fonte = '';
-    if (mesesComUso && evComUso) { porEvento = somaUso / evComUso; fonte = 'uso'; }
-    else if (totalEvBase) { porEvento = somaComp / totalEvBase; fonte = 'compra'; }
+    if (totalLancBase) { porEvento = somaUso / totalLancBase; fonte = 'uso'; }
+    else if (totalAgendaBase) { porEvento = somaComp / totalAgendaBase; fonte = 'compra'; }
     var previsto = porEvento != null ? porEvento * evPrev : mediaCompra;
     var minimo = info.prod ? (Number(info.prod.minimo) || 0) : 0;
 
     var est = null;
-    if (conectado) { var e = _cuEstoqueDe(info); if (e) est = e.qtd; }
+    if (conectado) { var e = _cuEstoqueDe(info, k); if (e) est = e.qtd; }
     else if (_cuTem(_cuEstoqueManual, k)) est = _cuEstoqueManual[k];
     var sugestao = Math.max(0, Math.ceil(previsto + minimo - (est || 0)));
     var abaixo = est != null && minimo > 0 && est < minimo;
@@ -541,19 +580,20 @@ function _cuRenderSugestao(cont) {
       mov: somaComp + somaUso };
   });
 
-  var b = busca.trim().toUpperCase();
-  if (b) linhas = linhas.filter(function(l) { return l.k.indexOf(b) >= 0; });
+  var bk = _cuFiltraBusca(linhas.map(function(l) { return l.k; }), mapa, busca);
+  linhas = linhas.filter(function(l) { return bk.indexOf(l.k) >= 0; });
   if (soAbaixo) linhas = linhas.filter(function(l) { return l.abaixo; });
   linhas.sort(function(x, y) { return y.mov - x.mov || x.k.localeCompare(y.k, 'pt-BR'); });
   var qtdAbaixo = linhas.filter(function(l) { return l.abaixo; }).length;
 
   var nomeAlvo = _CU_MESES[parseInt(alvo.split('-')[1], 10) - 1] + ' ' + alvo.split('-')[0];
-  var proporcao = totalEvBase ? (evPrev / (totalEvBase / nBase)) : null;
+  var proporcao = totalAgendaBase ? (evPrev / (totalAgendaBase / nBase)) : null;
+  var anoAtual = new Date().getFullYear();
 
   var html =
     '<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">' +
       '<div style="font-size:12px;color:var(--text2);padding-bottom:9px">Comprar para</div>' +
-      _cuOpcoesMesAno('cu-s', alvo, '_cuAlvo=_cuMesAtualSelecionado(\'cu-s\');_cuEventosPrevistos=null;rCompraUso()', false, [String(new Date().getFullYear()), String(new Date().getFullYear() + 1)]) +
+      _cuOpcoesMesAno('cu-s', alvo, '_cuAlvo=_cuMesAtualSelecionado(\'cu-s\');_cuEventosPrevistos=null;rCompraUso()', false, [String(anoAtual), String(anoAtual + 1)]) +
       '<div><label class="lbl">Eventos previstos</label><input id="cu-evprev" class="inp" type="number" min="0" style="width:100px" value="' + evPrev + '" onchange="_cuEventosPrevistos=Math.max(0,parseInt(this.value,10)||0);rCompraUso()"></div>' +
       '<div><label class="lbl">Base: últimos meses</label><input class="inp" type="number" min="1" max="12" style="width:90px" value="' + nBase + '" onchange="cuSalvarBase(this.value)"></div>' +
       (_cuEventosPrevistos != null && _cuEventosPrevistos !== evAgenda
@@ -564,11 +604,10 @@ function _cuRenderSugestao(cont) {
       '<div class="sec-head"><span class="sec-title">Meses usados como base</span></div>' +
       '<div style="display:flex;gap:10px;flex-wrap:wrap;padding:12px 16px">' +
         base.map(function(m) {
-          var preench = Object.keys(m.utilizado).length;
           return '<div style="border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;min-width:120px">' +
             '<div style="font-size:11px;color:var(--text3)">' + _cuLabel(m.anoMes) + '</div>' +
-            '<div style="font-size:16px;font-weight:700;font-family:var(--mono)">' + m.ev + ' eventos</div>' +
-            '<div style="font-size:11px;color:' + (preench ? 'var(--text3)' : 'var(--amber)') + '">' + (preench ? preench + ' com utilizado' : 'utilizado não preenchido') + '</div>' +
+            '<div style="font-size:16px;font-weight:700;font-family:var(--mono)">' + m.agenda.qtd + ' eventos</div>' +
+            '<div style="font-size:11px">' + _cuCoberturaTxt(m.lancados, m.agenda.qtd) + '</div>' +
           '</div>';
         }).join('') +
         '<div style="border:1px solid var(--blue);border-radius:var(--radius);padding:8px 12px;min-width:140px">' +
@@ -578,7 +617,7 @@ function _cuRenderSugestao(cont) {
         '</div>' +
       '</div>' +
       '<div style="font-size:11px;color:var(--text3);padding:0 16px 12px;line-height:1.5">' +
-        'Uso por evento = utilizado ÷ eventos, só dos meses com utilizado preenchido (sem preenchimento, usa o comprado ÷ eventos — marcado "pela compra"). ' +
+        'Uso por evento = consumo lançado na Estimativa de Bebidas ÷ eventos lançados nos meses-base (sem nenhum lançado, usa o comprado ÷ eventos da agenda — marcado "pela compra"). ' +
         'Previsto = uso por evento × eventos previstos. Sugestão = previsto + mínimo − estoque atual, arredondado para cima.' +
       '</div>' +
     '</div>';
@@ -597,7 +636,7 @@ function _cuRenderSugestao(cont) {
 
   if (!linhas.length) {
     html += '<div style="padding:16px;font-size:12px;color:var(--text3)">' +
-      (soAbaixo ? 'Nenhum produto abaixo do mínimo.' : 'Nenhuma compra ou uso nos meses-base' + (b ? ' com esse nome' : '') + ', e nenhum produto com mínimo cadastrado.') +
+      (soAbaixo ? 'Nenhum produto abaixo do mínimo.' : 'Nenhuma compra ou consumo nos meses-base' + (busca.trim() ? ' com esse nome' : '') + ', e nenhum produto com mínimo cadastrado.') +
       '</div></div>';
     cont.innerHTML = html;
     return;
@@ -621,7 +660,7 @@ function _cuRenderSugestao(cont) {
         ? '<input class="inp" type="number" min="0" step="any" style="width:80px;text-align:right" value="' + (l.minimo || '') + '" placeholder="0" onchange="cuSalvarMinimo(\'' + _cuJs(l.info.prod.id) + '\',this.value)">'
         : '<span style="font-size:10px;color:var(--text3)" title="Produto não está no Cadastro de Produtos">sem cadastro</span>';
       var estCampo = conectado
-        ? '<span style="font-family:var(--mono);' + (l.abaixo ? 'color:var(--red);font-weight:700' : '') + '">' + _cuEstoqueCelula(l.info) + '</span>'
+        ? '<span style="font-family:var(--mono);' + (l.abaixo ? 'color:var(--red);font-weight:700' : '') + '">' + _cuEstoqueCelula(l.info, l.k) + '</span>'
         : '<input class="inp" type="number" min="0" step="any" style="width:80px;text-align:right;' + (l.abaixo ? 'border-color:var(--red);color:var(--red)' : '') + '" value="' + (l.est != null ? l.est : '') + '" placeholder="—" onchange="cuEstoqueManual(\'' + _cuJs(l.k) + '\',this.value)">';
       return '<tr style="border-bottom:1px solid var(--border);' + (l.abaixo ? 'background:rgba(240,90,90,.06)' : '') + '">' +
         '<td style="padding:6px 12px;color:var(--text)">' + _cuEsc(l.info.nome) + (l.abaixo ? ' <span style="font-size:10px;font-weight:600;color:var(--red)">ABAIXO DO MÍNIMO</span>' : '') + '</td>' +
