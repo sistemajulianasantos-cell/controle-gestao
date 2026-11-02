@@ -183,6 +183,85 @@ function _cuUsoMes(anoMes) {
   return { uso: uso, eventos: n };
 }
 
+// ─── UNIDADE QUEBRADA (quantidade com fração: 2,5 / 0,75) ───────────────────
+function _cuEhQuebrado(q) { q = Number(q) || 0; return Math.abs(q - Math.round(q)) > 1e-9; }
+// AAAA-MM-DD a partir de AAAA-MM-DD ou DD/MM/AAAA (eventos antigos).
+function _cuIso(d) {
+  var s = String(d || '').trim();
+  var m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s);
+  if (m) return m[1] + '-' + m[2].padStart(2, '0') + '-' + m[3].padStart(2, '0');
+  m = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/.exec(s);
+  if (m) return (m[3].length === 2 ? '20' + m[3] : m[3]) + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+  return s;
+}
+function _cuDataBr(d) { var i = _cuIso(d); var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(i); return m ? m[3] + '/' + m[2] + '/' + m[1] : i; }
+
+// Lançamentos com fração nos meses dados: da Estimativa (por festa) e da Entrada de NF.
+function _cuQuebrados(meses) {
+  var noPeriodo = function(d) { return meses.indexOf(_cuMesDe(d)) >= 0; };
+  var mapa = _cuMapaProdutos();
+  var r = [];
+  _cuEventosEstimativa().forEach(function(e) {
+    if (!noPeriodo(e.data)) return;
+    Object.keys(e.consumo || {}).forEach(function(nome) {
+      var q = parseFloat(e.consumo[nome]) || 0;
+      if (q > 0 && _cuEhQuebrado(q)) r.push({ origem: 'Estimativa', data: e.data, ref: e.cliente || '—', item: _cuInfo(mapa, _cuCanon(nome)).nome, qtd: q });
+    });
+  });
+  (D.entradas || []).forEach(function(e) {
+    if (!noPeriodo(e.data)) return;
+    var q = Number(e.qtd) || 0;
+    if (q > 0 && _cuEhQuebrado(q)) r.push({ origem: 'Entrada de NF', data: e.data, ref: e.nf ? 'NF ' + e.nf : (e.forn || '—'), item: _cuInfo(mapa, _cuCanon(e.prod)).nome, qtd: q });
+  });
+  r.sort(function(a, b) { return _cuIso(a.data).localeCompare(_cuIso(b.data)); });
+  return r;
+}
+
+// Bloco recolhível com a lista (fechado por padrão; só aparece se houver algum).
+function _cuBlocoQuebrados(meses) {
+  var r = _cuQuebrados(meses);
+  if (!r.length) return '';
+  return '<details class="sec" style="margin-bottom:14px">' +
+    '<summary style="cursor:pointer;padding:10px 16px;font-size:12px;font-weight:600;color:var(--amber)">' + r.length + ' lançamento(s) com unidade quebrada neste período — clique para ver</summary>' +
+    '<div style="font-size:11px;color:var(--text3);padding:0 16px 6px">Quantidade com fração (ex.: 2,5 = duas unidades e meia). É daqui que vêm os números com vírgula no Comprado e no Utilizado. Para corrigir, edite a festa no Histórico da Estimativa de Bebidas ou o lançamento na Entrada de NF.</div>' +
+    '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">' +
+      '<thead><tr style="border-bottom:1px solid var(--border);color:var(--text3);font-size:10px;text-transform:uppercase">' +
+        '<th style="text-align:left;padding:6px 16px">Data</th><th style="text-align:left;padding:6px 8px">Origem</th>' +
+        '<th style="text-align:left;padding:6px 8px">Festa / NF</th><th style="text-align:left;padding:6px 8px">Item</th>' +
+        '<th style="text-align:right;padding:6px 16px">Qtd</th></tr></thead><tbody>' +
+      r.map(function(x) {
+        return '<tr style="border-bottom:1px solid var(--border)">' +
+          '<td style="padding:5px 16px;font-family:var(--mono);white-space:nowrap">' + _cuEsc(_cuDataBr(x.data)) + '</td>' +
+          '<td style="padding:5px 8px;color:var(--text3)">' + x.origem + '</td>' +
+          '<td style="padding:5px 8px">' + _cuEsc(x.ref) + '</td>' +
+          '<td style="padding:5px 8px">' + _cuEsc(x.item) + '</td>' +
+          '<td style="padding:5px 16px;text-align:right;font-family:var(--mono);font-weight:700;color:var(--amber)">' + _cuNum(x.qtd) + '</td>' +
+        '</tr>';
+      }).join('') +
+    '</tbody></table></div></details>';
+}
+
+// Clique no Utilizado: de quais festas veio o número.
+function cuDetalheUtilizado(anoMes, chave) {
+  var mapa = _cuMapaProdutos();
+  var linhas = [], total = 0;
+  _cuEventosEstimativa().forEach(function(e) {
+    if (!_cuNoMes(e.data, anoMes)) return;
+    var q = 0;
+    Object.keys(e.consumo || {}).forEach(function(nome) {
+      if (_cuCanon(nome) === chave) q += parseFloat(e.consumo[nome]) || 0;
+    });
+    if (q <= 0) return;
+    total += q;
+    linhas.push({ iso: _cuIso(e.data), data: _cuDataBr(e.data), cliente: e.cliente || '—', q: q });
+  });
+  linhas.sort(function(a, b) { return a.iso.localeCompare(b.iso); });
+  var txt = _cuInfo(mapa, chave).nome + ' — ' + _cuLabel(anoMes) + '\nUtilizado ' + _cuNum(total) + ' em ' + linhas.length + ' festa(s):\n\n' +
+    linhas.map(function(l) { return l.data + '  ·  ' + l.cliente + '  ·  ' + _cuNum(l.q) + (_cuEhQuebrado(l.q) ? '   (quebrado)' : ''); }).join('\n');
+  if (typeof sisDialogo === 'function') sisDialogo(txt, function() {}, { ok: 'Fechar' });
+  else alert(txt);
+}
+
 function _cuResumoMes(anoMes) {
   var u = _cuUsoMes(anoMes);
   return { anoMes: anoMes, agenda: _cuEventosMes(anoMes), lancados: u.eventos, uso: u.uso, comprado: _cuCompradoMes(anoMes) };
@@ -402,6 +481,7 @@ function _cuRenderMes(cont) {
       _cuCard('Itens comprados', nCadComprados, 'pela Entrada de NF') +
       _cuCard('Itens utilizados', nCadUsados, 'nos eventos lançados') +
     '</div>' +
+    _cuBlocoQuebrados([anoMes]) +
     '<div class="sec">' +
       '<div class="sec-head" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
         '<span class="sec-title">Comprado x Utilizado — ' + _CU_MESES[parseInt(anoMes.split('-')[1], 10) - 1] + ' ' + anoMes.split('-')[0] + '</span>' +
@@ -442,7 +522,9 @@ function _cuRenderMes(cont) {
         '<td style="padding:6px 12px;color:var(--text)">' + _cuEsc(info.nome) + '</td>' +
         '<td style="padding:6px 6px;color:var(--text3)">' + _cuEsc(_cuUn(info)) + '</td>' +
         '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + (c ? _cuNum(c) : '<span style="color:var(--text3)">0</span>') + '</td>' +
-        '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + (u ? _cuNum(u) : '<span style="color:var(--text3)">0</span>') + '</td>' +
+        '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + (u
+          ? '<span style="cursor:pointer;text-decoration:underline dotted;' + (_cuEhQuebrado(u) ? 'color:var(--amber)' : '') + '" title="Ver de quais festas veio" onclick="cuDetalheUtilizado(\'' + anoMes + '\',\'' + _cuJs(k) + '\')">' + _cuNum(u) + '</span>'
+          : '<span style="color:var(--text3)">0</span>') + '</td>' +
         '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + difTxt + '</td>' +
         '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + porEv + '</td>' +
         '<td style="padding:6px 12px;text-align:right;font-family:var(--mono)">' + _cuEstoqueCelula(info) + '</td>' +
@@ -500,6 +582,7 @@ function _cuRenderTodos(cont, ano) {
       _cuCard('Lançados na Estimativa', fN(totalLanc), _cuCoberturaTxt(totalLanc, totalAgenda), totalLanc < totalAgenda ? 'var(--amber)' : 'var(--green)') +
       _cuCard('Itens movimentados', cadastradas.length, 'comprados ou utilizados') +
     '</div>' +
+    _cuBlocoQuebrados(meses) +
     '<div class="sec">' +
       '<div class="sec-head" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
         '<span class="sec-title">Comprado x Utilizado — todos os meses de ' + ano + '</span>' +
