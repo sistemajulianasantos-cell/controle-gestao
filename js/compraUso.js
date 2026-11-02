@@ -449,7 +449,7 @@ function _cuRebuscar() {
 }
 
 var _CU_TXT_FONTE = 'Comprado vem da Entrada de NF; utilizado vem do consumo lançado por evento na Estimativa de Bebidas. ' +
-  'Uso por evento = utilizado ÷ eventos lançados na Estimativa. Ordenado pela maior movimentação. ';
+  'Uso por festa = total utilizado ÷ festas lançadas na Estimativa (ex.: 644 garrafas em 108 festas = 5,96 por festa). Média compra/mês arredondada para cima. Ordenado pela maior movimentação. ';
 
 // ─── ABA 1: COMPRADO x UTILIZADO DO MÊS ─────────────────────────────────────
 var _cuMesSel = null;
@@ -505,7 +505,7 @@ function _cuRenderMes(cont) {
       '<th style="text-align:right;padding:8px 10px">Comprado</th>' +
       '<th style="text-align:right;padding:8px 10px">Utilizado</th>' +
       '<th style="text-align:right;padding:8px 10px">Diferença</th>' +
-      '<th style="text-align:right;padding:8px 10px">Uso por evento</th>' +
+      '<th style="text-align:right;padding:8px 10px">Uso por festa</th>' +
       '<th style="text-align:right;padding:8px 12px">Estoque atual</th>' +
     '</tr></thead><tbody>' +
     chaves.map(function(k) {
@@ -517,7 +517,7 @@ function _cuRenderMes(cont) {
         : dif > 0 ? '<span style="color:var(--green)">sobrou ' + _cuNum(dif) + '</span>'
         : dif < 0 ? '<span style="color:var(--amber)">usou ' + _cuNum(-dif) + ' do estoque</span>'
         : '<span style="color:var(--text3)">igual</span>';
-      var porEv = r.lancados ? _cuNum(u / r.lancados) : '—';
+      var porEv = r.lancados ? '<span title="' + _cuNum(u) + ' utilizados ÷ ' + r.lancados + ' festas lançadas">' + _cuNum(u / r.lancados) + '</span>' : '—';
       return '<tr style="border-bottom:1px solid var(--border)">' +
         '<td style="padding:6px 12px;color:var(--text)">' + _cuEsc(info.nome) + '</td>' +
         '<td style="padding:6px 6px;color:var(--text3)">' + _cuEsc(_cuUn(info)) + '</td>' +
@@ -615,7 +615,7 @@ function _cuRenderTodos(cont, ano) {
         }).join('') +
         '<th colspan="2" style="' + sep + 'padding:6px 8px;text-align:center">Total</th>' +
         '<th rowspan="2" style="' + sep + th + ';border-bottom:1px solid var(--border)">Média<br>compra/mês</th>' +
-        '<th rowspan="2" style="' + th + ';border-bottom:1px solid var(--border)">Uso por<br>evento</th>' +
+        '<th rowspan="2" style="' + th + ';border-bottom:1px solid var(--border)">Uso por<br>festa</th>' +
         '<th rowspan="2" style="' + th + ';border-bottom:1px solid var(--border)">Estoque<br>atual</th>' +
       '</tr>' +
       '<tr style="color:var(--text3);font-size:10px;border-bottom:1px solid var(--border)">' +
@@ -637,8 +637,8 @@ function _cuRenderTodos(cont, ano) {
         celulas +
         '<td style="' + sep + 'padding:5px 8px;text-align:right;font-family:var(--mono);font-weight:700">' + _cuNum(t.c) + '</td>' +
         '<td style="padding:5px 8px;text-align:right;font-family:var(--mono);font-weight:700">' + _cuNum(t.u) + '</td>' +
-        '<td style="' + sep + 'padding:5px 8px;text-align:right;font-family:var(--mono)">' + _cuNum(t.c / meses.length) + '</td>' +
-        '<td style="padding:5px 8px;text-align:right;font-family:var(--mono)">' + (totalLanc ? _cuNum(t.u / totalLanc) : '—') + '</td>' +
+        '<td style="' + sep + 'padding:5px 8px;text-align:right;font-family:var(--mono)">' + fN(Math.ceil(t.c / meses.length - 1e-9)) + '</td>' +
+        '<td style="padding:5px 8px;text-align:right;font-family:var(--mono)">' + (totalLanc ? '<span title="' + _cuNum(t.u) + ' utilizados ÷ ' + totalLanc + ' festas lançadas">' + _cuNum(t.u / totalLanc) + '</span>' : '—') + '</td>' +
         '<td style="padding:5px 12px;text-align:right;font-family:var(--mono)">' + _cuEstoqueCelula(info) + '</td>' +
       '</tr>';
     }).join('') +
@@ -745,7 +745,7 @@ function _cuRenderSugestao(cont) {
         '</div>' +
       '</div>' +
       '<div style="font-size:11px;color:var(--text3);padding:0 16px 12px;line-height:1.5">' +
-        'Uso por evento = consumo lançado na Estimativa de Bebidas ÷ eventos lançados nos meses-base (sem nenhum lançado, usa o comprado ÷ eventos da agenda — marcado "pela compra"). ' +
+        'Uso por festa = consumo lançado na Estimativa de Bebidas ÷ festas lançadas nos meses-base (sem nenhum lançado, usa o comprado ÷ eventos da agenda — marcado "pela compra"). ' +
         'Previsto = uso por evento × eventos previstos. Sugestão = previsto + mínimo − estoque atual, arredondado para cima.' +
       '</div>' +
     '</div>';
@@ -775,7 +775,7 @@ function _cuRenderSugestao(cont) {
       '<th style="text-align:left;padding:8px 12px">Item</th>' +
       '<th style="text-align:left;padding:8px 6px">Un</th>' +
       '<th style="text-align:right;padding:8px 10px">Média compra/mês</th>' +
-      '<th style="text-align:right;padding:8px 10px">Uso por evento</th>' +
+      '<th style="text-align:right;padding:8px 10px">Uso por festa</th>' +
       '<th style="text-align:right;padding:8px 10px">Previsto (' + evPrev + ' ev.)</th>' +
       '<th style="text-align:right;padding:8px 10px">Mínimo</th>' +
       '<th style="text-align:right;padding:8px 10px">Estoque atual</th>' +
@@ -791,7 +791,7 @@ function _cuRenderSugestao(cont) {
       return '<tr style="border-bottom:1px solid var(--border);' + (l.abaixo ? 'background:rgba(240,90,90,.06)' : '') + '">' +
         '<td style="padding:6px 12px;color:var(--text)">' + _cuEsc(l.info.nome) + (l.abaixo ? ' <span style="font-size:10px;font-weight:600;color:var(--red)">ABAIXO DO MÍNIMO</span>' : '') + '</td>' +
         '<td style="padding:6px 6px;color:var(--text3)">' + _cuEsc(_cuUn(l.info)) + '</td>' +
-        '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + _cuNum(l.mediaCompra) + '</td>' +
+        '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + fN(Math.ceil(l.mediaCompra - 1e-9)) + '</td>' +
         '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + porEvTxt + '</td>' +
         '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + _cuNum(l.previsto) + '</td>' +
         '<td style="padding:4px 10px;text-align:right">' + minCampo + '</td>' +
