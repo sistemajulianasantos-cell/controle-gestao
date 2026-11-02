@@ -680,11 +680,26 @@ function _rcSugOrcCalc(dados) {
   return { cfg, iniIso, fimIso, recentes, semData, sugBase, sug, mn, mx, avg };
 }
 
+// Lista de eventos da Sugestão orçamento fica recolhida; toque no cartão abre (pedido 11-02).
+var _rcSugOrcAberto = false;
+function _rcSugOrcToggle() { _rcSugOrcAberto = !_rcSugOrcAberto; _rcHistRefresh(); }
+
+// Embaixo do Mínimo/Máximo: de qual festa veio o número (a lista de baixo é
+// paginada e não fica em ordem de quantidade, então era difícil achar).
+function _rcQuemTeve(dados, valor) {
+  const quem = dados.filter(d => d.qty === valor).sort((a, b) => (b.data || '').localeCompare(a.data || ''));
+  if (!quem.length) return '';
+  const d = quem[0];
+  const data = d.data ? d.data.split('-').reverse().join('/') : 'sem data';
+  return `<div style="font-size:10px;color:var(--text3);margin-top:2px;max-width:170px;line-height:1.3">${_rcEscHtml(d.cliente || 'sem nome')} · ${data}${quem.length > 1 ? ' (+' + (quem.length - 1) + ')' : ''}</div>`;
+}
+
 function _rcSugOrcCardHTML(dados) {
   const r = _rcSugOrcCalc(dados);
-  return `<div style="text-align:center;background:rgba(60,140,90,.12);border:1px solid rgba(60,140,90,.35);border-radius:6px;padding:4px 16px">
+  return `<div onclick="_rcSugOrcToggle()" title="${_rcSugOrcAberto ? 'Esconder' : 'Ver'} os eventos que entram na conta" style="cursor:pointer;text-align:center;background:rgba(60,140,90,.12);border:1px solid rgba(60,140,90,.35);border-radius:6px;padding:4px 16px">
     <div style="font-size:10px;color:var(--green);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Sugestão orçamento</div>
     <strong style="color:var(--green);font-size:22px">${r.sug != null ? r.sug : '—'}</strong>
+    <div style="font-size:9px;color:var(--green);margin-top:2px">${_rcSugOrcAberto ? 'esconder eventos' : 'ver eventos'}</div>
   </div>`;
 }
 
@@ -705,7 +720,7 @@ function _rcSugOrcRodapeHTML(dados) {
     <span>· período ${fd(r.iniIso)} a ${fd(r.fimIso)} · ${r.recentes.length} evento${r.recentes.length !== 1 ? 's' : ''}${r.semData ? ' (' + r.semData + ' sem data fora da conta)' : ''}</span>
   </div>
   <div style="margin-top:6px;font-size:12px;color:var(--text)">${conta}</div>
-  ${r.recentes.length ? `<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+  ${_rcSugOrcAberto && r.recentes.length ? `<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
     ${r.recentes.slice().sort((a, b) => a.data.localeCompare(b.data)).map(d =>
       `<span style="font-size:10px;color:var(--text2);background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:2px 8px">${fd(d.data)} · ${_rcEscHtml(d.cliente || 'sem nome')} · ${d.conv} conv. · <strong style="color:var(--text)">${d.qty}</strong></span>`
     ).join('')}
@@ -833,9 +848,9 @@ function _rcHistResultadosHTML() {
             Auditoria · ${auditBev} · ${dados.length} evento${dados.length!==1?'s':''} · ${_rcHistGrupo||'todos os tipos'}${convLabel}
           </div>
           <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:13px">
-            <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Mínimo</div><strong style="color:var(--text);font-size:18px">${mn}</strong></div>
+            <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Mínimo</div><strong style="color:var(--text);font-size:18px">${mn}</strong>${_rcQuemTeve(dados, mn)}</div>
             <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Médio</div><strong style="color:var(--text);font-size:18px">${Math.ceil(avgQty)}</strong></div>
-            <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Máximo</div><strong style="color:var(--text);font-size:18px">${mx}</strong></div>
+            <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Máximo</div><strong style="color:var(--text);font-size:18px">${mx}</strong>${_rcQuemTeve(dados, mx)}</div>
             <div style="text-align:center;background:rgba(196,98,45,.12);border-radius:6px;padding:4px 16px"><div style="font-size:10px;color:var(--blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Sugestão</div><strong style="color:var(--blue);font-size:22px">${sug}</strong></div>
             ${_rcSugOrcCardHTML(dados)}
           </div>
