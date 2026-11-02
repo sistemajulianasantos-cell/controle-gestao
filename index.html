@@ -1,3 +1,4 @@
+    D.compraUso             = r.compraUso             || {};
 ﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -248,6 +249,9 @@
         <div class="nav-item" data-page="comparativo" data-modulo="estoque" onclick="go('comparativo')">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12l4-4 3 3 5-6"/><circle cx="2" cy="12" r="1"/><circle cx="6" cy="8" r="1"/><circle cx="9" cy="11" r="1"/><circle cx="14" cy="5" r="1"/></svg>
           Comparativo
+        </div>
+        <div class="nav-item" data-page="compra-uso" data-modulo="estoque" onclick="go('compra-uso')">
+          Comprado x Utilizado
         </div>
         <div class="nav-item" data-page="precos" data-modulo="estoque" onclick="go('precos')">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v1.5M8 9.5V11M6.5 6.5a1.5 1.5 0 0 1 3 0c0 1-1.5 1.5-1.5 2.5"/></svg>
@@ -585,6 +589,15 @@
           </table>
         </div>
       </div>
+    </div>
+
+    <!-- ═══ COMPRADO x UTILIZADO ═══ -->
+    <div id="page-compra-uso" class="page">
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+        <button class="sort-btn active" id="cu-tab-mes" onclick="cuSetView('mes')">Comprado x Utilizado</button>
+        <button class="sort-btn" id="cu-tab-sug" onclick="cuSetView('sug')">Sugestão de compra</button>
+      </div>
+      <div id="cu-body"></div>
     </div>
 
     <!-- ═══ COMPARATIVO DE PREÇOS ═══ -->
@@ -2462,7 +2475,7 @@
 <script src="js/festas.js?v=20261012e"></script>
 <script src="js/relatorio.js?v=20260610z"></script>
 <script src="js/fornecedores.js?v=20261012e"></script>
-<script src="js/nav.js?v=20261026b"></script>
+<script src="js/nav.js?v=20261102a"></script>
 <script src="js/auth.js?v=20260930a"></script>
 <script src="js/contratos.js?v=20261027a"></script>
 <script src="js/agenda.js?v=20261012e"></script>
@@ -2479,6 +2492,7 @@
 <script src="js/fechamentoMensal.js?v=20261012e"></script>
 <script src="js/insumos.js?v=20260930a"></script>
 <script src="js/estoqueSeparacao.js?v=20260901d"></script>
+<script src="js/compraUso.js?v=20261102a"></script>
 <script src="js/cargos.js?v=20260713b"></script>
 <script src="js/regras.js?v=20261016b"></script>
 <script src="js/opcionais.js?v=20261015b"></script>
@@ -2590,6 +2604,7 @@ window.svFirebase = async function(chave) {
     if(chave==='rcEventosImportados')campo.rcEventosImportados = D.rcEventosImportados;
     if(chave==='rcEventosExcluidos') campo.rcEventosExcluidos  = D.rcEventosExcluidos;
     if(chave==='rcConfig')           campo.rcConfig            = D.rcConfig;
+    if(chave==='compraUso')          campo.compraUso           = D.compraUso;
     if(chave==='despesas')           campo.despesas            = D.despesas;
     if(chave==='categoriasDespesas') campo.categoriasDespesas  = D.categoriasDespesas;
     if(chave==='fechamentos')        campo.fechamentos         = D.fechamentos;
