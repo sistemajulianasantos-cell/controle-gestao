@@ -684,21 +684,15 @@ function _rcSugOrcCalc(dados) {
 var _rcSugOrcAberto = false;
 function _rcSugOrcToggle() { _rcSugOrcAberto = !_rcSugOrcAberto; _rcHistRefresh(); }
 
-// Mínimo/Máximo: tocar no número mostra de qual festa ele veio (a lista de
-// baixo é paginada e não fica em ordem de quantidade, então era difícil
-// achar). Fica escondido até tocar, pra não encher a tela (pedido 11-02).
+// Mínimo/Máximo: tocar no número filtra a lista de festas de baixo só pra
+// festa(s) com aquela quantidade — a lista é paginada e não fica em ordem de
+// quantidade, então era difícil achar (pedido 11-02). Tocar de novo volta.
 var _rcQuemAberto = '';
-function _rcQuemToggle(qual) { _rcQuemAberto = _rcQuemAberto === qual ? '' : qual; _rcHistRefresh(); }
+function _rcQuemToggle(qual) { _rcQuemAberto = _rcQuemAberto === qual ? '' : qual; _rcHistPage = 0; _rcHistRefresh(); }
 function _rcNumQuem(dados, valor, qual) {
-  return `<strong onclick="_rcQuemToggle('${qual}')" title="Tocar para ver o cliente" style="color:var(--text);font-size:18px;cursor:pointer;text-decoration:underline dotted">${valor}</strong>` +
-    (_rcQuemAberto === qual ? _rcQuemTeve(dados, valor) : '');
-}
-function _rcQuemTeve(dados, valor) {
-  const quem = dados.filter(d => d.qty === valor).sort((a, b) => (b.data || '').localeCompare(a.data || ''));
-  if (!quem.length) return '';
-  const d = quem[0];
-  const data = d.data ? d.data.split('-').reverse().join('/') : 'sem data';
-  return `<div style="font-size:10px;color:var(--text3);margin-top:2px;max-width:170px;line-height:1.3">${_rcEscHtml(d.cliente || 'sem nome')} · ${data}${quem.length > 1 ? ' (+' + (quem.length - 1) + ')' : ''}</div>`;
+  const ativo = _rcQuemAberto === qual;
+  return `<strong onclick="_rcQuemToggle('${qual}')" title="${ativo ? 'Voltar a mostrar todas as festas' : 'Mostrar na lista abaixo a festa com essa quantidade'}"
+    style="font-size:18px;cursor:pointer;text-decoration:underline dotted;padding:0 6px;border-radius:4px;${ativo ? 'color:#fff;background:var(--blue)' : 'color:var(--text)'}">${valor}</strong>`;
 }
 
 function _rcSugOrcCardHTML(dados) {
@@ -864,8 +858,17 @@ function _rcHistResultadosHTML() {
           <div style="margin-top:8px;font-size:10px;color:var(--text3)">Sugestão = (Médio + Máximo) ÷ 2 = (${_rcNum(avgQty)} + ${mx}) ÷ 2 = ${_rcNum((avgQty + mx) / 2)} → arredonda pra cima · total histórico: ${totalQty} unid. em ${dados.length} eventos</div>
           ${_rcSugOrcRodapeHTML(dados)}
         </div>`;
+      // Tocou no Mínimo/Máximo: a lista abaixo mostra só a(s) festa(s) com esse valor.
+      if (_rcQuemAberto) {
+        const alvo = _rcQuemAberto === 'min' ? mn : mx;
+        filtrados = filtrados.filter(e => parseFloat((e.consumo || {})[auditBev] || 0) === alvo);
+        auditSummary += `<div style="margin:-6px 0 14px;font-size:12px;color:var(--blue)">
+          Mostrando abaixo só a festa do ${_rcQuemAberto === 'min' ? 'mínimo' : 'máximo'} (${alvo} ${_rcEscHtml(auditBev)}).
+          <a href="#" onclick="_rcQuemToggle('${_rcQuemAberto}');return false" style="color:var(--blue);margin-left:6px">Mostrar todas</a></div>`;
+      }
     }
   }
+  if (!auditBev) _rcQuemAberto = '';
 
   const total  = filtrados.length;
   const inicio = _rcHistPage * RC_HIST_PER_PAGE;
@@ -982,12 +985,12 @@ function _rcHistResultadosHTML() {
 
 function _rcHistSetPage(p)           { _rcHistPage = p; _rcHistRefresh(); }
 function _rcHistFiltrar(g)           { _rcHistGrupo = g; _rcHistPage = 0; _rcHistRefresh(); }
-function _rcHistFiltrarInsumo(v)     { _rcHistInsumo = v; _rcHistPage = 0; _rcHistRefresh(); }
+function _rcHistFiltrarInsumo(v)     { _rcHistInsumo = v; _rcHistPage = 0; _rcQuemAberto = ''; _rcHistRefresh(); }
 function _rcHistFiltrarConvMin(v)    { _rcHistConvMin = v; _rcHistPage = 0; _rcHistRefresh(); }
 function _rcHistFiltrarConvMax(v)    { _rcHistConvMax = v; _rcHistPage = 0; _rcHistRefresh(); }
 function _rcHistFiltrarObs(v)        { _rcHistObs = v; _rcHistPage = 0; _rcHistRefresh(); }
 function _rcHistFiltrarCliente(v)    { _rcHistCliente = v; _rcHistPage = 0; _rcHistRefresh(); }
-function _rcHistLimparFiltros()      { _rcHistGrupo=''; _rcHistInsumo=''; _rcHistConvMin=''; _rcHistConvMax=''; _rcHistObs=''; _rcHistCliente=''; _rcHistPage=0; rRefConsumo(); }
+function _rcHistLimparFiltros()      { _rcQuemAberto=''; _rcHistGrupo=''; _rcHistInsumo=''; _rcHistConvMin=''; _rcHistConvMax=''; _rcHistObs=''; _rcHistCliente=''; _rcHistPage=0; rRefConsumo(); }
 
 function _rcHistToggleSel(id) {
   if (_rcHistSelecionados.has(id)) _rcHistSelecionados.delete(id);
