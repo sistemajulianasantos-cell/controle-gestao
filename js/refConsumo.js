@@ -16,6 +16,7 @@ var _rcHistConvMin   = '';
 var _rcHistConvMax   = '';
 var _rcHistObs       = '';
 var _rcHistCliente   = '';
+var _rcHistDe = '', _rcHistAte = ''; // filtro de período (AAAA-MM-DD), pedido 11-02
 var _rcGruposVisiveis = ['CASAMENTO','ANIVERSÁRIO','FORMATURA'];
 var _rcHistSelecionados = new Set();
 const RC_HIST_PER_PAGE = 50;
@@ -605,6 +606,18 @@ function _rcBuildEventos() {
         style="width:160px;padding:6px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px"
         oninput="_rcHistFiltrarObs(this.value)">
     </div>
+    <div style="display:flex;flex-direction:column;gap:3px">
+      <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Período de</label>
+      <input type="date" value="${_rcHistDe}"
+        style="padding:5px 8px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px"
+        onchange="_rcHistFiltrarPeriodo('de',this.value)">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:3px">
+      <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">até</label>
+      <input type="date" value="${_rcHistAte}"
+        style="padding:5px 8px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px"
+        onchange="_rcHistFiltrarPeriodo('ate',this.value)">
+    </div>
     <button class="btn" id="rc-hist-limpar" style="color:var(--text3);font-size:11px;align-self:flex-end;${_rcHistTemFiltro()?'':'display:none'}" onclick="_rcHistLimparFiltros()">✕ Limpar filtros</button>
   </div>
 
@@ -615,7 +628,7 @@ function _rcBuildEventos() {
 }
 
 function _rcHistTemFiltro() {
-  return !!(_rcHistCliente.trim() || _rcHistGrupo || _rcHistConvMin!=='' || _rcHistConvMax!=='' || _rcHistInsumo.trim() || _rcHistObs.trim());
+  return !!(_rcHistDe || _rcHistAte || _rcHistCliente.trim() || _rcHistGrupo || _rcHistConvMin!=='' || _rcHistConvMax!=='' || _rcHistInsumo.trim() || _rcHistObs.trim());
 }
 
 function _rcHistRefresh() {
@@ -813,6 +826,13 @@ function _rcHistResultadosHTML() {
     const termObs = _rcHistObs.toLowerCase().trim();
     filtrados = filtrados.filter(e => (e.observacao||'').toLowerCase().includes(termObs));
   }
+  if (_rcHistDe || _rcHistAte) {
+    filtrados = filtrados.filter(e => {
+      const d = _rcDataIso(e.data);
+      if (!d) return false; // sem data não entra num período escolhido
+      return (!_rcHistDe || d >= _rcHistDe) && (!_rcHistAte || d <= _rcHistAte);
+    });
+  }
 
   // Modo auditoria: detecta o insumo exato sendo pesquisado
   const insumoTerm = _rcHistInsumo.toLowerCase().trim();
@@ -990,7 +1010,8 @@ function _rcHistFiltrarConvMin(v)    { _rcHistConvMin = v; _rcHistPage = 0; _rcH
 function _rcHistFiltrarConvMax(v)    { _rcHistConvMax = v; _rcHistPage = 0; _rcHistRefresh(); }
 function _rcHistFiltrarObs(v)        { _rcHistObs = v; _rcHistPage = 0; _rcHistRefresh(); }
 function _rcHistFiltrarCliente(v)    { _rcHistCliente = v; _rcHistPage = 0; _rcHistRefresh(); }
-function _rcHistLimparFiltros()      { _rcQuemAberto=''; _rcHistGrupo=''; _rcHistInsumo=''; _rcHistConvMin=''; _rcHistConvMax=''; _rcHistObs=''; _rcHistCliente=''; _rcHistPage=0; rRefConsumo(); }
+function _rcHistFiltrarPeriodo(campo, v) { if (campo === 'de') _rcHistDe = v || ''; else _rcHistAte = v || ''; _rcHistPage = 0; _rcHistRefresh(); }
+function _rcHistLimparFiltros()      { _rcQuemAberto=''; _rcHistDe=''; _rcHistAte=''; _rcHistGrupo=''; _rcHistInsumo=''; _rcHistConvMin=''; _rcHistConvMax=''; _rcHistObs=''; _rcHistCliente=''; _rcHistPage=0; rRefConsumo(); }
 
 function _rcHistToggleSel(id) {
   if (_rcHistSelecionados.has(id)) _rcHistSelecionados.delete(id);
