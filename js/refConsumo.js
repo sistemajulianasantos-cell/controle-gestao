@@ -684,8 +684,15 @@ function _rcSugOrcCalc(dados) {
 var _rcSugOrcAberto = false;
 function _rcSugOrcToggle() { _rcSugOrcAberto = !_rcSugOrcAberto; _rcHistRefresh(); }
 
-// Embaixo do Mínimo/Máximo: de qual festa veio o número (a lista de baixo é
-// paginada e não fica em ordem de quantidade, então era difícil achar).
+// Mínimo/Máximo: tocar no número mostra de qual festa ele veio (a lista de
+// baixo é paginada e não fica em ordem de quantidade, então era difícil
+// achar). Fica escondido até tocar, pra não encher a tela (pedido 11-02).
+var _rcQuemAberto = '';
+function _rcQuemToggle(qual) { _rcQuemAberto = _rcQuemAberto === qual ? '' : qual; _rcHistRefresh(); }
+function _rcNumQuem(dados, valor, qual) {
+  return `<strong onclick="_rcQuemToggle('${qual}')" title="Tocar para ver o cliente" style="color:var(--text);font-size:18px;cursor:pointer;text-decoration:underline dotted">${valor}</strong>` +
+    (_rcQuemAberto === qual ? _rcQuemTeve(dados, valor) : '');
+}
 function _rcQuemTeve(dados, valor) {
   const quem = dados.filter(d => d.qty === valor).sort((a, b) => (b.data || '').localeCompare(a.data || ''));
   if (!quem.length) return '';
@@ -848,9 +855,9 @@ function _rcHistResultadosHTML() {
             Auditoria · ${auditBev} · ${dados.length} evento${dados.length!==1?'s':''} · ${_rcHistGrupo||'todos os tipos'}${convLabel}
           </div>
           <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:13px">
-            <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Mínimo</div><strong style="color:var(--text);font-size:18px">${mn}</strong>${_rcQuemTeve(dados, mn)}</div>
+            <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Mínimo</div>${_rcNumQuem(dados, mn, 'min')}</div>
             <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Médio</div><strong style="color:var(--text);font-size:18px">${Math.ceil(avgQty)}</strong></div>
-            <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Máximo</div><strong style="color:var(--text);font-size:18px">${mx}</strong>${_rcQuemTeve(dados, mx)}</div>
+            <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Máximo</div>${_rcNumQuem(dados, mx, 'max')}</div>
             <div style="text-align:center;background:rgba(196,98,45,.12);border-radius:6px;padding:4px 16px"><div style="font-size:10px;color:var(--blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Sugestão</div><strong style="color:var(--blue);font-size:22px">${sug}</strong></div>
             ${_rcSugOrcCardHTML(dados)}
           </div>
