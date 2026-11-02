@@ -194,29 +194,40 @@ function _cuStatusEstoque() {
 }
 
 // ─── CONTROLES ──────────────────────────────────────────────────────────────
+// Seleção: 'AAAA-MM' (um mês) ou 'todos-AAAA' (todos os meses daquele ano).
 function _cuMesAtualSelecionado(prefixo) {
   var m = document.getElementById(prefixo + '-mes');
   var a = document.getElementById(prefixo + '-ano');
-  if (m && m.value === 'todos') return 'todos';
+  if (m && m.value === 'todos') return 'todos-' + (a && a.value);
   return (a && a.value) + '-' + (m && m.value);
 }
+function _cuEhTodos(sel) { return String(sel || '').indexOf('todos-') === 0; }
 
-function _cuOpcoesMesAno(prefixo, anoMes, onchange, comTodos) {
-  var todos = anoMes === 'todos';
-  var p = todos ? [String(new Date().getFullYear()), ''] : anoMes.split('-');
-  var anoSel = parseInt(p[0], 10);
-  var anos = [];
-  for (var a = 2025; a <= Math.max(anoSel, new Date().getFullYear() + 1); a++) anos.push(a);
+// Anos com compra (Entrada de NF) ou utilizado preenchido.
+function _cuAnosComDados() {
+  var anos = {};
+  (D.entradas || []).forEach(function(e) { var m = _cuMesDe(e.data); if (m) anos[m.slice(0, 4)] = 1; });
+  Object.keys(_cuDados().meses).forEach(function(m) { anos[m.slice(0, 4)] = 1; });
+  return Object.keys(anos);
+}
+
+// anosExtras: anos que entram na lista mesmo sem dado (ex.: ano que vem, na Sugestão).
+function _cuOpcoesMesAno(prefixo, anoMes, onchange, comTodos, anosExtras) {
+  var todos = _cuEhTodos(anoMes);
+  var anoSel = todos ? anoMes.slice(6) : anoMes.split('-')[0];
+  var mesSel = todos ? '' : anoMes.split('-')[1];
+  var anos = {};
+  _cuAnosComDados().concat(anosExtras || [], [anoSel]).forEach(function(a) { anos[a] = 1; });
+  anos = Object.keys(anos).sort();
   return '<div><label class="lbl">Mês</label><select id="' + prefixo + '-mes" class="inp" style="width:150px" onchange="' + onchange + '">' +
     (comTodos ? '<option value="todos"' + (todos ? ' selected' : '') + '>Todos os meses</option>' : '') +
     _CU_MESES.map(function(n, i) {
       var v = String(i + 1).padStart(2, '0');
-      return '<option value="' + v + '"' + (v === p[1] ? ' selected' : '') + '>' + n + '</option>';
+      return '<option value="' + v + '"' + (v === mesSel ? ' selected' : '') + '>' + n + '</option>';
     }).join('') + '</select></div>' +
-    (todos ? '' :
     '<div><label class="lbl">Ano</label><select id="' + prefixo + '-ano" class="inp" style="width:90px" onchange="' + onchange + '">' +
     anos.map(function(a) { return '<option value="' + a + '"' + (a === anoSel ? ' selected' : '') + '>' + a + '</option>'; }).join('') +
-    '</select></div>');
+    '</select></div>';
 }
 
 function _cuCard(titulo, valor, sub, cor) {
@@ -241,7 +252,7 @@ function rCompraUso() {
   document.getElementById('cu-tab-mes').classList.toggle('active', _cuView === 'mes');
   document.getElementById('cu-tab-sug').classList.toggle('active', _cuView === 'sug');
   if (_cuView === 'sug') _cuRenderSugestao(cont);
-  else if (_cuMesSel === 'todos') _cuRenderTodos(cont);
+  else if (_cuEhTodos(_cuMesSel)) _cuRenderTodos(cont, _cuMesSel.slice(6));
   else _cuRenderMes(cont);
 }
 function cuSetView(v) { _cuView = v; rCompraUso(); }
@@ -340,21 +351,22 @@ function _cuRenderMes(cont) {
 }
 
 // ─── ABA 1 / TODOS OS MESES: tabela produto × mês ───────────────────────────
-function _cuMesesComDados() {
+function _cuMesesComDados(ano) {
   var meses = {};
-  (D.entradas || []).forEach(function(e) { var m = _cuMesDe(e.data); if (m) meses[m] = 1; });
-  Object.keys(_cuDados().meses).forEach(function(m) { meses[m] = 1; });
+  var doAno = function(m) { if (m && m.slice(0, 4) === ano) meses[m] = 1; };
+  (D.entradas || []).forEach(function(e) { doAno(_cuMesDe(e.data)); });
+  Object.keys(_cuDados().meses).forEach(doAno);
   var lista = Object.keys(meses).sort();
   if (!lista.length) return [];
-  // Sequência contínua do primeiro mês com dado até o último (mês sem compra aparece zerado).
+  // Só o ano escolhido; sequência contínua do primeiro mês com dado até o último (mês sem compra aparece zerado).
   var r = [], m = lista[0], fim = lista[lista.length - 1];
   while (m <= fim && r.length < 120) { r.push(m); m = _cuSomaMes(m, 1); }
   return r;
 }
 
-function _cuRenderTodos(cont) {
+function _cuRenderTodos(cont, ano) {
   var busca = _cuBusca();
-  var meses = _cuMesesComDados();
+  var meses = _cuMesesComDados(ano);
   var mapa = _cuMapaProdutos();
   var porMes = meses.map(function(m) {
     return { anoMes: m, ev: _cuEventosMes(m).qtd, comprado: _cuCompradoMes(m), utilizado: _cuUtilizadoMes(m) };
@@ -381,7 +393,7 @@ function _cuRenderTodos(cont) {
   var totalEv = porMes.reduce(function(s, pm) { return s + pm.ev; }, 0);
   var html =
     '<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">' +
-      _cuOpcoesMesAno('cu-m', 'todos', _CU_ONCHANGE_MES, true) +
+      _cuOpcoesMesAno('cu-m', 'todos-' + ano, _CU_ONCHANGE_MES, true) +
     '</div>' +
     '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">' +
       _cuCard('Meses', meses.length, meses.length ? _cuLabel(meses[0]) + ' a ' + _cuLabel(meses[meses.length - 1]) : '') +
@@ -390,7 +402,7 @@ function _cuRenderTodos(cont) {
     '</div>' +
     '<div class="sec">' +
       '<div class="sec-head" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
-        '<span class="sec-title">Comprado x Utilizado — todos os meses</span>' +
+        '<span class="sec-title">Comprado x Utilizado — todos os meses de ' + ano + '</span>' +
         _cuCampoBusca(busca) +
       '</div>' +
       '<div style="font-size:11px;color:var(--text3);padding:8px 16px 0">Em cada mês: C = comprado, U = utilizado (em vermelho quando usou mais do que comprou). Embaixo do mês, quantos eventos ele teve. Ordenado pela maior movimentação no período. Para preencher o utilizado, escolha o mês acima. ' + _cuStatusEstoque() + '</div>';
@@ -541,7 +553,7 @@ function _cuRenderSugestao(cont) {
   var html =
     '<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">' +
       '<div style="font-size:12px;color:var(--text2);padding-bottom:9px">Comprar para</div>' +
-      _cuOpcoesMesAno('cu-s', alvo, '_cuAlvo=_cuMesAtualSelecionado(\'cu-s\');_cuEventosPrevistos=null;rCompraUso()', false) +
+      _cuOpcoesMesAno('cu-s', alvo, '_cuAlvo=_cuMesAtualSelecionado(\'cu-s\');_cuEventosPrevistos=null;rCompraUso()', false, [String(new Date().getFullYear()), String(new Date().getFullYear() + 1)]) +
       '<div><label class="lbl">Eventos previstos</label><input id="cu-evprev" class="inp" type="number" min="0" style="width:100px" value="' + evPrev + '" onchange="_cuEventosPrevistos=Math.max(0,parseInt(this.value,10)||0);rCompraUso()"></div>' +
       '<div><label class="lbl">Base: últimos meses</label><input class="inp" type="number" min="1" max="12" style="width:90px" value="' + nBase + '" onchange="cuSalvarBase(this.value)"></div>' +
       (_cuEventosPrevistos != null && _cuEventosPrevistos !== evAgenda
