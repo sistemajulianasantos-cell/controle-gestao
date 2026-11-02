@@ -317,6 +317,7 @@ function rRefConsumo() {
   if      (_rcView==='tabela')  el.innerHTML = _rcBuildTabela();
   else if (_rcView==='eventos') el.innerHTML = _rcBuildEventos();
   else if (_rcView==='novo')    el.innerHTML = _rcBuildNovo();
+  else if (_rcView==='festas')  el.innerHTML = _rcBuildFestas();
 }
 
 // ── VIEW: TABELA (comparativa) ────────────────────────────────────────────────
@@ -395,6 +396,7 @@ function _rcBuildTabela() {
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn" onclick="_rcSetView('eventos')">Histórico</button>
+      <button class="btn" onclick="_rcSetView('festas')">Festas</button>
       <button class="btn" onclick="_rcSetView('novo')">+ Lançar manual</button>
     </div>
   </div>
@@ -564,6 +566,7 @@ function _rcBuildEventos() {
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
     <button class="btn" onclick="_rcSetView('tabela')">← Tabela</button>
     <div style="font-size:18px;font-weight:600;color:var(--text)">Histórico de Eventos</div>
+    <button class="btn" onclick="_rcSetView('festas')">Festas</button>
     <button class="btn" style="background:var(--green);border-color:var(--green);color:#000;font-weight:600;margin-left:auto" onclick="_rcSetView('novo')">+ Manual</button>
   </div>
 
@@ -1516,3 +1519,157 @@ function _rcSetConvFaixa(lado, v) {
   const info = document.getElementById('rc-conv-info'); if (info) info.textContent = _rcFaixaInfo();
 }
 function _rcSetFiltro(v) { _rcFiltro=v; const tb=document.getElementById('rc-cmp-tbody'); if(tb) tb.innerHTML=_rcBuildComparativaRows(); }
+
+// ─── VIEW: FESTAS (complemento do Histórico, sem insumos) ───────────────────
+// Pedido 11-02: quantas festas teve no mês, listagem de todas, filtro mês /
+// ano / cliente. Mesmos eventos do Histórico (manuais + de fechamento).
+// "Na agenda" = contratos não cancelados do mês, pra ver o que falta lançar.
+var _rcFestMes = '', _rcFestAno = null, _rcFestCliente = '';
+var _RC_FEST_MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+function _rcFestTodas() {
+  return [
+    ..._rcGetEventos().map(e => ({...e, _fonte:'manual'})),
+    ..._rcGetEventosDasFestas().map(e => ({...e, _fonte:'fechamento'})),
+  ].map(e => ({...e, _iso: _rcDataIso(e.data)}));
+}
+
+function _rcBuildFestas() {
+  const todas = _rcFestTodas();
+  const anos = [...new Set(todas.map(e => e._iso.slice(0, 4)).filter(Boolean))].sort();
+  if (_rcFestAno === null) _rcFestAno = anos.length ? anos[anos.length - 1] : '';
+  const sel = 'padding:6px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px';
+  const lbl = 'font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px';
+  return `
+<div style="padding:20px 24px;max-width:1200px">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+    <button class="btn" onclick="_rcSetView('tabela')">← Tabela</button>
+    <div style="font-size:18px;font-weight:600;color:var(--text)">Festas</div>
+    <button class="btn" style="margin-left:auto" onclick="_rcSetView('eventos')">Histórico</button>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;padding:12px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)">
+    <div style="display:flex;flex-direction:column;gap:3px">
+      <label style="${lbl}">Mês</label>
+      <select style="${sel};min-width:140px" onchange="_rcFestMes=this.value;_rcFestRefresh()">
+        <option value="">Todos os meses</option>
+        ${_RC_FEST_MESES.map((n, i) => { const v = String(i + 1).padStart(2, '0'); return `<option value="${v}"${_rcFestMes===v?' selected':''}>${n}</option>`; }).join('')}
+      </select>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:3px">
+      <label style="${lbl}">Ano</label>
+      <select style="${sel};min-width:100px" onchange="_rcFestAno=this.value;_rcFestRefresh()">
+        <option value=""${_rcFestAno===''?' selected':''}>Todos</option>
+        ${anos.map(a => `<option value="${a}"${_rcFestAno===a?' selected':''}>${a}</option>`).join('')}
+      </select>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:3px">
+      <label style="${lbl}">Cliente</label>
+      <input type="text" placeholder="Buscar cliente" value="${_rcEscHtml(_rcFestCliente).replace(/"/g, '&quot;')}" style="${sel};width:200px" oninput="_rcFestCliente=this.value;_rcFestRefresh()">
+    </div>
+    <button class="btn" style="margin-left:auto" onclick="_rcFestMes='';_rcFestAno='';_rcFestCliente='';rRefConsumo()">Limpar filtros</button>
+  </div>
+  <div id="rc-fest-res">${_rcFestResultadosHTML(todas)}</div>
+</div>`;
+}
+
+// Redesenha só os resultados (filtros não perdem o foco ao digitar).
+function _rcFestRefresh() {
+  const el = document.getElementById('rc-fest-res');
+  if (el) el.innerHTML = _rcFestResultadosHTML(_rcFestTodas());
+  else rRefConsumo();
+}
+
+function _rcFestResultadosHTML(todas) {
+  const termo = (_rcFestCliente || '').toLowerCase().trim();
+  const lista = todas.filter(e => {
+    if (_rcFestAno && e._iso.slice(0, 4) !== _rcFestAno) return false;
+    if (_rcFestMes && e._iso.slice(5, 7) !== _rcFestMes) return false;
+    if (termo && !(e.cliente || '').toLowerCase().includes(termo)) return false;
+    return true;
+  }).sort((a, b) => (b._iso || '').localeCompare(a._iso || ''));
+
+  const conv = lista.reduce((s, e) => s + (parseFloat(e.convidados) || 0), 0);
+  const porTipo = {};
+  lista.forEach(e => { const t = e.grupo || 'Sem tipo'; porTipo[t] = (porTipo[t] || 0) + 1; });
+  const tipos = Object.entries(porTipo).sort((a, b) => b[1] - a[1]);
+
+  const card = (t, v, s) => `<div style="flex:1;min-width:150px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:8px">
+      <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase">${t}</div>
+      <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--text);margin-top:4px">${v}</div>
+      ${s ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">${s}</div>` : ''}</div>`;
+  const fmt = n => Number(n || 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+
+  let html = `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+    ${card('Festas', lista.length, termo ? 'com esse cliente' : '')}
+    ${card('Convidados', fmt(conv), '')}
+    ${card('Média de convidados', lista.length ? fmt(conv / lista.length) : '—', 'por festa')}
+    ${card('Tipos', tipos.length, tipos.slice(0, 3).map(([t, n]) => _rcEscHtml(t) + ' ' + n).join(' · '))}
+  </div>`;
+
+  // Resumo por mês quando não há mês escolhido (cada linha leva ao mês).
+  if (!_rcFestMes) {
+    const meses = {};
+    lista.forEach(e => {
+      const m = e._iso.slice(0, 7);
+      if (!m) return;
+      if (!meses[m]) meses[m] = { n: 0, conv: 0 };
+      meses[m].n++;
+      meses[m].conv += parseFloat(e.convidados) || 0;
+    });
+    const chaves = Object.keys(meses).sort().reverse();
+    if (chaves.length) {
+      const naAgenda = m => (D.contratos || []).filter(c => c.status !== 'cancelado' && _rcDataIso(c.data).slice(0, 7) === m).length;
+      html += `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;margin-bottom:16px;overflow-x:auto">
+        <div style="padding:10px 14px;font-size:12px;font-weight:600;color:var(--text);border-bottom:1px solid var(--border)">Festas por mês</div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="color:var(--text3);font-size:10px;text-transform:uppercase;border-bottom:1px solid var(--border)">
+            <th style="text-align:left;padding:8px 14px">Mês</th>
+            <th style="text-align:right;padding:8px 10px">Festas</th>
+            <th style="text-align:right;padding:8px 10px">Na agenda</th>
+            <th style="text-align:right;padding:8px 10px">Convidados</th>
+            <th style="text-align:right;padding:8px 14px">Média conv.</th>
+          </tr></thead><tbody>
+          ${chaves.map(m => {
+            const ag = termo ? null : naAgenda(m);
+            const falta = ag != null && ag > meses[m].n;
+            return `<tr style="border-bottom:1px solid var(--border);cursor:pointer" title="Ver as festas deste mês"
+                onclick="_rcFestAno='${m.slice(0, 4)}';_rcFestMes='${m.slice(5, 7)}';rRefConsumo()">
+              <td style="padding:7px 14px;color:var(--blue)">${_RC_FEST_MESES[parseInt(m.slice(5, 7), 10) - 1]} ${m.slice(0, 4)}</td>
+              <td style="padding:7px 10px;text-align:right;font-family:var(--mono);font-weight:700">${meses[m].n}</td>
+              <td style="padding:7px 10px;text-align:right;font-family:var(--mono);color:${falta ? 'var(--amber)' : 'var(--text3)'}">${ag == null ? '—' : ag}${falta ? ' (faltam ' + (ag - meses[m].n) + ')' : ''}</td>
+              <td style="padding:7px 10px;text-align:right;font-family:var(--mono)">${fmt(meses[m].conv)}</td>
+              <td style="padding:7px 14px;text-align:right;font-family:var(--mono)">${fmt(meses[m].conv / meses[m].n)}</td>
+            </tr>`;
+          }).join('')}
+          </tbody></table>
+        <div style="padding:8px 14px;font-size:11px;color:var(--text3)">Festas = lançadas na Estimativa (manual ou fechamento). Na agenda = contratos do mês; em amarelo quando ainda falta lançar festa. Clique no mês para ver as festas.</div>
+      </div>`;
+    }
+  }
+
+  html += `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow-x:auto">
+    <div style="padding:10px 14px;font-size:12px;font-weight:600;color:var(--text);border-bottom:1px solid var(--border)">Todas as festas (${lista.length})</div>`;
+  if (!lista.length) {
+    html += `<div style="padding:16px;font-size:12px;color:var(--text3)">Nenhuma festa com esses filtros.</div></div>`;
+    return html;
+  }
+  html += `<table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="color:var(--text3);font-size:10px;text-transform:uppercase;border-bottom:1px solid var(--border)">
+        <th style="text-align:left;padding:8px 14px">Data</th>
+        <th style="text-align:left;padding:8px 10px">Cliente</th>
+        <th style="text-align:left;padding:8px 10px">Tipo</th>
+        <th style="text-align:right;padding:8px 10px">Convidados</th>
+        <th style="text-align:left;padding:8px 10px">Origem</th>
+        <th style="text-align:left;padding:8px 14px">Observação</th>
+      </tr></thead><tbody>
+      ${lista.map(e => `<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:7px 14px;font-family:var(--mono);white-space:nowrap">${e._iso ? fd(e._iso) : _rcEscHtml(e.data || '—')}</td>
+        <td style="padding:7px 10px;color:var(--text)">${_rcEscHtml(e.cliente || '—')}</td>
+        <td style="padding:7px 10px;color:var(--text2)">${_rcEscHtml(e.grupo || '—')}</td>
+        <td style="padding:7px 10px;text-align:right;font-family:var(--mono)">${fmt(e.convidados)}</td>
+        <td style="padding:7px 10px;color:var(--text3)">${e._fonte === 'manual' ? 'Manual' : 'Fechamento'}</td>
+        <td style="padding:7px 14px;font-size:11px;color:var(--text3)">${_rcEscHtml(e.observacao || '')}</td>
+      </tr>`).join('')}
+      </tbody></table></div>`;
+  return html;
+}
