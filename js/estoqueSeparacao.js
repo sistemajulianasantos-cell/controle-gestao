@@ -77,6 +77,7 @@ async function confirmarLoginSeparacao() {
     await _carregarEstoqueSeparacao();
     _rEstoqueSeparacaoStatus();
     if (typeof rCadastroInsumos === 'function') rCadastroInsumos();
+    if (typeof _cuIniciarEstoqueAoVivo === 'function') _cuIniciarEstoqueAoVivo(true); // tela Comprado x Utilizado
     alert2('Estoque do Sistema Separação conectado!');
   } catch (e) {
     var CODIGOS_CREDENCIAL_INVALIDA = ['auth/wrong-password','auth/user-not-found','auth/invalid-credential','auth/invalid-login-credentials'];

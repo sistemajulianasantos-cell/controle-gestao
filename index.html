@@ -2490,8 +2490,8 @@
 <script src="js/medidas.js?v=20260929a"></script>
 <script src="js/fechamentoMensal.js?v=20261012e"></script>
 <script src="js/insumos.js?v=20260930a"></script>
-<script src="js/estoqueSeparacao.js?v=20260901d"></script>
-<script src="js/compraUso.js?v=20261102a"></script>
+<script src="js/estoqueSeparacao.js?v=20261102a"></script>
+<script src="js/compraUso.js?v=20261102b"></script>
 <script src="js/cargos.js?v=20260713b"></script>
 <script src="js/regras.js?v=20261016b"></script>
 <script src="js/opcionais.js?v=20261015b"></script>
@@ -3067,7 +3067,7 @@ signInAnonymously(auth)
 // não precisa logar de novo toda vez.
 import { initializeApp as _initAppSep }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore as _getFirestoreSep, collection as _collectionSep, getDocs as _getDocsSep }
+import { getFirestore as _getFirestoreSep, collection as _collectionSep, getDocs as _getDocsSep, onSnapshot as _onSnapshotSep }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth as _getAuthSep, signInWithEmailAndPassword as _signInSep, onAuthStateChanged as _onAuthStateChangedSep }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -3149,6 +3149,21 @@ window.buscarEstoqueSeparacao = async function () {
     return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   } catch (e) {
     console.error("Erro ao ler estoque do Sistema Separação:", e);
+    return null;
+  }
+};
+
+// Só leitura, ao vivo — chama cb(lista) a cada mudança no estoque; cb(null) se
+// der erro (sessão caiu, sem permissão). Devolve a função que para de escutar.
+window.escutarEstoqueSeparacao = function (cb) {
+  if (!dbSeparacao || !authSeparacao || !authSeparacao.currentUser) { cb(null); return null; }
+  try {
+    return _onSnapshotSep(_collectionSep(dbSeparacao, "estoque"),
+      (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+      (e) => { console.error("Erro ao escutar estoque do Sistema Separação:", e); cb(null); });
+  } catch (e) {
+    console.error("Erro ao escutar estoque do Sistema Separação:", e);
+    cb(null);
     return null;
   }
 };
