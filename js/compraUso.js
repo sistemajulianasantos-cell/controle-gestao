@@ -167,20 +167,42 @@ function _cuEventosEstimativa() {
   return (D.rcEventos || []).filter(function(e) { return excl.indexOf(e.id) < 0; });
 }
 
-// { uso: { chave: qtd }, eventos: nº de eventos lançados no mês }
+// { uso: { chave: qtd }, eventos: nº de eventos lançados no mês,
+//   lista: [{ conv, uso: { chave: qtd } }] — por festa, pra conta por convidado }
 function _cuUsoMes(anoMes) {
-  var uso = {}, n = 0;
+  var uso = {}, n = 0, lista = [];
   _cuEventosEstimativa().forEach(function(e) {
     if (!_cuNoMes(e.data, anoMes)) return;
     n++;
+    var usoEv = {};
     Object.keys(e.consumo || {}).forEach(function(nome) {
       var q = parseFloat(e.consumo[nome]) || 0;
       if (q <= 0) return;
       var k = _cuCanon(nome);
       uso[k] = (uso[k] || 0) + q;
+      usoEv[k] = (usoEv[k] || 0) + q;
     });
+    lista.push({ conv: parseFloat(e.convidados) || 0, uso: usoEv });
   });
-  return { uso: uso, eventos: n };
+  return { uso: uso, eventos: n, lista: lista };
+}
+
+// Consumo de uma festa = parte fixa + taxa × convidados (linha média pelos
+// pontos convidados × consumo das festas lançadas; festa que não usou o item
+// entra com 0). Festa pequena gasta proporcionalmente mais (abertura de bar,
+// mínimo de garrafas), por isso a parte fixa. Se a linha sair torta (poucas
+// festas, taxa ou parte fixa negativa), cai pro proporcional: total ÷ convidados.
+function _cuReta(pontos) {
+  var n = pontos.length, sx = 0, sy = 0, sxx = 0, sxy = 0;
+  pontos.forEach(function(p) { sx += p[0]; sy += p[1]; sxx += p[0] * p[0]; sxy += p[0] * p[1]; });
+  if (!n || !sx) return null;
+  var den = n * sxx - sx * sx;
+  if (n >= 3 && den > 0) {
+    var taxa = (n * sxy - sx * sy) / den;
+    var fixo = (sy - taxa * sx) / n;
+    if (taxa >= 0 && fixo >= 0) return { fixo: fixo, taxa: taxa, metodo: 'reta', n: n };
+  }
+  return { fixo: 0, taxa: sy / sx, metodo: 'proporcional', n: n };
 }
 
 // ─── UNIDADE QUEBRADA (quantidade com fração: 2,5 / 0,75) ───────────────────
@@ -264,7 +286,7 @@ function cuDetalheUtilizado(anoMes, chave) {
 
 function _cuResumoMes(anoMes) {
   var u = _cuUsoMes(anoMes);
-  return { anoMes: anoMes, agenda: _cuEventosMes(anoMes), lancados: u.eventos, uso: u.uso, comprado: _cuCompradoMes(anoMes) };
+  return { anoMes: anoMes, agenda: _cuEventosMes(anoMes), lancados: u.eventos, uso: u.uso, lista: u.lista, comprado: _cuCompradoMes(anoMes) };
 }
 
 // ─── ESTOQUE AO VIVO (Sistema Separação) ────────────────────────────────────
@@ -637,7 +659,7 @@ function _cuRenderTodos(cont, ano) {
         celulas +
         '<td style="' + sep + 'padding:5px 8px;text-align:right;font-family:var(--mono);font-weight:700">' + _cuNum(t.c) + '</td>' +
         '<td style="padding:5px 8px;text-align:right;font-family:var(--mono);font-weight:700">' + _cuNum(t.u) + '</td>' +
-        '<td style="' + sep + 'padding:5px 8px;text-align:right;font-family:var(--mono)">' + fN(Math.ceil(t.c / meses.length - 1e-9)) + '</td>' +
+        '<td style="' + sep + 'padding:5px 8px;text-align:right;font-family:var(--mono)">' + fN(Math.max(0, Math.ceil(t.c / meses.length - 1e-9))) + '</td>' +
         '<td style="padding:5px 8px;text-align:right;font-family:var(--mono)">' + (totalLanc ? '<span title="' + _cuNum(t.u) + ' utilizados ÷ ' + totalLanc + ' festas lançadas">' + _cuNum(t.u / totalLanc) + '</span>' : '—') + '</td>' +
         '<td style="padding:5px 12px;text-align:right;font-family:var(--mono)">' + _cuEstoqueCelula(info) + '</td>' +
       '</tr>';
@@ -651,23 +673,33 @@ function _cuRenderTodos(cont, ano) {
 // ─── ABA 2: SUGESTÃO DE COMPRA ──────────────────────────────────────────────
 var _cuAlvo = null;
 var _cuEventosPrevistos = null; // null = usa o que está na agenda
+var _cuConvPrevistos = null;    // idem, soma de convidados da agenda
 
 function _cuRenderSugestao(cont) {
   var dados = _cuDados();
   if (!_cuAlvo) _cuAlvo = _cuSomaMes(_cuAnoMes(new Date()), 1); // padrão: próximo mês
   var alvo = _cuAlvo;
   var nBase = Math.max(1, Math.min(12, parseInt(dados.baseMeses, 10) || 3));
+  var porConv = dados.metodo !== 'festa'; // padrão: por convidado
   var busca = _cuBusca();
   var soAbaixo = !!(document.getElementById('cu-abaixo') || {}).checked;
 
-  var evAgenda = _cuEventosMes(alvo).qtd;
+  var agAlvo = _cuEventosMes(alvo);
+  var evAgenda = agAlvo.qtd;
   var evPrev = _cuEventosPrevistos != null ? _cuEventosPrevistos : evAgenda;
+  var convAgenda = agAlvo.convidados;
+  var convPrev = _cuConvPrevistos != null ? _cuConvPrevistos : convAgenda;
 
   // Meses-base: os N meses imediatamente antes do mês a comprar.
   var base = [];
   for (var i = nBase; i >= 1; i--) base.push(_cuResumoMes(_cuSomaMes(alvo, -i)));
   var totalAgendaBase = base.reduce(function(s, m) { return s + m.agenda.qtd; }, 0);
   var totalLancBase = base.reduce(function(s, m) { return s + m.lancados; }, 0);
+  // Festas lançadas da base que têm convidados (pontos da conta por convidado).
+  var festasBase = [];
+  base.forEach(function(m) { m.lista.forEach(function(f) { if (f.conv > 0) festasBase.push(f); }); });
+  var convBase = festasBase.reduce(function(s, f) { return s + f.conv; }, 0);
+  var usarConv = porConv && festasBase.length > 0;
 
   var mapa = _cuMapaProdutos();
   var chaves = {};
@@ -696,6 +728,10 @@ function _cuRenderSugestao(cont) {
     if (totalLancBase) { porEvento = somaUso / totalLancBase; fonte = 'uso'; }
     else if (totalAgendaBase) { porEvento = somaComp / totalAgendaBase; fonte = 'compra'; }
     var previsto = porEvento != null ? porEvento * evPrev : mediaCompra;
+    // Por convidado: cada festa prevista = parte fixa + taxa × convidados →
+    // no mês: festas × parte fixa + taxa × total de convidados.
+    var reta = usarConv ? _cuReta(festasBase.map(function(f) { return [f.conv, f.uso[k] || 0]; })) : null;
+    if (reta) previsto = evPrev * reta.fixo + reta.taxa * convPrev;
     var minimo = info.ins ? (Number(info.ins.estoqueMinimo) || 0) : 0;
 
     var est = null;
@@ -703,7 +739,7 @@ function _cuRenderSugestao(cont) {
     else if (_cuTem(_cuEstoqueManual, k)) est = _cuEstoqueManual[k];
     var sugestao = Math.max(0, Math.ceil(previsto + minimo - (est || 0)));
     var abaixo = est != null && minimo > 0 && est < minimo;
-    return { k: k, info: info, mediaCompra: mediaCompra, porEvento: porEvento, fonte: fonte,
+    return { k: k, info: info, mediaCompra: mediaCompra, porEvento: porEvento, fonte: fonte, reta: reta,
       previsto: previsto, minimo: minimo, est: est, sugestao: sugestao, abaixo: abaixo,
       mov: somaComp + somaUso };
   });
@@ -723,10 +759,14 @@ function _cuRenderSugestao(cont) {
       '<div style="font-size:12px;color:var(--text2);padding-bottom:9px">Comprar para</div>' +
       _cuOpcoesMesAno('cu-s', alvo, '_cuAlvo=_cuMesAtualSelecionado(\'cu-s\');_cuEventosPrevistos=null;rCompraUso()', false, [String(anoAtual), String(anoAtual + 1)]) +
       '<div><label class="lbl">Eventos previstos</label><input id="cu-evprev" class="inp" type="number" min="0" style="width:100px" value="' + evPrev + '" onchange="_cuEventosPrevistos=Math.max(0,parseInt(this.value,10)||0);rCompraUso()"></div>' +
+      '<div><label class="lbl">Convidados previstos</label><input class="inp" type="number" min="0" style="width:120px" value="' + convPrev + '" onchange="_cuConvPrevistos=Math.max(0,parseInt(this.value,10)||0);rCompraUso()"></div>' +
+      '<div><label class="lbl">Calcular por</label><select class="inp" style="width:140px" onchange="cuSalvarMetodo(this.value)">' +
+        '<option value="convidado"' + (porConv ? ' selected' : '') + '>Convidados</option>' +
+        '<option value="festa"' + (!porConv ? ' selected' : '') + '>Festas</option></select></div>' +
       '<div><label class="lbl">Base: últimos meses</label><input class="inp" type="number" min="1" max="12" style="width:90px" value="' + nBase + '" onchange="cuSalvarBase(this.value)"></div>' +
-      (_cuEventosPrevistos != null && _cuEventosPrevistos !== evAgenda
-        ? '<button class="btn-sm" style="background:var(--bg3);border:1px solid var(--border2)" onclick="_cuEventosPrevistos=null;rCompraUso()">Voltar para os ' + evAgenda + ' da agenda</button>'
-        : '<div style="font-size:11px;color:var(--text3);padding-bottom:9px">' + evAgenda + ' evento(s) na agenda de ' + nomeAlvo + '</div>') +
+      ((_cuEventosPrevistos != null && _cuEventosPrevistos !== evAgenda) || (_cuConvPrevistos != null && _cuConvPrevistos !== convAgenda)
+        ? '<button class="btn-sm" style="background:var(--bg3);border:1px solid var(--border2)" onclick="_cuEventosPrevistos=null;_cuConvPrevistos=null;rCompraUso()">Voltar para a agenda (' + evAgenda + ' eventos, ' + fN(convAgenda) + ' conv.)</button>'
+        : '<div style="font-size:11px;color:var(--text3);padding-bottom:9px">Agenda de ' + nomeAlvo + ': ' + evAgenda + ' evento(s), ' + fN(convAgenda) + ' convidados</div>') +
     '</div>' +
     '<div class="sec" style="margin-bottom:14px">' +
       '<div class="sec-head"><span class="sec-title">Meses usados como base</span></div>' +
@@ -736,17 +776,23 @@ function _cuRenderSugestao(cont) {
             '<div style="font-size:11px;color:var(--text3)">' + _cuLabel(m.anoMes) + '</div>' +
             '<div style="font-size:16px;font-weight:700;font-family:var(--mono)">' + m.agenda.qtd + ' eventos</div>' +
             '<div style="font-size:11px">' + _cuCoberturaTxt(m.lancados, m.agenda.qtd) + '</div>' +
+            '<div style="font-size:11px;color:var(--text3)">' + fN(m.agenda.convidados) + ' conv. na agenda</div>' +
           '</div>';
         }).join('') +
         '<div style="border:1px solid var(--blue);border-radius:var(--radius);padding:8px 12px;min-width:140px">' +
           '<div style="font-size:11px;color:var(--text3)">' + _cuLabel(alvo) + ' (a comprar)</div>' +
           '<div style="font-size:16px;font-weight:700;font-family:var(--mono);color:var(--blue)">' + evPrev + ' eventos</div>' +
-          '<div style="font-size:11px;color:var(--text3)">' + (proporcao != null ? _cuNum(proporcao * 100) + '% da média da base' : 'base sem eventos') + '</div>' +
+          '<div style="font-size:11px;color:var(--text3)">' + fN(convPrev) + ' convidados' + (evPrev ? ' · média ' + fN(Math.round(convPrev / evPrev)) + ' por festa' : '') + '</div>' +
+          '<div style="font-size:11px;color:var(--text3)">' + (proporcao != null ? _cuNum(proporcao * 100) + '% dos eventos da base' : 'base sem eventos') + '</div>' +
         '</div>' +
       '</div>' +
       '<div style="font-size:11px;color:var(--text3);padding:0 16px 12px;line-height:1.5">' +
-        'Uso por festa = consumo lançado na Estimativa de Bebidas ÷ festas lançadas nos meses-base (sem nenhum lançado, usa o comprado ÷ eventos da agenda — marcado "pela compra"). ' +
-        'Previsto = uso por evento × eventos previstos. Sugestão = previsto + mínimo − estoque atual, arredondado para cima.' +
+        (usarConv
+          ? '<strong style="color:var(--text2)">Por convidados:</strong> com as ' + festasBase.length + ' festas lançadas da base (' + fN(convBase) + ' convidados), cada item ganha uma conta "parte fixa por festa + taxa por convidado" — festa pequena gasta proporcionalmente mais. ' +
+            'Previsto = festas previstas × parte fixa + taxa × convidados previstos. Assim dá para prever até tamanho de festa que nunca teve. Passe o mouse em "Por 100 conv." para ver a conta do item. '
+          : (porConv ? '<span style="color:var(--amber)">Nenhuma festa lançada com convidados na base — calculando por festas.</span> ' : '') +
+            'Uso por festa = consumo lançado na Estimativa de Bebidas ÷ festas lançadas nos meses-base (sem nenhum lançado, usa o comprado ÷ eventos da agenda — marcado "pela compra"). Previsto = uso por festa × eventos previstos. ') +
+        'Sugestão = previsto + mínimo − estoque atual, arredondado para cima.' +
       '</div>' +
     '</div>';
 
@@ -776,7 +822,8 @@ function _cuRenderSugestao(cont) {
       '<th style="text-align:left;padding:8px 6px">Un</th>' +
       '<th style="text-align:right;padding:8px 10px">Média compra/mês</th>' +
       '<th style="text-align:right;padding:8px 10px">Uso por festa</th>' +
-      '<th style="text-align:right;padding:8px 10px">Previsto (' + evPrev + ' ev.)</th>' +
+      (usarConv ? '<th style="text-align:right;padding:8px 10px">Por 100 conv.</th>' : '') +
+      '<th style="text-align:right;padding:8px 10px">Previsto (' + evPrev + ' ev.' + (usarConv ? ' · ' + fN(convPrev) + ' conv.' : '') + ')</th>' +
       '<th style="text-align:right;padding:8px 10px">Mínimo</th>' +
       '<th style="text-align:right;padding:8px 10px">Estoque atual</th>' +
       '<th style="text-align:right;padding:8px 12px">Comprar</th>' +
@@ -791,8 +838,9 @@ function _cuRenderSugestao(cont) {
       return '<tr style="border-bottom:1px solid var(--border);' + (l.abaixo ? 'background:rgba(240,90,90,.06)' : '') + '">' +
         '<td style="padding:6px 12px;color:var(--text)">' + _cuEsc(l.info.nome) + (l.abaixo ? ' <span style="font-size:10px;font-weight:600;color:var(--red)">ABAIXO DO MÍNIMO</span>' : '') + '</td>' +
         '<td style="padding:6px 6px;color:var(--text3)">' + _cuEsc(_cuUn(l.info)) + '</td>' +
-        '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + fN(Math.ceil(l.mediaCompra - 1e-9)) + '</td>' +
+        '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + fN(Math.max(0, Math.ceil(l.mediaCompra - 1e-9))) + '</td>' +
         '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + porEvTxt + '</td>' +
+        (usarConv ? '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + _cuCelPorConv(l.reta, evPrev, convPrev) + '</td>' : '') +
         '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + _cuNum(l.previsto) + '</td>' +
         '<td style="padding:4px 10px;text-align:right">' + minCampo + '</td>' +
         '<td style="padding:4px 10px;text-align:right">' + estCampo + '</td>' +
@@ -803,6 +851,24 @@ function _cuRenderSugestao(cont) {
     _cuCaixaSemCadastro(semCad);
 
   cont.innerHTML = html;
+}
+
+// "Por 100 conv." com a conta do item no mouse.
+function _cuCelPorConv(reta, evPrev, convPrev) {
+  if (!reta) return '<span style="color:var(--text3)">—</span>';
+  var tit = reta.metodo === 'reta'
+    ? 'Parte fixa ' + _cuNum(reta.fixo) + ' por festa + ' + _cuNum(reta.taxa * 100) + ' a cada 100 convidados (' + reta.n + ' festas). ' +
+      'Previsto: ' + evPrev + ' festa(s) × ' + _cuNum(reta.fixo) + ' + ' + _cuNum(reta.taxa * 100) + ' × (' + convPrev + ' ÷ 100) = ' + _cuNum(evPrev * reta.fixo + reta.taxa * convPrev)
+    : 'Proporcional: total utilizado ÷ convidados das ' + reta.n + ' festas = ' + _cuNum(reta.taxa * 100) + ' a cada 100 convidados. ' +
+      'Previsto: ' + _cuNum(reta.taxa * 100) + ' × (' + convPrev + ' ÷ 100) = ' + _cuNum(reta.taxa * convPrev);
+  return '<span title="' + _cuEsc(tit) + '" style="cursor:help;text-decoration:underline dotted">' + _cuNum(reta.taxa * 100) + '</span>' +
+    (reta.metodo === 'reta' && reta.fixo > 0 ? '<div style="font-size:10px;color:var(--text3)">+ ' + _cuNum(reta.fixo) + '/festa</div>' : '');
+}
+
+function cuSalvarMetodo(v) {
+  _cuDados().metodo = v === 'festa' ? 'festa' : 'convidado';
+  sv('compraUso');
+  rCompraUso();
 }
 
 function cuSalvarBase(v) {
