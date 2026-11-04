@@ -866,7 +866,7 @@ function _cuCelPorConv(reta, evPrev, convPrev) {
       'Previsto: ' + evPrev + ' festa(s) × ' + _cuDec(reta.fixo) + ' + ' + _cuDec(reta.taxa * 100) + ' × (' + convPrev + ' ÷ 100) = ' + _cuDec(evPrev * reta.fixo + reta.taxa * convPrev)
     : 'Proporcional: total utilizado ÷ convidados das ' + reta.n + ' festas = ' + _cuDec(reta.taxa * 100) + ' a cada 100 convidados. ' +
       'Previsto: ' + _cuDec(reta.taxa * 100) + ' × (' + convPrev + ' ÷ 100) = ' + _cuDec(reta.taxa * convPrev);
-  return '<span title="' + _cuEsc(tit) + '" style="cursor:help;text-decoration:underline dotted">' + (reta.taxa > 0 && reta.taxa * 100 < 0.5 ? '<1' : _cuNum(reta.taxa * 100)) + '</span>' +
+  return '<span title="' + _cuEsc(tit) + '" style="cursor:help;text-decoration:underline dotted">' + (reta.taxa > 0 && reta.taxa * 100 < 0.5 ? '&lt;1' : _cuNum(reta.taxa * 100)) + '</span>' +
     (reta.metodo === 'reta' && reta.fixo > 0 ? '<div style="font-size:10px;color:var(--text3)">+ ' + _cuNum(reta.fixo) + '/festa</div>' : '');
 }
 
