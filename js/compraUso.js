@@ -30,10 +30,15 @@ function _cuEsc(s) {
   });
 }
 function _cuJs(s) { return String(s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
-function _cuNum(n) {
+// Na tela tudo inteiro (pedido 11-04). _cuDec mantém 2 casas só onde a fração
+// importa: lista de unidade quebrada, detalhe por festa e contas no mouse.
+function _cuDec(n) {
   var v = Math.round(Number(n || 0) * 100) / 100;
   return v.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 }
+function _cuNum(n) { return Math.round(Number(n || 0)).toLocaleString('pt-BR'); }
+// Quantidade de compra/uso: arredonda pra cima (garrafa aberta = garrafa usada).
+function _cuQtd(n) { return Math.max(0, Math.ceil(Number(n || 0) - 1e-9)).toLocaleString('pt-BR'); }
 function _cuNorm(nome) {
   return String(nome || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
     .toUpperCase().replace(/\s+/g, ' ').trim();
@@ -257,7 +262,7 @@ function _cuBlocoQuebrados(meses) {
           '<td style="padding:5px 8px;color:var(--text3)">' + x.origem + '</td>' +
           '<td style="padding:5px 8px">' + _cuEsc(x.ref) + '</td>' +
           '<td style="padding:5px 8px">' + _cuEsc(x.item) + '</td>' +
-          '<td style="padding:5px 16px;text-align:right;font-family:var(--mono);font-weight:700;color:var(--amber)">' + _cuNum(x.qtd) + '</td>' +
+          '<td style="padding:5px 16px;text-align:right;font-family:var(--mono);font-weight:700;color:var(--amber)">' + _cuDec(x.qtd) + '</td>' +
         '</tr>';
       }).join('') +
     '</tbody></table></div></details>';
@@ -278,8 +283,8 @@ function cuDetalheUtilizado(anoMes, chave) {
     linhas.push({ iso: _cuIso(e.data), data: _cuDataBr(e.data), cliente: e.cliente || '—', q: q });
   });
   linhas.sort(function(a, b) { return a.iso.localeCompare(b.iso); });
-  var txt = _cuInfo(mapa, chave).nome + ' — ' + _cuLabel(anoMes) + '\nUtilizado ' + _cuNum(total) + ' em ' + linhas.length + ' festa(s):\n\n' +
-    linhas.map(function(l) { return l.data + '  ·  ' + l.cliente + '  ·  ' + _cuNum(l.q) + (_cuEhQuebrado(l.q) ? '   (quebrado)' : ''); }).join('\n');
+  var txt = _cuInfo(mapa, chave).nome + ' — ' + _cuLabel(anoMes) + '\nUtilizado ' + _cuDec(total) + ' em ' + linhas.length + ' festa(s):\n\n' +
+    linhas.map(function(l) { return l.data + '  ·  ' + l.cliente + '  ·  ' + _cuDec(l.q) + (_cuEhQuebrado(l.q) ? '   (quebrado)' : ''); }).join('\n');
   if (typeof sisDialogo === 'function') sisDialogo(txt, function() {}, { ok: 'Fechar' });
   else alert(txt);
 }
@@ -534,18 +539,18 @@ function _cuRenderMes(cont) {
       var info = _cuInfo(mapa, k);
       var c = r.comprado[k] || 0;
       var u = r.uso[k] || 0;
-      var dif = c - u;
+      var dif = Math.ceil(c - 1e-9) - Math.ceil(u - 1e-9); // mesmos números inteiros mostrados na linha
       var difTxt = !r.lancados ? '<span style="color:var(--text3)">—</span>'
         : dif > 0 ? '<span style="color:var(--green)">sobrou ' + _cuNum(dif) + '</span>'
         : dif < 0 ? '<span style="color:var(--amber)">usou ' + _cuNum(-dif) + ' do estoque</span>'
         : '<span style="color:var(--text3)">igual</span>';
-      var porEv = r.lancados ? '<span title="' + _cuNum(u) + ' utilizados ÷ ' + r.lancados + ' festas lançadas">' + _cuNum(u / r.lancados) + '</span>' : '—';
+      var porEv = r.lancados ? '<span title="' + _cuDec(u) + ' utilizados ÷ ' + r.lancados + ' festas lançadas = ' + _cuDec(u / r.lancados) + '">' + _cuNum(u / r.lancados) + '</span>' : '—';
       return '<tr style="border-bottom:1px solid var(--border)">' +
         '<td style="padding:6px 12px;color:var(--text)">' + _cuEsc(info.nome) + '</td>' +
         '<td style="padding:6px 6px;color:var(--text3)">' + _cuEsc(_cuUn(info)) + '</td>' +
-        '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + (c ? _cuNum(c) : '<span style="color:var(--text3)">0</span>') + '</td>' +
+        '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + (c ? _cuQtd(c) : '<span style="color:var(--text3)">0</span>') + '</td>' +
         '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + (u
-          ? '<span style="cursor:pointer;text-decoration:underline dotted;' + (_cuEhQuebrado(u) ? 'color:var(--amber)' : '') + '" title="Ver de quais festas veio" onclick="cuDetalheUtilizado(\'' + anoMes + '\',\'' + _cuJs(k) + '\')">' + _cuNum(u) + '</span>'
+          ? '<span style="cursor:pointer;text-decoration:underline dotted;' + (_cuEhQuebrado(u) ? 'color:var(--amber)' : '') + '" title="Ver de quais festas veio" onclick="cuDetalheUtilizado(\'' + anoMes + '\',\'' + _cuJs(k) + '\')">' + _cuQtd(u) + '</span>'
           : '<span style="color:var(--text3)">0</span>') + '</td>' +
         '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + difTxt + '</td>' +
         '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + porEv + '</td>' +
@@ -651,16 +656,16 @@ function _cuRenderTodos(cont, ano) {
       var celulas = porMes.map(function(pm) {
         var c = pm.comprado[k] || 0;
         var u = pm.uso[k] || 0;
-        return '<td style="' + sep + 'padding:5px 8px;text-align:right;font-family:var(--mono);' + (c ? '' : 'color:var(--text3)') + '">' + (c ? _cuNum(c) : '·') + '</td>' +
-          '<td style="padding:5px 8px;text-align:right;font-family:var(--mono);' + (!u ? 'color:var(--text3)' : u > c ? 'color:var(--red)' : '') + '">' + (u ? _cuNum(u) : '·') + '</td>';
+        return '<td style="' + sep + 'padding:5px 8px;text-align:right;font-family:var(--mono);' + (c ? '' : 'color:var(--text3)') + '">' + (c ? _cuQtd(c) : '·') + '</td>' +
+          '<td style="padding:5px 8px;text-align:right;font-family:var(--mono);' + (!u ? 'color:var(--text3)' : u > c ? 'color:var(--red)' : '') + '">' + (u ? _cuQtd(u) : '·') + '</td>';
       }).join('');
       return '<tr style="border-bottom:1px solid var(--border)">' +
         '<td style="' + stickyTd + 'padding:5px 12px;color:var(--text);white-space:nowrap">' + _cuEsc(info.nome) + '</td>' +
         celulas +
-        '<td style="' + sep + 'padding:5px 8px;text-align:right;font-family:var(--mono);font-weight:700">' + _cuNum(t.c) + '</td>' +
-        '<td style="padding:5px 8px;text-align:right;font-family:var(--mono);font-weight:700">' + _cuNum(t.u) + '</td>' +
+        '<td style="' + sep + 'padding:5px 8px;text-align:right;font-family:var(--mono);font-weight:700">' + _cuQtd(t.c) + '</td>' +
+        '<td style="padding:5px 8px;text-align:right;font-family:var(--mono);font-weight:700">' + _cuQtd(t.u) + '</td>' +
         '<td style="' + sep + 'padding:5px 8px;text-align:right;font-family:var(--mono)">' + fN(Math.max(0, Math.ceil(t.c / meses.length - 1e-9))) + '</td>' +
-        '<td style="padding:5px 8px;text-align:right;font-family:var(--mono)">' + (totalLanc ? '<span title="' + _cuNum(t.u) + ' utilizados ÷ ' + totalLanc + ' festas lançadas">' + _cuNum(t.u / totalLanc) + '</span>' : '—') + '</td>' +
+        '<td style="padding:5px 8px;text-align:right;font-family:var(--mono)">' + (totalLanc ? '<span title="' + _cuDec(t.u) + ' utilizados ÷ ' + totalLanc + ' festas lançadas = ' + _cuDec(t.u / totalLanc) + '">' + _cuNum(t.u / totalLanc) + '</span>' : '—') + '</td>' +
         '<td style="padding:5px 12px;text-align:right;font-family:var(--mono)">' + _cuEstoqueCelula(info) + '</td>' +
       '</tr>';
     }).join('') +
@@ -841,7 +846,7 @@ function _cuRenderSugestao(cont) {
         '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + fN(Math.max(0, Math.ceil(l.mediaCompra - 1e-9))) + '</td>' +
         '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + porEvTxt + '</td>' +
         (usarConv ? '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + _cuCelPorConv(l.reta, evPrev, convPrev) + '</td>' : '') +
-        '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + _cuNum(l.previsto) + '</td>' +
+        '<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">' + _cuQtd(l.previsto) + '</td>' +
         '<td style="padding:4px 10px;text-align:right">' + minCampo + '</td>' +
         '<td style="padding:4px 10px;text-align:right">' + estCampo + '</td>' +
         '<td style="padding:6px 12px;text-align:right;font-family:var(--mono);font-weight:700;color:' + (l.sugestao > 0 ? 'var(--green)' : 'var(--text3)') + '">' + fN(l.sugestao) + '</td>' +
@@ -857,11 +862,11 @@ function _cuRenderSugestao(cont) {
 function _cuCelPorConv(reta, evPrev, convPrev) {
   if (!reta) return '<span style="color:var(--text3)">—</span>';
   var tit = reta.metodo === 'reta'
-    ? 'Parte fixa ' + _cuNum(reta.fixo) + ' por festa + ' + _cuNum(reta.taxa * 100) + ' a cada 100 convidados (' + reta.n + ' festas). ' +
-      'Previsto: ' + evPrev + ' festa(s) × ' + _cuNum(reta.fixo) + ' + ' + _cuNum(reta.taxa * 100) + ' × (' + convPrev + ' ÷ 100) = ' + _cuNum(evPrev * reta.fixo + reta.taxa * convPrev)
-    : 'Proporcional: total utilizado ÷ convidados das ' + reta.n + ' festas = ' + _cuNum(reta.taxa * 100) + ' a cada 100 convidados. ' +
-      'Previsto: ' + _cuNum(reta.taxa * 100) + ' × (' + convPrev + ' ÷ 100) = ' + _cuNum(reta.taxa * convPrev);
-  return '<span title="' + _cuEsc(tit) + '" style="cursor:help;text-decoration:underline dotted">' + _cuNum(reta.taxa * 100) + '</span>' +
+    ? 'Parte fixa ' + _cuDec(reta.fixo) + ' por festa + ' + _cuDec(reta.taxa * 100) + ' a cada 100 convidados (' + reta.n + ' festas). ' +
+      'Previsto: ' + evPrev + ' festa(s) × ' + _cuDec(reta.fixo) + ' + ' + _cuDec(reta.taxa * 100) + ' × (' + convPrev + ' ÷ 100) = ' + _cuDec(evPrev * reta.fixo + reta.taxa * convPrev)
+    : 'Proporcional: total utilizado ÷ convidados das ' + reta.n + ' festas = ' + _cuDec(reta.taxa * 100) + ' a cada 100 convidados. ' +
+      'Previsto: ' + _cuDec(reta.taxa * 100) + ' × (' + convPrev + ' ÷ 100) = ' + _cuDec(reta.taxa * convPrev);
+  return '<span title="' + _cuEsc(tit) + '" style="cursor:help;text-decoration:underline dotted">' + (reta.taxa > 0 && reta.taxa * 100 < 0.5 ? '<1' : _cuNum(reta.taxa * 100)) + '</span>' +
     (reta.metodo === 'reta' && reta.fixo > 0 ? '<div style="font-size:10px;color:var(--text3)">+ ' + _cuNum(reta.fixo) + '/festa</div>' : '');
 }
 
