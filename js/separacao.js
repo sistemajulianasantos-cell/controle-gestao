@@ -188,6 +188,9 @@ function _sepCanonizarLinhas(todosItens) {
       var k = _sepNormNome(l.item);
       var ja = porNome[k];
       if (!ja) { porNome[k] = l; return true; }
+      // Linha somada de duas origens deixa de ser "só da regra de equipe".
+      if (!ja.regraId && !(ja.qtd > 0) && l.regraId) ja.regraId = l.regraId;
+      else if (l.regraId || l.qtd > 0) ja.regraId = null;
       ja.qtd = (ja.qtd || 0) + (l.qtd || 0);
       (l.coqueteis || []).forEach(function(c) { if (!ja.coqueteis) ja.coqueteis = []; if (ja.coqueteis.indexOf(c) === -1) ja.coqueteis.push(c); });
       if (l.doCardapio) ja.doCardapio = true;
@@ -262,6 +265,7 @@ function _sepRenomeiaLinha(todosItens, de, para) {
   if (!origem) return;
   var destino = _sepLinhaMontada(todosItens, para);
   if (destino && destino !== origem) {
+    if (origem.regraId || origem.qtd > 0) destino.regraId = null;
     destino.qtd = (destino.qtd || 0) + (origem.qtd || 0);
     (origem.coqueteis || []).forEach(function(c) { if (destino.coqueteis.indexOf(c) === -1) destino.coqueteis.push(c); });
     if (origem.doCardapio) destino.doCardapio = true;
@@ -361,6 +365,7 @@ function _sepQtdCell(it, catAttr, itemAttr, valor, corTexto) {
   var emCaixa = m > 1;
   var valMostrado = emCaixa ? _sepUnParaCaixa(valor, m) : valor;
   return '<input type="number" value="' + valMostrado + '" min="0" step="1" data-item="' + itemAttr + '" data-cat="' + catAttr + '"' +
+    (it.regraId ? ' data-regra="' + String(it.regraId).replace(/"/g, '') + '"' : '') +
     (emCaixa ? ' data-cxsize="' + m + '" title="Em caixas (cada caixa = ' + m + ' un)"' : '') +
     ' style="font-size:12px;font-weight:600;padding:4px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:' + (corTexto || 'var(--text)') + ';text-align:center;font-family:var(--mono)">';
 }
@@ -610,8 +615,12 @@ function sepCarregarProducao(prodId) {
     if (r.soSeCardapio && !itensDoCardapio) return;
     if (!todosItens[r.cat]) todosItens[r.cat] = [];
     var qtd = calcQtdItem(r, conv, bartenders, equipeTotal, cargoCounts, { semArredondarEmbalagem: true });
+    var baseEf = _regraBaseEfetiva(r).base;
     todosItens[r.cat].push({
       item: r.item, qtd: qtd,
+      // Regra por equipe/cargo: a linha acompanha ao vivo a EQUIPE da folha
+      // (_sepRecalcPorEquipe) quando ela muda a quantidade de pessoas.
+      regraId: (baseEf === 'equipe' || baseEf === 'cargo') ? r.id : null,
       calcInfo: _sepExplicaRegra(r, conv, equipe, bartenders, equipeTotal, cargoCounts),
       doCardapio: !!itensDoCardapio,
       coqueteis: coquetelDoItem || [],
@@ -1078,6 +1087,7 @@ function sepCarregarProducao(prodId) {
     cont._assocListener = true;
     cont.addEventListener('input', function(e) {
       if (e.target && e.target.matches && e.target.matches('[data-item]')) {
+        if (e.target.dataset.cat === 'EQUIPE') _sepRecalcPorEquipe();
         _sepRecalcAssociacoes();
         _sepSyncConvCaixa(e.target);
       }
@@ -1089,7 +1099,43 @@ function sepCarregarProducao(prodId) {
   }
   window._sepProdAberta = prodId;
   _sepRestaurarEditados(prodId);
+  // EQUIPE mexida antes de um redesenho (marcar coquetel, opcional…): o
+  // cálculo acima usou a equipe do evento, refaz com a que está na folha.
+  var _edit = window._sepEditadosMap && window._sepEditadosMap[prodId];
+  if (_edit && Object.keys(_edit.qtd).some(function(k){ return k.indexOf('EQUIPE||') === 0; })) _sepRecalcPorEquipe();
   _sepRecalcAssociacoes();
+}
+
+// Ela muda a EQUIPE na folha (ex: 2 → 3 Bartenders): as linhas calculadas por
+// equipe/cargo acompanham na hora — e, via _sepRecalcAssociacoes, os itens que
+// seguem essas linhas. Linha que ela digitou à mão nesta sessão não é mexida.
+function _sepRecalcPorEquipe() {
+  var wrap = document.getElementById('sep-form-campos');
+  if (!wrap) return;
+  var equipe = [];
+  wrap.querySelectorAll('input[data-cat="EQUIPE"][data-item]').forEach(function(inp) {
+    equipe.push({ cargo: inp.dataset.item, qtd: parseInt(inp.value) || 0 });
+  });
+  var conv = parseInt(document.getElementById('sep-conv')?.value) || 0;
+  var bartenders = equipe.filter(function(e){ return (e.cargo || '').toLowerCase().includes('bartender'); })
+    .reduce(function(s, e){ return s + e.qtd; }, 0) || Math.max(1, Math.ceil(conv / 30));
+  var equipeTotal = equipe.reduce(function(s, e){ return s + e.qtd; }, 0) || bartenders;
+  var cargoCounts = equipe.length ? _sepCargoCounts(equipe) : null;
+  var bt = document.getElementById('sep-bt'); if (bt) bt.value = bartenders;
+  var te = document.getElementById('sep-total-equipe'); if (te) te.value = equipeTotal;
+
+  var editados = (window._sepEditadosMap && window._sepEditadosMap[window._sepProdAberta]) || { qtd: {} };
+  var regras = getRegrasItens();
+  wrap.querySelectorAll('input[data-regra]').forEach(function(inp) {
+    if (Object.prototype.hasOwnProperty.call(editados.qtd, inp.dataset.cat + '||' + inp.dataset.item)) return;
+    var r = regras.find(function(x){ return x.id === inp.dataset.regra; });
+    if (!r) return;
+    var qtd = calcQtdItem(r, conv, bartenders, equipeTotal, cargoCounts, { semArredondarEmbalagem: true });
+    var m = parseFloat(inp.dataset.cxsize) || 0;
+    if (m > 1) qtd = _sepUnParaCaixa(_sepArredondaCaixa(inp.dataset.item, qtd), m);
+    inp.value = qtd;
+    _sepSyncConvCaixa(inp);
+  });
 }
 
 // Tudo que ela digitou/escolheu à mão na folha e ainda não salvou. Marcar um
