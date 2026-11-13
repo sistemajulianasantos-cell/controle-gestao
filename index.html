@@ -2514,7 +2514,7 @@
 
 <script type="module">
 import { initializeApp }    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, deleteDoc, writeBatch, onSnapshot }
+import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, deleteDoc, writeBatch, onSnapshot, query, where, documentId }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, signInAnonymously }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -2595,7 +2595,7 @@ window.svFirebase = async function(chave) {
     if(chave==='escalas')           campo.escalas           = D.escalas;
     if(chave==='regrasEquipe')      campo.regrasEquipe      = D.regrasEquipe;
     if(chave==='pagamentosEquipe')  campo.pagamentosEquipe  = D.pagamentosEquipe;
-    if(chave==='orcamentos')         campo.orcamentos          = D.orcamentos;
+    if (chave === 'orcamentos') await _gravarOrcamentos();
     if(chave==='solicitacoesOrcamento') campo.solicitacoesOrcamento = D.solicitacoesOrcamento;
     if(chave==='degustacoes')       campo.degustacoes       = D.degustacoes;
     if(chave==='senhas')             campo.senhas              = D.senhas;
@@ -2822,24 +2822,69 @@ window.restaurarBackupFinanceiroAno = async function(ano) {
   }
 };
 
-// ─── ORÇAMENTOS EM TEMPO REAL ───────────────────────────────────────────────
-// sv('orcamentos') sobrescreve o array inteiro de orçamentos a cada
-// gravação (ver svFirebase acima) — sem isso, dois acessos abertos ao mesmo
-// tempo (ex: Juliana e outra pessoa criando orçamentos diferentes em duas
-// telas) cada um só enxerga os orçamentos que existiam no momento em que
-// SUA aba carregou a página; se uma salvar depois da outra, a gravação mais
-// recente sobrescreve o array com uma lista desatualizada e o orçamento da
-// outra pessoa some silenciosamente do banco. onSnapshot mantém D.orcamentos
-// sincronizado com o Firestore em tempo real pra toda aba aberta — além de
-// resolver o "não aparece", isso faz o array já vir atualizado na hora de
-// salvar, então a sobrescrita deixa de apagar orçamento alheio. Só força
-// re-render da tela quando ela está na Lista (não mexe se estiver no meio de
-// uma edição na tela de Detalhe, pra não resetar um campo digitado e ainda
-// não salvo).
+// ─── ORÇAMENTOS: 1 DOCUMENTO POR ORÇAMENTO ─────────────────────────────────
+// Todos os orçamentos num documento só (dados/orcamentos) passou de 1MB em
+// 11/2026 e os novos (1126-038/039) não salvaram. Agora cada orçamento é seu
+// próprio documento dados/orc_<id>, e sv('orcamentos') só grava os que
+// mudaram desde a última leitura/gravação (_orcGravados guarda o JSON de
+// cada um). O documento antigo dados/orcamentos fica intocado, como cópia
+// do que existia antes; a leitura junta os dois (orc_ ganha) — orçamento
+// nunca é excluído, então juntar não ressuscita nada.
+const ORC_PREFIXO = 'orc_';
+const _orcGravados = {};
+
+function _orcJson(o) { try { return JSON.stringify(o); } catch (e) { return ''; } }
+
+async function _gravarOrcamentos(lista) {
+  const mudados = (lista || D.orcamentos || []).filter(o => o && o.id && _orcGravados[o.id] !== _orcJson(o));
+  for (let i = 0; i < mudados.length; i += 400) {
+    const batch = writeBatch(db);
+    mudados.slice(i, i + 400).forEach(o => batch.set(doc(db, "dados", ORC_PREFIXO + o.id), { valor: o }));
+    await batch.commit();
+  }
+  mudados.forEach(o => { _orcGravados[o.id] = _orcJson(o); });
+}
+
+// Monta D.orcamentos em carregarDados(): documento antigo + orc_<id>.
+// Os que ainda só existem no antigo são copiados pra orc_<id> (migração).
+async function _carregarOrcamentos(r) {
+  const porId = new Map();
+  (r.orcamentos || []).forEach(o => { if (o && o.id) porId.set(o.id, o); });
+  const soNoAntigo = new Set(porId.keys());
+  Object.keys(r).forEach(k => {
+    if (k.indexOf(ORC_PREFIXO) !== 0 || !r[k] || !r[k].id) return;
+    porId.set(r[k].id, r[k]);
+    soNoAntigo.delete(r[k].id);
+    _orcGravados[r[k].id] = _orcJson(r[k]);
+  });
+  D.orcamentos = [...porId.values()].sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  if (soNoAntigo.size) {
+    try { await _gravarOrcamentos(D.orcamentos.filter(o => soNoAntigo.has(o.id))); }
+    catch (e) { console.error('Erro ao migrar orçamentos:', e); }
+  }
+}
+
+// Tempo real: outra aba criou/alterou um orçamento → entra aqui sem a página
+// precisar recarregar (e o sv seguinte desta aba não volta ele pra trás). Só
+// redesenha na Lista — no Detalhe não mexe pra não resetar campo digitado.
 function _ouvirOrcamentosEmTempoReal() {
-  onSnapshot(doc(db, "dados", "orcamentos"), (snap) => {
+  const q = query(collection(db, "dados"),
+    where(documentId(), '>=', ORC_PREFIXO), where(documentId(), '<', ORC_PREFIXO + ''));
+  onSnapshot(q, (snap) => {
     if (!window._dadosCarregados) return;
-    D.orcamentos = (snap.data() || {}).valor || [];
+    let mudou = false;
+    snap.docChanges().forEach(ch => {
+      if (ch.type === 'removed' || ch.doc.metadata.hasPendingWrites) return;
+      const o = (ch.doc.data() || {}).valor;
+      if (!o || !o.id) return;
+      const json = _orcJson(o);
+      if (_orcGravados[o.id] === json) return;
+      _orcGravados[o.id] = json;
+      const i = D.orcamentos.findIndex(x => x.id === o.id);
+      if (i >= 0) D.orcamentos[i] = o; else D.orcamentos.push(o);
+      mudou = true;
+    });
+    if (!mudou) return;
     try {
       const pa = document.querySelector('.page.active');
       if (pa && pa.id === 'page-orcamento' && typeof orcView !== 'undefined' && orcView === 'lista' && typeof rOrcamento === 'function') {
@@ -2943,7 +2988,7 @@ async function carregarDados() {
     D.regrasEquipe     = r.regrasEquipe     || {};
     D.regrasCopos      = r.regrasCopos      || {};
     D.pagamentosEquipe = r.pagamentosEquipe || [];
-    D.orcamentos            = r.orcamentos            || [];
+    await _carregarOrcamentos(r);
     D.solicitacoesOrcamento = r.solicitacoesOrcamento || [];
     D.degustacoes           = r.degustacoes           || [];
     // Modelo da Proposta pode vir fatiado em vários documentos (ver svFirebase) — remonta aqui.

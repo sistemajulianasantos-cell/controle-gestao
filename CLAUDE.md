@@ -24,6 +24,7 @@ Não há build, bundler, linter ou testes automatizados. É HTML/CSS/JS puro ser
 ### Estado e persistência (Firebase)
 - Estado vive inteiro em memória no objeto global `D` (definido em `js/globals.js`), populado a partir do Firestore em `carregarDados()` (dentro do `<script type="module">` de `index.html`) e salvo via `sv(chave)` → `window.svFirebase(chave)`.
 - Cada seção de dados (`fornecedores`, `festas`, `financeiro`, `equipe`, etc.) é um documento próprio na coleção Firestore `dados` — decisão deliberada para não estourar o limite de 1MB por documento do Firestore. `financeiro` é ainda fatiado por ano (`financeiro_AAAA`) pelo mesmo motivo.
+- `orcamentos` é 1 documento por orçamento (`dados/orc_<id>`, gravando só os que mudaram) — o documento único `dados/orcamentos` estourou 1MB em 11/2026 e ficou só como cópia antiga, lida junto na carga.
 - Comprovantes de pagamento ficam em documentos separados na coleção `comprovantes` (1 por parcela), nunca embutidos no array `financeiro`.
 - Antes de sobrescrever `financeiro_AAAA`, o estado anterior é copiado para a coleção `backups` (última versão apenas, não histórico completo) — restaurável pela função `restaurarBackupFinanceiroAno`.
 - Ao adicionar um novo campo em `D`, é preciso: inicializar em `D` (`js/globals.js`/`js/data.js`), ler em `carregarDados()` e gravar em `window.svFirebase()` (ambos em `index.html`).
