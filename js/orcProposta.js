@@ -288,6 +288,18 @@ function propostaImportarModelo(inputEl) {
   var reader = new FileReader();
   reader.onload = function(e) {
     var bytes = new Uint8Array(e.target.result);
+    // Modelo de contrato usa {{TAG}}; o da proposta, {TAG}. Importar o
+    // contrato aqui por engano (11-16) trocava o modelo e a proposta dava erro.
+    try {
+      var docXml = new PizZip(bytes).file('word/document.xml').asText().replace(/<[^>]+>/g, '');
+      if (docXml.indexOf('{{') !== -1) {
+        alert2('Esse arquivo parece ser um modelo de CONTRATO (marcações com {{chave dupla}}), não o da proposta. O modelo atual foi mantido.', 'error');
+        return;
+      }
+    } catch (err) {
+      alert2('Esse arquivo não abriu como Word (.docx). O modelo atual foi mantido.', 'error');
+      return;
+    }
     var binario = '';
     for (var i = 0; i < bytes.length; i++) binario += String.fromCharCode(bytes[i]);
     var base64 = btoa(binario);
