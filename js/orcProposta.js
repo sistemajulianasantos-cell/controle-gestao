@@ -687,11 +687,18 @@ var DOCX_ERROS = {
 function _docxErroDetalhe(e) {
   var lista = (e && e.properties && e.properties.errors) || (e && e.properties && e.properties.id ? [e] : []);
   if (!lista.length) return (e && e.message) || String(e);
-  return lista.map(function(err) {
+  // Tudo {{ }}: é um modelo de contrato importado no lugar (11-16) — a lista
+  // de cada marcação só enchia a tela.
+  if (lista.every(function(err) { return /^duplicate_(open|close)_tag$/.test((err.properties || {}).id); })) {
+    return 'o modelo importado usa marcações com {{chave dupla}} — parece ser o modelo de CONTRATO. Importe o modelo da proposta em "Substituir modelo", na lista de Orçamentos.';
+  }
+  var textos = lista.slice(0, 5).map(function(err) {
     var p = err.properties || {};
-    var onde = p.xtag || p.context || '';
+    var onde = p.context || p.xtag || '';
     return (onde ? '"' + onde + '": ' : '') + (DOCX_ERROS[p.id] || p.explanation || err.message);
-  }).join(' | ');
+  });
+  if (lista.length > 5) textos.push('e mais ' + (lista.length - 5));
+  return textos.join(' | ');
 }
 
 function _propostaGerarDocx(orc) {
