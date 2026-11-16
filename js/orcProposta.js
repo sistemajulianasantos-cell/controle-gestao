@@ -660,6 +660,28 @@ function _propostaParserTolerante(tag) {
   } };
 }
 
+// "Multi error" do Docxtemplater não diz qual marcação está errada — a lista
+// vem em e.properties.errors. Traduz cada uma pra ela achar no Word.
+var DOCX_ERROS = {
+  unclosed_tag: 'abre { e não fecha }',
+  unopened_tag: 'tem } sem o { antes',
+  duplicate_open_tag: 'tem {{ (chave dupla) — deixe só uma {',
+  duplicate_close_tag: 'tem }} (chave dupla) — deixe só uma }',
+  unbalanced_loop_tags: 'lista {#...} sem o {/...} de fechamento (ou fechamento sem abertura)',
+  closing_tag_does_not_match_opening_tag: 'a lista {#...} fecha com outro nome em {/...}',
+  loop_position_invalid: 'abertura {#...} e fechamento {/...} da lista em lugares que não combinam (ex.: um dentro de tabela e outro fora)',
+  raw_xml_tag_should_be_only_text_in_paragraph: 'a marcação {@...} precisa estar sozinha no parágrafo',
+};
+function _docxErroDetalhe(e) {
+  var lista = (e && e.properties && e.properties.errors) || (e && e.properties && e.properties.id ? [e] : []);
+  if (!lista.length) return (e && e.message) || String(e);
+  return lista.map(function(err) {
+    var p = err.properties || {};
+    var onde = p.xtag || p.context || '';
+    return (onde ? '"' + onde + '": ' : '') + (DOCX_ERROS[p.id] || p.explanation || err.message);
+  }).join(' | ');
+}
+
 function _propostaGerarDocx(orc) {
   if (!window.PizZip || !window.Docxtemplater) {
     alert2('Bibliotecas de geração de Word ainda não carregaram — aguarde e tente novamente.', 'error');
@@ -712,7 +734,8 @@ function _propostaGerarDocx(orc) {
     a.click();
     URL.revokeObjectURL(a.href);
   } catch (e) {
-    alert2('Erro ao gerar a proposta: ' + e.message + ' — confira se as marcações {TAG} no modelo estão digitadas certinho.', 'error');
+    console.error(e);
+    alert2('Erro ao gerar a proposta — marcações com problema no modelo: ' + _docxErroDetalhe(e), 'error');
   }
   return Promise.resolve();
 }

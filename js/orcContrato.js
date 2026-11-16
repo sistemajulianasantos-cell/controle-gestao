@@ -405,7 +405,7 @@ function orcConfirmarGerarContrato() {
     else if (typeof rOrcLista === 'function') rOrcLista();
   } catch (e) {
     console.error(e);
-    alert2('Erro ao gerar o contrato: ' + e.message, 'error');
+    alert2('Erro ao gerar o contrato: ' + (typeof _docxErroDetalhe === 'function' ? _docxErroDetalhe(e) : e.message), 'error');
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = 'Gerar contrato (.docx)'; }
   }
