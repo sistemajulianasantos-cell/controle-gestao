@@ -15,36 +15,43 @@ function populateSels(){
 }
 
 // ─── DROPDOWN DE PRODUTO NA NF ────────────────────────────────────────────────
-// Cache interno ordenado alfabeticamente
+// Itens do Cadastro de Insumos, com o nome exato de lá (pedido dela 11-17:
+// digitar "aperol" virava produto novo e duplicava). Busca também pelos nomes
+// antigos (aliases), sem acento/maiúscula. Sem "+ Novo": item que não existe
+// se cadastra em Cadastro de Insumos.
 var _eprodLista = [];
 
 function populateEprodList(){
-  var prods=(D.produtos||[]);
-  _eprodLista = (prods.length ? prods : nomes.map(function(n){return {nome:n};}))
+  _eprodLista = (D.insumos||[]).filter(function(i){return i && i.nome;})
     .slice().sort(function(a,b){return (a.nome||'').localeCompare(b.nome||'','pt-BR');});
+}
+
+function _eprodNorm(s){
+  return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
 }
 
 function filtrarEprod(busca){
   var dd=document.getElementById('eprod-dropdown');
   if(!dd) return;
-  var b=(busca||'').toLowerCase().trim();
+  populateEprodList();
+  var b=_eprodNorm(busca);
 
   var lista=b
-    ? _eprodLista.filter(function(p){return (p.nome||'').toLowerCase().includes(b);})
+    ? _eprodLista.filter(function(p){
+        return [p.nome].concat(p.aliases||[]).some(function(n){return _eprodNorm(n).indexOf(b)!==-1;});
+      })
     : _eprodLista;
 
   if(!lista.length){
-    dd.innerHTML='<div style="padding:10px 14px;color:var(--text3);font-size:12px">Nenhum produto encontrado — use "+ Novo" para cadastrar.</div>';
+    dd.innerHTML='<div style="padding:10px 14px;color:var(--text3);font-size:12px">Nenhum item do Cadastro de Insumos com esse nome. Cadastre primeiro em Cadastro de Insumos.</div>';
   } else {
-    // Destaca a parte digitada em verde
-    var esc=b.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-    var re=b ? new RegExp('('+esc+')','gi') : null;
     dd.innerHTML=lista.map(function(p){
-      var nome=re ? p.nome.replace(re,'<strong style="color:var(--green)">$1</strong>') : p.nome;
-      var nomeEsc=(p.nome||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      var nomeEsc=(p.nome||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+      var html=String(p.nome).replace(/&/g,'&amp;').replace(/</g,'&lt;');
       return '<div onmousedown="selecionarEprod(\''+nomeEsc+'\')" '+
-        'style="padding:8px 14px;cursor:pointer;font-size:12px;color:var(--text);border-bottom:1px solid var(--border)" '+
-        'onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'\'">'+nome+'</div>';
+        'style="padding:8px 14px;cursor:pointer;font-size:12px;color:var(--text);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:10px" '+
+        'onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'\'">'+
+        '<span>'+html+'</span>'+(p.categoria?'<span style="font-size:10px;color:var(--text3);white-space:nowrap">'+String(p.categoria).replace(/</g,'&lt;')+'</span>':'')+'</div>';
     }).join('');
   }
   dd.style.display='block';

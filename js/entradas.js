@@ -5,6 +5,12 @@ function addIE(){
   const qtd=Number(document.getElementById('eqtd').value);
   const custo=document.getElementById('ecusto').value;
   if(!prod||!qtd||qtd<=0){alert2('Selecione produto e informe a quantidade','error');return;}
+  // Só item do Cadastro de Insumos, escolhido na lista (texto digitado à mão
+  // depois de escolher não vale — virava produto duplicado).
+  const busca=(document.getElementById('eprod-search')||{}).value||'';
+  if(busca.trim()!==prod||!(D.insumos||[]).some(i=>i.nome===prod)){
+    alert2('Escolha o produto na lista (itens do Cadastro de Insumos).','error');return;
+  }
   const ex=nfEntItens.find(i=>i.prod===prod);
   if(ex){ex.qtd+=qtd;}else{nfEntItens.push({prod,qtd,custo:custo?Number(custo):null});}
   document.getElementById('eqtd').value='';
@@ -136,67 +142,56 @@ function normalizarNF(nf){
   return nf.replace(/[\s.\-\/\\]/g,'').replace(/^0+/,'').toLowerCase();
 }
 
-// ─── VÍNCULO COM DESPESAS (NF lançada mas sem entrada de produtos) ──────────
-function _escHtmlEnt(s){
-  return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// O quadro "NF lançada em Despesas aguardando entrada" saiu a pedido dela (11-17).
+
+// ─── BUSCA E FILTROS DO HISTÓRICO ────────────────────────────────────────────
+function _entNorm(s){
+  return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
 }
 
-function _despesasNFPendentesEntrada(){
-  const nfsComEntrada=new Set((D.entradas||[]).filter(e=>e.nf).map(e=>normalizarNF(e.nf)));
-  return (D.despesas||[]).filter(d=>{
-    if(!d.numeroNF||!d.numeroNF.trim())return false;
-    return !nfsComEntrada.has(normalizarNF(d.numeroNF));
-  }).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
-}
-
-function rEntradasNFPendentes(){
-  const el=document.getElementById('ent-nf-pendentes');
-  if(!el)return;
-  const pendentes=_despesasNFPendentesEntrada();
-  if(!pendentes.length){el.style.display='none';el.innerHTML='';return;}
-  el.style.display='block';
-  el.innerHTML=`<div class="sec" style="margin:0 0 16px;border-left:3px solid var(--amber)">
-    <div class="sec-head"><span class="sec-title" style="color:var(--amber)">⚠ ${pendentes.length} NF lançada(s) em Despesas aguardando entrada de produtos</span></div>
-    <div style="padding:8px 16px 14px;display:flex;flex-direction:column;gap:6px">
-      ${pendentes.map(d=>`
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12px;color:var(--text2);background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:7px 12px">
-          <span><strong style="color:var(--text)">NF ${_escHtmlEnt(d.numeroNF)}</strong> — ${_escHtmlEnt(d.fornecedor||d.descricao||'—')} · ${fd(d.data)} · R$ ${Number(d.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span>
-          <button type="button" class="btn-sm ent-dar-entrada" data-desp-id="${_escHtmlEnt(d.id)}" style="background:var(--bg2);border:1px solid var(--border2);color:var(--text);font-size:11px;padding:3px 10px;white-space:nowrap">Dar entrada</button>
-        </div>`).join('')}
-    </div>
-  </div>`;
-}
-
-document.addEventListener('click', function(e){
-  const btn = e.target.closest('.ent-dar-entrada');
-  if(!btn) return;
-  _preencherEntradaDaDespesa(btn.dataset.despId);
-});
-
-function _preencherEntradaDaDespesa(despId){
-  const d=(D.despesas||[]).find(x=>x.id===despId);
-  if(!d){ alert2('Despesa não encontrada.','error'); return; }
-  const enf=document.getElementById('enf'); if(enf)enf.value=d.numeroNF||'';
-  const edata=document.getElementById('edata'); if(edata)edata.value=d.data||'';
-  const eforn=document.getElementById('eforn'); if(eforn)eforn.value=d.fornecedor||'';
-  verificarNFDuplicada();
-  document.getElementById('enf')?.scrollIntoView({behavior:'smooth',block:'center'});
-  alert2('Campos preenchidos — adicione os produtos e clique em "Lançar nota fiscal".','success');
+function limparFiltrosEnt(){
+  ['ent-busca','ent-f-forn','ent-f-ini','ent-f-fim'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  rEntradas();
 }
 
 function rEntradas(){
-  rEntradasNFPendentes();
   const groups={};
   D.entradas.forEach((e,idx)=>{
     const key=(e.nf||'SEM NF')+'|'+e.data;
     if(!groups[key])groups[key]={key,nf:e.nf||'Sem NF',data:e.data,forn:e.forn||'',obs:e.obs,itens:[]};
     groups[key].itens.push({...e,idx});
   });
-  const sorted=Object.values(groups).sort((a,b)=>b.data.localeCompare(a.data));
+  const todos=Object.values(groups).sort((a,b)=>b.data.localeCompare(a.data));
+
+  // Fornecedor: os cadastrados + os que aparecem nas notas, mantendo a escolha
+  const selForn=document.getElementById('ent-f-forn');
+  if(selForn){
+    const atual=selForn.value;
+    const nomesForn=[...new Set((D.fornecedores||[]).map(f=>f.nome).concat(todos.map(g=>g.forn)).filter(Boolean))]
+      .sort((a,b)=>a.localeCompare(b,'pt-BR'));
+    selForn.innerHTML='<option value="">Todos</option>'+nomesForn.map(n=>`<option value="${String(n).replace(/"/g,'&quot;')}"${n===atual?' selected':''}>${n}</option>`).join('');
+  }
+  const busca=_entNorm((document.getElementById('ent-busca')||{}).value||'').trim();
+  const fForn=(selForn||{}).value||'';
+  const fIni=(document.getElementById('ent-f-ini')||{}).value||'';
+  const fFim=(document.getElementById('ent-f-fim')||{}).value||'';
+  const sorted=todos.filter(g=>{
+    if(fForn&&g.forn!==fForn)return false;
+    if(fIni&&(g.data||'')<fIni)return false;
+    if(fFim&&(g.data||'')>fFim)return false;
+    if(busca){
+      const texto=_entNorm([g.nf,g.forn,g.obs].concat(g.itens.map(i=>i.prod)).join(' '));
+      if(texto.indexOf(busca)===-1)return false;
+    }
+    return true;
+  });
+  const info=document.getElementById('ent-filtro-info');
+  const filtrando=busca||fForn||fIni||fFim;
+  if(info)info.textContent=filtrando?`${sorted.length} de ${todos.length} nota(s)`:`${todos.length} nota(s)`;
 
   // Duplicity detection: NFs whose normalized form matches another group
   const normMap={};
-  sorted.forEach(g=>{
+  todos.forEach(g=>{
     if(!g.nf||g.nf==='Sem NF')return;
     const n=normalizarNF(g.nf);
     if(n){if(!normMap[n])normMap[n]=[];normMap[n].push(g.key);}
@@ -204,12 +199,12 @@ function rEntradas(){
   const dupKeys=new Set();
   Object.values(normMap).forEach(keys=>{if(keys.length>1)keys.forEach(k=>dupKeys.add(k));});
 
-  const totalGeral=D.entradas.reduce((a,e)=>a+(e.custo?Number(e.qtd)*Number(e.custo):0),0);
+  const totalGeral=sorted.reduce((a,g)=>a+g.itens.reduce((s,e)=>s+(e.custo?Number(e.qtd)*Number(e.custo):0),0),0);
   const totEl=document.getElementById('tot-ent');
   if(totEl)totEl.textContent=totalGeral>0?'Total: R$ '+totalGeral.toLocaleString('pt-BR',{minimumFractionDigits:2}):'';
   const container=document.getElementById('lista-entradas');
   if(!container)return;
-  if(!sorted.length){container.innerHTML='<div style="font-size:12px;color:var(--text3);padding:14px">Nenhuma entrada lançada.</div>';return;}
+  if(!sorted.length){container.innerHTML=`<div style="font-size:12px;color:var(--text3);padding:14px">${todos.length?'Nenhuma nota com esses filtros.':'Nenhuma entrada lançada.'}</div>`;return;}
   container.innerHTML=sorted.map(g=>{
     const totalNF=g.itens.reduce((a,i)=>a+(i.custo?Number(i.qtd)*Number(i.custo):0),0);
     const totalQtd=g.itens.reduce((a,i)=>a+Number(i.qtd),0);
@@ -275,8 +270,8 @@ function abrirEdicaoNFEnt(key){
   _nfEditItens=[...g.itens];
   const sel=document.getElementById('ent-edit-addprod');
   if(sel){
-    const prods=(D.produtos||[]).slice().sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
-    sel.innerHTML='<option value="">Selecione produto...</option>'+prods.map(p=>`<option value="${p.nome.replace(/"/g,'&quot;')}">${p.nome}</option>`).join('');
+    const prods=(D.insumos||[]).filter(p=>p&&p.nome).slice().sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
+    sel.innerHTML='<option value="">Selecione produto do Cadastro de Insumos...</option>'+prods.map(p=>`<option value="${p.nome.replace(/"/g,'&quot;')}">${p.nome}</option>`).join('');
   }
   rNFEditItens();
   document.getElementById('m-edit-ent').style.display='flex';

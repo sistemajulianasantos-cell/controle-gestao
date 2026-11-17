@@ -508,7 +508,7 @@
               <input type="hidden" id="eprod" value="">
               <!-- campo de busca visível -->
               <input type="text" id="eprod-search" autocomplete="off"
-                placeholder="🔍 Digite para buscar produto..."
+                placeholder="Buscar item do Cadastro de Insumos..."
                 oninput="filtrarEprod(this.value)"
                 onfocus="filtrarEprod(this.value)"
                 onblur="setTimeout(fecharEprod,200)"
@@ -516,12 +516,9 @@
                 style="font-size:12px;flex:1;padding:6px 10px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text)">
               <!-- dropdown filtrado -->
               <div id="eprod-dropdown"
-                style="display:none;position:absolute;top:38px;left:0;right:44px;max-height:240px;overflow-y:auto;
+                style="display:none;position:absolute;top:38px;left:0;right:0;max-height:240px;overflow-y:auto;
                        background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius);
                        z-index:500;box-shadow:0 6px 24px rgba(0,0,0,.55)"></div>
-              <button class="btn-sm" onclick="abrirCadastroProdutoRapido()"
-                title="Produto não está na lista? Cadastre aqui"
-                style="background:var(--green);color:#fff;white-space:nowrap;padding:0 10px;flex-shrink:0">+ Novo</button>
             </div>
             <input type="number" id="eqtd" placeholder="Quantidade" step="0.01"
               style="font-size:12px;width:110px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text)"
@@ -539,12 +536,31 @@
           <button class="btn btn-primary" onclick="regEnt()">Lançar nota fiscal</button>
         </div>
       </div>
-      <div id="ent-nf-pendentes" style="display:none"></div>
       <div class="sec">
         <div class="sec-head">
           <span class="sec-title">Histórico de entradas por NF</span>
           <span id="tot-ent" style="font-size:11px;font-weight:600;color:var(--green);font-family:var(--mono)"></span>
         </div>
+        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;padding:12px 16px 0">
+          <div style="flex:1;min-width:220px">
+            <label>Buscar</label>
+            <input type="search" id="ent-busca" placeholder="NF, fornecedor, produto, observação..." oninput="rEntradas()">
+          </div>
+          <div style="width:200px">
+            <label>Fornecedor</label>
+            <select id="ent-f-forn" onchange="rEntradas()"><option value="">Todos</option></select>
+          </div>
+          <div style="width:150px">
+            <label>De</label>
+            <input type="date" id="ent-f-ini" onchange="rEntradas()">
+          </div>
+          <div style="width:150px">
+            <label>Até</label>
+            <input type="date" id="ent-f-fim" onchange="rEntradas()">
+          </div>
+          <button class="btn-sm" onclick="limparFiltrosEnt()" style="background:var(--bg3);height:34px">Limpar filtros</button>
+        </div>
+        <div id="ent-filtro-info" style="font-size:11px;color:var(--text3);padding:6px 16px 0"></div>
         <div id="lista-entradas" style="padding:8px 0"></div>
       </div>
     </div>
@@ -2469,8 +2485,8 @@
 <script src="js/estoques.js?v=20260610z"></script>
 <script src="js/contagens.js?v=20260610z"></script>
 <script src="js/precos.js?v=20260804a"></script>
-<script src="js/selects.js?v=20260610z"></script>
-<script src="js/entradas.js?v=20261012e"></script>
+<script src="js/selects.js?v=20261117a"></script>
+<script src="js/entradas.js?v=20261117a"></script>
 <script src="js/quebras.js?v=20260804a"></script>
 <script src="js/festas.js?v=20261012e"></script>
 <script src="js/relatorio.js?v=20260610z"></script>
