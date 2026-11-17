@@ -24,6 +24,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Versão do sistema = commit publicado. A página compara com a do site
+      # e avisa/atualiza quando sai uma nova (ver fim do index.html).
+      - name: Gravar versao
+        run: sed -i "s/<meta name=\"versao-sistema\" content=\"__VERSAO__\">/<meta name=\"versao-sistema\" content=\"${GITHUB_SHA}\">/" index.html
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 

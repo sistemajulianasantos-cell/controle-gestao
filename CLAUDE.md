@@ -12,6 +12,7 @@ Não há build, bundler, linter ou testes automatizados. É HTML/CSS/JS puro ser
 
 - **Rodar localmente**: abrir `index.html` num servidor estático (ex: `npx serve .` ou extensão Live Server), pois os módulos Firebase usam `<script type="module">` e alguns recursos exigem `http(s)://` (não funcionam via `file://`).
 - **Deploy**: automático via GitHub Actions (`.github/workflows/deploy.yml`) a cada push na branch `main` — publica no GitHub Pages (domínio custom em `CNAME`: meucontroleegestao.com.br). Não há passo de build; o conteúdo do repo é publicado como está.
+- **Versão nova**: o deploy grava o commit em `<meta name="versao-sistema">` (placeholder `__VERSAO__` no repo — não trocar). O script no fim do `index.html` compara com o site: na tela de senha recarrega sozinho; logado, mostra faixa "Saiu uma versão nova".
 
 ## Arquitetura
 

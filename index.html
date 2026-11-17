@@ -6,6 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
+<meta name="versao-sistema" content="__VERSAO__">
 <title>Romero Coquetéis — Controle e Gestão</title>
 <link rel="icon" href="icons/icon-rc.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
@@ -3677,6 +3678,55 @@ document.head.appendChild(styleExtra);
     </div>
   </div>
 </div>
+
+<script>
+/* ── Versão nova do sistema (pedido dela 11-17) ──
+   O deploy (.github/workflows/deploy.yml) grava o commit em
+   <meta name="versao-sistema">. Compara com o do site:
+   - ainda na tela de senha: atualiza sozinho (nada digitado pra perder);
+     1 vez por versão, pra não ficar em loop se o site demorar a virar;
+   - já usando: faixa "Saiu uma versão nova", atualiza ao clicar.
+   Rodando local (sem deploy) o meta fica __VERSAO__ e nada é checado. */
+(function () {
+  var meta = document.querySelector('meta[name="versao-sistema"]');
+  var atual = meta ? meta.content : '';
+  if (!atual || atual === '__VERSAO__') return;
+  function naTelaDeSenha() {
+    var lo = document.getElementById('login-overlay');
+    return lo && lo.style.display !== 'none';
+  }
+  function mostrarFaixa() {
+    if (document.getElementById('aviso-versao-nova')) return;
+    var el = document.createElement('div');
+    el.id = 'aviso-versao-nova';
+    el.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);top:12px;z-index:10001;max-width:560px;width:calc(100% - 32px);' +
+      'padding:12px 16px;border-radius:8px;background:var(--red,#B91C1C);color:#fff;font-size:14px;font-weight:600;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.3)';
+    el.textContent = 'Saiu uma versão nova do sistema. Clique aqui para atualizar (o que já foi salvo não se perde).';
+    el.onclick = function () { location.reload(); };
+    document.body.appendChild(el);
+  }
+  function checar() {
+    if (navigator.onLine === false) return;
+    fetch('index.html?_=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.text(); }).then(function (html) {
+      var m = html.match(/<meta name="versao-sistema" content="([^"]+)"/);
+      var nova = m && m[1];
+      if (!nova || nova === '__VERSAO__' || nova === atual) return;
+      var chave = 'versaoRecarregada_' + nova;
+      var jaTentou = false;
+      try { jaTentou = sessionStorage.getItem(chave) === '1'; } catch (e) {}
+      if (naTelaDeSenha() && !jaTentou) {
+        try { sessionStorage.setItem(chave, '1'); } catch (e) {}
+        location.reload();
+      } else {
+        mostrarFaixa();
+      }
+    }).catch(function () {});
+  }
+  checar();
+  setInterval(checar, 60 * 1000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) checar(); });
+})();
+</script>
 </body>
 </html>
 
