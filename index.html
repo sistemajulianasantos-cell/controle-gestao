@@ -2522,7 +2522,7 @@
 <script src="js/orcCalculos.js?v=20261016c"></script>
 <script src="js/orcProposta.js?v=20261117c"></script>
 <script src="js/orcContrato.js?v=20261117a"></script>
-<script src="js/degustacao.js?v=20261023a"></script>
+<script src="js/degustacao.js?v=20261117a"></script>
 <script src="js/conciliacao.js?v=20261026j"></script>
 <script src="js/planoPagamento.js?v=20261026d"></script>
 <script src="js/_refConsumoData.js?v=20260610z"></script>
@@ -2819,6 +2819,24 @@ window.buscarFichaFoto = async function(fichaId) {
 window.excluirFichaFoto = async function(fichaId) {
   try { await deleteDoc(doc(db, "dados", "fichaFoto_" + fichaId)); }
   catch(e) { console.error('Erro ao excluir foto do coquetel:', e); }
+};
+
+// ─── FOTOS DA DEGUSTAÇÃO ───────────────────────────────────────────────────
+// 1 documento por foto (prefixo degFoto_) dentro de "dados" — o doc
+// "degustacoes" guarda só a lista { id, coquetel } de cada degustação.
+window.salvarDegFoto = async function(fotoId, base64) {
+  try { await setDoc(doc(db, "dados", "degFoto_" + fotoId), { valor: base64 }); return true; }
+  catch(e) { console.error('Erro ao salvar foto da degustação:', e); return false; }
+};
+window.buscarDegFoto = async function(fotoId) {
+  try {
+    const snap = await getDoc(doc(db, "dados", "degFoto_" + fotoId));
+    return snap.exists() ? snap.data().valor : null;
+  } catch(e) { console.error('Erro ao buscar foto da degustação:', e); return null; }
+};
+window.excluirDegFoto = async function(fotoId) {
+  try { await deleteDoc(doc(db, "dados", "degFoto_" + fotoId)); }
+  catch(e) { console.error('Erro ao excluir foto da degustação:', e); }
 };
 
 // ─── BACKUP/RESTAURAÇÃO DO FINANCEIRO ──────────────────────────────────────
