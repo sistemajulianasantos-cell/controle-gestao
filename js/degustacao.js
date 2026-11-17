@@ -8,6 +8,8 @@
 //   custo, responsavel, observacao, status, resultado, valorFechadoFora,
 //   fotos, criadoEm, criadoPor }]
 //   orcManual: { numero, cliente, dataEvento, convidados, valor } (orcamentoId '')
+//   contratoId: contrato de D.contratos escolhido p/ orçamento fora do sistema
+//              (dados vêm dele e o resultado vira "fechou" automático)
 //   fotos:     [{ id, coquetel }] — a imagem fica em dados/degFoto_<id>
 //   status:    'agendada' | 'realizada' | 'nao_compareceu' | 'cancelada'
 //   resultado: '' (aguardando) | 'perdido' | 'fechou_fora' — vale quando o
@@ -27,6 +29,7 @@ var _degFiltroStatus = '';
 var _degEditId = null;      // degustação sendo editada (null = nova)
 var _degOrcSel = null;      // orçamento escolhido no agendamento
 var _degModoManual = false; // agendamento com orçamento fora do sistema
+var _degContratoSel = null; // contrato escolhido (orçamento fora do sistema)
 var _degFotoCache = {};     // fotoId -> base64 (evita buscar de novo a cada render)
 var _degFotosId = null;     // degustação aberta na janela de fotos
 
@@ -44,16 +47,24 @@ function _degContrato(orc) {
     lista.find(function(c) { return c.orcamentoId === orc.id; }) || null;
 }
 
+// Contrato da degustação: o do orçamento do sistema, ou — para orçamento
+// fora do sistema — o contrato escolhido na lista de Contratos (d.contratoId).
+function _degContratoDeg(d) {
+  var c = _degContrato(_degOrc(d.orcamentoId));
+  if (c || !d.contratoId) return c;
+  return (D.contratos || []).find(function(x) { return x.id === d.contratoId; }) || null;
+}
+
 // 'fechou' | 'perdido' | 'aguardando' | '' (não realizada)
 function _degResultado(d) {
   if (d.status !== 'realizada') return '';
-  if (_degContrato(_degOrc(d.orcamentoId)) || d.resultado === 'fechou_fora') return 'fechou';
+  if (_degContratoDeg(d) || d.resultado === 'fechou_fora') return 'fechou';
   if (d.resultado === 'perdido') return 'perdido';
   return 'aguardando';
 }
 
 function _degValorFechado(d) {
-  var c = _degContrato(_degOrc(d.orcamentoId));
+  var c = _degContratoDeg(d);
   if (c) return Number(c.valorNum) || 0;
   if (d.resultado !== 'fechou_fora') return 0;
   return Number(d.valorFechadoFora) || (d.orcManual ? Number(d.orcManual.valor) || 0 : 0);
@@ -97,7 +108,7 @@ function _degIndicadores() {
 
   // Dias da degustação até o contrato (só contrato gerado no sistema).
   var dias = fechou.map(function(d) {
-    var c = _degContrato(_degOrc(d.orcamentoId));
+    var c = _degContratoDeg(d);
     if (!c || !c.criadoEm || !d.data) return null;
     return Math.max(0, Math.round((new Date(c.criadoEm) - new Date(d.data + 'T12:00:00')) / 86400000));
   }).filter(function(n) { return n != null; });
@@ -208,7 +219,7 @@ function _degLinhaHTML(d) {
   var orc = info.orc;
   var st = DEG_STATUS[d.status] || DEG_STATUS.agendada;
   var res = _degResultado(d);
-  var contrato = _degContrato(orc);
+  var contrato = _degContratoDeg(d);
   var sel = 'font-size:11px;padding:3px 6px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:4px';
   var resultadoHTML = '';
   if (d.status === 'realizada') {
@@ -336,6 +347,7 @@ function degAbrirForm(id) {
   _degEditId = d ? d.id : null;
   _degOrcSel = d ? d.orcamentoId : null;
   _degModoManual = !!(d && !d.orcamentoId && d.orcManual);
+  _degContratoSel = (d && d.contratoId) || null;
   _degModalEl();
   document.getElementById('mdeg-titulo').textContent = d ? 'Editar degustação' : 'Agendar degustação';
   var v = function(c, padrao) { return _degEsc(d && d[c] != null ? d[c] : (padrao || '')); };
@@ -353,7 +365,11 @@ function degAbrirForm(id) {
       '<div id="mdeg-resultados" style="max-height:220px;overflow:auto;margin-top:4px"></div>' +
     '</div>' +
     '<div id="mdeg-bloco-man">' +
-      '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">Para orçamentos feitos na tela antiga, que não estão no sistema. O resultado (fechou / não fechou) fica marcado à mão.</div>' +
+      '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">Para orçamentos feitos na tela antiga. Se o cliente já fechou, escolha o contrato: os dados vêm dele e a degustação conta como "Fechou" com o valor do contrato. Se ainda não tem contrato, preencha à mão.</div>' +
+      '<label class="lbl">Contrato</label>' +
+      '<div id="mdeg-ct-sel" style="margin-bottom:6px"></div>' +
+      '<input id="mdeg-ct-busca" class="inp" type="text" placeholder="Buscar contrato por cliente ou data do evento" oninput="_degRenderBuscaContrato()" style="width:100%;box-sizing:border-box">' +
+      '<div id="mdeg-ct-res" style="max-height:200px;overflow:auto;margin:4px 0 10px"></div>' +
       '<div style="display:grid;grid-template-columns:1fr 2fr;gap:10px">' +
         '<div><label class="lbl">Nº da proposta</label><input id="mdeg-m-num" type="text" value="' + _degEsc(m.numero) + '" placeholder="ex.: 1126-050" ' + inp + '></div>' +
         '<div><label class="lbl">Cliente *</label><input id="mdeg-m-cli" type="text" value="' + _degEsc(m.cliente) + '" ' + inp + '></div>' +
@@ -381,8 +397,69 @@ function degAbrirForm(id) {
     '</div>';
   _degRenderSelecionado();
   _degRenderBusca();
+  _degRenderContratoSel();
   _degSetModo(_degModoManual);
   openM('mdegustacao');
+}
+
+// ── Contrato (orçamento fora do sistema) ──
+function _degDataIso(s) {
+  s = String(s || '');
+  var br = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(s);
+  return br ? br[3] + '-' + br[2] + '-' + br[1] : s.slice(0, 10);
+}
+
+function _degRotuloContrato(c) {
+  return [c.nome || 'Sem nome', c.data ? fd(_degDataIso(c.data)) : '', c.convidados ? c.convidados + ' conv.' : '', c.valorNum ? fR(c.valorNum) : ''].filter(Boolean).join(' · ');
+}
+
+function _degRenderContratoSel() {
+  var el = document.getElementById('mdeg-ct-sel');
+  if (!el) return;
+  var c = _degContratoSel && (D.contratos || []).find(function(x) { return x.id === _degContratoSel; });
+  el.innerHTML = c
+    ? '<div style="background:var(--bg3);border:1px solid var(--green);border-radius:var(--radius);padding:8px 12px;font-size:12px;color:var(--text);display:flex;gap:8px;align-items:center">' +
+        '<span style="flex:1">' + _degEsc(_degRotuloContrato(c)) + '</span>' +
+        '<button class="btn-sm" onclick="_degEscolherContrato(\'\')" style="background:var(--bg2)">Tirar</button></div>'
+    : '<div style="font-size:11px;color:var(--text3)">Nenhum contrato escolhido.</div>';
+}
+
+function _degRenderBuscaContrato() {
+  var el = document.getElementById('mdeg-ct-res');
+  if (!el) return;
+  var norm = function(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); };
+  var termo = norm((document.getElementById('mdeg-ct-busca') || {}).value || '').trim();
+  if (!termo) { el.innerHTML = ''; return; }
+  var palavras = termo.split(/\s+/);
+  var achados = (D.contratos || []).filter(function(c) {
+    var txt = norm([c.nome, c.data, fd(_degDataIso(c.data)), c.local].join(' '));
+    return palavras.every(function(p) { return txt.indexOf(p) !== -1; });
+  }).slice(0, 15);
+  if (!achados.length) { el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:6px 2px">Nenhum contrato encontrado.</div>'; return; }
+  el.innerHTML = achados.map(function(c) {
+    var jaTem = _degLista().some(function(d) { return d.contratoId === c.id && d.id !== _degEditId && d.status !== 'cancelada'; });
+    return '<div onclick="_degEscolherContrato(\'' + c.id + '\')" style="padding:7px 10px;border-bottom:1px solid var(--border);font-size:12px;cursor:pointer;color:var(--text)" ' +
+      'onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'\'">' +
+      _degEsc(_degRotuloContrato(c)) +
+      (jaTem ? ' <span style="font-size:10px;color:var(--amber)">— já tem degustação</span>' : '') +
+    '</div>';
+  }).join('');
+}
+
+function _degEscolherContrato(id) {
+  _degContratoSel = id || null;
+  var c = id && (D.contratos || []).find(function(x) { return x.id === id; });
+  if (c) {
+    var set = function(campo, v) { var el = document.getElementById(campo); if (el) el.value = v == null ? '' : String(v); };
+    set('mdeg-m-cli', c.nome || '');
+    set('mdeg-m-data', _degDataIso(c.data));
+    set('mdeg-m-conv', parseInt(c.convidados, 10) || '');
+    if (c.valorNum) set('mdeg-m-valor', fmtValorBR(c.valorNum));
+  }
+  var b = document.getElementById('mdeg-ct-busca');
+  if (b) b.value = '';
+  _degRenderContratoSel();
+  _degRenderBuscaContrato();
 }
 
 function _degSetModo(manual) {
@@ -460,6 +537,7 @@ function degSalvar() {
 
   var campos = {
     orcamentoId: orc ? orc.id : '', orcManual: manual,
+    contratoId: manual ? (_degContratoSel || '') : '',
     data: data, hora: val('mdeg-hora'), local: val('mdeg-local'),
     pessoas: parseInt(val('mdeg-pessoas'), 10) || 0,
     custo: val('mdeg-custo') ? parseValorBR(val('mdeg-custo')) : 0,
