@@ -188,35 +188,126 @@ function _propostaCliente(orc) {
   return _propostaNomeProprio(_propostaInfo(orc, 'solicitadoPor') || orc.nomeCliente || '');
 }
 
-// ─── ABA: EDIÇÃO DOS DADOS DA PROPOSTA ───────────────────────────────────────
+// ─── ABA PROPOSTA: SÓ GERAR ──────────────────────────────────────────────────
+// Pedido dela 11-17: a aba só gera. Os ajustes deste orçamento (número,
+// opcionais, o que aparece) ficam na janela "Ajustes da proposta" (botão no
+// cabeçalho do orçamento); o padrão do PDF e as marcações do Word, no painel
+// Configurações da Lista de Orçamentos (propostaConfigGeralHTML).
 
 function rOrcProposta(orc) {
   var el = document.getElementById('orc-det-content');
   if (!el) return;
+  var tpl = D.propostaTemplateDocx;
+  el.innerHTML =
+    '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;max-width:700px">' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">' +
+        '<button class="btn btn-primary" id="btn-gerar-proposta" onclick="gerarPropostaOrc(\'' + orc.id + '\')">' +
+          (tpl ? 'Gerar Proposta (.docx)' : 'Gerar PDF da Proposta (versão simplificada)') + '</button>' +
+        '<button class="btn-sm" onclick="propostaAbrirAjustes(\'' + orc.id + '\')" style="background:var(--bg3)">Ajustes da proposta</button>' +
+      '</div>' +
+      _propostaAvisoFichas(orc) +
+    '</div>';
+}
 
+// Aba Proposta e/ou janela de ajustes abertas: redesenha o que estiver na tela.
+function _propostaRerender(orc) {
+  var m = document.getElementById('morc-proposta');
+  if (m && m.classList.contains('open')) {
+    var corpo = document.getElementById('morc-proposta-corpo');
+    if (corpo) corpo.innerHTML = _propostaAjustesHtml(orc);
+  }
+  if (typeof orcDetTab !== 'undefined' && orcDetTab === 'proposta' && typeof orcAtualId !== 'undefined' && orcAtualId === orc.id) rOrcProposta(orc);
+}
+
+function propostaAbrirAjustes(orcId) {
+  var orc = (D.orcamentos || []).find(function(o) { return o.id === orcId; });
+  if (!orc) return;
+  var el = document.getElementById('morc-proposta');
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'modal-overlay';
+    el.id = 'morc-proposta';
+    el.innerHTML = '<div class="modal" style="max-width:760px;width:95%">' +
+      '<div class="modal-head"><span class="modal-title">Ajustes da proposta</span>' +
+      '<button class="modal-close" onclick="closeM(\'morc-proposta\')">×</button></div>' +
+      '<div id="morc-proposta-corpo" style="padding:14px 18px;max-height:80vh;overflow:auto"></div></div>';
+    document.body.appendChild(el);
+  }
+  document.getElementById('morc-proposta-corpo').innerHTML = _propostaAjustesHtml(orc);
+  openM('morc-proposta');
+}
+
+// Checklist "O que aparece no PDF": deste orçamento (orc) ou o padrão de
+// todos (orc null, painel Configurações).
+function _propostaChecklistHtml(orc) {
   var grupos = {};
   PROPOSTA_CAMPOS.forEach(function(c) { (grupos[c.grupo] = grupos[c.grupo] || []).push(c); });
-
-  var checklistHtml = Object.keys(grupos).map(function(grupo) {
+  var padrao = (D.orcPrecos && D.orcPrecos.propostaConfigPadrao) || {};
+  return Object.keys(grupos).map(function(grupo) {
     return '<div style="margin-bottom:14px">' +
       '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">' + grupo + '</div>' +
       '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px 14px">' +
       grupos[grupo].map(function(c) {
-        var checked = _propostaValor(orc, c.id);
+        var checked = orc ? _propostaValor(orc, c.id) : (padrao[c.id] != null ? !!padrao[c.id] : c.default);
+        var acao = orc ? 'propostaToggleCampo(\'' + orc.id + '\',\'' + c.id + '\',this.checked)' : 'propostaTogglePadrao(\'' + c.id + '\',this.checked)';
         return '<label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:400;color:var(--text2);cursor:pointer;text-transform:none;letter-spacing:0">' +
-          '<input type="checkbox" style="width:auto;margin:0" ' + (checked ? 'checked' : '') +
-          ' onchange="propostaToggleCampo(\'' + orc.id + '\',\'' + c.id + '\',this.checked)">' +
+          '<input type="checkbox" style="width:auto;margin:0" ' + (checked ? 'checked' : '') + ' onchange="' + acao + '">' +
           c.label + '</label>';
       }).join('') +
       '</div></div>';
   }).join('');
+}
 
-  var tpl = D.propostaTemplateDocx;
+function propostaTogglePadrao(campoId, checked) {
+  if (!D.orcPrecos) D.orcPrecos = {};
+  var padrao = D.orcPrecos.propostaConfigPadrao || {};
+  padrao[campoId] = !!checked;
+  D.orcPrecos.propostaConfigPadrao = padrao;
+  sv('orcPrecos');
+}
+
+// Painel Configurações da Lista de Orçamentos: padrão do PDF + marcações.
+function propostaConfigGeralHTML() {
+  var caixa = 'background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-top:8px';
+  var titulo = 'font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px';
+  var marcacoes = [];
+  try {
+    var ref = (D.orcamentos || [])[D.orcamentos.length - 1];
+    if (ref) marcacoes = _propostaMarcacoes(ref);
+  } catch (e) { marcacoes = []; }
+  return '<div style="' + caixa + '">' +
+      '<div style="' + titulo + ';margin-bottom:4px">O que aparece no PDF — padrão</div>' +
+      '<div style="font-size:11px;color:var(--text3);margin-bottom:12px">Vale para todos os orçamentos. Dá pra mudar só em um orçamento em "Ajustes da proposta", dentro dele.</div>' +
+      _propostaChecklistHtml(null) +
+    '</div>' +
+    '<details style="' + caixa + '">' +
+      '<summary style="' + titulo + ';cursor:pointer">Marcações para o modelo Word</summary>' +
+      '<div style="font-size:11px;color:var(--text3);margin:10px 0">Escreva no modelo .docx a marcação entre chaves simples, ex.: {LOCAL_EVENTO}. Ao gerar, ela é trocada pelo dado do orçamento.</div>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:11px">' +
+        marcacoes.map(function(m) {
+          return '<tr style="border-top:1px solid var(--border)">' +
+            '<td style="padding:5px 8px 5px 0;font-family:var(--mono);color:var(--text);white-space:nowrap;vertical-align:top">{' + m[0] + '}</td>' +
+            '<td style="padding:5px 0;color:var(--text3);vertical-align:top">' + _propostaEsc(m[1]) + '</td>' +
+          '</tr>';
+        }).join('') +
+      '</table>' +
+      '<div style="font-size:11px;color:var(--text3);margin-top:12px;line-height:1.6">' +
+        '<strong>Listas alinhadas (um item por parágrafo):</strong> {EQUIPE} e {CARDAPIO} quebram linha dentro do mesmo parágrafo — se a linha do modelo começa com espaço/tab, só a 1ª linha fica recuada. Pra cada item sair com a mesma formatação, use no modelo, cada marcação numa linha:<br>' +
+        '<span style="font-family:var(--mono);color:var(--text)">{#EQUIPE_LISTA}<br>{CARGO}<br>{/EQUIPE_LISTA}</span><br>' +
+        'e para o cardápio: <span style="font-family:var(--mono);color:var(--text)">{#CARDAPIO_LISTA}<br>{NOME}<br>{DESCRICAO}<br>{/CARDAPIO_LISTA}</span><br>' +
+        'e para os opcionais marcados: <span style="font-family:var(--mono);color:var(--text)">{#OPCIONAIS_LISTA}<br>{NOME} — {VALOR}<br>{DESCRICAO}<br>{/OPCIONAIS_LISTA}</span> (também {VALOR_EXTENSO}, {QTD} e {VALOR_UNITARIO}; uma linha em branco antes de {/OPCIONAIS_LISTA} separa um opcional do outro)<br>' +
+        'Marcação digitada errado sai no documento como [NOME?], pra achar fácil.' +
+      '</div>' +
+    '</details>';
+}
+
+// Conteúdo da janela "Ajustes da proposta" (deste orçamento).
+function _propostaAjustesHtml(orc) {
   var numeroEfetivo = _propostaNumeroEfetivo(orc);
   var cardapioAtual = _propostaCardapioTexto(orc);
-  el.innerHTML =
-    '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;max-width:700px;margin-bottom:14px">' +
-      '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:16px">📄 Dados para a proposta</div>' +
+  return '' +
+    '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:14px">' +
+      '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:16px">Dados para a proposta</div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">' +
         '<div><label class="lbl">Número da proposta</label>' +
           '<input class="inp" type="text" value="' + _propostaEsc(numeroEfetivo) + '" placeholder="Ex: 0142" ' +
@@ -234,35 +325,11 @@ function rOrcProposta(orc) {
 
     _propostaOpcionaisHtml(orc) +
 
-    '<details style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 20px;max-width:700px;margin-bottom:14px">' +
-      '<summary style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;cursor:pointer">Marcações para o modelo Word</summary>' +
-      '<div style="font-size:11px;color:var(--text3);margin:10px 0">Escreva no modelo .docx a marcação entre chaves, ex.: {LOCAL_EVENTO}. Ao gerar, ela é trocada pelo valor abaixo (deste orçamento).</div>' +
-      '<table style="width:100%;border-collapse:collapse;font-size:11px">' +
-        _propostaMarcacoes(orc).map(function(m) {
-          return '<tr style="border-top:1px solid var(--border)">' +
-            '<td style="padding:5px 8px 5px 0;font-family:var(--mono);color:var(--text);white-space:nowrap;vertical-align:top">{' + m[0] + '}</td>' +
-            '<td style="padding:5px 8px;color:var(--text3);vertical-align:top">' + _propostaEsc(m[1]) + '</td>' +
-            '<td style="padding:5px 0;color:var(--text2);white-space:pre-line;vertical-align:top">' + (m[2] ? _propostaEsc(m[2].length > 160 ? m[2].slice(0, 160) + '…' : m[2]) : '<span style="opacity:.5">(vazio)</span>') + '</td>' +
-          '</tr>';
-        }).join('') +
-      '</table>' +
-      '<div style="font-size:11px;color:var(--text3);margin-top:12px;line-height:1.6">' +
-        '<strong>Listas alinhadas (um item por parágrafo):</strong> {EQUIPE} e {CARDAPIO} quebram linha dentro do mesmo parágrafo — se a linha do modelo começa com espaço/tab, só a 1ª linha fica recuada. Pra cada item sair com a mesma formatação, use no modelo, cada marcação numa linha:<br>' +
-        '<span style="font-family:var(--mono);color:var(--text)">{#EQUIPE_LISTA}<br>{CARGO}<br>{/EQUIPE_LISTA}</span><br>' +
-        'e para o cardápio: <span style="font-family:var(--mono);color:var(--text)">{#CARDAPIO_LISTA}<br>{NOME}<br>{DESCRICAO}<br>{/CARDAPIO_LISTA}</span><br>' +
-        'e para os opcionais marcados: <span style="font-family:var(--mono);color:var(--text)">{#OPCIONAIS_LISTA}<br>{NOME} — {VALOR}<br>{DESCRICAO}<br>{/OPCIONAIS_LISTA}</span> (também {VALOR_EXTENSO}, {QTD} e {VALOR_UNITARIO}; uma linha em branco antes de {/OPCIONAIS_LISTA} separa um opcional do outro)<br>' +
-        'Marcação digitada errado sai no documento como [NOME?], pra achar fácil.' +
-      '</div>' +
-    '</details>' +
-
-    '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;max-width:700px;margin-bottom:14px">' +
-      '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:16px">✅ O que aparece no PDF</div>' +
-      checklistHtml +
-      '<button class="btn-sm" style="background:var(--bg3);margin-top:6px" onclick="propostaUsarComoPadrao(\'' + orc.id + '\')">🔧 Usar esta configuração como padrão para novos orçamentos</button>' +
-    '</div>' +
-
-    '<button class="btn btn-primary" id="btn-gerar-proposta" onclick="gerarPropostaOrc(\'' + orc.id + '\')">' +
-      (tpl ? '📄 Gerar Proposta (.docx)' : '📄 Gerar PDF da Proposta (versão simplificada)') + '</button>';
+    '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px">' +
+      '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">O que aparece no PDF — só neste orçamento</div>' +
+      '<div style="font-size:11px;color:var(--text3);margin-bottom:12px">O padrão de todos fica em Orçamentos → Configurações.</div>' +
+      _propostaChecklistHtml(orc) +
+    '</div>';
 }
 
 // ─── IMPORTAR MODELO (.docx) ──────────────────────────────────────────────────
@@ -398,18 +465,6 @@ function _propostaNumeroEfetivo(orc) {
     return orc.numeroProposta;
   }
   return '';
-}
-
-function propostaUsarComoPadrao(orcId) {
-  var orc = (D.orcamentos || []).find(function(o) { return o.id === orcId; });
-  if (!orc) return;
-  if (!confirm('Usar a configuração de campos visíveis deste orçamento como padrão para novos orçamentos?')) return;
-  var padrao = {};
-  PROPOSTA_CAMPOS.forEach(function(c) { padrao[c.id] = _propostaValor(orc, c.id); });
-  if (!D.orcPrecos) D.orcPrecos = {};
-  D.orcPrecos.propostaConfigPadrao = padrao;
-  sv('orcPrecos');
-  alert2('Configuração salva como padrão para novos orçamentos!');
 }
 
 // ─── DADOS DERIVADOS (compartilhados pelos dois geradores) ───────────────────
@@ -555,7 +610,7 @@ function propostaSetOpcional(orcId, opcId, campo, valor) {
     cur.valor = t === '' ? null : parseValorBR(t);
   }
   sv('orcamentos');
-  rOrcProposta(orc);
+  _propostaRerender(orc);
 }
 
 function propostaSetValorHoraExtra(orcId, valor) {
@@ -564,7 +619,7 @@ function propostaSetValorHoraExtra(orcId, valor) {
   var t = String(valor == null ? '' : valor).trim();
   orc.propostaValorHoraExtra = t === '' ? null : parseValorBR(t);
   sv('orcamentos');
-  rOrcProposta(orc);
+  _propostaRerender(orc);
 }
 
 // Linha da descrição de um opcional marcado: vem do cadastro e pode ser

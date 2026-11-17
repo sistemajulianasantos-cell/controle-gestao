@@ -4,6 +4,9 @@
 let orcView    = 'lista';  // 'lista' | 'detalhe'
 let orcAtualId = null;
 let orcDetTab  = 'calc';   // 'calc' | 'cardapio' | 'servicos' | 'proposta'
+// Painel "Configurações" da Lista (modelos .docx, padrão do PDF, marcações) —
+// fora da tela principal, só abre pelo botão (pedido dela 11-17).
+let _orcConfigAberta = false;
 
 function rOrcamento() {
   if (orcView === 'detalhe' && orcAtualId) rOrcDetalhe();
@@ -27,22 +30,31 @@ function rOrcLista() {
   el.innerHTML = `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
       <span style="font-size:16px;font-weight:600;color:var(--text)">Orçamentos de Eventos</span>
-      <button class="btn btn-primary btn-sm" onclick="solAbrirFormNovoOrcamento()"
-        style="margin-left:auto">+ Novo orçamento</button>
+      <button class="btn-sm" onclick="_orcConfigAberta=!_orcConfigAberta;rOrcLista()"
+        style="margin-left:auto;background:${_orcConfigAberta ? 'var(--blue);color:#fff' : 'var(--bg3)'}">Configurações</button>
+      <button class="btn btn-primary btn-sm" onclick="solAbrirFormNovoOrcamento()">+ Novo orçamento</button>
     </div>
 
-    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-      <span style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">📁 Modelo da proposta (.docx)</span>
-      ${tpl
-        ? `<span style="font-size:12px;color:var(--green)">✓ ${tpl.nome || 'modelo.docx'}${tpl.importadoEm ? ' · ' + new Date(tpl.importadoEm).toLocaleDateString('pt-BR') : ''}</span>`
-        : `<span style="font-size:12px;color:var(--text3)">Nenhum modelo importado — a Proposta sai numa versão simplificada até você importar um.</span>`}
-      ${tpl ? `<button class="btn-sm" onclick="baixarModeloDocx('proposta')" title="Baixa o modelo que o sistema está usando, pra editar e importar de novo" style="background:var(--bg3);margin-left:auto">Baixar modelo</button>` : ''}
-      <label class="btn-sm" style="background:var(--bg3);cursor:pointer${tpl ? '' : ';margin-left:auto'}">
-        📤 ${tpl ? 'Substituir modelo' : 'Importar modelo'}
-        <input type="file" accept=".docx" onchange="propostaImportarModelo(this)" style="display:none">
-      </label>
-    </div>
-    ${typeof contratoModelosBarraHTML === 'function' ? contratoModelosBarraHTML() : ''}
+    ${_orcConfigAberta ? `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;margin-bottom:12px">
+        <span style="font-size:12px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.5px">Configurações — valem para todos os orçamentos</span>
+        <button class="btn-sm" onclick="_orcConfigAberta=false;rOrcLista()" style="background:var(--bg3);margin-left:auto">Fechar</button>
+      </div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <span style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Modelo da proposta (.docx)</span>
+        ${tpl
+          ? `<span style="font-size:12px;color:var(--green)">✓ ${tpl.nome || 'modelo.docx'}${tpl.importadoEm ? ' · ' + new Date(tpl.importadoEm).toLocaleDateString('pt-BR') : ''}</span>`
+          : `<span style="font-size:12px;color:var(--text3)">Nenhum modelo importado — a Proposta sai numa versão simplificada até você importar um.</span>`}
+        ${tpl ? `<button class="btn-sm" onclick="baixarModeloDocx('proposta')" title="Baixa o modelo que o sistema está usando, pra editar e importar de novo" style="background:var(--bg2);margin-left:auto">Baixar modelo</button>` : ''}
+        <label class="btn-sm" style="background:var(--bg2);cursor:pointer${tpl ? '' : ';margin-left:auto'}">
+          ${tpl ? 'Substituir modelo' : 'Importar modelo'}
+          <input type="file" accept=".docx" onchange="propostaImportarModelo(this)" style="display:none">
+        </label>
+      </div>
+      ${typeof contratoModelosBarraHTML === 'function' ? contratoModelosBarraHTML() : ''}
+      ${typeof propostaConfigGeralHTML === 'function' ? propostaConfigGeralHTML() : ''}
+    </div>` : ''}
 
     ${!lista.length ? `
       <div style="text-align:center;padding:60px 20px;color:var(--text3)">
@@ -315,6 +327,7 @@ function rOrcDetalhe() {
         <option value="">por quem? (escolher)</option>
         ${_orcNomesUsuarios().map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('')}
       </select>` : ''}
+      <button class="btn-sm" onclick="propostaAbrirAjustes('${orc.id}')" title="Número, opcionais e o que aparece na proposta deste orçamento" style="background:var(--bg3)">Ajustes da proposta</button>
       <button class="btn-sm" onclick="clonarOrc('${orc.id}')" title="Criar um novo orçamento igual a este" style="background:var(--bg3)">Clonar</button>
       ${typeof orcContratoBotaoHTML === 'function' ? orcContratoBotaoHTML(orc, false) : ''}
     </div>
