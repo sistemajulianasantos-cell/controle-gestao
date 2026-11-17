@@ -109,16 +109,16 @@ function rTiposEventoLista() {
     porGrupo[g].push(t);
   });
 
-  var blocos = ordemGrupos.length ? ordemGrupos.map(function(g) {
+  var blocos = ordemGrupos.length ? ordemGrupos.map(function(g, gi) {
     var itens = porGrupo[g];
-    var linhas = itens.map(function(t) {
-      var i = lista.indexOf(t);
+    var gEsc = g.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    var linhas = itens.map(function(t, i) {
       var qtd = _tipoEventoEmUso(t.id);
       return '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;display:flex;align-items:center;gap:10px;margin-bottom:6px">' +
-        '<div style="display:flex;flex-direction:column;gap:2px">' +
+        (itens.length > 1 ? '<div style="display:flex;flex-direction:column;gap:2px" title="Mudar a ordem dentro do grupo">' +
           '<button class="btn-sm" style="padding:0 6px;background:var(--bg2)" ' + (i === 0 ? 'disabled' : '') + ' onclick="moverTipoEvento(\'' + t.id + '\',-1)">▲</button>' +
-          '<button class="btn-sm" style="padding:0 6px;background:var(--bg2)" ' + (i === lista.length - 1 ? 'disabled' : '') + ' onclick="moverTipoEvento(\'' + t.id + '\',1)">▼</button>' +
-        '</div>' +
+          '<button class="btn-sm" style="padding:0 6px;background:var(--bg2)" ' + (i === itens.length - 1 ? 'disabled' : '') + ' onclick="moverTipoEvento(\'' + t.id + '\',1)">▼</button>' +
+        '</div>' : '') +
         (itens.length > 1
           ? '<input class="inp" type="text" value="' + t.nome + '" placeholder="Subgrupo" style="flex:1;font-size:12px;padding:5px 8px" onchange="renomearTipoEvento(\'' + t.id + '\',this.value)">'
           : '<span style="flex:1;font-size:10px;color:var(--text3)">único subgrupo deste grupo</span>') +
@@ -129,8 +129,12 @@ function rTiposEventoLista() {
 
     return '<div style="margin-bottom:16px">' +
       '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">' +
-        '<input class="inp" type="text" value="' + g + '" style="font-size:12px;font-weight:700;padding:5px 8px;max-width:260px;text-transform:uppercase;letter-spacing:.4px" onchange="renomearGrupoTipoEvento(\'' + g.replace(/'/g, "\\'") + '\',this.value)">' +
-        '<button class="btn-sm" style="background:var(--bg3)" onclick="adicionarSubgrupoTipoEvento(\'' + g.replace(/'/g, "\\'") + '\')">+ subgrupo neste grupo</button>' +
+        '<div style="display:flex;flex-direction:column;gap:2px" title="Mudar a ordem do grupo inteiro">' +
+          '<button class="btn-sm" style="padding:0 6px;background:var(--bg2)" ' + (gi === 0 ? 'disabled' : '') + ' onclick="moverGrupoTipoEvento(\'' + gEsc + '\',-1)">▲</button>' +
+          '<button class="btn-sm" style="padding:0 6px;background:var(--bg2)" ' + (gi === ordemGrupos.length - 1 ? 'disabled' : '') + ' onclick="moverGrupoTipoEvento(\'' + gEsc + '\',1)">▼</button>' +
+        '</div>' +
+        '<input class="inp" type="text" value="' + g.replace(/"/g, '&quot;') + '" title="Nome do grupo" style="font-size:12px;font-weight:700;padding:5px 8px;max-width:260px;letter-spacing:.4px" onchange="renomearGrupoTipoEvento(\'' + gEsc + '\',this.value)">' +
+        '<button class="btn-sm" style="background:var(--bg3)" onclick="adicionarSubgrupoTipoEvento(\'' + gEsc + '\')">+ subgrupo neste grupo</button>' +
       '</div>' +
       '<div style="padding-left:4px">' + linhas + '</div>' +
     '</div>';
@@ -217,14 +221,50 @@ function excluirTipoEvento(id) {
   rTiposEventoLista();
 }
 
-function moverTipoEvento(id, dir) {
-  var lista = getTiposEvento();
-  var idx = lista.findIndex(function(t) { return t.id === id; });
-  var swapIdx = idx + dir;
-  if (idx === -1 || swapIdx < 0 || swapIdx >= lista.length) return;
-  var a = buscarTipoEventoPorId(lista[idx].id);
-  var b = buscarTipoEventoPorId(lista[swapIdx].id);
-  var tmp = a.ordem; a.ordem = b.ordem; b.ordem = tmp;
+// Lista agrupada [[grupo, [tipos...]], ...] na ordem em que aparece na tela.
+function _tevGrupos() {
+  var porGrupo = {}, ordem = [];
+  getTiposEvento().forEach(function(t) {
+    var g = t.grupo || t.nome;
+    if (!porGrupo[g]) { porGrupo[g] = []; ordem.push(g); }
+    porGrupo[g].push(t);
+  });
+  return ordem.map(function(g) { return [g, porGrupo[g]]; });
+}
+
+// Regrava ordem 1..n seguindo os grupos (grupo inteiro junto) — antes um
+// subgrupo podia ficar com ordem "no meio" de outro grupo e a seta parecia
+// não fazer nada (pedido 11-17: padronizar e ordenar).
+function _tevGravarOrdem(grupos) {
+  var n = 0;
+  grupos.forEach(function(par) {
+    par[1].forEach(function(t) { var real = buscarTipoEventoPorId(t.id); if (real) real.ordem = ++n; });
+  });
   sv('tiposEvento');
   rTiposEventoLista();
+}
+
+// Sobe/desce o subgrupo dentro do próprio grupo.
+function moverTipoEvento(id, dir) {
+  var grupos = _tevGrupos();
+  grupos.some(function(par) {
+    var itens = par[1];
+    var idx = itens.findIndex(function(t) { return t.id === id; });
+    if (idx === -1) return false;
+    var j = idx + dir;
+    if (j < 0 || j >= itens.length) return true;
+    var tmp = itens[idx]; itens[idx] = itens[j]; itens[j] = tmp;
+    return true;
+  });
+  _tevGravarOrdem(grupos);
+}
+
+// Sobe/desce o grupo inteiro (com todos os subgrupos).
+function moverGrupoTipoEvento(grupo, dir) {
+  var grupos = _tevGrupos();
+  var idx = grupos.findIndex(function(par) { return par[0] === grupo; });
+  var j = idx + dir;
+  if (idx === -1 || j < 0 || j >= grupos.length) return;
+  var tmp = grupos[idx]; grupos[idx] = grupos[j]; grupos[j] = tmp;
+  _tevGravarOrdem(grupos);
 }

@@ -974,6 +974,11 @@ function _ocoRenderOverview(cont, tipos) {
     porGrupo[g].push(t);
   });
 
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px">' +
+    '<span style="font-size:13px;font-weight:700;color:var(--text)">Tipos de Evento</span>' +
+    '<button class="btn-sm" onclick="go(\'tiposevento\')" style="background:var(--bg3)">Editar nomes e ordem</button>' +
+  '</div>';
+
   ordemGrupos.forEach(function(g) {
     html += '<div style="margin-bottom:14px">' +
       '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">' + g + '</div>';
