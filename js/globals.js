@@ -53,6 +53,19 @@ function aplicarMesFechado(anoId, mesId, iniId, fimId, fn) {
 }
 
 
+// Nome de arquivo no padrão dela (11-17): "1126-050 _ HUMBERTO TEODORO _ 18.12.2026.docx"
+// — código _ nome em maiúsculas _ data do evento (AAAA-MM-DD ou DD/MM/AAAA)
+// com pontos. Parte vazia some; caractere proibido no Windows vira "-".
+function nomeArquivoPadrao(codigo, nome, data, ext) {
+  var s = String(data || '');
+  var iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(s), br = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(s);
+  var dataTxt = iso ? iso[3] + '.' + iso[2] + '.' + iso[1] : (br ? br[1] + '.' + br[2] + '.' + br[3] : '');
+  var partes = [codigo, String(nome || '').toUpperCase(), dataTxt]
+    .map(function(p) { return String(p || '').replace(/[\\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim(); })
+    .filter(Boolean);
+  return (partes.join(' _ ') || 'Documento') + (ext || '.docx');
+}
+
 // Valor em reais digitado do jeito brasileiro → número. "1.200,00" → 1200,
 // "1200" → 1200, "5,5" → 5.5, "1.200" → 1200 (ponto de milhar). Campo
 // type="number" lia "1.200,00" como 1,2 (pedido dela 10-15).

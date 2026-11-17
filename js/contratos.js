@@ -594,7 +594,7 @@ async function gerarContratoDocx() {
     const blob = new Blob([docx.getZip().generate({type:'arraybuffer'})], {type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `Contrato_${nome.split(' ')[0]}_${dtSimples?.replace(/\//g,'-')||''}.docx`;
+    a.download = nomeArquivoPadrao('', 'CONTRATO ' + nome, data);
     a.click(); URL.revokeObjectURL(a.href);
 
     // Salvar na lista e alimentar agenda + financeiro

@@ -567,7 +567,7 @@ function _orcContratoBaixarDocx(info) {
       { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'Contrato_' + String(info.dados.nome || 'cliente').split(' ')[0] + '_' + fd(info.orc.dataEvento).replace(/\//g, '-') + '.docx';
+    a.download = nomeArquivoPadrao(typeof _propostaNumeroEfetivo === 'function' ? _propostaNumeroEfetivo(info.orc) : info.orc.numeroProposta,'CONTRATO ' + (info.dados.nome || info.orc.nomeCliente || ''), info.orc.dataEvento);
     a.click();
     URL.revokeObjectURL(a.href);
     return true;

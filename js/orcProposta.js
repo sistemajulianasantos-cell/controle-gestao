@@ -759,14 +759,7 @@ function _docxErroDetalhe(e) {
 // Nome do arquivo no padrão dela (11-17): "1126-050 _ HUMBERTO TEODORO _ 18.12.2026.docx"
 // (Nº da proposta _ cliente do cabeçalho _ data do evento com pontos).
 function _propostaNomeArquivo(orc) {
-  var data = /^(\d{4})-(\d{2})-(\d{2})/.exec(orc.dataEvento || '');
-  var partes = [
-    _propostaNumeroEfetivo(orc),
-    String(orc.nomeCliente || '').trim().toUpperCase(),
-    data ? data[3] + '.' + data[2] + '.' + data[1] : '',
-  ].map(function(p) { return String(p || '').replace(/[\\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim(); })
-   .filter(Boolean);
-  return (partes.join(' _ ') || 'Proposta') + '.docx';
+  return nomeArquivoPadrao(_propostaNumeroEfetivo(orc), orc.nomeCliente, orc.dataEvento);
 }
 
 function _propostaGerarDocx(orc) {
