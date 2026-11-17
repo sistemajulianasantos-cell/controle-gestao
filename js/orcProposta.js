@@ -756,6 +756,19 @@ function _docxErroDetalhe(e) {
   return textos.join(' | ');
 }
 
+// Nome do arquivo no padrão dela (11-17): "1126-050 _ HUMBERTO TEODORO _ 18.12.2026.docx"
+// (Nº da proposta _ cliente do cabeçalho _ data do evento com pontos).
+function _propostaNomeArquivo(orc) {
+  var data = /^(\d{4})-(\d{2})-(\d{2})/.exec(orc.dataEvento || '');
+  var partes = [
+    _propostaNumeroEfetivo(orc),
+    String(orc.nomeCliente || '').trim().toUpperCase(),
+    data ? data[3] + '.' + data[2] + '.' + data[1] : '',
+  ].map(function(p) { return String(p || '').replace(/[\\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim(); })
+   .filter(Boolean);
+  return (partes.join(' _ ') || 'Proposta') + '.docx';
+}
+
 function _propostaGerarDocx(orc) {
   if (!window.PizZip || !window.Docxtemplater) {
     alert2('Bibliotecas de geração de Word ainda não carregaram — aguarde e tente novamente.', 'error');
@@ -804,7 +817,7 @@ function _propostaGerarDocx(orc) {
       { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'Proposta_' + (orc.nomeCliente || 'cliente').split(' ')[0] + '.docx';
+    a.download = _propostaNomeArquivo(orc);
     a.click();
     URL.revokeObjectURL(a.href);
   } catch (e) {
