@@ -533,7 +533,12 @@ function recalcularAutos(opts) {
   const pax  = orc.convidados || 0;
   const precos = getOrcPrecos();
   const localKey = _migrarLocalOrcamento(p);
-  const loc  = precos.locais[localKey] || Object.values(precos.locais)[0];
+  // Tabela do ano do evento (Preços, Equipe e Taxas → Reajuste por ano):
+  // frete/logística e preço de equipe podem ser diferentes p/ 2028 etc.
+  const anoTab = _orcAnoTabela(orc);
+  const loc  = _orcLocalDoAno(precos.locais[localKey] || Object.values(precos.locais)[0], localKey, anoTab);
+  if (!orc.calcParams) orc.calcParams = {};
+  orc.calcParams.tabelaAno = anoTab || '';
   const autoS = _calcAutoStaff(pax);
 
   const qt = {
@@ -554,15 +559,15 @@ function recalcularAutos(opts) {
   // Equipe → Regras de Pagamento pro cargo 'hb' (D.regrasEquipe.bonusConvidados.hb):
   // valor fixo por evento, com mínimo garantido de 1 unidade mesmo com menos
   // de 100 convidados, escalando a cada 100 convidados acima disso.
-  const bonusHeadUnit  = (D.regrasEquipe && D.regrasEquipe.bonusConvidados && D.regrasEquipe.bonusConvidados.hb) || 0;
+  const bonusHeadUnit  = _orcBonusHeadDoAno((D.regrasEquipe && D.regrasEquipe.bonusConvidados && D.regrasEquipe.bonusConvidados.hb) || 0, anoTab);
   const bonusHeadValor = pax > 0 ? bonusHeadUnit * Math.max(1, pax / 100) : 0;
 
   const autos = [
-    _mk('auto-bt',   'equipe',    'Bartender',           qt.bt,    _precoCargo('bt', localKey)),
-    _mk('auto-bb',   'equipe',    'Bar Back',            qt.bb,    _precoCargo('bb', localKey)),
-    _mk('auto-hb',   'equipe',    'Head Bartender',      qt.hb,    _precoCargo('hb', localKey)),
-    _mk('auto-cd',   'equipe',    'Coordenador',         qt.cd,    _precoCargo('cd', localKey)),
-    _mk('auto-cp',   'equipe',    'Copeiro',             qt.cp,    _precoCargo('cp', localKey)),
+    _mk('auto-bt',   'equipe',    'Bartender',           qt.bt,    _precoCargo('bt', localKey, anoTab)),
+    _mk('auto-bb',   'equipe',    'Bar Back',            qt.bb,    _precoCargo('bb', localKey, anoTab)),
+    _mk('auto-hb',   'equipe',    'Head Bartender',      qt.hb,    _precoCargo('hb', localKey, anoTab)),
+    _mk('auto-cd',   'equipe',    'Coordenador',         qt.cd,    _precoCargo('cd', localKey, anoTab)),
+    _mk('auto-cp',   'equipe',    'Copeiro',             qt.cp,    _precoCargo('cp', localKey, anoTab)),
     _mk('auto-bonus-head', 'equipe', 'Bônus Head Bartender/Coordenador', bonusHeadValor > 0 ? 1 : 0, bonusHeadValor),
     _mk('auto-ca',   'logistica', _orcNomeItemLocal('ca'), 1,       loc.ca),
     _mk('auto-rf',   'logistica', _orcNomeItemLocal('rf'), eqTotal, loc.rf),
@@ -618,10 +623,77 @@ function recalcularAutos(opts) {
 
 // Preço de equipe (o que cobra do cliente) por cargo/faixa — vem do Cadastro
 // de Cargos (js/cargos.js), não mais deste arquivo.
-function _precoCargo(cargoKey, localKey) {
+function _precoCargo(cargoKey, localKey, ano) {
   var cargo = (typeof buscarCargoPorKey === 'function') ? buscarCargoPorKey(cargoKey) : null;
   var pr = (cargo && cargo.porRegiao && cargo.porRegiao[localKey]) || {};
-  return pr.precoOrcamento || 0;
+  var base = pr.precoOrcamento || 0;
+  var r = ano && _orcReajusteAno(ano);
+  if (!r || !r.equipe) return base;
+  if (r.equipe.modo === 'valor') {
+    var v = r.equipe.valores && r.equipe.valores[cargoKey] && r.equipe.valores[cargoKey][localKey];
+    return v != null && v !== '' ? Number(v) || 0 : base;
+  }
+  return _orcAplicarPct(base, r.equipe.pct);
+}
+
+// ─── TABELA DE PREÇO POR ANO DO EVENTO (pedido 11-17) ────────────────────────
+// D.orcPrecos.reajustesAno = { '2028': {
+//   frete:  { modo: 'pct'|'valor', pct, valores: { localKey: { ca, rf, la, <extra> } } },
+//   equipe: { modo: 'pct'|'valor', pct, valores: { cargoKey: { regiaoKey: preco } }, bonusHb } } }
+// Vale para evento NAQUELE ano em diante (o maior ano cadastrado <= ano do
+// evento). Muda só o preço cobrado do cliente — o pagamento da equipe
+// (Cadastro de Cargos / Regras de Pagamento) não muda. No modo 'valor', campo
+// vazio usa o valor atual.
+function _orcReajustesAno() { return (D.orcPrecos && D.orcPrecos.reajustesAno) || {}; }
+function _orcReajusteAno(ano) { return _orcReajustesAno()[String(ano)] || null; }
+
+function _orcAnoTabela(orc) {
+  var m = /^(\d{4})/.exec((orc && orc.dataEvento) || '');
+  if (!m) return null;
+  var anoEvt = Number(m[1]);
+  var anos = Object.keys(_orcReajustesAno()).map(Number).filter(function(a) { return a && a <= anoEvt; });
+  return anos.length ? String(Math.max.apply(null, anos)) : null;
+}
+
+function _orcAplicarPct(base, pct) {
+  var p = Number(pct) || 0;
+  return Math.round((Number(base) || 0) * (1 + p / 100) * 100) / 100;
+}
+
+function _orcLocalDoAno(loc, localKey, ano) {
+  var r = ano && _orcReajusteAno(ano);
+  if (!r || !r.frete || !loc) return loc;
+  var out = Object.assign({}, loc);
+  var campos = ['ca', 'rf', 'la'].concat(getOrcItensLocaisExtras().map(function(x) { return x.id; }));
+  campos.forEach(function(c) {
+    if (r.frete.modo === 'valor') {
+      var v = r.frete.valores && r.frete.valores[localKey] && r.frete.valores[localKey][c];
+      if (v != null && v !== '') out[c] = Number(v) || 0;
+    } else {
+      out[c] = _orcAplicarPct(loc[c], r.frete.pct);
+    }
+  });
+  return out;
+}
+
+// Aviso na Calculadora: qual tabela está valendo e, se a data do evento mudou
+// depois do último cálculo, botão p/ recalcular com a tabela certa.
+function _orcAvisoTabelaAnoHtml(orc) {
+  var certo = _orcAnoTabela(orc) || '';
+  var aplicado = (orc.calcParams && orc.calcParams.tabelaAno) || '';
+  if (certo === aplicado) {
+    return certo ? '<div style="font-size:11px;color:var(--text2);background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);padding:6px 10px;margin-bottom:10px">Frete e equipe pela tabela de <strong>' + certo + '</strong> (evento em ' + String(orc.dataEvento).slice(0, 4) + ').</div>' : '';
+  }
+  return '<div style="font-size:11px;color:var(--amber);background:var(--bg3);border:1px solid var(--amber);border-radius:var(--radius);padding:6px 10px;margin-bottom:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
+    '<span style="flex:1">A data do evento pede a tabela ' + (certo ? 'de ' + certo : 'atual') + ', mas os valores foram calculados com a ' + (aplicado ? 'de ' + aplicado : 'atual') + '.</span>' +
+    '<button class="btn-sm" onclick="recalcularAutos()" style="background:var(--bg2)">Recalcular</button></div>';
+}
+
+function _orcBonusHeadDoAno(base, ano) {
+  var r = ano && _orcReajusteAno(ano);
+  if (!r || !r.equipe) return base;
+  if (r.equipe.modo === 'valor') return r.equipe.bonusHb != null && r.equipe.bonusHb !== '' ? Number(r.equipe.bonusHb) || 0 : base;
+  return _orcAplicarPct(base, r.equipe.pct);
 }
 
 // ─── PARÂMETROS ───────────────────────────────────────────────────────────────
@@ -974,6 +1046,7 @@ function rOrcCalc() {
   const paramHtml = `
     <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px">
       <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">⚙️ Parâmetros do evento</div>
+      ${_orcAvisoTabelaAnoHtml(orc)}
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:12px">
 
         <div>

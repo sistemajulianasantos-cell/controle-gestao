@@ -1424,8 +1424,150 @@ function resetarPrecosOrcamento() {
   if (ant.adicionais) D.orcPrecos.adicionais = ant.adicionais;
   if (ant.equipeRegra) D.orcPrecos.equipeRegra = ant.equipeRegra;
   if (ant.itensLocaisExtras) D.orcPrecos.itensLocaisExtras = ant.itensLocaisExtras;
+  if (ant.reajustesAno) D.orcPrecos.reajustesAno = ant.reajustesAno;
   sv('orcPrecos');
   rPrecosOrcamento();
+}
+
+// ── Reajuste por ano do evento (pedido 11-17) ──
+// Frete (Preços por Local) e Equipe (preço cobrado por cargo) diferentes para
+// eventos de um ano em diante — em % sobre o valor atual ou em R$ (tabela).
+// Lido por _orcAnoTabela/_orcLocalDoAno/_precoCargo em orcCalc.js. Grava direto.
+function _htmlReajustesAno() {
+  var reaj = (D.orcPrecos && D.orcPrecos.reajustesAno) || {};
+  var anos = Object.keys(reaj).sort();
+  var precos = getOrcPrecos();
+  var inpNum = function(v, onchange, w, ph) {
+    return '<input type="number" min="0" step="0.01" value="' + (v != null && v !== '' ? v : '') + '"' + (ph != null ? ' placeholder="' + ph + '"' : '') + ' onchange="' + onchange + '" ' +
+      'style="width:' + (w || 80) + 'px;text-align:right;font-size:11px;padding:3px 5px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">';
+  };
+  var modoBtns = function(ano, bloco, modo) {
+    return '<button class="sort-btn' + (modo !== 'valor' ? ' active' : '') + '" onclick="reajSetModo(\'' + ano + '\',\'' + bloco + '\',\'pct\')">Em %</button>' +
+      '<button class="sort-btn' + (modo === 'valor' ? ' active' : '') + '" onclick="reajSetModo(\'' + ano + '\',\'' + bloco + '\',\'valor\')">Em R$ (tabela)</button>';
+  };
+  var colsLocais = [['ca', _orcNomeItemLocal('ca')], ['rf', _orcNomeItemLocal('rf')], ['la', _orcNomeItemLocal('la')]]
+    .concat(getOrcItensLocaisExtras().map(function(x) { return [x.id, x.nome]; }));
+  var bonusAtual = (D.regrasEquipe && D.regrasEquipe.bonusConvidados && D.regrasEquipe.bonusConvidados.hb) || 0;
+  var th = function(t) { return '<th style="text-align:center;padding:4px 6px">' + t + '</th>'; };
+
+  var blocoAno = function(ano) {
+    var r = reaj[ano] || {};
+    var fr = r.frete || { modo: 'pct' }, eq = r.equipe || { modo: 'pct' };
+
+    var freteCorpo = fr.modo === 'valor'
+      ? '<table style="border-collapse:collapse;font-size:11px;margin-top:8px"><thead><tr style="color:var(--text3);font-size:9px;text-transform:uppercase">' +
+          '<th style="text-align:left;padding:4px 8px">Local</th>' + colsLocais.map(function(c) { return th(c[1]); }).join('') + '</tr></thead><tbody>' +
+          Object.entries(precos.locais).map(function(e) {
+            var key = e[0], v = e[1], vals = (fr.valores && fr.valores[key]) || {};
+            return '<tr style="border-top:1px solid var(--border)"><td style="padding:5px 8px;color:var(--text)">' + (v.label || key) + '</td>' +
+              colsLocais.map(function(c) {
+                return '<td style="padding:3px 4px">' + inpNum(vals[c[0]] != null ? vals[c[0]] : (v[c[0]] || 0), 'reajSetValorFrete(\'' + ano + '\',\'' + key + '\',\'' + c[0] + '\',this.value)') + '</td>';
+              }).join('') + '</tr>';
+          }).join('') + '</tbody></table>'
+      : '<div style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;color:var(--text2)">Aumentar ' +
+          inpNum(fr.pct, 'reajSetPct(\'' + ano + '\',\'frete\',this.value)', 70, '0') + ' % sobre os valores atuais de cada local</div>';
+
+    var equipeCorpo = eq.modo === 'valor'
+      ? '<table style="border-collapse:collapse;font-size:11px;margin-top:8px"><thead><tr style="color:var(--text3);font-size:9px;text-transform:uppercase">' +
+          '<th style="text-align:left;padding:4px 8px">Local</th>' + (typeof _CARGOS_DEF !== 'undefined' ? _CARGOS_DEF.map(function(c) { return th(c.nome); }).join('') : '') + '</tr></thead><tbody>' +
+          (typeof REGIOES_LOCAL !== 'undefined' && typeof _CARGOS_DEF !== 'undefined' ? REGIOES_LOCAL.map(function(reg) {
+            return '<tr style="border-top:1px solid var(--border)"><td style="padding:5px 8px;color:var(--text)">' + reg.label + '</td>' +
+              _CARGOS_DEF.map(function(c) {
+                var cargo = buscarCargoPorKey(c.key);
+                var atual = (cargo && cargo.porRegiao && cargo.porRegiao[reg.key] && cargo.porRegiao[reg.key].precoOrcamento) || 0;
+                var salvo = eq.valores && eq.valores[c.key] && eq.valores[c.key][reg.key];
+                return '<td style="padding:3px 4px">' + inpNum(salvo != null ? salvo : atual, 'reajSetValorEquipe(\'' + ano + '\',\'' + c.key + '\',\'' + reg.key + '\',this.value)') + '</td>';
+              }).join('') + '</tr>';
+          }).join('') : '') + '</tbody></table>' +
+          '<div style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;color:var(--text2)">Bônus Head Bartender / Coordenador R$ ' +
+            inpNum(eq.bonusHb != null ? eq.bonusHb : bonusAtual, 'reajSetBonus(\'' + ano + '\',this.value)', 90) + '</div>'
+      : '<div style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;color:var(--text2)">Aumentar ' +
+          inpNum(eq.pct, 'reajSetPct(\'' + ano + '\',\'equipe\',this.value)', 70, '0') + ' % sobre o preço atual de cada cargo (e o bônus do Head)</div>';
+
+    return '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:10px;overflow-x:auto">' +
+      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">' +
+        '<span style="font-size:14px;font-weight:700;color:var(--text)">Eventos a partir de ' + ano + '</span>' +
+        '<button class="btn-sm" onclick="reajExcluirAno(\'' + ano + '\')" style="background:var(--bg2);color:var(--red);margin-left:auto">Excluir ' + ano + '</button>' +
+      '</div>' +
+      '<div style="margin-bottom:14px"><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-size:12px;font-weight:600;color:var(--text);margin-right:6px">Frete / logística por local</span>' + modoBtns(ano, 'frete', fr.modo) + '</div>' + freteCorpo + '</div>' +
+      '<div><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-size:12px;font-weight:600;color:var(--text);margin-right:6px">Equipe (o que cobra do cliente)</span>' + modoBtns(ano, 'equipe', eq.modo) + '</div>' + equipeCorpo + '</div>' +
+    '</div>';
+  };
+
+  return '<div class="sec" style="margin-bottom:14px">' +
+    '<div class="sec-head"><span class="sec-title">📅 Reajuste por ano do evento</span></div>' +
+    '<div style="padding:12px 16px">' +
+      '<div style="font-size:11px;color:var(--text3);margin-bottom:10px">Valores diferentes de frete e equipe para eventos de um ano em diante — o orçamento escolhe sozinho pela <strong>data do evento</strong> (ex.: evento em 2028 usa "a partir de 2028"; evento sem data ou antes disso usa os valores acima). Pode ser em % sobre os valores atuais ou em R$ (a tabela já vem com os valores atuais, é só mudar o que for diferente). Não muda o que vocês pagam para a equipe. Grava na hora.</div>' +
+      anos.map(blocoAno).join('') +
+      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+        '<input id="reaj-novo-ano" type="number" min="2000" max="2100" step="1" placeholder="Ex.: 2028" style="width:100px;font-size:12px;padding:5px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg);color:var(--text)">' +
+        '<button class="btn-sm" onclick="reajAdicionarAno()" style="background:var(--green);color:#fff">+ Adicionar ano</button>' +
+      '</div>' +
+    '</div></div>';
+}
+
+function _reajAno(ano) {
+  var p = _ensureOrcPrecos();
+  if (!p.reajustesAno) p.reajustesAno = {};
+  if (!p.reajustesAno[ano]) p.reajustesAno[ano] = { frete: { modo: 'pct', pct: 0 }, equipe: { modo: 'pct', pct: 0 } };
+  var r = p.reajustesAno[ano];
+  if (!r.frete) r.frete = { modo: 'pct', pct: 0 };
+  if (!r.equipe) r.equipe = { modo: 'pct', pct: 0 };
+  return r;
+}
+
+function _reajGravar(rerender) {
+  sv('orcPrecos');
+  if (rerender) rPrecosOrcamento();
+}
+
+function reajAdicionarAno() {
+  var el = document.getElementById('reaj-novo-ano');
+  var ano = parseInt(el && el.value, 10);
+  if (!ano || ano < 2000 || ano > 2100) { alert2('Informe o ano com 4 dígitos (ex.: 2028).', 'error'); return; }
+  var p = _ensureOrcPrecos();
+  if (p.reajustesAno && p.reajustesAno[ano]) { alert2(ano + ' já está cadastrado.', 'error'); return; }
+  _reajAno(String(ano));
+  _reajGravar(true);
+}
+
+function reajExcluirAno(ano) {
+  sisDialogo('Excluir os valores de ' + ano + '? Orçamentos de eventos desse ano voltam a usar a tabela anterior quando forem recalculados.', function() {
+    var p = _ensureOrcPrecos();
+    if (p.reajustesAno) delete p.reajustesAno[ano];
+    _reajGravar(true);
+  }, { ok: 'Excluir' });
+}
+
+function reajSetModo(ano, bloco, modo) {
+  _reajAno(ano)[bloco].modo = modo;
+  _reajGravar(true);
+}
+
+function reajSetPct(ano, bloco, valor) {
+  _reajAno(ano)[bloco].pct = parseFloat(valor) || 0;
+  _reajGravar(false);
+}
+
+function reajSetValorFrete(ano, localKey, campo, valor) {
+  var fr = _reajAno(ano).frete;
+  if (!fr.valores) fr.valores = {};
+  if (!fr.valores[localKey]) fr.valores[localKey] = {};
+  fr.valores[localKey][campo] = parseFloat(valor) || 0;
+  _reajGravar(false);
+}
+
+function reajSetValorEquipe(ano, cargoKey, regiaoKey, valor) {
+  var eq = _reajAno(ano).equipe;
+  if (!eq.valores) eq.valores = {};
+  if (!eq.valores[cargoKey]) eq.valores[cargoKey] = {};
+  eq.valores[cargoKey][regiaoKey] = parseFloat(valor) || 0;
+  _reajGravar(false);
+}
+
+function reajSetBonus(ano, valor) {
+  _reajAno(ano).equipe.bonusHb = parseFloat(valor) || 0;
+  _reajGravar(false);
 }
 
 function rPrecosOrcamento() {
@@ -1607,6 +1749,7 @@ function rPrecosOrcamento() {
     '<div style="font-size:12px;color:var(--text3);margin-bottom:14px">Esses valores preenchem automaticamente os itens do orçamento (Bartender, Carregamento, Seguro etc.) conforme o Local, Tipo de Evento e Complexidade escolhidos na Calculadora de Orçamento. Use as setas ▲▼ pra mudar a ordem — o nome de cada categoria é editável, e categoria nova entra no fim da lista.</div>' +
     _htmlAdicionaisOrcamento() +
     corpoOrdenado +
+    _htmlReajustesAno() +
     '<div style="display:flex;gap:8px">' +
       '<button class="btn" onclick="salvarPrecosOrcamento()" style="background:var(--green)">💾 Salvar Preços</button>' +
       '<button class="btn" onclick="resetarPrecosOrcamento()" style="background:var(--red-dim);color:var(--red)">↺ Restaurar Padrão</button>' +
