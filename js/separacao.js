@@ -36,12 +36,79 @@ function _sepContaItensFolha(s) {
   return n;
 }
 
-function rSeparacoes() {
+// Busca e filtros da lista de folhas (pedido 11-18).
+var _sepFiltro = { busca: '', periodo: '', de: '', ate: '', ordem: 'recentes' };
+
+function _sepFiltroNorm(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
+
+function sepSetFiltro(campo, valor) {
+  _sepFiltro[campo] = valor;
+  rSeparacoes();
+}
+
+function sepLimparFiltros() {
+  _sepFiltro = { busca: '', periodo: '', de: '', ate: '', ordem: 'recentes' };
   var cont = document.getElementById('sep-lista-body');
-  if (!cont) return;
-  var lista = (D.separacoes||[]).slice().sort(function(a,b){return (b.data||'').localeCompare(a.data||'');});
+  if (cont) cont.innerHTML = '';   // recria a barra com os campos limpos
+  rSeparacoes();
+}
+
+function _sepBarraFiltrosHtml() {
+  var f = _sepFiltro;
+  var st = 'font-size:12px;padding:6px 8px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius)';
+  var opt = function(v, t, atual) { return '<option value="' + v + '"' + (v === atual ? ' selected' : '') + '>' + t + '</option>'; };
+  return '<div id="sep-filtros" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin:4px 0 12px">' +
+    '<div style="flex:1;min-width:220px"><label class="lbl">Buscar</label>' +
+      '<input id="sep-f-busca" type="text" value="' + String(f.busca).replace(/"/g, '&quot;') + '" placeholder="Cliente, local ou data (ex.: 21/11)" oninput="sepSetFiltro(\'busca\',this.value)" style="' + st + ';width:100%;box-sizing:border-box"></div>' +
+    '<div><label class="lbl">Período</label><select onchange="sepSetFiltro(\'periodo\',this.value)" style="' + st + '">' +
+      opt('', 'Todas', f.periodo) + opt('proximas', 'Próximas (hoje em diante)', f.periodo) + opt('passadas', 'Já passaram', f.periodo) + '</select></div>' +
+    '<div><label class="lbl">De</label><input type="date" value="' + f.de + '" onchange="sepSetFiltro(\'de\',this.value)" style="' + st + '"></div>' +
+    '<div><label class="lbl">Até</label><input type="date" value="' + f.ate + '" onchange="sepSetFiltro(\'ate\',this.value)" style="' + st + '"></div>' +
+    '<div><label class="lbl">Ordem</label><select onchange="sepSetFiltro(\'ordem\',this.value)" style="' + st + '">' +
+      opt('recentes', 'Data mais distante primeiro', f.ordem) + opt('proximas', 'Data mais próxima primeiro', f.ordem) + opt('nome', 'Nome (A-Z)', f.ordem) + '</select></div>' +
+    '<button class="btn-sm" onclick="sepLimparFiltros()" style="background:var(--bg3);height:30px">Limpar filtros</button>' +
+  '</div>' +
+  '<div id="sep-f-info" style="font-size:11px;color:var(--text3);margin-bottom:8px"></div>' +
+  '<div id="sep-lista-itens"></div>';
+}
+
+function rSeparacoes() {
+  var raiz = document.getElementById('sep-lista-body');
+  if (!raiz) return;
+  var todas = D.separacoes || [];
+  if (!todas.length) {
+    raiz.innerHTML = '<div style="text-align:center;color:var(--text3);padding:32px;font-size:13px">Nenhuma folha gerada. Clique em "+ Nova Folha".</div>';
+    return;
+  }
+  // A barra é criada uma vez só — redesenhar a cada letra tirava o foco da busca.
+  if (!document.getElementById('sep-filtros')) raiz.innerHTML = _sepBarraFiltrosHtml();
+  var cont = document.getElementById('sep-lista-itens');
+
+  var f = _sepFiltro, hoje = _sepHojeStr();
+  var palavras = _sepFiltroNorm(f.busca).trim().split(/\s+/).filter(Boolean);
+  var lista = todas.filter(function(s) {
+    var d = s.data || '';
+    if (f.periodo === 'proximas' && d && d < hoje) return false;
+    if (f.periodo === 'passadas' && (!d || d >= hoje)) return false;
+    if (f.de && (!d || d < f.de)) return false;
+    if (f.ate && (!d || d > f.ate)) return false;
+    if (palavras.length) {
+      var txt = _sepFiltroNorm([s.evento, s.local, s.cliente, d, fd(d)].join(' '));
+      if (!palavras.every(function(p) { return txt.indexOf(p) !== -1; })) return false;
+    }
+    return true;
+  });
+  lista.sort(function(a, b) {
+    if (f.ordem === 'nome') return (a.evento || '').localeCompare(b.evento || '', 'pt-BR');
+    if (f.ordem === 'proximas') return (a.data || '9999').localeCompare(b.data || '9999');
+    return (b.data || '').localeCompare(a.data || '');
+  });
+
+  var info = document.getElementById('sep-f-info');
+  var filtrando = f.busca || f.periodo || f.de || f.ate;
+  if (info) info.textContent = filtrando ? lista.length + ' de ' + todas.length + ' folha(s)' : todas.length + ' folha(s)';
   if (!lista.length) {
-    cont.innerHTML = '<div style="text-align:center;color:var(--text3);padding:32px;font-size:13px">Nenhuma folha gerada. Clique em "+ Nova Folha".</div>';
+    cont.innerHTML = '<div style="text-align:center;color:var(--text3);padding:24px;font-size:13px">Nenhuma folha com esses filtros.</div>';
     return;
   }
   cont.innerHTML = lista.map(function(s) {
