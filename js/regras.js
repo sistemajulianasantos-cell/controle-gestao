@@ -652,7 +652,8 @@ function rFichas() {
     return;
   }
   var html = '<div style="font-size:11px;color:var(--text3);margin-bottom:10px">A ficha diz <strong>o que tem</strong> no coquetel. <strong>Quanto levar</strong> de cada item (base de cálculo, "segue outro item", etc.) agora fica em <a href="#" onclick="go(\'separacao\');setSepView(\'calculos\');return false" style="color:var(--blue)">Separação → Cálculos</a>.</div>' +
-    '<input class="inp" id="fichas-busca" type="text" placeholder="Buscar coquetel..." oninput="filtrarFichas(this.value)" style="width:100%;max-width:320px;margin-bottom:12px">';
+    '<input class="inp" id="fichas-busca" type="text" placeholder="Buscar coquetel ou item (ex.: melancia)..." oninput="filtrarFichas(this.value)" style="width:100%;max-width:360px;margin-bottom:12px">' +
+    '<span id="fichas-busca-info" style="font-size:11px;color:var(--text3);margin-left:10px"></span>';
   html += fichas.map(function(f) {
     var porCat = {};
     var temMedida = false, temIngrediente = false;
@@ -671,7 +672,9 @@ function rFichas() {
         (ingr ? '' : ' <span style="font-size:9px">(só separação)</span></span>'));
     });
     var faltaMedida = temIngrediente && !temMedida;
-    var busca = (f.nome + ' ' + (f.variantes||'')).toLowerCase();
+    // Busca pelo nome, variantes e também pelos itens da ficha (ex.: "melancia").
+    var busca = _fichaBuscaNorm(f.nome + ' ' + (f.variantes||'') + ' ' +
+      (f.itens||[]).map(function(i){ return i.nome || ''; }).join(' '));
     return '<div class="ficha-card sec" data-busca="' + busca.replace(/"/g,'&quot;') + '" style="margin-bottom:10px">' +
       '<div class="sec-head" style="display:flex;align-items:center;gap:10px">' +
         '<span class="sec-title">🍹 ' + f.nome + '</span>' +
@@ -696,11 +699,23 @@ function rFichas() {
   cont.innerHTML = html;
 }
 
+function _fichaBuscaNorm(t) {
+  return String(t||'').toLowerCase().normalize('NFD').replace(/\p{Mn}/gu,'');
+}
+
+// Cada palavra digitada precisa aparecer na ficha (nome, variantes ou itens).
 function filtrarFichas(v) {
-  var termo = (v||'').trim().toLowerCase();
+  var palavras = _fichaBuscaNorm(v).trim().split(/\s+/).filter(Boolean);
+  var total = 0, vis = 0;
   document.querySelectorAll('#fichas-body .ficha-card').forEach(function(card) {
-    card.style.display = (!termo || card.dataset.busca.indexOf(termo) !== -1) ? '' : 'none';
+    total++;
+    var b = card.dataset.busca || '';
+    var ok = palavras.every(function(p){ return b.indexOf(p) !== -1; });
+    card.style.display = ok ? '' : 'none';
+    if (ok) vis++;
   });
+  var info = document.getElementById('fichas-busca-info');
+  if (info) info.textContent = palavras.length ? (vis + ' de ' + total + ' ficha(s)') : '';
 }
 
 function rFormFicha(fichaExistente) {
