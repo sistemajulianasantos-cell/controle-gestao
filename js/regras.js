@@ -652,8 +652,13 @@ function rFichas() {
     return;
   }
   var html = '<div style="font-size:11px;color:var(--text3);margin-bottom:10px">A ficha diz <strong>o que tem</strong> no coquetel. <strong>Quanto levar</strong> de cada item (base de cálculo, "segue outro item", etc.) agora fica em <a href="#" onclick="go(\'separacao\');setSepView(\'calculos\');return false" style="color:var(--blue)">Separação → Cálculos</a>.</div>' +
-    '<input class="inp" id="fichas-busca" type="text" placeholder="Buscar coquetel ou item (ex.: melancia)..." oninput="filtrarFichas(this.value)" style="width:100%;max-width:360px;margin-bottom:12px">' +
-    '<span id="fichas-busca-info" style="font-size:11px;color:var(--text3);margin-left:10px"></span>';
+    '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px">' +
+      '<input class="inp" id="fichas-busca" type="text" placeholder="Buscar coquetel..." oninput="filtrarFichas()" style="flex:1;min-width:200px;max-width:300px">' +
+      '<input class="inp" id="fichas-busca-insumo" type="text" list="fichas-insumos-dl" placeholder="Buscar por insumo (ex.: melancia)..." oninput="filtrarFichas()" style="flex:1;min-width:200px;max-width:300px">' +
+      '<datalist id="fichas-insumos-dl">' + _fichasInsumosUsados(fichas).map(function(n){ return '<option value="' + n.replace(/"/g,'&quot;') + '">'; }).join('') + '</datalist>' +
+      '<button class="btn-sm" style="background:var(--bg3)" onclick="limparBuscaFichas()">Limpar</button>' +
+      '<span id="fichas-busca-info" style="font-size:11px;color:var(--text3)"></span>' +
+    '</div>';
   html += fichas.map(function(f) {
     var porCat = {};
     var temMedida = false, temIngrediente = false;
@@ -666,16 +671,19 @@ function rFichas() {
       var temQtd = i.qtd != null && i.qtd !== '' && !isNaN(parseFloat(i.qtd));
       if (temQtd && ingr) temMedida = true;
       porCat[cat].push(
+        '<span class="fc-it" data-it="' + _fichaBuscaNorm(i.nome).replace(/"/g,'&quot;') + '" style="border-radius:3px">' +
         (ingr ? '' : '<span style="opacity:.55">') +
         i.nome +
         (temQtd ? ' <strong style="color:var(--text2)">' + parseFloat(i.qtd) + (i.un && i.un !== '—' ? ' ' + i.un : '') + '</strong>' : '') +
-        (ingr ? '' : ' <span style="font-size:9px">(só separação)</span></span>'));
+        (ingr ? '' : ' <span style="font-size:9px">(só separação)</span></span>') +
+        '</span>');
     });
     var faltaMedida = temIngrediente && !temMedida;
-    // Busca pelo nome, variantes e também pelos itens da ficha (ex.: "melancia").
-    var busca = _fichaBuscaNorm(f.nome + ' ' + (f.variantes||'') + ' ' +
-      (f.itens||[]).map(function(i){ return i.nome || ''; }).join(' '));
-    return '<div class="ficha-card sec" data-busca="' + busca.replace(/"/g,'&quot;') + '" style="margin-bottom:10px">' +
+    // Busca de coquetel: só nome + variantes. Insumos têm campo próprio
+    // (data-itens, um nome por linha) — misturar os dois ficava abrangente demais.
+    var busca = _fichaBuscaNorm(f.nome + ' ' + (f.variantes||''));
+    var itensBusca = (f.itens||[]).map(function(i){ return _fichaBuscaNorm(i.nome); }).join('\n');
+    return '<div class="ficha-card sec" data-busca="' + busca.replace(/"/g,'&quot;') + '" data-itens="' + itensBusca.replace(/"/g,'&quot;') + '" style="margin-bottom:10px">' +
       '<div class="sec-head" style="display:flex;align-items:center;gap:10px">' +
         '<span class="sec-title">🍹 ' + f.nome + '</span>' +
         (f.variantes ? '<span style="color:var(--text3);font-size:11px">' + f.variantes + '</span>' : '') +
@@ -703,19 +711,58 @@ function _fichaBuscaNorm(t) {
   return String(t||'').toLowerCase().normalize('NFD').replace(/\p{Mn}/gu,'');
 }
 
-// Cada palavra digitada precisa aparecer na ficha (nome, variantes ou itens).
-function filtrarFichas(v) {
-  var palavras = _fichaBuscaNorm(v).trim().split(/\s+/).filter(Boolean);
+// Nomes de insumo usados em alguma ficha (sugestões do campo de insumo).
+function _fichasInsumosUsados(fichas) {
+  var vistos = {}, lista = [];
+  (fichas||[]).forEach(function(f){
+    (f.itens||[]).forEach(function(i){
+      var n = String(i.nome||'').trim();
+      if (n && !vistos[n.toUpperCase()]) { vistos[n.toUpperCase()] = 1; lista.push(n); }
+    });
+  });
+  return lista.sort(function(a,b){ return a.localeCompare(b); });
+}
+
+// Um item bate com a busca de insumo se: é exatamente o nome digitado
+// (escolhido na lista), ou cada palavra digitada é uma palavra inteira do
+// nome — "gin" acha GIN BEEFEATER mas não GINGER ALE.
+function _fichaItemBate(itemNorm, termo, palavras) {
+  if (itemNorm === termo) return true;
+  var pals = itemNorm.split(/[^a-z0-9]+/).filter(Boolean);
+  return palavras.every(function(p){ return pals.indexOf(p) !== -1; });
+}
+
+function filtrarFichas() {
+  var elC = document.getElementById('fichas-busca');
+  var elI = document.getElementById('fichas-busca-insumo');
+  var palC = _fichaBuscaNorm(elC ? elC.value : '').trim().split(/\s+/).filter(Boolean);
+  var termoI = _fichaBuscaNorm(elI ? elI.value : '').trim().replace(/\s+/g,' ');
+  var palI = termoI.split(/[^a-z0-9]+/).filter(Boolean);
   var total = 0, vis = 0;
   document.querySelectorAll('#fichas-body .ficha-card').forEach(function(card) {
     total++;
     var b = card.dataset.busca || '';
-    var ok = palavras.every(function(p){ return b.indexOf(p) !== -1; });
+    var ok = palC.every(function(p){ return b.indexOf(p) !== -1; });
+    if (ok && palI.length) {
+      ok = (card.dataset.itens || '').split('\n').some(function(it){ return _fichaItemBate(it, termoI, palI); });
+    }
+    // Destaca na ficha o insumo encontrado.
+    card.querySelectorAll('.fc-it').forEach(function(sp){
+      var marca = ok && palI.length && _fichaItemBate(sp.getAttribute('data-it')||'', termoI, palI);
+      sp.style.background = marca ? 'var(--amber)' : '';
+      sp.style.color = marca ? '#000' : '';
+      sp.style.padding = marca ? '0 3px' : '';
+    });
     card.style.display = ok ? '' : 'none';
     if (ok) vis++;
   });
   var info = document.getElementById('fichas-busca-info');
-  if (info) info.textContent = palavras.length ? (vis + ' de ' + total + ' ficha(s)') : '';
+  if (info) info.textContent = (palC.length || palI.length) ? (vis + ' de ' + total + ' ficha(s)') : '';
+}
+
+function limparBuscaFichas() {
+  ['fichas-busca','fichas-busca-insumo'].forEach(function(id){ var el = document.getElementById(id); if (el) el.value = ''; });
+  filtrarFichas();
 }
 
 function rFormFicha(fichaExistente) {
