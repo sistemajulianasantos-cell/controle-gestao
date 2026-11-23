@@ -168,7 +168,16 @@ function _orcContratoRender(orc) {
       opcPacote('essencial', 'consignadas', 'Pacote Essencial', 'Bebidas consignadas', r.valorTotalEssencial, r.porPessoaEssencial, 'var(--amber)') +
       opcPacote('completo', 'romero', 'Pacote Completo', 'Bebidas Romero', r.valorTotal, r.porPessoa, 'var(--green)') +
     '</div>' +
-    '<div id="morc-modelo-aviso" style="font-size:11px;color:var(--text3);margin-bottom:12px"></div>' +
+    '<div id="morc-modelo-aviso" style="font-size:11px;color:var(--text3);margin-bottom:10px"></div>' +
+
+    '<div style="margin-bottom:12px">' +
+      '<label class="lbl">Desconto (valor negociado)</label>' +
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+        '<select id="morc-desc-tipo" class="inp" onchange="_orcContratoAtualizarTotal()" style="width:auto"><option value="final">Valor fechado (R$)</option><option value="%">Desconto em %</option><option value="R$">Desconto em R$</option></select>' +
+        '<input id="morc-desc" class="inp" type="text" inputmode="decimal" placeholder="ex: 3.300,00" oninput="_orcContratoAtualizarTotal()" style="width:130px;text-align:right">' +
+        '<div id="morc-total" style="margin-left:auto;text-align:right;font-size:12px;color:var(--text3)"></div>' +
+      '</div>' +
+    '</div>' +
 
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
       secao('Cliente') +
@@ -198,15 +207,6 @@ function _orcContratoRender(orc) {
       '<div style="grid-column:1/-1">' + planoFormHTML('morc', { tipo: '20_80' }, {
         valor: function() { return _orcContratoLerValores().final; }, dataEvento: orc.dataEvento,
       }) + '</div>' +
-    '</div>' +
-
-    '<div style="margin-top:10px">' +
-      '<label class="lbl">Desconto (valor negociado)</label>' +
-      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
-        '<select id="morc-desc-tipo" class="inp" onchange="_orcContratoAtualizarTotal()" style="width:auto"><option value="final">Valor fechado (R$)</option><option value="%">Desconto em %</option><option value="R$">Desconto em R$</option></select>' +
-        '<input id="morc-desc" class="inp" type="text" inputmode="decimal" placeholder="ex: 3.300,00" oninput="_orcContratoAtualizarTotal()" style="width:130px;text-align:right">' +
-        '<div id="morc-total" style="margin-left:auto;text-align:right;font-size:12px;color:var(--text3)"></div>' +
-      '</div>' +
     '</div>' +
 
     '<div style="font-size:11px;color:var(--text3);margin-top:10px">Ao gerar: o contrato entra em Contratos, o evento na Agenda, o sinal (20%) e o restante (80%) como pendentes no Financeiro, e a ficha em Produção.</div>' +
