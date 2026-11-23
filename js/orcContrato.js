@@ -147,30 +147,26 @@ function _orcContratoRender(orc) {
   var r = (typeof _orcCalcResumo === 'function') ? _orcCalcResumo(orc) : {};
   var campo = 'width:100%;box-sizing:border-box';
   var secao = function(t) { return '<div style="grid-column:1/-1;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;border-top:1px solid var(--border);padding-top:10px;margin-top:4px">' + t + '</div>'; };
-  var opcPacote = function(valor, rotulo, total, porPessoa, cor) {
-    return '<label style="flex:1;min-width:180px;display:flex;gap:8px;align-items:flex-start;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);padding:10px 12px;cursor:pointer">' +
-      '<input type="radio" name="morc-pacote" value="' + valor + '" onchange="_orcContratoPacoteMudou()" style="width:auto;margin:3px 0 0">' +
+  // Uma escolha só: pacote + quem fornece as bebidas (11-23). Completo = bebidas
+  // Romero; Essencial = bebidas do cliente ou consignadas.
+  var opcPacote = function(pacote, bebidas, rotulo, sub, total, porPessoa, cor) {
+    return '<label style="flex:1;min-width:160px;display:flex;gap:8px;align-items:flex-start;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);padding:10px 12px;cursor:pointer">' +
+      '<input type="radio" name="morc-opcao" value="' + pacote + '|' + bebidas + '" onchange="_orcContratoPacoteMudou()" style="width:auto;margin:3px 0 0">' +
       '<span><span style="display:block;font-size:10px;font-weight:700;text-transform:uppercase;color:' + cor + '">' + rotulo + '</span>' +
+      '<span style="display:block;font-size:11px;color:var(--text2);margin-bottom:2px">' + sub + '</span>' +
       '<span style="display:block;font-family:var(--mono);font-size:15px;font-weight:600;color:' + cor + '">' + fR(total) + '</span>' +
       '<span style="display:block;font-size:10px;color:var(--text3)">' + (porPessoa ? fR(porPessoa) + ' / pessoa' : '') + '</span></span></label>';
   };
-  var valHE = Number(orc.propostaValorHoraExtra) || 0;
 
   corpo.innerHTML =
     '<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px">' + esc((orc.numeroProposta ? orc.numeroProposta + ' · ' : '') + (orc.nomeCliente || 'Sem nome')) + '</div>' +
     '<div style="font-size:11px;color:var(--text3);margin-bottom:14px">' + fd(orc.dataEvento) + (orc.convidados ? ' · ' + orc.convidados + ' conv.' : '') + '</div>' +
 
     '<label class="lbl">Qual pacote foi fechado? *</label>' +
-    '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">' +
-      opcPacote('essencial', 'Pacote Essencial', r.valorTotalEssencial, r.porPessoaEssencial, 'var(--blue)') +
-      opcPacote('completo', 'Pacote Completo', r.valorTotal, r.porPessoa, 'var(--green)') +
-    '</div>' +
-
-    '<label class="lbl">Bebidas — define o modelo do contrato *</label>' +
-    '<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--text);margin-bottom:4px">' +
-      CONTRATO_MODELOS.map(function(m) {
-        return '<label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="radio" name="morc-bebidas" value="' + m.id + '" onchange="_orcContratoBebidasMudou()" style="width:auto;margin:0"> ' + m.rotulo + '</label>';
-      }).join('') +
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:4px">' +
+      opcPacote('essencial', 'cliente', 'Pacote Essencial', 'Bebidas do cliente', r.valorTotalEssencial, r.porPessoaEssencial, 'var(--blue)') +
+      opcPacote('essencial', 'consignadas', 'Pacote Essencial', 'Bebidas consignadas', r.valorTotalEssencial, r.porPessoaEssencial, 'var(--amber)') +
+      opcPacote('completo', 'romero', 'Pacote Completo', 'Bebidas Romero', r.valorTotal, r.porPessoa, 'var(--green)') +
     '</div>' +
     '<div id="morc-modelo-aviso" style="font-size:11px;color:var(--text3);margin-bottom:12px"></div>' +
 
@@ -183,12 +179,14 @@ function _orcContratoRender(orc) {
 
       secao('Evento') +
       '<div style="grid-column:1/-1"><label class="lbl">Endereço do evento *</label><input id="morc-endereco-evento" class="inp" type="text" placeholder="Como deve sair no contrato (ex: Clube do Ipê: Alameda do Ipê Amarelo, 1040…)" style="' + campo + '"></div>' +
-      '<div><label class="lbl">Horário de início da festa *</label><input id="morc-hora" class="inp" type="time" style="' + campo + '"></div>' +
-      '<div><label class="lbl">Duração do bar (horas) *</label><input id="morc-duracao" class="inp" type="text" inputmode="decimal" value="' + esc(_orcContratoDuracaoSugerida(orc)) + '" style="' + campo + '"></div>' +
+      '<div><label class="lbl">Horário de início da festa *</label><input id="morc-hora" class="inp" type="time" oninput="_orcContratoHoraFim()" onchange="_orcContratoHoraFim()" style="' + campo + '"></div>' +
+      '<div><label class="lbl">Duração do bar (horas) *</label><input id="morc-duracao" class="inp" type="text" inputmode="decimal" oninput="_orcContratoHoraFim()" value="' + esc(_orcContratoDuracaoSugerida(orc)) + '" style="' + campo + '"></div>' +
+      '<div id="morc-hora-fim" style="grid-column:1/-1;font-size:12px;color:var(--text3);margin-top:-4px"></div>' +
       '<div><label class="lbl">Módulos de bar (1,20m cada) *</label><input id="morc-modulos" class="inp" type="number" min="1" step="1" placeholder="ex: 2" style="' + campo + '"></div>' +
       '<div></div>' +
-      '<div><label class="lbl">Valor da hora extra (R$) *</label><input id="morc-he" class="inp" type="text" inputmode="decimal" value="' + (valHE ? fmtValorBR(valHE) : '') + '" placeholder="ex: 770,00" style="' + campo + '"></div>' +
-      '<div><label class="lbl">Valor por convidado extra (R$) *</label><input id="morc-convextra" class="inp" type="text" inputmode="decimal" placeholder="ex: 110,00" style="' + campo + '"></div>' +
+      '<div><label class="lbl">Valor da hora extra (R$) *</label><input id="morc-he" class="inp" type="text" inputmode="decimal" oninput="this.dataset.manual=1" placeholder="escolha o pacote" style="' + campo + '"></div>' +
+      '<div><label class="lbl">Valor por convidado extra (R$) *</label><input id="morc-convextra" class="inp" type="text" inputmode="decimal" oninput="this.dataset.manual=1" placeholder="escolha o pacote" style="' + campo + '"></div>' +
+      '<div style="grid-column:1/-1;font-size:10px;color:var(--text3);margin-top:-4px">Calculados pelo pacote escolhido: hora extra = 20% do valor do pacote; convidado extra = valor por pessoa + 20%. Dá pra editar.</div>' +
       '<div style="grid-column:1/-1"><label class="lbl">Equipe (uma por linha)</label><textarea id="morc-equipe" class="inp" rows="3" style="' + campo + ';resize:vertical">' + esc(_orcContratoEquipeSugerida(orc)) + '</textarea></div>' +
       '<div style="grid-column:1/-1"><label class="lbl">Coquetéis (um por linha)</label><textarea id="morc-coqueteis" class="inp" rows="5" style="' + campo + ';resize:vertical">' + esc(_orcContratoCoqueteisSugeridos(orc)) + '</textarea></div>' +
       '<div id="morc-destilados-row" style="grid-column:1/-1"><label class="lbl">Destilados</label><textarea id="morc-destilados" class="inp" rows="2" style="' + campo + ';resize:vertical">' + esc(_orcContratoDestiladosSugeridos(orc)) + '</textarea></div>' +
@@ -217,22 +215,55 @@ function _orcContratoRender(orc) {
       '<button class="btn" id="btn-morc-gerar" onclick="orcConfirmarGerarContrato()" style="background:var(--blue);color:#fff">Gerar contrato (.docx)</button>' +
     '</div>';
   _orcContratoBebidasMudou();
+  _orcContratoHoraFim();
   _orcContratoAtualizarTotal();
+}
+
+// "essencial|cliente" → { pacote: 'essencial', bebidas: 'cliente' }
+function _orcContratoOpcao() {
+  var v = ((document.querySelector('input[name="morc-opcao"]:checked') || {}).value || '').split('|');
+  return { pacote: v[0] || '', bebidas: v[1] || '' };
 }
 
 function _orcContratoBebidasSel() {
-  return (document.querySelector('input[name="morc-bebidas"]:checked') || {}).value || '';
+  return _orcContratoOpcao().bebidas;
 }
 
-// Completo = bebida da Romero: já marca, se ela ainda não escolheu.
 function _orcContratoPacoteMudou() {
-  var marcado = document.querySelector('input[name="morc-pacote"]:checked');
-  if (marcado && marcado.value === 'completo' && !_orcContratoBebidasSel()) {
-    var r = document.querySelector('input[name="morc-bebidas"][value="romero"]');
-    if (r) r.checked = true;
-    _orcContratoBebidasMudou();
-  }
+  _orcContratoBebidasMudou();
+  _orcContratoValoresExtras();
   _orcContratoAtualizarTotal();
+}
+
+// Hora extra = 20% do valor do pacote; convidado extra = valor por pessoa + 20%.
+// Só preenche campo que ela não digitou à mão.
+function _orcContratoValoresExtras() {
+  var orc = (D.orcamentos || []).find(function(o) { return o.id === _orcContratoId; });
+  var pac = _orcContratoOpcao().pacote;
+  if (!orc || !pac) return;
+  var r = typeof _orcCalcResumo === 'function' ? _orcCalcResumo(orc) : {};
+  var total = pac === 'completo' ? r.valorTotal : r.valorTotalEssencial;
+  var pp = pac === 'completo' ? r.porPessoa : r.porPessoaEssencial;
+  var arred = function(n) { return Math.round(n * 100) / 100; };
+  var he = document.getElementById('morc-he');
+  var ce = document.getElementById('morc-convextra');
+  if (he && !he.dataset.manual && total > 0) he.value = fmtValorBR(arred(total * 0.2));
+  if (ce && !ce.dataset.manual && pp > 0) ce.value = fmtValorBR(arred(pp * 1.2));
+}
+
+// Mostra "Término: 01:30" a partir do início + duração.
+function _orcContratoHoraFim() {
+  var el = document.getElementById('morc-hora-fim');
+  if (!el) return;
+  var ini = ((document.getElementById('morc-hora') || {}).value || '').trim();
+  var durTxt = ((document.getElementById('morc-duracao') || {}).value || '').trim();
+  var dur = durTxt ? parseValorBR(durTxt) : 0;
+  var hm = ini.split(':').map(Number);
+  if (!ini || isNaN(hm[0]) || !(dur > 0)) { el.innerHTML = ''; return; }
+  var total = hm[0] * 60 + (hm[1] || 0) + Math.round(dur * 60);
+  var mins = total % (24 * 60);
+  var fim = String(Math.floor(mins / 60)).padStart(2, '0') + ':' + String(mins % 60).padStart(2, '0');
+  el.innerHTML = 'Término do bar: <strong style="color:var(--text)">' + fim + '</strong>' + (total >= 24 * 60 ? ' (dia seguinte)' : '');
 }
 
 function _orcContratoBebidasMudou() {
@@ -252,8 +283,7 @@ function _orcContratoBebidasMudou() {
 // Lê pacote + desconto da janela → { pacote, bruto, desconto, final, tipo, qtd }.
 function _orcContratoLerValores() {
   var orc = (D.orcamentos || []).find(function(o) { return o.id === _orcContratoId; });
-  var marcado = document.querySelector('input[name="morc-pacote"]:checked');
-  var pacote = marcado ? marcado.value : '';
+  var pacote = _orcContratoOpcao().pacote;
   var r = orc && typeof _orcCalcResumo === 'function' ? _orcCalcResumo(orc) : {};
   var bruto = pacote === 'completo' ? (r.valorTotal || 0) : pacote === 'essencial' ? (r.valorTotalEssencial || 0) : 0;
   var tipo = (document.getElementById('morc-desc-tipo') || {}).value || '%';
@@ -333,7 +363,7 @@ function orcConfirmarGerarContrato() {
   };
   var faltam = [];
   if (!dados.pacote) faltam.push('pacote fechado');
-  if (!dados.bebidasPor) faltam.push('bebidas (cliente/consignadas/Romero)');
+  else if (!dados.bebidasPor) faltam.push('bebidas (cliente/consignadas/Romero)');
   if (!dados.nome) faltam.push('nome completo');
   if (!dados.cpf) faltam.push('CPF/CNPJ');
   if (!dados.endereco) faltam.push('endereço residencial');
