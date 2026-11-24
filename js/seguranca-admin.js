@@ -16,7 +16,7 @@ function rSeguranca() {
 function _segEntry(hash) {
   const e = (D.senhas || {})[hash];
   if (!e) return null;
-  return typeof e === 'string' ? { p: e, n: '' } : { p: e.p, n: e.n || '', mfa: e.mfa || '' };
+  return typeof e === 'string' ? { p: e, n: '' } : { p: e.p, n: e.n || '', mfa: e.mfa || '', t: e.t || '', trocar: !!e.trocar };
 }
 
 // Grava sem campos vazios (mfa/n só quando existem)
@@ -24,6 +24,8 @@ function _segGravarEntry(hash, e) {
   const obj = { p: e.p };
   if (e.n)   obj.n   = e.n;
   if (e.mfa) obj.mfa = e.mfa;
+  if (e.t)   obj.t   = e.t;
+  if (e.trocar) obj.trocar = true;
   D.senhas[hash] = obj;
 }
 
@@ -46,6 +48,7 @@ function _segRender() {
     const mfaTag = e.mfa
       ? `<span style="background:var(--green-bg);color:var(--green);padding:2px 8px;border-radius:4px;font-size:11px">MFA ativo</span>`
       : `<span style="background:var(--amber-bg);color:var(--amber);padding:2px 8px;border-radius:4px;font-size:11px">Sem MFA</span>`;
+    const trocaTag = (!e.t || e.trocar) ? ' <span style="background:var(--amber-bg);color:var(--amber);padding:2px 8px;border-radius:4px;font-size:11px" title="Vai ter que criar uma senha nova no próximo login">Troca de senha pendente</span>' : '';
     const btnMfa = e.mfa
       ? `<button class="btn btn-sm" onclick="_segRemoverMFA('${hash}')">Desativar MFA</button>`
       : `<button class="btn btn-sm" onclick="_segIniciarSetupMFA('${hash}')">Ativar MFA</button>`;
@@ -60,7 +63,7 @@ function _segRender() {
           ${Object.entries(_SEG_ROTULOS).map(([k, v]) => `<option value="${k}"${e.p === k ? ' selected' : ''}>${v}</option>`).join('')}
         </select>
       </td>
-      <td style="padding:8px 12px">${mfaTag}</td>
+      <td style="padding:8px 12px">${mfaTag}${trocaTag}</td>
       <td style="padding:8px 12px">
         <div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">
           <button class="btn btn-sm" onclick="_segAbrirTrocaSenha('${hash}')">Trocar senha</button>
@@ -356,7 +359,7 @@ async function _segAdicionarSenha() {
     else { alert2('Não consegui criar a conta de acesso: ' + ((e && (e.code || e.message)) || e), 'error'); return; }
   }
   if (!D.senhas) D.senhas = {};
-  _segGravarEntry(hash, { p: perfil, n: nome });
+  _segGravarEntry(hash, { p: perfil, n: nome, trocar: true });
   await window.svFirebase('senhas');
   alert2('Usuário adicionado' + avisoConta, avisoConta ? 'error' : 'success');
   _segRender();
@@ -407,6 +410,8 @@ async function _segConfirmarTrocaSenha() {
       return;
     }
   }
+  if (hashAntigo === senhaHashAtual) { e.t = new Date().toISOString(); e.trocar = false; }
+  else e.trocar = true; // quem recebe a senha nova troca no próximo login
   _segGravarEntry(hashNovo, e);
   delete D.senhas[hashAntigo];
   if (senhaHashAtual === hashAntigo) senhaHashAtual = hashNovo;

@@ -6,7 +6,9 @@ rules_version = '2';
    Só lê/grava quem entrou com uma senha que tem conta de acesso
    (acessos/<uid>, criada no login — ver _fbEntrar no index.html).
    Visitante sem senha (sessão anônima) não lê nem grava nada.
-   Só Administrador mexe em acessos/ e na lista de senhas.
+   Só Administrador mexe em acessos/ e na lista de senhas — com
+   uma exceção: cada pessoa pode trocar a PRÓPRIA senha (troca
+   obrigatória no login, ver _acessoTrocarPropria no index.html).
 
    Como aplicar: Console do Firebase → projeto controle-e-gestao-93c69
    → Firestore Database → Regras → colar este arquivo → Publicar.
@@ -20,23 +22,55 @@ service cloud.firestore {
       return request.auth != null
         && request.auth.token.firebase.sign_in_provider == 'password';
     }
+    function acessoDe(uid) {
+      return get(/databases/$(database)/documents/acessos/$(uid)).data;
+    }
     function liberado() {
       return logado() && exists(/databases/$(database)/documents/acessos/$(request.auth.uid));
     }
     function ehAdmin() {
-      return liberado()
-        && get(/databases/$(database)/documents/acessos/$(request.auth.uid)).data.p == 'admin';
+      return liberado() && acessoDe(request.auth.uid).p == 'admin';
+    }
+
+    // Troca da própria senha, passo 3: a conta NOVA cria o próprio acesso,
+    // copiando perfil e nome da conta antiga, que apontou pra ela (proximo).
+    function criaContaDaTroca(uid) {
+      let d = request.resource.data;
+      let ant = acessoDe(d.de);
+      return logado() && request.auth.uid == uid
+        && d.keys().hasOnly(['p', 'n', 'h', 'hAnt', 'de', 'curta', 'criadoEm'])
+        && ant.get('proximo', '') == uid
+        && d.p == ant.p && d.n == ant.get('n', '')
+        && d.hAnt == ant.h && d.h != ant.h;
+    }
+
+    // Troca da própria senha, passo 5: em dados/senhas só muda a chave da
+    // senha antiga (sai) e a da nova (entra, com o mesmo perfil).
+    function trocaPropriaSenha() {
+      let a = acessoDe(request.auth.uid);
+      let antes = resource.data.valor;
+      let depois = request.resource.data.valor;
+      return a.keys().hasAll(['hAnt'])
+        && request.resource.data.keys().hasOnly(['valor'])
+        && depois.diff(antes).affectedKeys().hasOnly([a.h, a.hAnt])
+        && !(a.hAnt in depois)
+        && (a.h in depois) && depois[a.h].p == a.p;
     }
 
     match /acessos/{uid} {
-      allow get:   if logado() && (request.auth.uid == uid || ehAdmin());
-      allow list:  if ehAdmin();
-      allow write: if ehAdmin();
+      allow get:    if logado() && (request.auth.uid == uid || ehAdmin());
+      allow list:   if ehAdmin();
+      allow create: if ehAdmin() || criaContaDaTroca(uid);
+      // passo 2: a conta antiga só marca para qual conta nova vai
+      allow update: if ehAdmin() || (logado() && request.auth.uid == uid
+                       && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['proximo']));
+      // passo 6: a conta nova apaga a antiga de onde veio
+      allow delete: if ehAdmin() || (liberado() && acessoDe(request.auth.uid).get('de', '') == uid);
     }
 
     match /dados/{id} {
       allow read:  if liberado();
-      allow write: if liberado() && (id != 'senhas' || ehAdmin());
+      allow write: if liberado() && (id != 'senhas' || ehAdmin() || trocaPropriaSenha());
     }
 
     match /comprovantes/{id=**} { allow read, write: if liberado(); }

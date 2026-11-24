@@ -59,6 +59,28 @@
         Voltar
       </button>
     </div>
+
+    <!-- Etapa 3: troca obrigatória de senha (oculta até ser exigida) -->
+    <div id="login-step-troca" style="display:none;text-align:left">
+      <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px;text-align:center">Crie uma senha nova</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:16px;text-align:center">Por segurança, é preciso trocar a senha antes de entrar.</div>
+      <input id="login-troca-nova" type="password" placeholder="Senha nova" maxlength="64"
+        oninput="_trocaObrigValidar()"
+        style="width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;box-sizing:border-box;margin-bottom:6px">
+      <div id="login-troca-req" style="font-size:11px;color:var(--text3);min-height:16px;margin-bottom:8px">Mínimo 8 caracteres, com letra maiúscula, minúscula e número</div>
+      <input id="login-troca-conf" type="password" placeholder="Repita a senha nova" maxlength="64"
+        onkeydown="if(event.key==='Enter')confirmarTrocaObrigatoria()"
+        style="width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;box-sizing:border-box;margin-bottom:8px">
+      <div id="login-troca-erro" style="color:var(--red);font-size:12px;min-height:16px;margin-bottom:12px"></div>
+      <button id="login-troca-btn" onclick="confirmarTrocaObrigatoria()"
+        style="width:100%;padding:10px;background:var(--blue);border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px">
+        Salvar e entrar
+      </button>
+      <button onclick="fazerLogout()"
+        style="width:100%;padding:8px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text2);font-size:13px;cursor:pointer">
+        Sair
+      </button>
+    </div>
   </div>
 </div>
 
@@ -2492,7 +2514,7 @@
 <script src="js/relatorio.js?v=20260610z"></script>
 <script src="js/fornecedores.js?v=20261012e"></script>
 <script src="js/nav.js?v=20261102a"></script>
-<script src="js/auth.js?v=20261124a"></script>
+<script src="js/auth.js?v=20261124b"></script>
 <script src="js/contratos.js?v=20261117a"></script>
 <script src="js/agenda.js?v=20261012e"></script>
 <script src="js/producao.js?v=20261012e"></script>
@@ -2527,11 +2549,11 @@
 <script src="js/planoPagamento.js?v=20261026d"></script>
 <script src="js/_refConsumoData.js?v=20260610z"></script>
 <script src="js/refConsumo.js?v=20261102e"></script>
-<script src="js/seguranca-admin.js?v=20261124a"></script>
+<script src="js/seguranca-admin.js?v=20261124b"></script>
 
 <script type="module">
 import { initializeApp }    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, deleteDoc, writeBatch, onSnapshot, query, where, documentId }
+import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, deleteDoc, writeBatch, onSnapshot, query, where, documentId, deleteField }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, signInAnonymously, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, setPersistence, inMemoryPersistence }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -3190,10 +3212,12 @@ window._fbSair = async function() { try { await signOut(auth); } catch (_) {} };
 
 // Segurança (admin): contas de acesso. A conta nova é criada num app
 // separado, senão o Firebase trocaria o login do admin pelo da pessoa nova.
-let _authCadastro = null;
-async function _uidDaSenha(senha) {
+let _authCadastro = null, _dbCadastro = null;
+async function _uidDaSenha(senha, manterLogado) {
   if (!_authCadastro) {
-    _authCadastro = getAuth(initializeApp(firebaseConfig, "cadastro-acesso"));
+    const appCad = initializeApp(firebaseConfig, "cadastro-acesso");
+    _authCadastro = getAuth(appCad);
+    _dbCadastro = getFirestore(appCad);
     await setPersistence(_authCadastro, inMemoryPersistence);
   }
   const cred = await _credAcesso(senha);
@@ -3204,9 +3228,52 @@ async function _uidDaSenha(senha) {
     if (!e || e.code !== 'auth/email-already-in-use') throw e;
     uid = (await signInWithEmailAndPassword(_authCadastro, cred.email, cred.senha)).user.uid;
   }
-  try { await signOut(_authCadastro); } catch (_) {}
+  if (!manterLogado) { try { await signOut(_authCadastro); } catch (_) {} }
   return uid;
 }
+
+// Troca obrigatória da PRÓPRIA senha no login (qualquer perfil). Com o
+// banco trancado só admin grava acessos e senhas, então as regras liberam
+// só esta sequência, um passo de cada vez:
+//  1. cria a conta da senha nova (app separado);
+//  2. a conta antiga marca acessos/<antiga>.proximo = <nova>;
+//  3. a conta NOVA cria o próprio acessos/<nova> copiando perfil/nome da
+//     antiga (de, hAnt) — as regras conferem que a antiga apontou pra ela;
+//  4. a sessão passa pra conta nova;
+//  5. dados/senhas: troca só a chave antiga pela nova (updateDoc por campo);
+//  6. apaga acessos/<antiga>.
+// Repetir depois de um erro no meio continua de onde parou.
+window._acessoTrocarPropria = async function(nova, hashAntigo, entradaNova) {
+  const hashNovo = await _sha256(nova);
+  let uid = window._acessoUid;
+  if (uid) {
+    const meu = (await getDoc(doc(db, "acessos", uid))).data();
+    if (meu && meu.h !== hashNovo) {
+      const uidNovo = await _uidDaSenha(nova, true);
+      try {
+        await updateDoc(doc(db, "acessos", uid), { proximo: uidNovo });
+        await setDoc(doc(_dbCadastro, "acessos", uidNovo), {
+          p: meu.p, n: meu.n || '', h: hashNovo, hAnt: meu.h, de: uid,
+          curta: nova.length < 8, criadoEm: new Date().toISOString(),
+        });
+      } finally {
+        try { await signOut(_authCadastro); } catch (_) {}
+      }
+      uid = await window._acessoTrocarSessao(nova);
+    }
+  }
+  await updateDoc(doc(db, "dados", "senhas"), {
+    ['valor.' + hashNovo]: entradaNova,
+    ['valor.' + hashAntigo]: deleteField(),
+  });
+  if (uid) {
+    try {
+      const novo = (await getDoc(doc(db, "acessos", uid))).data();
+      if (novo && novo.de) await deleteDoc(doc(db, "acessos", novo.de));
+    } catch (e) { console.warn('Conta antiga não apagada (aparece em Segurança para remover):', e); }
+  }
+  return hashNovo;
+};
 window._acessoCriar = async function(senha, p, n) {
   const uid = await _uidDaSenha(senha);
   await setDoc(doc(db, "acessos", uid), _dadosAcesso(p, n, await _sha256(senha), senha));

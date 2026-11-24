@@ -187,7 +187,7 @@ async function tentarLogin() {
     document.getElementById('login-erro').textContent = '';
     return;
   }
-  _concluirLogin(perfil, hash);
+  _posLogin(perfil, hash);
 }
 
 async function tentarLoginMFA() {
@@ -206,7 +206,7 @@ async function tentarLoginMFA() {
   const perfil = _mfaPendente.perfil;
   const hashLogin = _mfaPendente.hash;
   _mfaPendente = null;
-  _concluirLogin(perfil, hashLogin);
+  _posLogin(perfil, hashLogin);
 }
 
 function cancelarMFA() {
@@ -225,6 +225,7 @@ function _concluirLogin(perfil, hash) {
   document.getElementById('login-overlay').style.display = 'none';
   document.getElementById('login-step-senha').style.display = '';
   document.getElementById('login-step-mfa').style.display  = 'none';
+  document.getElementById('login-step-troca').style.display = 'none';
   aplicarPerfil(perfil);
   _resetarSessao();
   go('fechamento');
@@ -318,3 +319,83 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   } catch (_) {}
 });
+
+// ── Troca obrigatória de senha no login ───────────────────────────────────────
+// Pedido dela (11/2026): todo mundo troca a senha no próximo login (as senhas
+// antigas ficaram expostas enquanto o banco estava aberto), e quem for
+// cadastrado — ou tiver a senha trocada pela administradora — troca no
+// primeiro acesso. Entrada em D.senhas: t = quando a própria pessoa trocou;
+// trocar = true quando outra pessoa definiu a senha.
+let _trocaPendente = null; // { perfil, hash }
+
+function _precisaTrocarSenha(hash) {
+  const e = (D.senhas || {})[hash];
+  if (!e) return false;
+  if (typeof e === 'string') return true;
+  return !!e.trocar || !e.t;
+}
+
+function _posLogin(perfil, hash) {
+  if (!_precisaTrocarSenha(hash)) { _concluirLogin(perfil, hash); return; }
+  _trocaPendente = { perfil, hash };
+  document.getElementById('login-step-senha').style.display = 'none';
+  document.getElementById('login-step-mfa').style.display  = 'none';
+  document.getElementById('login-step-troca').style.display = '';
+  ['login-troca-nova', 'login-troca-conf'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('login-troca-erro').textContent = '';
+  document.getElementById('login-troca-nova').focus();
+}
+
+function _trocaObrigValidar() {
+  const v = document.getElementById('login-troca-nova').value;
+  const req = document.getElementById('login-troca-req');
+  if (!v) { req.style.color = ''; req.textContent = 'Mínimo 8 caracteres, com letra maiúscula, minúscula e número'; return; }
+  const erros = validarPoliticaSenha(v);
+  req.style.color = erros.length ? '' : 'var(--green)';
+  req.textContent = erros.length ? erros.join(' · ') : 'Senha válida';
+}
+
+async function confirmarTrocaObrigatoria() {
+  if (!_trocaPendente) return;
+  const erroEl = document.getElementById('login-troca-erro');
+  const btn = document.getElementById('login-troca-btn');
+  if (btn.disabled) return;
+  const nova = document.getElementById('login-troca-nova').value;
+  const conf = document.getElementById('login-troca-conf').value;
+  const erros = validarPoliticaSenha(nova);
+  if (erros.length) { erroEl.textContent = erros[0]; return; }
+  if (nova !== conf) { erroEl.textContent = 'As duas senhas não são iguais'; return; }
+  const hashAntigo = _trocaPendente.hash;
+  const hashNovo = await hashSenha(nova);
+  if (hashNovo === hashAntigo) { erroEl.textContent = 'A senha nova precisa ser diferente da atual'; return; }
+  if ((D.senhas || {})[hashNovo]) { erroEl.textContent = 'Esta senha já está em uso — escolha outra'; return; }
+
+  const e = D.senhas[hashAntigo];
+  const base = typeof e === 'string' ? { p: e } : Object.assign({}, e);
+  const entrada = { p: base.p };
+  if (base.n) entrada.n = base.n;
+  if (base.mfa) entrada.mfa = base.mfa;
+  entrada.t = new Date().toISOString();
+
+  btn.disabled = true;
+  btn.textContent = 'Salvando...';
+  erroEl.textContent = '';
+  try {
+    await window._acessoTrocarPropria(nova, hashAntigo, entrada);
+  } catch (err) {
+    console.error('Troca obrigatória de senha:', err);
+    erroEl.textContent = 'Não consegui salvar a senha nova (' + ((err && (err.code || err.message)) || err) + '). Tente de novo.';
+    btn.disabled = false;
+    btn.textContent = 'Salvar e entrar';
+    return;
+  }
+  D.senhas[hashNovo] = entrada;
+  delete D.senhas[hashAntigo];
+  window._senhaCurta = false;
+  const perfil = _trocaPendente.perfil;
+  _trocaPendente = null;
+  btn.disabled = false;
+  btn.textContent = 'Salvar e entrar';
+  _concluirLogin(perfil, hashNovo);
+  if (typeof alert2 === 'function') alert2('Senha nova salva', 'success');
+}
