@@ -2492,7 +2492,7 @@
 <script src="js/relatorio.js?v=20260610z"></script>
 <script src="js/fornecedores.js?v=20261012e"></script>
 <script src="js/nav.js?v=20261102a"></script>
-<script src="js/auth.js?v=20260930a"></script>
+<script src="js/auth.js?v=20261124a"></script>
 <script src="js/contratos.js?v=20261117a"></script>
 <script src="js/agenda.js?v=20261012e"></script>
 <script src="js/producao.js?v=20261012e"></script>
@@ -2527,13 +2527,13 @@
 <script src="js/planoPagamento.js?v=20261026d"></script>
 <script src="js/_refConsumoData.js?v=20260610z"></script>
 <script src="js/refConsumo.js?v=20261102e"></script>
-<script src="js/seguranca-admin.js?v=20261012e"></script>
+<script src="js/seguranca-admin.js?v=20261124a"></script>
 
 <script type="module">
 import { initializeApp }    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, deleteDoc, writeBatch, onSnapshot, query, where, documentId }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getAuth, signInAnonymously }
+import { getAuth, signInAnonymously, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, setPersistence, inMemoryPersistence }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const firebaseConfig = {
@@ -3063,17 +3063,12 @@ async function carregarDados() {
     D.associacoes              = r.associacoes              || [];
     D.copos                    = r.copos                    || [];
 
-    // Senhas: migra texto puro → SHA-256 e inicializa se vazio
+    // Senhas: migra texto puro → SHA-256. (Antes, lista vazia recriava
+    // senhas padrão escritas aqui no código público — removido 11/2026:
+    // bastava alguém apagar a lista pra entrar com a senha padrão.)
     const _isHashed = k => /^[0-9a-f]{64}$/.test(k);
     const _senhasRaw = D.senhas || {};
-    if (Object.keys(_senhasRaw).length === 0) {
-      // Banco vazio: inicializa com hashes das senhas padrão
-      const _pad = { '1225':'admin', '0035':'financeiro', '0040':'operacional' };
-      const _novo = {};
-      for (const [k,v] of Object.entries(_pad)) _novo[await hashSenha(k)] = v;
-      D.senhas = _novo;
-      try { await setDoc(doc(db,"dados","senhas"),{valor:D.senhas}); } catch(_){}
-    } else if (Object.keys(_senhasRaw).some(k => !_isHashed(k))) {
+    if (Object.keys(_senhasRaw).some(k => !_isHashed(k))) {
       // Migração: converte chaves em texto puro para hash
       const _novo = {};
       for (const [k,v] of Object.entries(_senhasRaw)) _novo[_isHashed(k)?k:await hashSenha(k)] = v;
@@ -3115,15 +3110,122 @@ async function carregarDados() {
   }
 }
 
-// Autentica anonimamente antes de acessar o Firestore
-signInAnonymously(auth)
-  .then(() => carregarDados())
-  .catch(e => {
-    window._erroCarregamento = true;
-    document.getElementById("loading-msg").textContent = "⚠ Falha na autenticação. Verifique sua internet.";
-    document.getElementById("loading-msg").style.color = "var(--red)";
-    console.error("Auth erro:", e);
-  });
+// ─── ACESSO DE VERDADE (Firebase Auth) ──────────────────────────────────────
+// Até 11/2026 o app entrava no banco como "anônimo" ao abrir a página e
+// carregava TUDO antes da senha — a senha só era conferida na tela. Quem
+// tivesse o endereço do site conseguia ler e gravar no banco sem senha.
+// Agora cada senha tem uma conta própria no Firebase Auth (e-mail e senha
+// derivados da senha digitada — não dá pra chegar neles pelo hash guardado
+// em dados/senhas) e o acesso liberado fica em acessos/<uid> { p, n, h }.
+// Os dados só são lidos DEPOIS do login. As regras (firestore.rules) só
+// deixam ler/gravar quem tem acessos/<uid>, e só admin mexe em acessos.
+//
+// Transição: enquanto as regras novas não forem publicadas, quem ainda não
+// tem conta entra pelo caminho antigo (confere a senha em dados/senhas) e a
+// conta é criada nessa hora. Depois das regras, o caminho antigo para de
+// funcionar sozinho (sem permissão de ler dados/senhas).
+setPersistence(auth, inMemoryPersistence).catch(() => {}); // recarregar = pedir senha (decisão dela)
+
+async function _sha256(s) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+async function _credAcesso(senha) {
+  const e = await _sha256('romero-gestao|email|' + senha);
+  const p = await _sha256('romero-gestao|senha|' + senha);
+  return { email: 'u' + e.slice(0, 32) + '@controle-gestao.local', senha: p };
+}
+function _dadosAcesso(p, n, hash, senha) {
+  return { p: p, n: n || '', h: hash, curta: String(senha || '').length < 8, criadoEm: new Date().toISOString() };
+}
+
+// Login. Devolve { ok, hash, perfil, nome } ou { ok:false, motivo }.
+window._fbEntrar = async function(senha) {
+  const hash = await _sha256(senha);
+  const cred = await _credAcesso(senha);
+  let uid = null;
+  try {
+    uid = (await signInWithEmailAndPassword(auth, cred.email, cred.senha)).user.uid;
+  } catch (e) {
+    if (e && e.code === 'auth/network-request-failed') throw e;
+    if (e && e.code === 'auth/too-many-requests') return { ok: false, motivo: 'muitas' };
+    // sem conta ainda (ou login por e-mail desligado no Firebase) → caminho antigo
+  }
+  if (uid) {
+    try {
+      const a = await getDoc(doc(db, "acessos", uid));
+      if (a.exists()) {
+        const d = a.data();
+        window._acessoUid = uid;
+        return { ok: true, hash, perfil: d.p, nome: d.n || '' };
+      }
+    } catch (e) { console.warn('Leitura do acesso falhou:', e); }
+  }
+  // Caminho antigo (só funciona antes das regras novas)
+  try {
+    if (!auth.currentUser) await signInAnonymously(auth);
+    const s = await getDoc(doc(db, "dados", "senhas"));
+    const senhas = (s.exists() && s.data().valor) || {};
+    const entry = senhas[hash];
+    if (!entry) { try { await signOut(auth); } catch (_) {} return { ok: false, motivo: 'senha' }; }
+    const perfil = typeof entry === 'string' ? entry : entry.p;
+    const nome = typeof entry === 'object' ? (entry.n || '') : '';
+    try {
+      if (!uid) uid = (await createUserWithEmailAndPassword(auth, cred.email, cred.senha)).user.uid;
+      await setDoc(doc(db, "acessos", uid), _dadosAcesso(perfil, nome, hash, senha));
+      window._acessoUid = uid;
+    } catch (e2) {
+      console.warn('Conta de acesso ainda não criada (segue no modo antigo):', e2 && e2.code, e2);
+    }
+    return { ok: true, hash, perfil, nome, legado: true };
+  } catch (e) {
+    try { await signOut(auth); } catch (_) {}
+    if (e && e.code === 'permission-denied') return { ok: false, motivo: uid ? 'sem-acesso' : 'senha' };
+    throw e;
+  }
+};
+
+window._fbCarregar = function() { return carregarDados(); };
+window._fbSair = async function() { try { await signOut(auth); } catch (_) {} };
+
+// Segurança (admin): contas de acesso. A conta nova é criada num app
+// separado, senão o Firebase trocaria o login do admin pelo da pessoa nova.
+let _authCadastro = null;
+async function _uidDaSenha(senha) {
+  if (!_authCadastro) {
+    _authCadastro = getAuth(initializeApp(firebaseConfig, "cadastro-acesso"));
+    await setPersistence(_authCadastro, inMemoryPersistence);
+  }
+  const cred = await _credAcesso(senha);
+  let uid;
+  try {
+    uid = (await createUserWithEmailAndPassword(_authCadastro, cred.email, cred.senha)).user.uid;
+  } catch (e) {
+    if (!e || e.code !== 'auth/email-already-in-use') throw e;
+    uid = (await signInWithEmailAndPassword(_authCadastro, cred.email, cred.senha)).user.uid;
+  }
+  try { await signOut(_authCadastro); } catch (_) {}
+  return uid;
+}
+window._acessoCriar = async function(senha, p, n) {
+  const uid = await _uidDaSenha(senha);
+  await setDoc(doc(db, "acessos", uid), _dadosAcesso(p, n, await _sha256(senha), senha));
+  return uid;
+};
+window._acessoListar = async function() {
+  const snap = await getDocs(collection(db, "acessos"));
+  return snap.docs.map(d => Object.assign({ uid: d.id }, d.data()));
+};
+window._acessoAtualizar = function(uid, campos) { return updateDoc(doc(db, "acessos", uid), campos); };
+window._acessoRemover = function(uid) { return deleteDoc(doc(db, "acessos", uid)); };
+// Trocou a própria senha: a sessão passa pra conta da senha nova (a antiga
+// perde o acesso logo em seguida).
+window._acessoTrocarSessao = async function(senha) {
+  const cred = await _credAcesso(senha);
+  const uid = (await signInWithEmailAndPassword(auth, cred.email, cred.senha)).user.uid;
+  window._acessoUid = uid;
+  return uid;
+};
 
 // ─── TEMPLATE B64 do contrato (embutido no momento do upload) ───────────────
 // O template será carregado dinamicamente — não embutido aqui para manter o arquivo leve

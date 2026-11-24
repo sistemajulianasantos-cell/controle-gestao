@@ -102,7 +102,7 @@ function _mostrarAvisoSessao() {
 function _expirarSessao() {
   const el = document.getElementById('sessao-aviso');
   if (el) el.style.display = 'none';
-  fazerLogout();
+  fazerLogout('Sessão encerrada por inatividade.');
   document.getElementById('login-erro').textContent = 'Sessão encerrada por inatividade.';
 }
 
@@ -128,44 +128,55 @@ async function tentarLogin() {
   const s = document.getElementById('login-senha').value.trim();
   if (!s) return;
 
-  // O login fica por cima do "Carregando..." — antes de carregarDados()
-  // terminar, D.senhas ainda não existe e toda senha daria "incorreta"
-  // (e contaria pro bloqueio). Espera as senhas chegarem em vez de recusar.
-  // Só depende das senhas — um erro de tela depois disso no carregamento
-  // não pode travar o login.
-  if (!window._senhasCarregadas) {
-    const erroEl = document.getElementById('login-erro');
-    const msgCarga = document.getElementById('loading-msg');
-    if (window._erroCarregamento) {
-      erroEl.textContent = (msgCarga && msgCarga.textContent) || 'Erro ao conectar. Recarregue a página.';
-      return;
-    }
-    erroEl.textContent = 'Carregando dados, aguarde...';
-    if (!window._loginAguardando) {
-      window._loginAguardando = true;
-      const esperar = () => {
-        if (window._senhasCarregadas) { window._loginAguardando = false; tentarLogin(); }
-        else if (window._erroCarregamento) { window._loginAguardando = false; tentarLogin(); }
-        else setTimeout(esperar, 300);
-      };
-      setTimeout(esperar, 300);
-    }
+  // Desde 11/2026 a senha é conferida pelo Firebase (conta de verdade, ver
+  // _fbEntrar no index.html) e só DEPOIS os dados são carregados — antes
+  // tudo era lido ao abrir a página, sem senha.
+  const erroEl = document.getElementById('login-erro');
+  if (window._loginEmAndamento) return;
+  if (window._dadosCarregados) { // já entrou nesta página (não deveria) — recarrega limpo
+    location.reload();
     return;
   }
-
-  const hash = await hashSenha(s);
-  const entry = (D.senhas || {})[hash];
-  if (!entry) {
+  if (typeof window._fbEntrar !== 'function') { erroEl.textContent = 'Carregando, aguarde...'; return; }
+  window._loginEmAndamento = true;
+  erroEl.style.color = 'var(--text3)';
+  erroEl.textContent = 'Entrando...';
+  let r;
+  try {
+    r = await window._fbEntrar(s);
+  } catch (e) {
+    console.error('Erro no login:', e);
+    window._loginEmAndamento = false;
+    erroEl.style.color = '';
+    erroEl.textContent = 'Erro ao conectar. Verifique a internet e tente de novo.';
+    return;
+  }
+  if (!r.ok) {
+    window._loginEmAndamento = false;
+    erroEl.style.color = '';
+    if (r.motivo === 'sem-acesso') { erroEl.textContent = 'Senha sem acesso liberado. Fale com a administradora.'; return; }
+    if (r.motivo === 'muitas') { erroEl.textContent = 'Muitas tentativas. Aguarde alguns minutos.'; return; }
     _bfFalha();
     const t = _bfSegundos();
-    document.getElementById('login-erro').textContent = t > 0
-      ? `Senha incorreta. Aguarde ${t}s`
-      : `Senha incorreta`;
+    erroEl.textContent = t > 0 ? `Senha incorreta. Aguarde ${t}s` : `Senha incorreta`;
     return;
   }
 
-  const perfil     = typeof entry === 'string' ? entry : entry.p;
-  const mfaSecret  = typeof entry === 'object' ? (entry.mfa || null) : null;
+  erroEl.textContent = 'Carregando dados...';
+  try { await window._fbCarregar(); } catch (e) { console.error(e); }
+  window._loginEmAndamento = false;
+  erroEl.style.color = '';
+  if (window._erroCarregamento || !window._senhasCarregadas) {
+    erroEl.textContent = 'Não consegui carregar os dados. Recarregue a página.';
+    return;
+  }
+  erroEl.textContent = '';
+  window._senhaCurta = s.length < 8;
+
+  const hash = r.hash;
+  const entry = (D.senhas || {})[hash];
+  const perfil     = r.perfil;
+  const mfaSecret  = (entry && typeof entry === 'object') ? (entry.mfa || null) : null;
 
   if (mfaSecret) {
     _mfaPendente = { perfil, secret: mfaSecret, hash };
@@ -217,6 +228,9 @@ function _concluirLogin(perfil, hash) {
   aplicarPerfil(perfil);
   _resetarSessao();
   go('fechamento');
+  if (window._senhaCurta && typeof alert2 === 'function') {
+    setTimeout(() => alert2('Sua senha é curta (menos de 8 caracteres). Troque por uma mais forte em Segurança.', 'error'), 800);
+  }
 }
 
 // ── Perfil e menus ────────────────────────────────────────────────────────────
@@ -248,9 +262,17 @@ function nomeUsuarioDaSenha(hash) {
 }
 
 // ── Logout ────────────────────────────────────────────────────────────────────
-function fazerLogout() {
+// Sair = desconectar do banco e recarregar a página (a memória com os dados
+// é apagada; o próximo login começa do zero).
+function fazerLogout(msg) {
   clearTimeout(_timerAviso);
   clearTimeout(_timerTimeout);
+  if (window._dadosCarregados) {
+    try { if (msg) sessionStorage.setItem('loginMsg', msg); } catch (_) {}
+    document.body.style.visibility = 'hidden';
+    Promise.resolve(window._fbSair && window._fbSair()).finally(() => location.reload());
+    return;
+  }
   sessionStorage.removeItem('perfil');
   perfilAtual = null;
   senhaHashAtual = null;
@@ -284,3 +306,15 @@ function validarPoliticaSenha(senha) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+
+// Mensagem deixada pelo logout (a página recarrega ao sair)
+document.addEventListener('DOMContentLoaded', function() {
+  try {
+    const m = sessionStorage.getItem('loginMsg');
+    if (m) {
+      sessionStorage.removeItem('loginMsg');
+      const el = document.getElementById('login-erro');
+      if (el) el.textContent = m;
+    }
+  } catch (_) {}
+});

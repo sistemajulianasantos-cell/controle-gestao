@@ -97,6 +97,8 @@ function _segRender() {
            </table>`}
     </div>
 
+    <div id="seg-acessos" class="card" style="margin-bottom:20px"></div>
+
     <!-- Adicionar usuário -->
     <div class="card" style="margin-bottom:20px">
       <div style="font-size:14px;font-weight:600;margin-bottom:14px">Adicionar usuário</div>
@@ -195,6 +197,82 @@ function _segRender() {
       </div>
     </div>
   `;
+  _segCarregarAcessos();
+}
+
+// ── Contas de acesso ao banco (acessos/<uid>, ver _fbEntrar no index.html) ──
+// Cada senha tem uma conta de verdade no Firebase; é ela que o banco confere.
+// Senha sem conta ainda ganha a conta no próximo login dessa pessoa.
+let _segAcessos = null; // [{ uid, p, n, h, curta }] ou { erro }
+
+async function _segCarregarAcessos() {
+  try { _segAcessos = await window._acessoListar(); }
+  catch (e) { _segAcessos = { erro: (e && e.code) || String(e) }; }
+  _segRenderAcessos();
+}
+
+function _segAcessosDaSenha(hash) {
+  return Array.isArray(_segAcessos) ? _segAcessos.filter(a => a.h === hash) : [];
+}
+
+async function _segAcessosGarantir() {
+  if (!Array.isArray(_segAcessos)) await _segCarregarAcessos();
+  if (!Array.isArray(_segAcessos)) throw new Error('não consegui ler as contas de acesso (' + (_segAcessos && _segAcessos.erro) + ')');
+}
+
+async function _segAcessosAtualizar(hash, campos) {
+  try {
+    await _segAcessosGarantir();
+    for (const a of _segAcessosDaSenha(hash)) { await window._acessoAtualizar(a.uid, campos); Object.assign(a, campos); }
+  } catch (e) {
+    console.error(e);
+    alert2('Salvo na lista, mas a conta de acesso não foi atualizada: ' + (e.code || e.message), 'error');
+  }
+}
+
+async function _segAcessosRemoverDaSenha(hash) {
+  await _segAcessosGarantir();
+  for (const a of _segAcessosDaSenha(hash)) {
+    if (a.uid === window._acessoUid) continue;
+    await window._acessoRemover(a.uid);
+  }
+  _segAcessos = _segAcessos.filter(a => a.h !== hash || a.uid === window._acessoUid);
+}
+
+function _segRemoverAcesso(uid) {
+  if (uid === window._acessoUid) { alert2('Esta é a conta que você está usando agora', 'error'); return; }
+  sisDialogo('Remover esta conta de acesso? Quem entra com ela perde o acesso ao sistema.', async function() {
+    try {
+      await window._acessoRemover(uid);
+      alert2('Acesso removido', 'success');
+    } catch (e) { alert2('Não consegui remover: ' + (e.code || e.message), 'error'); }
+    _segCarregarAcessos();
+  });
+}
+
+function _segRenderAcessos() {
+  const el = document.getElementById('seg-acessos');
+  if (!el) return;
+  const titulo = '<div style="font-size:14px;font-weight:600;margin-bottom:4px">Contas de acesso ao banco de dados</div>';
+  if (!_segAcessos) { el.innerHTML = titulo + '<div style="font-size:12px;color:var(--text3)">Carregando...</div>'; return; }
+  if (!Array.isArray(_segAcessos)) { el.innerHTML = titulo + '<div style="font-size:12px;color:var(--red)">Não consegui ler: ' + _segEsc(_segAcessos.erro) + '</div>'; return; }
+  const hashes = Object.keys(D.senhas || {});
+  const semConta = hashes.filter(h => !_segAcessosDaSenha(h).length);
+  const soltas = _segAcessos.filter(a => hashes.indexOf(a.h) < 0);
+  const curtas = _segAcessos.filter(a => a.curta && hashes.indexOf(a.h) >= 0);
+  const nomeDe = h => { const e = _segEntry(h); return e ? (e.n || _SEG_ROTULOS[e.p] || e.p) : ''; };
+  let html = titulo + '<div style="font-size:12px;color:var(--text3);margin-bottom:12px">É esta conta que o banco confere — sem ela ninguém lê nem grava nada. Quem ainda não tem ganha a conta sozinho no próximo login.</div>';
+  html += '<div style="font-size:13px;margin-bottom:10px"><strong>' + (hashes.length - semConta.length) + ' de ' + hashes.length + '</strong> usuários já têm conta.</div>';
+  if (semConta.length) html += '<div style="font-size:12px;color:var(--amber);margin-bottom:8px">Ainda sem conta (precisam entrar uma vez no sistema): ' + semConta.map(h => _segEsc(nomeDe(h) || 'sem nome')).join(', ') + '</div>';
+  else html += '<div style="font-size:12px;color:var(--green);margin-bottom:8px">Todos já têm conta — já dá para trancar o banco (regras novas do Firestore).</div>';
+  if (curtas.length) html += '<div style="font-size:12px;color:var(--amber);margin-bottom:8px">Senha curta (menos de 8 caracteres), trocar: ' + curtas.map(a => _segEsc(nomeDe(a.h) || a.n || 'sem nome')).join(', ') + '</div>';
+  if (soltas.length) {
+    html += '<div style="font-size:12px;color:var(--red);margin:10px 0 6px">Contas que não correspondem a nenhuma senha da lista acima (senha trocada/excluída ou criada por fora) — remova:</div>';
+    html += soltas.map(a => '<div style="display:flex;align-items:center;gap:10px;font-size:12px;padding:4px 0;border-top:1px solid var(--border)">' +
+      '<span>' + _segEsc(a.n || 'sem nome') + ' · ' + _segEsc(_SEG_ROTULOS[a.p] || a.p || '?') + (a.criadoEm ? ' · criada em ' + new Date(a.criadoEm).toLocaleString('pt-BR') : '') + '</span>' +
+      '<button class="btn btn-sm" style="margin-left:auto;color:var(--red)" onclick="_segRemoverAcesso(\'' + a.uid + '\')">Remover acesso</button></div>').join('');
+  }
+  el.innerHTML = html;
 }
 
 // ── Validação em tempo real ───────────────────────────────────────────────────
@@ -224,6 +302,7 @@ async function _segSetNome(hash, nome) {
   e.n = String(nome || '').trim();
   _segGravarEntry(hash, e);
   await window.svFirebase('senhas');
+  await _segAcessosAtualizar(hash, { n: e.n });
   alert2('Nome salvo', 'success');
   if (hash === senhaHashAtual && typeof aplicarPerfil === 'function') aplicarPerfil(perfilAtual);
 }
@@ -244,6 +323,7 @@ async function _segSetPerfil(hash, perfil) {
   e.p = perfil;
   _segGravarEntry(hash, e);
   await window.svFirebase('senhas');
+  await _segAcessosAtualizar(hash, { p: perfil });
   alert2('Perfil alterado — vale a partir do próximo login dessa pessoa', 'success');
   _segRender();
 }
@@ -267,10 +347,18 @@ async function _segAdicionarSenha() {
     return;
   }
 
+  let avisoConta = '';
+  try {
+    await window._acessoCriar(senha, perfil, nome);
+  } catch (e) {
+    console.error('Conta de acesso não criada:', e);
+    if (e && e.code === 'auth/operation-not-allowed') avisoConta = ' — a conta de acesso será criada no primeiro login (login por e-mail ainda desligado no Firebase)';
+    else { alert2('Não consegui criar a conta de acesso: ' + ((e && (e.code || e.message)) || e), 'error'); return; }
+  }
   if (!D.senhas) D.senhas = {};
   _segGravarEntry(hash, { p: perfil, n: nome });
   await window.svFirebase('senhas');
-  alert2('Usuário adicionado', 'success');
+  alert2('Usuário adicionado' + avisoConta, avisoConta ? 'error' : 'success');
   _segRender();
 }
 
@@ -307,6 +395,18 @@ async function _segConfirmarTrocaSenha() {
   if (hashNovo === hashAntigo) { erroEl.textContent = 'A nova senha é igual à atual'; return; }
   if ((D.senhas || {})[hashNovo]) { erroEl.textContent = 'Esta senha já está em uso — escolha outra'; return; }
 
+  try {
+    await _segAcessosGarantir();
+    await window._acessoCriar(nova, e.p, e.n);
+    if (senhaHashAtual === hashAntigo && window._acessoUid) await window._acessoTrocarSessao(nova);
+    await _segAcessosRemoverDaSenha(hashAntigo);
+  } catch (err) {
+    console.error('Troca de senha (conta de acesso):', err);
+    if (!(err && err.code === 'auth/operation-not-allowed')) {
+      erroEl.textContent = 'Não consegui trocar a conta de acesso: ' + ((err && (err.code || err.message)) || err);
+      return;
+    }
+  }
   _segGravarEntry(hashNovo, e);
   delete D.senhas[hashAntigo];
   if (senhaHashAtual === hashAntigo) senhaHashAtual = hashNovo;
@@ -335,6 +435,8 @@ async function _segExcluirSenha(hash) {
   }
   if (!confirm('Excluir o usuário ' + (e.n ? '"' + e.n + '"' : 'sem nome (' + (_SEG_ROTULOS[e.p] || e.p) + ')') + '? A senha dele deixa de funcionar. Esta ação não pode ser desfeita.')) return;
 
+  try { await _segAcessosRemoverDaSenha(hash); }
+  catch (err) { alert2('Não consegui remover a conta de acesso: ' + ((err && (err.code || err.message)) || err), 'error'); return; }
   delete D.senhas[hash];
   await window.svFirebase('senhas');
   alert2('Usuário excluído', 'success');

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## O que é este projeto
 
-Sistema de controle e gestão da Romero Coquetéis (empresa de coquetelaria para eventos): estoque, festas/contratos, financeiro, equipe, orçamentos, produção e fechamentos. Aplicação web estática (sem build step, sem framework, sem package.json) hospedada no GitHub Pages, com Firebase (Firestore + Auth anônima) como backend de dados.
+Sistema de controle e gestão da Romero Coquetéis (empresa de coquetelaria para eventos): estoque, festas/contratos, financeiro, equipe, orçamentos, produção e fechamentos. Aplicação web estática (sem build step, sem framework, sem package.json) hospedada no GitHub Pages, com Firebase (Firestore + Auth por e-mail/senha) como backend de dados.
 
 ## Comandos
 
@@ -35,6 +35,7 @@ Cada `<script src="js/x.js?v=YYYYMMDDx">` tem uma query string de versão. **Sem
 
 ### Autenticação e permissões
 - Login por perfil (não por usuário individual), com PIN + hash SHA-256 (`js/auth.js`). Perfis: `admin`, `financeiro`, `operacional`, cada um com uma lista fixa de módulos permitidos em `ACESSO` (`js/auth.js`).
+- **Acesso ao banco (11/2026)**: cada senha tem uma conta Firebase Auth (e-mail/senha derivados da senha digitada, `_credAcesso` no `index.html`) e um documento `acessos/<uid>` `{p, n, h}`. Os dados só são carregados DEPOIS do login (`_fbEntrar` → `carregarDados`). `firestore.rules` só libera quem tem `acessos/<uid>`; só admin grava `acessos` e `dados/senhas`. Senha sem conta ganha a conta no primeiro login (caminho antigo, só funciona antes das regras serem publicadas). Segurança → "Contas de acesso" mostra quem já tem conta. Sair recarrega a página.
 - `go(page)` (`js/nav.js`) verifica login e se `ACESSO[perfilAtual]` inclui o `data-modulo` do item de nav antes de trocar de página.
 - Suporta 2FA via TOTP implementado manualmente (RFC 6238, `js/auth.js`), sem dependência externa.
 - Proteção contra brute-force local (delays progressivos por tentativa incorreta).
