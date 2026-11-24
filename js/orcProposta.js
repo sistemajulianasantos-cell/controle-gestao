@@ -762,7 +762,8 @@ function _docxErroDetalhe(e) {
 // cai na da Solicitação quando o cabeçalho do orçamento está sem data.
 function _propostaNomeArquivo(orc) {
   var nome = _propostaInfo(orc, 'solicitadoPor') || orc.nomeCliente;
-  var data = orc.dataEvento || _propostaInfo(orc, 'dataEvento');
+  var data = (typeof dataValidaISO !== 'function' || dataValidaISO(orc.dataEvento)) && orc.dataEvento
+    ? orc.dataEvento : _propostaInfo(orc, 'dataEvento');
   return nomeArquivoPadrao(_propostaNumeroEfetivo(orc), nome, data);
 }
 

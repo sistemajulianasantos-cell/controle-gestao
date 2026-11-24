@@ -19,6 +19,17 @@ function rOrcLista() {
   orcView = 'lista';
   const el = document.getElementById('orc-content');
   if (!el) return;
+  // Orçamento salvo com data inválida (ex: "20227-09-11") pega a data da
+  // Solicitação vinculada, se lá estiver certa (11-24).
+  if (typeof dataValidaISO === 'function') {
+    let corrigiu = false;
+    (D.orcamentos || []).forEach(o => {
+      if (!o.dataEvento || dataValidaISO(o.dataEvento)) return;
+      const s = _orcSolVinculada(o);
+      if (s && dataValidaISO(s.dataEvento)) { o.dataEvento = s.dataEvento; corrigiu = true; }
+    });
+    if (corrigiu) sv('orcamentos');
+  }
 
   // Ordem em que foram feitos, o mais novo em cima (pedido dela 10-15 —
   // antes era pela data do evento e parecia sem ordem). Orçamento antigo sem

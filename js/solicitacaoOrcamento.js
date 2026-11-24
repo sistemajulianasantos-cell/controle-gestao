@@ -666,6 +666,16 @@ function _solSalvar() {
   }
 
   sv('solicitacoesOrcamento');
+  // Data corrigida aqui vale também pro orçamento vinculado (11-24: ela
+  // arrumou a data na Solicitação e o Orçamento continuou com a errada).
+  if (registro.dataEvento && typeof _orcSolVinculada === 'function') {
+    var mudouOrc = false;
+    (D.orcamentos || []).forEach(function(o) {
+      var s = _orcSolVinculada(o);
+      if (s && s.id === registro.id && o.dataEvento !== registro.dataEvento) { o.dataEvento = registro.dataEvento; mudouOrc = true; }
+    });
+    if (mudouOrc) sv('orcamentos');
+  }
   if (_solCriarOrc) {
     var origId = _solClonarDeId;
     _solCriarOrc = false;

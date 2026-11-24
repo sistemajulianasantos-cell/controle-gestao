@@ -66,6 +66,39 @@ function nomeArquivoPadrao(codigo, nome, data, ext) {
   return (partes.join(' _ ') || 'Documento') + (ext || '.docx');
 }
 
+// Data "AAAA-MM-DD" que existe de verdade e com ano entre 1900 e 2099.
+// 11-24: orçamento salvo com "20227-09-11" (ano de 5 dígitos) quebrava o nome
+// do arquivo da proposta e os filtros por mês.
+function dataValidaISO(s) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || ''));
+  if (!m) return false;
+  var a = +m[1], me = +m[2], d = +m[3];
+  if (a < 1900 || a > 2099) return false;
+  var dt = new Date(a, me - 1, d);
+  return dt.getFullYear() === a && dt.getMonth() === me - 1 && dt.getDate() === d;
+}
+
+// Trava de data em TODO campo de data do sistema: limita o ano a 4 dígitos
+// (min/max) e, se mesmo assim vier data inválida, volta o valor anterior e
+// não deixa o onchange da tela gravar (captura roda antes do handler do campo).
+(function() {
+  document.addEventListener('focusin', function(e) {
+    var t = e.target;
+    if (!t || t.type !== 'date') return;
+    if (!t.min) t.min = '1900-01-01';
+    if (!t.max) t.max = '2099-12-31';
+    t.dataset.valorAnterior = dataValidaISO(t.value) ? t.value : '';
+  }, true);
+  document.addEventListener('change', function(e) {
+    var t = e.target;
+    if (!t || t.type !== 'date' || !t.value) return;
+    if (dataValidaISO(t.value)) { t.dataset.valorAnterior = t.value; return; }
+    e.stopImmediatePropagation();
+    t.value = t.dataset.valorAnterior || '';
+    if (typeof alert2 === 'function') alert2('Data inválida — confira o ano (4 dígitos, ex: 2027). Nada foi salvo.', 'error');
+  }, true);
+})();
+
 // Valor em reais digitado do jeito brasileiro → número. "1.200,00" → 1200,
 // "1200" → 1200, "5,5" → 5.5, "1.200" → 1200 (ponto de milhar). Campo
 // type="number" lia "1.200,00" como 1,2 (pedido dela 10-15).
