@@ -60,10 +60,16 @@ function nomeArquivoPadrao(codigo, nome, data, ext) {
   var s = String(data || '');
   var iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(s), br = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(s);
   var dataTxt = iso ? iso[3] + '.' + iso[2] + '.' + iso[1] : (br ? br[1] + '.' + br[2] + '.' + br[3] : '');
-  var partes = [codigo, String(nome || '').toUpperCase(), dataTxt]
-    .map(function(p) { return String(p || '').replace(/[\\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim(); })
-    .filter(Boolean);
-  return (partes.join(' _ ') || 'Documento') + (ext || '.docx');
+  // Nº digitado com complemento ("1126-067 OPÇÃO 2") — o complemento vai
+  // depois da data, igual aos arquivos dela ("... _ 31.07.2027 POS DEGUST"),
+  // pra não mexer no padrão Nº _ NOME _ DATA (11-24).
+  var extra = '';
+  var mc = /^\s*(\d{4}-\d{3})\s*[-_]?\s*(.+)$/.exec(String(codigo || ''));
+  if (mc) { codigo = mc[1]; extra = mc[2]; }
+  var limpa = function(p) { return String(p || '').replace(/[\\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim(); };
+  var partes = [codigo, String(nome || '').toUpperCase(), dataTxt].map(limpa).filter(Boolean);
+  extra = limpa(extra).toUpperCase();
+  return ((partes.join(' _ ') || 'Documento') + (extra ? ' ' + extra : '')) + (ext || '.docx');
 }
 
 // Data "AAAA-MM-DD" que existe de verdade e com ano entre 1900 e 2099.
