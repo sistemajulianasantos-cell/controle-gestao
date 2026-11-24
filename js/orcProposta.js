@@ -757,9 +757,13 @@ function _docxErroDetalhe(e) {
 }
 
 // Nome do arquivo no padrão dela (11-17): "1126-050 _ HUMBERTO TEODORO _ 18.12.2026.docx"
-// (Nº da proposta _ cliente do cabeçalho _ data do evento com pontos).
+// (Nº da proposta _ solicitante _ data do evento com pontos).
+// 11-24: nome = quem solicitou (Solicitação vinculada), não o cliente; data
+// cai na da Solicitação quando o cabeçalho do orçamento está sem data.
 function _propostaNomeArquivo(orc) {
-  return nomeArquivoPadrao(_propostaNumeroEfetivo(orc), orc.nomeCliente, orc.dataEvento);
+  var nome = _propostaInfo(orc, 'solicitadoPor') || orc.nomeCliente;
+  var data = orc.dataEvento || _propostaInfo(orc, 'dataEvento');
+  return nomeArquivoPadrao(_propostaNumeroEfetivo(orc), nome, data);
 }
 
 function _propostaGerarDocx(orc) {
