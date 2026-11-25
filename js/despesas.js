@@ -278,7 +278,7 @@ function rDespesas() {
   _sincronizarCategoriasComFornecedores();
   _limparDescricoesParcelas();
   const subView = document.getElementById('desp-sub-view')?.value || 'kpi';
-  ['kpi', 'lancar', 'lista', 'importar', 'categorias'].forEach(v => {
+  ['kpi', 'lancar', 'lista', 'importar', 'categorias', 'recorrentes'].forEach(v => {
     const el = document.getElementById('desp-view-' + v);
     if (el) el.style.display = v === subView ? '' : 'none';
   });
@@ -287,7 +287,8 @@ function rDespesas() {
   });
   _populateCategoriasSelects();
   _populateFornecedoresDespesas();
-  if (subView === 'kpi') rDespesasKpi();
+  if (subView === 'kpi') { rDespesasKpi(); if (typeof _recAvisoDashboard === 'function') _recAvisoDashboard(); }
+  else if (subView === 'recorrentes' && typeof rDespesasRecorrentes === 'function') rDespesasRecorrentes();
   else if (subView === 'lista') rDespesasLista();
   else if (subView === 'categorias') rDespesasCategorias();
 }
