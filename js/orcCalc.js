@@ -1019,7 +1019,7 @@ function _orcCalcResumo(orc) {
     pax, autoS, itens, insumos, custoInsumos, custoPresente, margSeg, margLuc,
     custoEst, valorTotal, porPessoa, custoBebidasAlc, custoPresenteEssencial,
     custoEstEssencial, valorTotalEssencial, porPessoaEssencial, valorInsumosRevenda,
-    valorBase, valorBaseEssencial, colab, adicCompleto, adicEssencial,
+    valorBase, valorBaseEssencial, colab, adicCompleto, adicEssencial, valorBebidasAlcRevenda,
   };
 }
 
@@ -1036,6 +1036,8 @@ function rOrcCalc() {
     pax, autoS, itens, insumos, custoInsumos, custoPresente, margSeg, margLuc,
     custoEst, valorTotal, porPessoa, custoBebidasAlc,
     valorTotalEssencial, porPessoaEssencial, valorBase, colab, adicCompleto,
+    custoPresenteEssencial, custoEstEssencial, valorBaseEssencial, valorInsumosRevenda,
+    valorBebidasAlcRevenda, adicEssencial,
   } = _orcCalcResumo(orc);
 
   const localKey = _migrarLocalOrcamento(p);
@@ -1188,58 +1190,70 @@ function rOrcCalc() {
       <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:10px">
         <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px">💰 Resumo</div>
 
-        <div style="margin-bottom:10px">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:2px">Custo Presente <span style="opacity:.8">(Pacote Completo, com bebidas)</span></div>
-          <div style="font-size:20px;font-weight:700;font-family:var(--mono);color:var(--text)">${fR(custoPresente)}</div>
-          ${custoBebidasAlc > 0 ? `
-          <div style="display:flex;justify-content:space-between;font-size:11px;font-family:var(--mono);color:var(--text3);margin-top:4px"><span>Bebidas alcoólicas</span><span>${fR(custoBebidasAlc)}</span></div>
-          <div style="display:flex;justify-content:space-between;font-size:11px;font-family:var(--mono);color:var(--blue);font-weight:600"><span>Custo do Pacote Essencial</span><span>${fR(custoPresenteEssencial)}</span></div>` : ''}
-        </div>
-
-        <div style="padding:8px 10px;background:rgba(247,168,79,.1);border:1px solid rgba(247,168,79,.3);border-radius:6px;margin-bottom:10px">
-          <div style="font-size:10px;color:var(--amber);margin-bottom:2px">+ Margem segurança (${margSeg}%)</div>
-          <div style="font-size:14px;font-family:var(--mono);color:var(--amber);font-weight:600">+ ${fR(custoEst - custoPresente)}</div>
-        </div>
-
-        <div style="margin-bottom:10px">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:2px">Custo Estimado</div>
-          <div style="font-size:16px;font-weight:700;font-family:var(--mono);color:var(--text)">${fR(custoEst)}</div>
-        </div>
-
-        <div style="padding:8px 10px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);border-radius:6px;margin-bottom:12px">
-          <div style="font-size:10px;color:var(--green);margin-bottom:2px">+ Margem lucro (${margLuc}%)</div>
-          <div style="font-size:14px;font-family:var(--mono);color:var(--green);font-weight:600">+ ${fR(valorBase - custoEst)}</div>
-        </div>
-
         ${(() => {
-          const a = adicCompleto;
-          const linhas = [
+          // 11-25: Resumo montado a partir do custo real SEM bebidas alcoólicas
+          // → margens → taxas = Pacote Essencial; + bebidas (com margens e
+          // taxas) = Pacote Completo. Valores são os mesmos de antes, só a
+          // apresentação mudou (antes o Custo Presente era o do Completo e o
+          // Essencial parecia abaixo do custo).
+          const linha = (txt, val, cor, neg) => `<div style="display:flex;justify-content:space-between;font-size:11px;font-family:var(--mono);color:${cor}${neg ? ';font-weight:600' : ''}"><span>${txt}</span><span>${val}</span></div>`;
+          const revEss = valorInsumosRevenda - valorBebidasAlcRevenda;
+          const lucroEss = valorBaseEssencial - custoEstEssencial - revEss;
+          const a = adicEssencial;
+          const taxas = [
             ['Cerimônia no local', a.cerimonia],
             ['Hora extra', a.horaExtra],
             ['Imposto / NF', a.imposto],
             ['Comissão', a.comissao],
           ].filter(l => l[1] > 0);
-          if (!linhas.length) return '';
-          return `<div style="padding:8px 10px;background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.25);border-radius:6px;margin-bottom:12px">
-            <div style="font-size:10px;color:var(--purple);margin-bottom:4px">Taxas e adicionais <span style="opacity:.7">(Pacote Completo)</span></div>
-            ${linhas.map(l => `<div style="display:flex;justify-content:space-between;font-size:11px;font-family:var(--mono);color:var(--purple)"><span>+ ${l[0]}</span><span>${fR(l[1])}</span></div>`).join('')}
-          </div>`;
-        })()}
+          const difBebidas = valorTotal - valorTotalEssencial;
+          const margTaxBebidas = difBebidas - custoBebidasAlc - valorBebidasAlcRevenda;
+          return `
+        <div style="margin-bottom:10px">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:2px">Custo Presente <span style="opacity:.8">(custo real, sem bebidas alcoólicas)</span></div>
+          <div style="font-size:20px;font-weight:700;font-family:var(--mono);color:var(--text)">${fR(custoPresenteEssencial)}</div>
+        </div>
+
+        <div style="padding:8px 10px;background:rgba(247,168,79,.1);border:1px solid rgba(247,168,79,.3);border-radius:6px;margin-bottom:10px">
+          <div style="font-size:10px;color:var(--amber);margin-bottom:2px">+ Margem segurança (${margSeg}%)</div>
+          <div style="font-size:14px;font-family:var(--mono);color:var(--amber);font-weight:600">+ ${fR(custoEstEssencial - custoPresenteEssencial)}</div>
+        </div>
+
+        <div style="margin-bottom:10px">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:2px">Custo Estimado</div>
+          <div style="font-size:16px;font-weight:700;font-family:var(--mono);color:var(--text)">${fR(custoEstEssencial)}</div>
+        </div>
+
+        <div style="padding:8px 10px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);border-radius:6px;margin-bottom:12px">
+          <div style="font-size:10px;color:var(--green);margin-bottom:2px">+ Margem lucro (${margLuc}%)</div>
+          <div style="font-size:14px;font-family:var(--mono);color:var(--green);font-weight:600">+ ${fR(lucroEss)}</div>
+          ${revEss > 0 ? `<div style="margin-top:4px">${linha('+ Itens de revenda (preço de venda)', fR(revEss), 'var(--green)')}</div>` : ''}
+        </div>
+
+        ${taxas.length ? `<div style="padding:8px 10px;background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.25);border-radius:6px;margin-bottom:12px">
+          <div style="font-size:10px;color:var(--purple);margin-bottom:4px">Taxas e adicionais</div>
+          ${taxas.map(l => linha('+ ' + l[0], fR(l[1]), 'var(--purple)')).join('')}
+        </div>` : ''}
 
         <div style="border-top:2px solid var(--border2);padding-top:12px;margin-bottom:10px">
-          <div style="font-size:10px;color:var(--blue);margin-bottom:2px">🍹 Pacote Essencial <span style="opacity:.7">(sem bebidas alcoólicas)</span></div>
+          <div style="font-size:10px;color:var(--blue);margin-bottom:2px">🍹 Pacote Essencial <span style="opacity:.7">(custo + margens + taxas)</span></div>
           <div style="font-size:22px;font-weight:800;font-family:var(--mono);color:var(--blue)">${fR(valorTotalEssencial)}</div>
         </div>
 
-        <div style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:${pax > 0 || custoBebidasAlc > 0 ? '12' : '0'}px">
-          <div style="font-size:10px;color:var(--green);margin-bottom:2px">🥂 Pacote Completo <span style="opacity:.7">(com bebidas)</span></div>
-          <div style="font-size:22px;font-weight:800;font-family:var(--mono);color:var(--green)">${fR(valorTotal)}</div>
-        </div>
+        ${difBebidas > 0.005 ? `<div style="padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;margin-bottom:10px">
+          <div style="font-size:10px;color:var(--text2);margin-bottom:4px">+ Bebidas alcoólicas</div>
+          ${custoBebidasAlc > 0 ? linha('Custo das bebidas', fR(custoBebidasAlc), 'var(--text2)') : ''}
+          ${valorBebidasAlcRevenda > 0 ? linha('Bebidas de revenda (preço de venda)', fR(valorBebidasAlcRevenda), 'var(--text2)') : ''}
+          ${margTaxBebidas > 0.005 ? linha('Margens e taxas sobre as bebidas', fR(margTaxBebidas), 'var(--text2)') : ''}
+          ${linha('Total bebidas', '+ ' + fR(difBebidas), 'var(--text)', true)}
+        </div>` : ''}
 
-        ${custoBebidasAlc > 0 ? `
-          <div style="font-size:10px;color:var(--text3);text-align:right;margin-bottom:${pax > 0 ? '12' : '0'}px">
-            Diferença entre pacotes (bebidas alcoólicas): ${fR(valorTotal - valorTotalEssencial)}
-          </div>` : ''}
+        <div style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:${pax > 0 ? '12' : '0'}px">
+          <div style="font-size:10px;color:var(--green);margin-bottom:2px">🥂 Pacote Completo <span style="opacity:.7">(Essencial + bebidas)</span></div>
+          <div style="font-size:22px;font-weight:800;font-family:var(--mono);color:var(--green)">${fR(valorTotal)}</div>
+          ${custoBebidasAlc > 0 ? `<div style="font-size:10px;color:var(--text3);margin-top:2px">Custo real com bebidas: ${fR(custoPresente)}</div>` : ''}
+        </div>`;
+        })()}
 
         ${pax > 0 ? `
           <div style="background:rgba(196,98,45,.1);border:1px solid rgba(196,98,45,.3);border-radius:6px;padding:10px;text-align:center">
