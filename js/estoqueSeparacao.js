@@ -385,7 +385,7 @@ function _compSepPadronizarNomes() {
     var antigo = (ins.nome || '').trim().toUpperCase();
     if (!antigo || antigo === m.nomeNovo) return;
     if (!ins.aliases) ins.aliases = [];
-    if (ins.aliases.indexOf(antigo) === -1) ins.aliases.push(antigo);
+    if (ins.aliases.indexOf(antigo) === -1) ins.aliases.push(antigo); if (typeof _insumoIndiceInvalidar === 'function') _insumoIndiceInvalidar();
     ins.nome = m.nomeNovo;
     if (typeof _propagarRenomeInsumo === 'function') _propagarRenomeInsumo(antigo, m.nomeNovo);
     n++;

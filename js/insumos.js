@@ -121,17 +121,45 @@ function buscarInsumoPorNome(nome) {
   // Depois, nome "quase igual": sem acento, espaço duplo/invisível (NBSP,
   // zero-width) — o PEPINO da ficha do Lillet Vive não batia com o PEPINO do
   // Cadastro e o orçamento caía no preço antigo do xarope (11-25).
-  var nn = _insumoNormNome(nome);
-  return lista.find(function(i) { return (i.nome || '').trim().toUpperCase() === n; })
-    || lista.find(function(i) { return _insumoNormNome(i.nome) === nn; })
-    || lista.find(function(i) {
-      return (i.aliases || []).some(function(a) { return _insumoNormNome(a) === nn; });
-    }) || null;
+  var idx = _insumoIndice(lista);
+  return idx.exato.get(n) || idx.norm.get(_insumoNormNome(nome)) || idx.apelido.get(_insumoNormNome(nome)) || null;
 }
 
+// Índice dos nomes do Cadastro (exato / sem acento-espaço / apelido), o
+// primeiro da lista ganha em cada um — mesma prioridade da busca antiga.
+// Refeito quando a lista muda (outra lista ou outro tamanho) ou a cada 2 s,
+// pra pegar renomeação/categoria editada no lugar (11-25: a busca linear
+// com normalização deixou o sistema lento).
+var _insIdx = null;
+function _insumoIndice(lista) {
+  var agora = Date.now();
+  if (_insIdx && _insIdx.lista === lista && _insIdx.tam === lista.length && agora - _insIdx.em < 2000) return _insIdx;
+  var exato = new Map(), norm = new Map(), apelido = new Map();
+  lista.forEach(function(i) {
+    var e = (i.nome || '').trim().toUpperCase();
+    if (e && !exato.has(e)) exato.set(e, i);
+    var nn = _insumoNormNome(i.nome);
+    if (nn && !norm.has(nn)) norm.set(nn, i);
+    (i.aliases || []).forEach(function(a) { var na = _insumoNormNome(a); if (na && !apelido.has(na)) apelido.set(na, i); });
+  });
+  _insIdx = { lista: lista, tam: lista.length, em: agora, exato: exato, norm: norm, apelido: apelido };
+  return _insIdx;
+}
+function _insumoIndiceInvalidar() { _insIdx = null; }
+
+// Memorizado: buscarInsumoPorNome roda milhares de vezes por tela e, sem
+// cache, normalizava os ~450 nomes do Cadastro a cada busca sem acerto
+// exato — deixou o sistema lento (11-25).
+var _insNormCache = new Map();
 function _insumoNormNome(s) {
-  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+  s = String(s || '');
+  var c = _insNormCache.get(s);
+  if (c !== undefined) return c;
+  c = s.normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/[  -‍⁠﻿]/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase();
+  if (_insNormCache.size > 50000) _insNormCache.clear();
+  _insNormCache.set(s, c);
+  return c;
 }
 
 // Ficha de coquetel e Folha de Separação guardam uma cópia da categoria do
@@ -471,6 +499,7 @@ function salvarInsumo() {
   } else {
     D.insumos.push(insumo);
   }
+  _insumoIndiceInvalidar(); // nome/apelido podem ter mudado
 
   sv('insumos');
   if (renomeou) _propagarRenomeInsumo(nomeAntigo, nome);
@@ -746,6 +775,7 @@ function confirmarPadronizarInsumos() {
     if (!insumo.aliases) insumo.aliases = [];
     if (insumo.aliases.indexOf(p.nomeAtual) === -1 && p.nomeAtual !== p.nomeNovo) insumo.aliases.push(p.nomeAtual);
     insumo.nome = p.nomeNovo;
+    _insumoIndiceInvalidar();
   });
   var total = _padronizacaoInsumosPendente.length;
   _padronizacaoInsumosPendente = [];
