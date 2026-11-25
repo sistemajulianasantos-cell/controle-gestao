@@ -526,6 +526,19 @@ function excluirDespesasSelecionadas() {
   alert2('Despesas excluídas!', 'success');
 }
 
+// Botão "Limpar filtros" da lista de Despesas (11-25): zera busca, categoria,
+// forma, status e período de uma vez. Mês/Ano do topo da tela e a ordenação
+// ficam como estão.
+function limparFiltrosDespesas() {
+  ['desp-busca', 'desp-cat-filtro', 'desp-forma-filtro', 'desp-status-filtro', 'desp-print-de', 'desp-print-ate']
+    .forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
+  var campo = document.getElementById('desp-print-campo-data');
+  if (campo) campo.value = 'venc';
+  var lbl = document.getElementById('desp-print-campo-data-lbl');
+  if (lbl) lbl.textContent = 'vencimento';
+  rDespesasLista();
+}
+
 function rDespesasLista() {
   _despSel.clear();
   const mes = document.getElementById('desp-mes')?.value || '';
