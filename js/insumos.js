@@ -118,10 +118,20 @@ function buscarInsumoPorNome(nome) {
   // Nome exato ganha de apelido (11-25): "XAROPE 1883 PEPINO" tem o apelido
   // "PEPINO" (nome antigo dele), e o PEPINO de Hortifruti era confundido com
   // o xarope — a ficha do Lillet Vive voltava sempre pra categoria Xaropes.
+  // Depois, nome "quase igual": sem acento, espaço duplo/invisível (NBSP,
+  // zero-width) — o PEPINO da ficha do Lillet Vive não batia com o PEPINO do
+  // Cadastro e o orçamento caía no preço antigo do xarope (11-25).
+  var nn = _insumoNormNome(nome);
   return lista.find(function(i) { return (i.nome || '').trim().toUpperCase() === n; })
+    || lista.find(function(i) { return _insumoNormNome(i.nome) === nn; })
     || lista.find(function(i) {
-      return (i.aliases || []).some(function(a) { return (a || '').trim().toUpperCase() === n; });
+      return (i.aliases || []).some(function(a) { return _insumoNormNome(a) === nn; });
     }) || null;
+}
+
+function _insumoNormNome(s) {
+  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[  -‍⁠﻿]/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase();
 }
 
 // Ficha de coquetel e Folha de Separação guardam uma cópia da categoria do

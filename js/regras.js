@@ -594,6 +594,14 @@ function _auditarItensNaoCadastrados() {
   });
 }
 
+// Nome do item da ficha como está no Cadastro de Insumos — item gravado com
+// grafia levemente diferente (espaço invisível, acento) aparecia desmarcado no
+// editor e sumia da ficha ao salvar (PEPINO do Lillet Vive, 11-25).
+function _fcNomeCadastro(nome) {
+  var ins = (typeof buscarInsumoPorNome === 'function') ? buscarInsumoPorNome(nome) : null;
+  return ins && ins.nome ? ins.nome : nome;
+}
+
 function getBiblioteca() {
   var porCat = {};
   (D.insumos || []).forEach(function(i) {
@@ -774,7 +782,7 @@ function rFormFicha(fichaExistente) {
   // ficha; _fcSyncMedidas() mantém isso em dia conforme ela marca/desmarca.
   window._fcMedidas = {};
   (f.itens||[]).forEach(function(i){
-    window._fcMedidas[categoriaAtualDoInsumo(i.nome, i.cat) + '|' + i.nome] = { qtd: i.qtd, un: i.un, foraFT: i.foraFT };
+    window._fcMedidas[categoriaAtualDoInsumo(i.nome, i.cat) + '|' + _fcNomeCadastro(i.nome)] = { qtd: i.qtd, un: i.un, foraFT: i.foraFT };
   });
 
   var _copos = (typeof getCopos === 'function') ? getCopos().slice().sort(function(a,b){return (a.nome||'').localeCompare(b.nome||'');}) : [];
@@ -785,7 +793,7 @@ function rFormFicha(fichaExistente) {
   // — senão, reclassificar um insumo (ex: Triple Sec) faz o checkbox dele
   // aparecer desmarcado na categoria nova, e resalvar a ficha sem notar
   // apaga o item dela (pedido 08-26).
-  var itensIds = new Set((f.itens||[]).map(function(i){ return categoriaAtualDoInsumo(i.nome, i.cat) + '|' + i.nome; }));
+  var itensIds = new Set((f.itens||[]).map(function(i){ return categoriaAtualDoInsumo(i.nome, i.cat) + '|' + _fcNomeCadastro(i.nome); }));
 
   // Itens da ficha existente que não estão na nova lista filtrada — só sobra
   // aqui quem o NOME não existe mais em nenhuma categoria do Cadastro de
