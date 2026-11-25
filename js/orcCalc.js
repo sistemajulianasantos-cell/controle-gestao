@@ -1189,8 +1189,11 @@ function rOrcCalc() {
         <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px">💰 Resumo</div>
 
         <div style="margin-bottom:10px">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:2px">Custo Presente</div>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:2px">Custo Presente <span style="opacity:.8">(Pacote Completo, com bebidas)</span></div>
           <div style="font-size:20px;font-weight:700;font-family:var(--mono);color:var(--text)">${fR(custoPresente)}</div>
+          ${custoBebidasAlc > 0 ? `
+          <div style="display:flex;justify-content:space-between;font-size:11px;font-family:var(--mono);color:var(--text3);margin-top:4px"><span>Bebidas alcoólicas</span><span>${fR(custoBebidasAlc)}</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;font-family:var(--mono);color:var(--blue);font-weight:600"><span>Custo do Pacote Essencial</span><span>${fR(custoPresenteEssencial)}</span></div>` : ''}
         </div>
 
         <div style="padding:8px 10px;background:rgba(247,168,79,.1);border:1px solid rgba(247,168,79,.3);border-radius:6px;margin-bottom:10px">
