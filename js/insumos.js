@@ -114,10 +114,14 @@ function buscarInsumoPorId(id) {
 function buscarInsumoPorNome(nome) {
   if (!nome) return null;
   var n = nome.trim().toUpperCase();
-  return (D.insumos || []).find(function(i) {
-    if ((i.nome || '').toUpperCase() === n) return true;
-    return (i.aliases || []).some(function(a) { return (a || '').toUpperCase() === n; });
-  }) || null;
+  var lista = D.insumos || [];
+  // Nome exato ganha de apelido (11-25): "XAROPE 1883 PEPINO" tem o apelido
+  // "PEPINO" (nome antigo dele), e o PEPINO de Hortifruti era confundido com
+  // o xarope — a ficha do Lillet Vive voltava sempre pra categoria Xaropes.
+  return lista.find(function(i) { return (i.nome || '').trim().toUpperCase() === n; })
+    || lista.find(function(i) {
+      return (i.aliases || []).some(function(a) { return (a || '').trim().toUpperCase() === n; });
+    }) || null;
 }
 
 // Ficha de coquetel e Folha de Separação guardam uma cópia da categoria do
