@@ -3,7 +3,7 @@
 
 let orcView    = 'lista';  // 'lista' | 'detalhe'
 let orcAtualId = null;
-let orcDetTab  = 'calc';   // 'calc' | 'cardapio' | 'servicos' | 'proposta'
+let orcDetTab  = 'calc';   // 'calc' | 'cardapio' | 'servicos' | 'proposta' | 'relatorio'
 // Painel "Configurações" da Lista (modelos .docx, padrão do PDF, marcações) —
 // fora da tela principal, só abre pelo botão (pedido dela 11-17).
 let _orcConfigAberta = false;
@@ -385,6 +385,7 @@ function rOrcDetalhe() {
       <button class="sort-btn ${orcDetTab==='cardapio'?'active':''}" onclick="setOrcTab('cardapio')">🍹 Cardápio</button>
       <button class="sort-btn ${orcDetTab==='servicos'?'active':''}" onclick="setOrcTab('servicos')">➕ Serviços</button>
       <button class="sort-btn ${orcDetTab==='proposta'?'active':''}" onclick="setOrcTab('proposta')">📄 Proposta</button>
+      <button class="sort-btn ${orcDetTab==='relatorio'?'active':''}" onclick="setOrcTab('relatorio')">Relatório</button>
     </div>
 
     <div id="orc-det-content"></div>`;
@@ -939,6 +940,7 @@ function _rTabContent() {
   if      (orcDetTab === 'cardapio') rOrcCardapio(orc);
   else if (orcDetTab === 'servicos') rOrcServicos(orc);
   else if (orcDetTab === 'proposta') rOrcProposta(orc);
+  else if (orcDetTab === 'relatorio' && typeof rOrcRelatorio === 'function') rOrcRelatorio(orc);
   else                               rOrcCalc();
 }
 
