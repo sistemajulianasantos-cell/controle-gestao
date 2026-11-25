@@ -472,13 +472,36 @@ function _finNomeBate(c, f) {
   const comuns = tf.filter(t => tc.indexOf(t) !== -1).length;
   return comuns >= 2 || (comuns === 1 && (tc.length === 1 || tf.length === 1));
 }
+// Índice dos contratos por código e por palavra do nome, válido só durante o
+// desenho atual da tela (some na próxima tarefa do navegador). Sem ele, cada
+// parcela percorria todos os contratos — o Financeiro travava (11-25). Só
+// escolhe candidatos: a conferência (_finNomeBate) continua no contrato atual.
+let _finIdxCont = null;
+function _finIdxContratos() {
+  const lista = D.contratos || [];
+  if (_finIdxCont && _finIdxCont.lista === lista && _finIdxCont.tam === lista.length) return _finIdxCont;
+  const porId = new Map(), porTok = new Map();
+  const add = (m, k, i) => { let a = m.get(k); if (!a) m.set(k, a = []); if (a[a.length - 1] !== i) a.push(i); };
+  lista.forEach((c, i) => {
+    if (!c) return;
+    if (c.id) add(porId, c.id, i);
+    _finTokensNome([c.nome, c.nomeEvento].join(' ')).forEach(t => add(porTok, t, i));
+  });
+  _finIdxCont = { lista, tam: lista.length, porId, porTok };
+  setTimeout(() => { _finIdxCont = null; }, 0);
+  return _finIdxCont;
+}
 function _finContratoDaParcela(f) {
   if (!f) return null;
   const lista = D.contratos || [];
-  const porId = f.contratoId ? lista.filter(c => c.id === f.contratoId) : [];
+  const idx = _finIdxContratos();
+  const porId = f.contratoId ? (idx.porId.get(f.contratoId) || []).map(i => lista[i]).filter(c => c && c.id === f.contratoId) : [];
   const idBate = porId.find(c => _finNomeBate(c, f));
   if (idBate) return idBate;
-  const porNome = lista.filter(c => c.status !== 'cancelado' && _finNomeBate(c, f));
+  const cand = new Set();
+  _finTokensNome([f.contrato, f.evento, f.nome].join(' ')).forEach(t => (idx.porTok.get(t) || []).forEach(i => cand.add(i)));
+  const porNome = Array.from(cand).sort((a, b) => a - b).map(i => lista[i])
+    .filter(c => c && c.status !== 'cancelado' && _finNomeBate(c, f));
   const mesmoDia = porNome.find(c => (c.data || '') === (f.data || ''));
   if (porId.length === 1 && !porNome.length) return porId[0];
   // Código aponta pra contrato de outro nome: vale o contrato com o nome certo.

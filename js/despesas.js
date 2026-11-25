@@ -235,20 +235,31 @@ function _removerDespesasDoEvento(contratoId) {
 function _sincronizarCategoriasComFornecedores() {
   if (!D.despesas || !D.fornecedores) return;
   let changed = false;
-  D.fornecedores.forEach(f => {
+  // Mesma regra de antes (vale o 1º fornecedor da lista que bater), mas com
+  // índice: antes cruzava cada fornecedor com cada despesa a cada troca de
+  // aba — com milhares de despesas a tela travava (11-25).
+  const porNome = new Map(), porNomeLower = new Map();
+  D.fornecedores.forEach((f, i) => {
     if (!f.nome || !f.categoria) return;
     const nomeLower = f.nome.trim().toLowerCase();
     if (nomeLower.length < 3) return;
-    D.despesas.forEach(d => {
-      const matchForn = d.fornecedor === f.nome;
+    if (!porNome.has(f.nome)) porNome.set(f.nome, { f, i });
+    if (!porNomeLower.has(nomeLower)) porNomeLower.set(nomeLower, { f, i });
+  });
+  if (!porNome.size) return;
+  D.despesas.forEach(d => {
+    let achado = null;
+    if (d.fornecedor) {
+      achado = porNome.get(d.fornecedor) || null;
+    } else {
+      // descrição igual ao nome, ou começando pelo nome + espaço
       const descLower = (d.descricao || '').trim().toLowerCase();
-      const matchDesc = !d.fornecedor &&
-        (descLower === nomeLower || descLower.startsWith(nomeLower + ' '));
-      if (matchForn || matchDesc) {
-        if (matchDesc) { d.fornecedor = f.nome; changed = true; }
-        if (!d.categoria) { d.categoria = f.categoria; changed = true; } // só preenche se vazia; nunca sobrescreve edição manual
-      }
-    });
+      const testar = k => { const x = porNomeLower.get(k); if (x && (!achado || x.i < achado.i)) achado = x; };
+      testar(descLower);
+      for (let p = descLower.indexOf(' '); p !== -1; p = descLower.indexOf(' ', p + 1)) testar(descLower.slice(0, p));
+      if (achado) { d.fornecedor = achado.f.nome; changed = true; }
+    }
+    if (achado && !d.categoria) { d.categoria = achado.f.categoria; changed = true; } // só preenche se vazia; nunca sobrescreve edição manual
   });
   if (changed) sv('despesas');
 }
@@ -629,9 +640,13 @@ function rDespesasLista() {
     return;
   }
 
+  // Lista de categorias de cada linha só é montada quando a pessoa clica nela
+  // (_despCatOpcoes): com dezenas de categorias em centenas de linhas, a tela
+  // ficava com megabytes de opções e travava ao abrir (11-25).
+  const cats = _getCategoriasDespesas();
+  const catAttr = c => String(c == null ? '' : c).replace(/"/g, '&quot;');
+  const linhas = [];
   lista.forEach(d => {
-    const tr = document.createElement('tr');
-    tr.style.borderBottom = '1px solid var(--bg3)';
     const forma  = _detectarFormaDespesa(d);
     const desc   = _descricaoSemPrefixo(d);
     const status = _statusDesp(d);
@@ -640,14 +655,14 @@ function rDespesasLista() {
       ? `<span style="color:${status==='vencido'?'var(--red)':status==='pago'?'var(--text2)':'var(--amber)'};font-size:12px">${fd(d.dataVencimento)}</span>`
       : `<span style="color:var(--text2);font-size:12px">—</span>`;
     const catCell = `<td style="padding:4px 10px">
-           <select onchange="editarCategoriaDespesa('${d.id}','${descEsc}',this.value)"
+           <select data-cat="${catAttr(d.categoria)}" onmousedown="_despCatOpcoes(this)" onfocus="_despCatOpcoes(this)" onchange="editarCategoriaDespesa('${d.id}','${descEsc}',this.value)"
              style="background:var(--border);color:var(--text2);border:1px solid var(--border);border-radius:4px;font-size:11px;padding:2px 6px;cursor:pointer;max-width:120px">
-             ${_getCategoriasDespesas().map(c=>`<option value="${c}"${c===d.categoria?' selected':''}>${c}</option>`).join('')}
+             ${(c => `<option value="${c}" selected>${c}</option>`)(cats.includes(d.categoria) ? d.categoria : cats[0])}
            </select>
          </td>`;
     const pagCell = status === 'pago' && d.dataPagamento
       ? `<div style="font-size:10px;color:var(--green);margin-top:2px">Pago em ${fd(d.dataPagamento)}</div>` : '';
-    tr.innerHTML = `
+    linhas.push(`<tr style="border-bottom:1px solid var(--bg3)">
       <td style="padding:8px 10px;text-align:center">
         <input type="checkbox" class="desp-chk" data-id="${d.id}" onchange="despToggleSel('${d.id}',this.checked)"
           style="width:15px;height:15px;cursor:pointer;accent-color:var(--blue)">
@@ -667,9 +682,17 @@ function rDespesasLista() {
           <button class="btn-sm btn-red" onclick="excluirDespesa('${d.id}')" title="Excluir">✕</button>
         </div>
       </td>
-    `;
-    tbody.appendChild(tr);
+    </tr>`);
   });
+  tbody.innerHTML = linhas.join('');
+}
+
+// Preenche a lista de categorias do select da linha na 1ª vez que ela é aberta.
+function _despCatOpcoes(sel) {
+  if (!sel || sel.dataset.ok) return;
+  const atual = sel.dataset.cat || '';
+  sel.innerHTML = _getCategoriasDespesas().map(c => `<option value="${c}"${c === atual ? ' selected' : ''}>${c}</option>`).join('');
+  sel.dataset.ok = '1';
 }
 
 function editarCategoriaDespesa(id, descricao, novaCategoria) {

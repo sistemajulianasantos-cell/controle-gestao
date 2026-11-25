@@ -66,7 +66,24 @@ function _concNorm(s) { return String(s || '').normalize('NFD').replace(/[\u0300
 function _concTokens(s) {
   return _concNorm(s).split(/[^A-Z0-9]+/).filter(function(t) { return t.length >= 2 && !/^(DE|DA|DO|DOS|DAS|E|EM|LTDA|ME|EPP|SA)$/.test(t); });
 }
-function _concParcela(id) { return (D.financeiro || []).find(function(f) { return f.id === id; }) || null; }
+// Índice id → parcela, válido só durante o desenho atual da tela (some na
+// próxima tarefa do navegador), pra não ficar desatualizado depois de uma
+// gravação. Antes cada consulta percorria o Financeiro inteiro.
+var _concParcIdx = null;
+function _concParcela(id) {
+  var fin = D.financeiro || [];
+  if (!_concParcIdx || _concParcIdx.lista !== fin || _concParcIdx.tam !== fin.length) {
+    var m = new Map();
+    fin.forEach(function(f, i) { if (f && !m.has(f.id)) m.set(f.id, i); });
+    _concParcIdx = { lista: fin, tam: fin.length, mapa: m };
+    setTimeout(function() { _concParcIdx = null; }, 0);
+  }
+  var pos = _concParcIdx.mapa.get(id);
+  if (pos === undefined) return null;
+  var f = fin[pos];
+  if (f && f.id === id) return f;
+  return fin.find(function(x) { return x.id === id; }) || null;
+}
 function _concContratoDaParcela(f) {
   if (!f) return null;
   // Confere o nome (contratos antigos com código repetido) — js/financeiro.js
@@ -285,6 +302,17 @@ function _concCalcularSugestoes() {
       chave: typeof _finChaveContrato === 'function' ? _finChaveContrato(f) : '',
     };
   });
+  // Índices: só entra na comparação a parcela com CPF ou alguma palavra do
+  // nome em comum (as outras seriam descartadas logo no início do laço). Antes
+  // comparava cada PIX com TODAS as parcelas — a tela travava (11-25).
+  // Os candidatos seguem a ordem original, então o resultado é o mesmo.
+  var porToken = new Map(), porCpf = new Map(), porChave = new Map();
+  var addIdx = function(m, k, i) { if (!k) return; var a = m.get(k); if (!a) m.set(k, a = []); if (a[a.length - 1] !== i) a.push(i); };
+  parcelas.forEach(function(p, i) {
+    p.tokens.forEach(function(t) { addIdx(porToken, t, i); });
+    addIdx(porCpf, p.cpf, i);
+    addIdx(porChave, p.chave, i);
+  });
   var sug = {};
   _concLista().filter(function(e) { return !e.ignorado && !_concConciliada(e); })
     .sort(function(a, b) { return a.data.localeCompare(b.data) || b.valor - a.valor; })
@@ -292,7 +320,15 @@ function _concCalcularSugestoes() {
       var cpf = _concDig(e.cpf);
       var tok = _concTokens(e.razao);
       var melhor = null, reconhecidas = [];
-      parcelas.forEach(function(p) {
+      var cand = new Set();
+      var juntar = function(a) { if (a) a.forEach(function(i) { cand.add(i); }); };
+      tok.forEach(function(t) { juntar(porToken.get(t)); });
+      if (cpf) {
+        juntar(porCpf.get(cpf));
+        if (aprendidos[cpf]) Object.keys(aprendidos[cpf]).forEach(function(k) { juntar(porChave.get(k)); });
+      }
+      var candidatas = Array.from(cand).sort(function(a, b) { return a - b; }).map(function(i) { return parcelas[i]; });
+      candidatas.forEach(function(p) {
         var porCpf = !!(cpf && (cpf === p.cpf || (aprendidos[cpf] && aprendidos[cpf][p.chave])));
         var nome = _concComparaNome(tok, p.tokens);
         var forte = porCpf || (nome && nome.nivel === 'completo');

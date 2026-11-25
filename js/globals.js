@@ -19,8 +19,13 @@ function sv(k) {
 }
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
-function fN(n){return Number(n||0).toLocaleString('pt-BR')}
-function fR(n){return n?'R$ '+Number(n).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—'}
+// Formatadores criados uma vez só: toLocaleString com opções monta um
+// formatador novo a cada chamada, e fR roda milhares de vezes por tela
+// (Financeiro/Conciliação travavam ao trocar de aba — 11-25).
+var _fmtN = new Intl.NumberFormat('pt-BR');
+var _fmtR = new Intl.NumberFormat('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+function fN(n){return _fmtN.format(Number(n||0))}
+function fR(n){return n?'R$ '+_fmtR.format(Number(n)):'—'}
 function td(){return new Date().toISOString().slice(0,10)}
 function fd(d){return d?d.split('-').reverse().join('/'):'—'}
 
@@ -33,10 +38,9 @@ function gerarAnosFromData(selectId, datas) {
   )].sort((a, b) => b.localeCompare(a));
   const anoAtual = String(new Date().getFullYear());
   const prev = el.value || (anos.includes(anoAtual) ? anoAtual : (anos[0] || ''));
-  el.innerHTML = '<option value="">Ano...</option>';
-  anos.forEach(function(a) {
-    el.innerHTML += '<option value="' + a + '"' + (a === prev ? ' selected' : '') + '>' + a + '</option>';
-  });
+  el.innerHTML = '<option value="">Ano...</option>' + anos.map(function(a) {
+    return '<option value="' + a + '"' + (a === prev ? ' selected' : '') + '>' + a + '</option>';
+  }).join('');
 }
 
 // Aplica filtro de mês/ano nos campos de data
