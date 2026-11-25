@@ -159,7 +159,7 @@ function _relMontarHtml(orc) {
     var cats = Object.keys(porCat);
     if (typeof _orcOrdenarCats === 'function') { try { cats = _orcOrdenarCats(cats); } catch (e) { cats.sort(); } } else cats.sort();
     return cats.map(function(c) {
-      var itens = porCat[c].slice().sort(function(a, b) { return String(a.nome).localeCompare(String(b.nome), 'pt-BR'); });
+      var itens = porCat[c].slice(); // ordem do cardápio, igual à Calculadora
       return '<div class="rel-sub"><span>' + _relEsc(c) + '</span><span>' + _relR(soma(itens)) + '</span></div><table>' +
         itens.map(function(i) {
           return _relLinhaItem(i.nome, _relQtdInsumo(i) + ' × ' + _relR(i.custoGarrafa), i.total, _relOrigemInsumo(i));

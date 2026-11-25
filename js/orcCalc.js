@@ -1363,7 +1363,8 @@ function rOrcCalc() {
   };
 
   const insumosHtmlArr = catsInsumos.map(cat => {
-    const itensCat  = insumosPorCat[cat].slice().sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'));
+    // Ordem em que os itens entraram no orçamento (ordem do cardápio), não alfabética (11-25)
+    const itensCat  = insumosPorCat[cat].slice();
     // Valor teto: só soma o que é item automático (regra dela); o resto é consulta
     const semValorItem = i => (typeof _orcInsumoSemValor === 'function') && _orcInsumoSemValor(i);
     const itensCobrados = itensCat.filter(i => !semValorItem(i));
