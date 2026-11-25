@@ -1994,24 +1994,54 @@ function sincronizarDadosColaboradores() {
   const pagamentos = D.pagamentosEquipe || [];
   if (!pagamentos.length) { alert('Nenhum pagamento cadastrado.'); return; }
 
-  let atualizados = 0;
+  let atualizados = 0, nivelRecalc = 0, nivelPagos = 0, mudouDespesa = false;
   pagamentos.forEach(p => {
     const col = (D.equipe || []).find(c => c.id === p.colaboradorId);
     if (!col) return;
     const pixNovo  = col.chave_pix || '';
     const nomeNovo = col.nome || p.nomeColab;
+    let mudou = false;
     if (p.chave_pix !== pixNovo || p.nomeColab !== nomeNovo) {
       p.chave_pix = pixNovo;
       p.nomeColab = nomeNovo;
-      atualizados++;
+      mudou = true;
     }
+    // Nível (Novato → Antigo) — 11-25: antes não era puxado. Só pagamento
+    // ainda pendente é recalculado (base, hora extra, bônus, cerimônia, com o
+    // extra/desconto que já tinha) e a despesa ligada acompanha; o que já foi
+    // pago fica como foi pago.
+    const nivelNovo = col.nivel || '';
+    const cargoKey = _CARGO_PAG_KEY[p.cargo];
+    if (nivelNovo && p.nivel !== nivelNovo) {
+      if (p.status === 'pago') {
+        nivelPagos++;
+      } else if (cargoKey) {
+        const contrato = (D.contratos || []).find(c => c.id === p.contratoId);
+        const conv = parseInt(contrato?.convidados || 0);
+        const pag = _calcPagamento(cargoKey, nivelNovo, p.regiao, p.horasContratadas, p.horasExtras, conv, !!p.cerimonia);
+        p.nivel = nivelNovo;
+        p.valorBase = pag.valorBase;
+        p.valorHE = pag.valorHE;
+        p.valorBonus = pag.valorBonus;
+        p.valorCerimonia = pag.valorCerimonia;
+        p.total = pag.total + (p.extra || 0) - (p.desconto || 0);
+        if (typeof _registrarPagamentoEquipeComoDespesa === 'function') { _registrarPagamentoEquipeComoDespesa(p); mudouDespesa = true; }
+        nivelRecalc++;
+        mudou = true;
+      }
+    }
+    if (mudou) atualizados++;
   });
 
   sv('pagamentosEquipe');
+  if (mudouDespesa) sv('despesas');
   rEquipePagamentos();
-  alert2(atualizados > 0
+  let msg = atualizados > 0
     ? `${atualizados} registro${atualizados>1?'s':''} atualizado${atualizados>1?'s':''} com os dados atuais dos colaboradores.`
-    : 'Todos os registros já estão atualizados.', 'success');
+    : 'Todos os registros já estão atualizados.';
+  if (nivelRecalc) msg += ` ${nivelRecalc} pagamento${nivelRecalc>1?'s':''} pendente${nivelRecalc>1?'s':''} recalculado${nivelRecalc>1?'s':''} com o nível novo.`;
+  if (nivelPagos) msg += ` ${nivelPagos} já pago${nivelPagos>1?'s':''} com nível antigo não ${nivelPagos>1?'foram alterados':'foi alterado'}.`;
+  alert2(msg, 'success');
 }
 
 let _pgFiltro = 'pendente';
@@ -2055,7 +2085,7 @@ function rEquipePagamentos() {
         <button class="btn-sm" onclick="sincronizarPagamentosComDespesas()"
           style="background:var(--bg2);border:1px solid var(--border2)" title="Lança os pagamentos já marcados como pagos nas Despesas da empresa">📤 Lançar nas Despesas</button>
         <button class="btn-sm" onclick="sincronizarDadosColaboradores()"
-          style="background:var(--bg2);border:1px solid var(--border2)" title="Atualiza chave PIX e nome de todos os pagamentos com os dados atuais do cadastro">🔄 Atualizar cadastro</button>
+          style="background:var(--bg2);border:1px solid var(--border2)" title="Atualiza chave PIX, nome e nível (Novato/Antigo) dos pagamentos com os dados atuais do cadastro — pendentes são recalculados, pagos não mudam">🔄 Atualizar cadastro</button>
         <button class="btn-sm" onclick="imprimirPagamentosEquipe()"
           style="background:var(--bg2);border:1px solid var(--border2)">🖨️ Imprimir</button>
       </div>
