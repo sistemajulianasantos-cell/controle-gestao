@@ -126,32 +126,114 @@ function _lcPreco(k, ins) {
 }
 var _lcModo = 'sintetico';    // 'sintetico' | 'analitico'
 
+// ─── RECEITA DO MIX (Fichas Técnicas do Sistema Separação) ──────────────────
+// Pedido 11-26: mix é produzido, não comprado. A receita fica na Ficha Técnica
+// de produção do Sistema Separação (rendimento + insumos por receita). Aqui o
+// que falta do mix (precisa − estoque) vira necessidade dos insumos dele, na
+// proporção da ficha. Ex.: MIX AURORA rende 1 garrafa com 0,5 de xarope de
+// tangerina + 0,5 de maracujá → 16 garrafas a produzir = 8 + 8 de xarope.
+// Só leitura; lido ao abrir a tela (e pelo botão Atualizar receitas).
+var _lcFichas = null;          // null = não carregado; [] = carregado
+var _lcFichasHora = '';
+var _lcFichasCarregando = false;
+function _lcCarregarFichas(forcar) {
+  if (_lcFichasCarregando || (_lcFichas && !forcar)) return;
+  if (typeof window.buscarFichasTecnicasSeparacao !== 'function' || !_cuEstoque) return;
+  _lcFichasCarregando = true;
+  window.buscarFichasTecnicasSeparacao().then(function(lista) {
+    _lcFichasCarregando = false;
+    if (!lista) return;
+    _lcFichas = lista;
+    _lcFichasHora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    _cuRenderSeVisivel();
+  }, function() { _lcFichasCarregando = false; });
+}
+function lcAtualizarReceitas() { _lcCarregarFichas(true); }
+// chave do produto (mesma do Cadastro de Insumos) → ficha
+function _lcMapaFichas() {
+  var m = {};
+  (_lcFichas || []).forEach(function(f) {
+    var rend = Number(f.rendimento) || 0;
+    if (!f.nome || rend <= 0 || !(f.ingredientes || []).length) return;
+    var k = _cuCanon(f.nome);
+    if (k && !m[k]) m[k] = f;
+  });
+  return m;
+}
+
 function _lcCalcular() {
   if (!_lcMes) _lcMes = _cuAnoMes(new Date());
   var per = _lcFolhasDoMes(_lcMes);
   var soma = _lcSomar(per.folhas);
+  var base = soma.linhas;
   var mapa = _cuMapaProdutos();
   var conectado = !!_cuEstoque;
+  var fichas = _lcMapaFichas();
+
+  var estDe = function(k, info) {
+    if (conectado) { var e = _cuEstoqueDe(info); return e ? e.qtd : null; }
+    return _cuTem(_cuEstoqueManual, k) ? _cuEstoqueManual[k] : null;
+  };
+  var minDe = function(info) { return _lcComMinimo && info.ins ? (Number(info.ins.estoqueMinimo) || 0) : 0; };
+
+  // Ordem: um mix só é calculado depois de todo mix que o usa como insumo
+  // (mix dentro de mix). Ciclo na receita é ignorado.
+  var pais = {};
+  Object.keys(fichas).forEach(function(mk) {
+    (fichas[mk].ingredientes || []).forEach(function(ing) {
+      var ik = _cuCanon(ing.nome || ing.nomeKey);
+      if (ik) (pais[ik] = pais[ik] || []).push(mk);
+    });
+  });
+  var produzir = {}, feito = {}, visitando = {};
+  var processar = function(mk) {
+    if (feito[mk] || visitando[mk]) return;
+    visitando[mk] = true;
+    (pais[mk] || []).forEach(processar);
+    visitando[mk] = false;
+    feito[mk] = true;
+    var l = base[mk];
+    if (!l || !(l.total > 0) || _cuSemCadastro(mk)) return;
+    var info = _cuInfo(mapa, mk);
+    var qtd = Math.max(0, Math.ceil(l.total + minDe(info) - (Number(estDe(mk, info)) || 0) - 1e-9));
+    produzir[mk] = qtd;
+    if (!qtd) return;
+    var f = fichas[mk];
+    var fator = qtd / Number(f.rendimento);
+    (f.ingredientes || []).forEach(function(ing) {
+      var ik = _cuCanon(ing.nome || ing.nomeKey);
+      var q = (Number(ing.qtd) || 0) * fator;
+      if (!ik || q <= 0) return;
+      if (!base[ik]) base[ik] = { k: ik, nomeFolha: ing.nome, cat: '', total: 0, festas: [], consignado: false };
+      base[ik].total += q;
+      base[ik].festas.push({ evento: 'Para produzir ' + qtd + ' ' + (f.unidadeRendimento || 'un') + ' de ' + _cuInfo(mapa, mk).nome, data: '', qtd: q, forn: 'producao' });
+    });
+  };
+  Object.keys(fichas).forEach(processar);
+
   var semCad = {}, linhas = [];
-  Object.keys(soma.linhas).forEach(function(k) {
-    var l = soma.linhas[k];
+  Object.keys(base).forEach(function(k) {
+    var l = base[k];
     if (_cuSemCadastro(k)) { semCad[k] = { c: 0, u: l.total }; return; }
     var info = _cuInfo(mapa, k);
     var cat = _cuCatDe(info);
-    var est = null;
-    if (conectado) { var e = _cuEstoqueDe(info); if (e) est = e.qtd; }
-    else if (_cuTem(_cuEstoqueManual, k)) est = _cuEstoqueManual[k];
-    var minimo = _lcComMinimo && info.ins ? (Number(info.ins.estoqueMinimo) || 0) : 0;
+    var est = estDe(k, info);
+    var minimo = minDe(info);
     var falta = Math.max(0, Math.ceil(l.total + minimo - (Number(est) || 0) - 1e-9));
+    var ehMix = !!fichas[k];
     var pr = _lcPreco(k, info.ins);
     var qtdCobrada = pr.porCx ? Math.ceil(falta / _lcTamCaixa(info.ins) - 1e-9) : falta;
     linhas.push({ k: k, info: info, cat: cat, total: l.total, festas: l.festas, consignado: l.consignado,
-      est: est, minimo: minimo, comprar: falta, preco: pr, valor: pr.valor ? qtdCobrada * pr.valor : 0 });
+      est: est, minimo: minimo, ficha: ehMix ? fichas[k] : null,
+      produzir: ehMix ? falta : 0, comprar: ehMix ? 0 : falta,
+      preco: pr, valor: (!ehMix && pr.valor) ? qtdCobrada * pr.valor : 0 });
   });
-  return { per: per, linhas: linhas, semCad: semCad, nCliente: soma.nCliente, conectado: conectado };
+  return { per: per, linhas: linhas, semCad: semCad, nCliente: soma.nCliente, conectado: conectado,
+    nFichas: Object.keys(fichas).length };
 }
 
 function _lcRender(cont) {
+  _lcCarregarFichas();
   var r = _lcCalcular();
   var fora = _cuCatsFora();
   var busca = _cuBusca();
@@ -162,11 +244,12 @@ function _lcRender(cont) {
   var visiveis = r.linhas.filter(function(l) {
     if (fora[l.cat]) return false;
     if (bk.indexOf(l.k) < 0) return false;
-    if (_lcSoComprar && l.comprar <= 0) return false;
+    if (_lcSoComprar && l.comprar <= 0 && l.produzir <= 0) return false;
     return true;
   });
   visiveis.sort(function(a, b) { return ordemCat(a.cat, b.cat) || a.info.nome.localeCompare(b.info.nome, 'pt-BR'); });
-  _lcUltima = { mes: _lcMes, linhas: visiveis.filter(function(l) { return l.comprar > 0; }), folhas: r.per.folhas.filter(function(s) { return !_lcFolhasFora[s.id]; }) };
+  _lcUltima = { mes: _lcMes, modo: _lcModo, linhas: visiveis.filter(function(l) { return l.comprar > 0; }),
+    produzir: visiveis.filter(function(l) { return l.produzir > 0; }), folhas: r.per.folhas.filter(function(s) { return !_lcFolhasFora[s.id]; }) };
 
   var aComprar = _lcUltima.linhas;
   var nComprar = aComprar.length;
@@ -188,6 +271,9 @@ function _lcRender(cont) {
       _cuCampoBusca(busca) +
     '</div>' +
     '<div style="font-size:11px;color:var(--text3);margin-top:8px">' + _cuStatusEstoque() + '</div>' +
+    (r.conectado ? '<div style="font-size:11px;color:var(--text3);margin-top:4px">' +
+      (_lcFichas ? 'Receitas de mix (Fichas Técnicas do Sistema Separação): ' + r.nFichas + ' com rendimento e insumos' + (_lcFichasHora ? ', lidas às ' + _lcFichasHora : '') + '. Mix que falta vira os insumos da receita.' : 'Lendo as receitas de mix do Sistema Separação...') +
+      ' <button class="btn-sm" style="background:var(--bg3);border:1px solid var(--border2);margin-left:4px" onclick="lcAtualizarReceitas()">Atualizar receitas</button></div>' : '') +
     '<div style="font-size:11px;color:var(--text3);margin-top:4px">Necessário = soma das Folhas de Separação do mês' + (_lcComPassadas ? '' : ' (de hoje em diante — as que já passaram já saíram do estoque)') + '. Comprar = necessário' + (_lcComMinimo ? ' + estoque mínimo' : '') + ' − estoque atual. Bebida marcada Cliente na folha não entra. Valor estimado = custo de reposição do Cadastro de Insumos (sem ele, último custo da Entrada de NF).</div>' +
   '</div>';
 
@@ -195,6 +281,7 @@ function _lcRender(cont) {
     _cuCard('Folhas na conta', nFolhasConta, nomeMes) +
     _cuCard('Eventos sem folha', r.per.semFolha.length, r.per.semFolha.length ? 'gere a folha para entrar na lista' : 'todos com folha', r.per.semFolha.length ? 'var(--amber)' : 'var(--green)') +
     _cuCard('Itens a comprar', nComprar, '', nComprar ? 'var(--red)' : 'var(--green)') +
+    (_lcUltima.produzir.length ? _cuCard('Mix a produzir', _lcUltima.produzir.length, 'insumos já somados na compra', 'var(--amber)') : '') +
     _cuCard('Valor estimado', fR(valorTotal), semPreco ? semPreco + ' item(ns) sem preço' : 'todos com preço', semPreco ? 'var(--amber)' : '') +
   '</div>';
 
@@ -246,6 +333,12 @@ function _lcRender(cont) {
   cont.innerHTML = html;
 }
 
+function _lcCorComprar(l) { return l.comprar > 0 ? 'var(--red)' : (l.produzir > 0 ? 'var(--amber)' : 'var(--green)'); }
+function _lcTxtComprar(l) {
+  if (l.comprar > 0) return _lcQtdTxt(l.comprar, l.info.ins);
+  if (l.produzir > 0) return 'produzir ' + _cuNum(l.produzir) + ' <span style="font-size:10px;color:var(--text3)">(receita)</span>';
+  return 'ok';
+}
 function _lcValorTxt(l) {
   if (l.comprar <= 0) return '—';
   if (!l.preco.valor) return '<span style="font-size:10px;color:var(--amber)">sem preço</span>';
@@ -281,7 +374,7 @@ function _lcHtmlSintetico(linhas, valorTotal) {
       html += '<tr><td>' + _cuEsc(l.info.nome) + (l.consignado ? ' <span style="font-size:10px;color:var(--purple)">consignado</span>' : '') + '</td>' +
         '<td style="text-align:right;font-family:var(--mono)" title="' + (l.minimo ? 'Folhas: ' + _cuDec(l.total) + ' + mínimo ' + _cuDec(l.minimo) : 'Soma das folhas') + '">' + _lcQtdPlano(l.total + l.minimo, l.info.ins) + '</td>' +
         '<td style="text-align:right;font-family:var(--mono)">' + (l.est != null ? _lcQtdPlano(l.est, l.info.ins) : '<span style="font-size:10px;color:var(--amber)">não achado</span>') + '</td>' +
-        '<td style="text-align:right;font-family:var(--mono);font-weight:700;color:' + (l.comprar > 0 ? 'var(--red)' : 'var(--green)') + '">' + (l.comprar > 0 ? _lcQtdTxt(l.comprar, l.info.ins) : 'ok') + '</td>' +
+        '<td style="text-align:right;font-family:var(--mono);font-weight:700;color:' + _lcCorComprar(l) + '">' + _lcTxtComprar(l) + '</td>' +
         '<td style="text-align:right;font-family:var(--mono)">' + _lcValorTxt(l) + '</td></tr>';
     });
   });
@@ -313,7 +406,7 @@ function _lcHtmlAnalitico(linhas, conectado) {
       '<td style="text-align:right;font-family:var(--mono);font-weight:600">' + _cuNum(Math.ceil(l.total - 1e-9)) + '</td>' +
       '<td style="text-align:right;font-family:var(--mono)">' + estTxt + '</td>' +
       (_lcComMinimo ? '<td style="text-align:right;font-family:var(--mono);color:var(--text3)">' + (l.minimo ? _cuNum(l.minimo) : '—') + '</td>' : '') +
-      '<td style="text-align:right;font-family:var(--mono);font-weight:700;color:' + (l.comprar > 0 ? 'var(--red)' : 'var(--green)') + '">' + (l.comprar > 0 ? _lcQtdTxt(l.comprar, l.info.ins) : 'ok') + '</td>' +
+      '<td style="text-align:right;font-family:var(--mono);font-weight:700;color:' + _lcCorComprar(l) + '">' + _lcTxtComprar(l) + '</td>' +
       '<td style="text-align:right;font-family:var(--mono);color:var(--text3)">' + precoTxt + '</td>' +
       '<td style="text-align:right;font-family:var(--mono)">' + _lcValorTxt(l) + '</td>' +
     '</tr>';
@@ -341,7 +434,9 @@ function lcDetalhe(k) {
   }).join('\n') + '\n\nTotal: ' + _cuDec(l.total) +
     '\nEstoque: ' + (l.est != null ? _cuDec(l.est) : 'não achado (0)') +
     (_lcComMinimo ? '\nMínimo: ' + _cuDec(l.minimo) : '') +
-    '\nComprar: ' + (l.comprar > 0 ? _lcQtdTxtSimples(l.comprar, l.info.ins) : 'nada');
+    (l.ficha ? '\nProduzir: ' + _cuNum(l.produzir) + ' (receita: rende ' + _cuDec(l.ficha.rendimento) + ' ' + (l.ficha.unidadeRendimento || '') + ' com ' +
+      (l.ficha.ingredientes || []).map(function(i) { return _cuDec(i.qtd) + ' ' + (i.unidade || '') + ' ' + i.nome; }).join(' + ') + ')'
+      : '\nComprar: ' + (l.comprar > 0 ? _lcQtdTxtSimples(l.comprar, l.info.ins) : 'nada'));
   sisDialogo(txt, function() {}, { ok: 'Fechar' });
 }
 
@@ -355,11 +450,15 @@ function _lcTextoLista() {
     if (l.cat !== cat) { if (cat !== null) linhas.push(''); cat = l.cat; linhas.push(String(cat).toUpperCase()); }
     linhas.push('- ' + l.info.nome + ': comprar ' + _lcQtdTxtSimples(l.comprar, l.info.ins) + ' (precisa ' + _cuNum(Math.ceil(l.total + l.minimo - 1e-9)) + ', tem ' + (l.est != null ? _cuNum(l.est) : '0') + ')' + (l.consignado ? ' (consignado)' : ''));
   });
+  if (u.produzir.length) {
+    linhas.push('', 'MIX A PRODUZIR (insumos já estão na lista acima)');
+    u.produzir.forEach(function(l) { linhas.push('- ' + l.info.nome + ': produzir ' + _cuNum(l.produzir)); });
+  }
   return linhas.join('\n');
 }
 
 function lcCopiar() {
-  if (!_lcUltima || !_lcUltima.linhas.length) { alert('Nada a comprar na lista.'); return; }
+  if (!_lcUltima || (!_lcUltima.linhas.length && !_lcUltima.produzir.length)) { alert('Nada a comprar na lista.'); return; }
   var txt = _lcTextoLista();
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(txt).then(function() { alert('Lista copiada — cole onde quiser.'); },
@@ -369,19 +468,39 @@ function lcCopiar() {
   }
 }
 
+// Linhas de "quanto cada festa pede" (impressão do analítico).
+function _lcLinhasFestasImpressao(l, nCol) {
+  return l.festas.slice().sort(function(a, b) { return (a.data || '').localeCompare(b.data || ''); }).map(function(f) {
+    return '<tr class="festa"><td></td><td>' + _cuEsc(((fd(f.data) || '') + ' ' + f.evento).trim()) + (f.forn === 'consignado' ? ' (consignado)' : '') + '</td>' +
+      '<td class="n" style="font-weight:normal">' + _cuDec(f.qtd) + '</td><td colspan="' + (nCol - 3) + '"></td></tr>';
+  }).join('');
+}
+
 function lcImprimir() {
   var u = _lcUltima;
-  if (!u || !u.linhas.length) { alert('Nada a comprar na lista.'); return; }
+  if (!u || (!u.linhas.length && !u.produzir.length)) { alert('Nada a comprar na lista.'); return; }
   var p = u.mes.split('-');
-  var titulo = 'Lista de compras - ' + _CU_MESES[parseInt(p[1], 10) - 1] + ' ' + p[0];
+  var analitico = u.modo === 'analitico';
+  var titulo = 'Lista de compras - ' + _CU_MESES[parseInt(p[1], 10) - 1] + ' ' + p[0] + (analitico ? ' (analítico)' : ' (sintético)');
   var corpo = '', cat = null;
   u.linhas.forEach(function(l) {
     if (l.cat !== cat) { cat = l.cat; corpo += '<tr><td colspan="7" class="cat">' + _cuEsc(cat) + '</td></tr>'; }
-    corpo += '<tr><td class="ck"></td><td>' + _cuEsc(l.info.nome) + (l.consignado ? ' <i>(consignado)</i>' : '') + '</td>' +
+    corpo += '<tr class="item"><td class="ck"></td><td>' + _cuEsc(l.info.nome) + (l.consignado ? ' <i>(consignado)</i>' : '') + '</td>' +
       '<td class="n" style="font-weight:normal">' + _cuNum(Math.ceil(l.total + l.minimo - 1e-9)) + '</td>' +
       '<td class="n" style="font-weight:normal">' + (l.est != null ? _cuNum(l.est) : '0') + '</td>' +
       '<td class="n">' + _lcQtdTxtSimples(l.comprar, l.info.ins) + '</td><td class="n" style="font-weight:normal">' + (l.preco.valor ? fR(l.valor) : '—') + '</td><td class="obs"></td></tr>';
+    if (analitico) corpo += _lcLinhasFestasImpressao(l, 7);
   });
+  var blocoProd = '';
+  if (u.produzir.length) {
+    blocoProd = '<h2>Mix a produzir</h2><div class="sub">Os insumos destes mix já estão somados na lista acima, pela receita (Ficha Técnica do Sistema Separação).</div>' +
+      '<table><thead><tr><th></th><th>Mix</th><th style="text-align:right">Precisa</th><th style="text-align:right">Tem em estoque</th><th style="text-align:right">Produzir</th></tr></thead><tbody>' +
+      u.produzir.map(function(l) {
+        return '<tr class="item"><td class="ck"></td><td>' + _cuEsc(l.info.nome) + '</td><td class="n" style="font-weight:normal">' + _cuNum(Math.ceil(l.total + l.minimo - 1e-9)) + '</td>' +
+          '<td class="n" style="font-weight:normal">' + (l.est != null ? _cuNum(l.est) : '0') + '</td><td class="n">' + _cuNum(l.produzir) + '</td></tr>' +
+          (analitico ? _lcLinhasFestasImpressao(l, 5) : '');
+      }).join('') + '</tbody></table>';
+  }
   var w = window.open('', '_blank');
   if (!w) { alert('O navegador bloqueou a janela de impressão. Libere pop-ups para este site.'); return; }
   w.document.write('<html><head><meta charset="utf-8"><title>' + _cuEsc(titulo) + '</title><style>' +
@@ -389,11 +508,13 @@ function lcImprimir() {
     '.sub{color:#666;font-size:11px;margin-bottom:14px}table{width:100%;border-collapse:collapse}' +
     'td,th{border-bottom:1px solid #ccc;padding:5px 6px;text-align:left}th{font-size:11px;color:#555}' +
     '.cat{background:#eee;font-weight:bold;text-transform:uppercase;font-size:11px}.n{text-align:right;white-space:nowrap;font-weight:bold}' +
-    '.ck{width:14px}.ck:before{content:"";display:inline-block;width:11px;height:11px;border:1px solid #555}.obs{width:18%}' +
+    '.ck{width:14px}tr.item .ck:before{content:"";display:inline-block;width:11px;height:11px;border:1px solid #555}.obs{width:18%}' +
+    'tr.festa td{color:#666;font-size:10px;border-bottom:1px dotted #ddd;padding-top:2px;padding-bottom:2px}tr.festa td:nth-child(2){padding-left:18px}' +
+    'h2{font-size:14px;margin:18px 0 2px}tr{page-break-inside:avoid}' +
     '</style></head><body><h1>' + _cuEsc(titulo) + '</h1>' +
     '<div class="sub">Gerada em ' + new Date().toLocaleString('pt-BR') + ' · ' + u.folhas.length + ' folha(s): ' +
       _cuEsc(u.folhas.map(function(s) { return (fd(s.data) || '') + ' ' + (s.evento || ''); }).join(', ')) + '</div>' +
-    '<table><thead><tr><th></th><th>Item</th><th style="text-align:right">Precisa</th><th style="text-align:right">Tem em estoque</th><th style="text-align:right">Falta comprar</th><th style="text-align:right">Valor estimado</th><th>Obs.</th></tr></thead><tbody>' + corpo + '<tr><td></td><td><b>Total estimado</b></td><td></td><td></td><td></td><td class="n">' + fR(u.linhas.reduce(function(s, l) { return s + l.valor; }, 0)) + '</td><td></td></tr></tbody></table>' +
+    '<table><thead><tr><th></th><th>Item</th><th style="text-align:right">Precisa</th><th style="text-align:right">Tem em estoque</th><th style="text-align:right">Falta comprar</th><th style="text-align:right">Valor estimado</th><th>Obs.</th></tr></thead><tbody>' + corpo + '<tr><td></td><td><b>Total estimado</b></td><td></td><td></td><td></td><td class="n">' + fR(u.linhas.reduce(function(s, l) { return s + l.valor; }, 0)) + '</td><td></td></tr></tbody></table>' + blocoProd +
     '<script>window.onload=function(){window.print()}<\/script></body></html>');
   w.document.close();
 }
