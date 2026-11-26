@@ -529,10 +529,6 @@ function lcImprimir() {
       }).join('') + '</tbody></table>';
   }
 
-  var festasTxt = u.folhas.map(function(s) {
-    return _lcDataCurta(s.data) + ' — ' + (s.evento || '—') + (Number(s.convidados) > 0 ? ' (' + Number(s.convidados) + ' conv.)' : '');
-  }).join(' · ');
-
   var w = window.open('', '_blank');
   if (!w) { alert('O navegador bloqueou a janela de impressão. Libere pop-ups para este site.'); return; }
   w.document.write('<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>' + _cuEsc(titulo + ' — ' + nomeMes) + '</title><style>' +
@@ -562,7 +558,6 @@ function lcImprimir() {
       corpo +
       '<tr class="total"><td></td><td>Total estimado</td><td></td><td></td><td></td><td class="n">' + fR(valorTotal) + '</td></tr>' +
     '</tbody></table>' + blocoProd +
-    '<div class="rodape"><b>Festas na conta:</b> ' + _cuEsc(festasTxt) + '</div>' +
     '<script>window.onload=function(){setTimeout(function(){window.print()},300)}<\/script></body></html>');
   w.document.close();
 }
