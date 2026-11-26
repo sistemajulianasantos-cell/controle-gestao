@@ -471,8 +471,69 @@ function _cuCampoBusca(busca) {
 }
 function _cuFiltraBusca(chaves, mapa, busca) {
   var b = _cuNorm(busca);
-  if (!b) return chaves;
-  return chaves.filter(function(k) { return k.indexOf(b) >= 0 || _cuNorm(_cuInfo(mapa, k).nome).indexOf(b) >= 0; });
+  var fora = _cuCatsFora();
+  var temFora = Object.keys(fora).length > 0;
+  if (!b && !temFora) return chaves;
+  return chaves.filter(function(k) {
+    var info = _cuInfo(mapa, k);
+    if (temFora && info.ins && fora[_cuCatDe(info)]) return false;
+    return !b || k.indexOf(b) >= 0 || _cuNorm(info.nome).indexOf(b) >= 0;
+  });
+}
+
+// ─── FILTRO DE CATEGORIAS (vale para as três abas) ──────────────────────────
+// Categorias desmarcadas ficam salvas em D.compraUso.listaCatsFora {nome: true}.
+function _cuCatsFora() {
+  var d = _cuDados();
+  if (!d.listaCatsFora || typeof d.listaCatsFora !== 'object') d.listaCatsFora = {};
+  return d.listaCatsFora;
+}
+function _cuCatDe(info) { return (info && info.ins && info.ins.categoria) || 'Sem categoria'; }
+function _cuOrdemCategorias() {
+  var ordemCat = {};
+  (D.categorias || []).forEach(function(c, i) { var n = typeof c === 'string' ? c : (c && c.nome); if (n) ordemCat[_cuNorm(n)] = (c && c.ordem != null) ? Number(c.ordem) : i; });
+  return function(a, b) {
+    var oa = _cuTem(ordemCat, _cuNorm(a)) ? ordemCat[_cuNorm(a)] : 9999;
+    var ob = _cuTem(ordemCat, _cuNorm(b)) ? ordemCat[_cuNorm(b)] : 9999;
+    return oa - ob || String(a).localeCompare(String(b), 'pt-BR');
+  };
+}
+function _cuListaCategorias() {
+  var cats = {};
+  (D.insumos || []).forEach(function(i) { if (i.id) cats[i.categoria || 'Sem categoria'] = 1; });
+  return Object.keys(cats).sort(_cuOrdemCategorias());
+}
+function _cuPainelCategorias() {
+  var cats = _cuListaCategorias();
+  if (!cats.length) return '';
+  var fora = _cuCatsFora();
+  var nDentro = cats.filter(function(c) { return !fora[c]; }).length;
+  return '<details class="sec" style="padding:10px 14px"' + (_cuCatsAberto ? ' open' : '') + ' ontoggle="_cuCatsAberto=this.open">' +
+    '<summary style="cursor:pointer;font-size:12px;font-weight:600">Categorias: ' +
+      (nDentro === cats.length ? 'todas' : nDentro + ' de ' + cats.length) +
+      (nDentro < cats.length ? ' <span style="font-weight:400;color:var(--amber)">(filtro ativo)</span>' : '') + '</summary>' +
+    '<div style="display:flex;gap:6px;margin:8px 0">' +
+      '<button class="btn-sm" style="background:var(--bg3);border:1px solid var(--border2)" onclick="cuCatTodas(true)">Marcar todas</button>' +
+      '<button class="btn-sm" style="background:var(--bg3);border:1px solid var(--border2)" onclick="cuCatTodas(false)">Desmarcar todas</button>' +
+    '</div>' +
+    '<div style="display:flex;flex-wrap:wrap;gap:6px 16px">' + cats.map(function(c) {
+      return '<label style="font-size:12px;display:flex;gap:5px;align-items:center"><input type="checkbox"' + (fora[c] ? '' : ' checked') +
+        ' onchange="cuCatToggle(\'' + _cuJs(c) + '\',this.checked)">' + _cuEsc(c) + '</label>';
+    }).join('') + '</div></details>';
+}
+var _cuCatsAberto = false;
+function cuCatToggle(cat, dentro) {
+  var fora = _cuCatsFora();
+  if (dentro) delete fora[cat]; else fora[cat] = true;
+  sv('compraUso');
+  rCompraUso();
+}
+function cuCatTodas(dentro) {
+  var d = _cuDados();
+  d.listaCatsFora = {};
+  if (!dentro) _cuListaCategorias().forEach(function(c) { d.listaCatsFora[c] = true; });
+  sv('compraUso');
+  rCompraUso();
 }
 
 // ─── ENTRADA DA TELA ─────────────────────────────────────────────────────────
@@ -490,6 +551,13 @@ function rCompraUso() {
   else if (_cuView === 'sug') _cuRenderSugestao(cont);
   else if (_cuEhTodos(_cuMesSel)) _cuRenderTodos(cont, _cuMesSel.slice(6));
   else _cuRenderMes(cont);
+  // Filtro de categorias logo abaixo dos controles da aba.
+  var painel = _cuPainelCategorias();
+  if (painel) {
+    var primeiro = cont.firstElementChild;
+    if (primeiro && primeiro.insertAdjacentHTML) primeiro.insertAdjacentHTML('afterend', painel);
+    else cont.insertAdjacentHTML('afterbegin', painel);
+  }
 }
 function cuSetView(v) { _cuView = v; rCompraUso(); }
 

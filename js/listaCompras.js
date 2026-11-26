@@ -25,11 +25,6 @@ function _lcHoje() {
   var d = new Date();
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
-function _lcCatsFora() {
-  var d = _cuDados();
-  if (!d.listaCatsFora || typeof d.listaCatsFora !== 'object') d.listaCatsFora = {};
-  return d.listaCatsFora;
-}
 function _lcTamCaixa(ins) {
   var m = ins ? (parseFloat(ins.tamanhoEmbalagem) || 0) : 0;
   return m > 1 ? m : 0;
@@ -94,6 +89,35 @@ function _lcSomar(folhas) {
   return { linhas: linhas, nCliente: nCliente };
 }
 
+// Preço para estimar o valor da compra: custo de reposição do Cadastro de
+// Insumos; sem ele, o último custo lançado na Entrada de NF. O preço vale pela
+// unidade de compra do insumo — se ela é caixa/fardo/pacote e o item tem
+// "Qtd por embalagem", o valor é por caixa.
+var _lcUltNF = null;
+function _lcUltimoCustoNF(k) {
+  if (!_lcUltNF) {
+    _lcUltNF = {};
+    (D.entradas || []).forEach(function(e) {
+      var c = Number(e.custo) || 0;
+      if (c <= 0) return;
+      var kk = _cuCanon(e.prod);
+      var d = String(e.data || '');
+      if (kk && (!_lcUltNF[kk] || d >= _lcUltNF[kk].data)) _lcUltNF[kk] = { data: d, custo: c };
+    });
+    setTimeout(function() { _lcUltNF = null; }, 0);
+  }
+  return _lcUltNF[k] || null;
+}
+function _lcPreco(k, ins) {
+  var porCx = !!(_lcTamCaixa(ins) && /^(CX|CAIXA|FD|FARDO|PCT|PACOTE)/i.test(String((ins && ins.unidadeCompra) || '')));
+  var v = ins ? Number(ins.custoReposicao) || 0 : 0;
+  if (v > 0) return { valor: v, porCx: porCx, fonte: 'custo de reposição do Cadastro de Insumos' };
+  var nf = _lcUltimoCustoNF(k);
+  if (nf) return { valor: nf.custo, porCx: porCx, fonte: 'último custo na Entrada de NF (' + (fd(nf.data) || nf.data) + ')' };
+  return { valor: 0, porCx: porCx, fonte: '' };
+}
+var _lcModo = 'sintetico';    // 'sintetico' | 'analitico'
+
 function _lcCalcular() {
   if (!_lcMes) _lcMes = _cuAnoMes(new Date());
   var per = _lcFolhasDoMes(_lcMes);
@@ -105,34 +129,26 @@ function _lcCalcular() {
     var l = soma.linhas[k];
     if (_cuSemCadastro(k)) { semCad[k] = { c: 0, u: l.total }; return; }
     var info = _cuInfo(mapa, k);
-    var cat = (info.ins && info.ins.categoria) || l.cat || 'Sem categoria';
+    var cat = _cuCatDe(info);
     var est = null;
     if (conectado) { var e = _cuEstoqueDe(info); if (e) est = e.qtd; }
     else if (_cuTem(_cuEstoqueManual, k)) est = _cuEstoqueManual[k];
     var minimo = _lcComMinimo && info.ins ? (Number(info.ins.estoqueMinimo) || 0) : 0;
     var falta = Math.max(0, Math.ceil(l.total + minimo - (Number(est) || 0) - 1e-9));
+    var pr = _lcPreco(k, info.ins);
+    var qtdCobrada = pr.porCx ? Math.ceil(falta / _lcTamCaixa(info.ins) - 1e-9) : falta;
     linhas.push({ k: k, info: info, cat: cat, total: l.total, festas: l.festas, consignado: l.consignado,
-      est: est, minimo: minimo, comprar: falta });
+      est: est, minimo: minimo, comprar: falta, preco: pr, valor: pr.valor ? qtdCobrada * pr.valor : 0 });
   });
   return { per: per, linhas: linhas, semCad: semCad, nCliente: soma.nCliente, conectado: conectado };
 }
 
 function _lcRender(cont) {
   var r = _lcCalcular();
-  var fora = _lcCatsFora();
+  var fora = _cuCatsFora();
   var busca = _cuBusca();
   var mapa = _cuMapaProdutos();
-
-  // Categorias presentes (para os filtros), na ordem do Cadastro de Categorias.
-  var ordemCat = {};
-  (D.categorias || []).forEach(function(c, i) { var n = typeof c === 'string' ? c : (c && c.nome); if (n) ordemCat[_cuNorm(n)] = (c && c.ordem != null) ? Number(c.ordem) : i; });
-  var cats = {};
-  r.linhas.forEach(function(l) { cats[l.cat] = (cats[l.cat] || 0) + 1; });
-  var listaCats = Object.keys(cats).sort(function(a, b) {
-    var oa = _cuTem(ordemCat, _cuNorm(a)) ? ordemCat[_cuNorm(a)] : 9999;
-    var ob = _cuTem(ordemCat, _cuNorm(b)) ? ordemCat[_cuNorm(b)] : 9999;
-    return oa - ob || a.localeCompare(b, 'pt-BR');
-  });
+  var ordemCat = _cuOrdemCategorias();
 
   var bk = _cuFiltraBusca(r.linhas.map(function(l) { return l.k; }), mapa, busca);
   var visiveis = r.linhas.filter(function(l) {
@@ -141,15 +157,15 @@ function _lcRender(cont) {
     if (_lcSoComprar && l.comprar <= 0) return false;
     return true;
   });
-  visiveis.sort(function(a, b) {
-    var oa = listaCats.indexOf(a.cat), ob = listaCats.indexOf(b.cat);
-    return oa - ob || a.info.nome.localeCompare(b.info.nome, 'pt-BR');
-  });
+  visiveis.sort(function(a, b) { return ordemCat(a.cat, b.cat) || a.info.nome.localeCompare(b.info.nome, 'pt-BR'); });
   _lcUltima = { mes: _lcMes, linhas: visiveis.filter(function(l) { return l.comprar > 0; }), folhas: r.per.folhas.filter(function(s) { return !_lcFolhasFora[s.id]; }) };
 
-  var nComprar = r.linhas.filter(function(l) { return !fora[l.cat] && l.comprar > 0; }).length;
+  var aComprar = _lcUltima.linhas;
+  var nComprar = aComprar.length;
+  var valorTotal = aComprar.reduce(function(s, l) { return s + l.valor; }, 0);
+  var semPreco = aComprar.filter(function(l) { return !l.preco.valor; }).length;
   var nFolhasConta = _lcUltima.folhas.length;
-  var semEstoque = r.conectado ? r.linhas.filter(function(l) { return !fora[l.cat] && l.est == null; }).length : 0;
+  var semEstoque = r.conectado ? visiveis.filter(function(l) { return l.est == null; }).length : 0;
 
   var p = _lcMes.split('-');
   var nomeMes = _CU_MESES[parseInt(p[1], 10) - 1] + ' ' + p[0];
@@ -164,13 +180,14 @@ function _lcRender(cont) {
       _cuCampoBusca(busca) +
     '</div>' +
     '<div style="font-size:11px;color:var(--text3);margin-top:8px">' + _cuStatusEstoque() + '</div>' +
-    '<div style="font-size:11px;color:var(--text3);margin-top:4px">Necessário = soma das Folhas de Separação do mês' + (_lcComPassadas ? '' : ' (de hoje em diante — as que já passaram já saíram do estoque)') + '. Comprar = necessário' + (_lcComMinimo ? ' + estoque mínimo' : '') + ' − estoque atual. Bebida marcada Cliente na folha não entra.</div>' +
+    '<div style="font-size:11px;color:var(--text3);margin-top:4px">Necessário = soma das Folhas de Separação do mês' + (_lcComPassadas ? '' : ' (de hoje em diante — as que já passaram já saíram do estoque)') + '. Comprar = necessário' + (_lcComMinimo ? ' + estoque mínimo' : '') + ' − estoque atual. Bebida marcada Cliente na folha não entra. Valor estimado = custo de reposição do Cadastro de Insumos (sem ele, último custo da Entrada de NF).</div>' +
   '</div>';
 
   html += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">' +
     _cuCard('Folhas na conta', nFolhasConta, nomeMes) +
     _cuCard('Eventos sem folha', r.per.semFolha.length, r.per.semFolha.length ? 'gere a folha para entrar na lista' : 'todos com folha', r.per.semFolha.length ? 'var(--amber)' : 'var(--green)') +
     _cuCard('Itens a comprar', nComprar, '', nComprar ? 'var(--red)' : 'var(--green)') +
+    _cuCard('Valor estimado', fR(valorTotal), semPreco ? semPreco + ' item(ns) sem preço' : 'todos com preço', semPreco ? 'var(--amber)' : '') +
   '</div>';
 
   if (r.per.semFolha.length) {
@@ -191,52 +208,28 @@ function _lcRender(cont) {
     }).join('') + '</div>' : '<div style="font-size:12px;color:var(--text3);margin-top:6px">Nenhuma folha gerada para ' + nomeMes + '.</div>') +
   '</details>';
 
-  // Categorias
-  if (listaCats.length) {
-    html += '<div class="sec" style="padding:10px 14px"><div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:6px">Categorias na lista</div>' +
-      '<div style="display:flex;flex-wrap:wrap;gap:6px 16px">' + listaCats.map(function(c) {
-        return '<label style="font-size:12px;display:flex;gap:5px;align-items:center"><input type="checkbox"' + (fora[c] ? '' : ' checked') +
-          ' onchange="_lcCatToggle(\'' + _cuJs(c) + '\',this.checked)">' + _cuEsc(c) + ' <span style="color:var(--text3)">(' + cats[c] + ')</span></label>';
-      }).join('') + '</div></div>';
-  }
-
-  // Tabela
+  // Cabeçalho da lista + Sintético / Analítico
+  var btnModo = function(m, txt) {
+    return '<button class="sort-btn' + (_lcModo === m ? ' active' : '') + '" onclick="_lcModo=\'' + m + '\';rCompraUso()">' + txt + '</button>';
+  };
   html += '<div class="sec" style="padding:0;overflow-x:auto">' +
-    '<div style="display:flex;gap:8px;padding:10px 14px;align-items:center">' +
+    '<div style="display:flex;gap:8px;padding:10px 14px;align-items:center;flex-wrap:wrap">' +
       '<span class="sec-title" style="font-size:13px">Lista de compras — ' + nomeMes + '</span>' +
+      btnModo('sintetico', 'Sintético') + btnModo('analitico', 'Analítico') +
       (semEstoque ? '<span style="font-size:11px;color:var(--amber)">' + semEstoque + ' item(ns) não achados no estoque (contam como 0)</span>' : '') +
       '<div style="margin-left:auto;display:flex;gap:6px">' +
         '<button class="btn-sm" style="background:var(--bg3);border:1px solid var(--border2)" onclick="lcCopiar()">Copiar lista</button>' +
         '<button class="btn-sm" style="background:var(--blue)" onclick="lcImprimir()">Imprimir lista</button>' +
       '</div>' +
     '</div>';
+
   if (!visiveis.length) {
     html += '<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px">' +
       (r.linhas.length ? (_lcSoComprar ? 'O estoque cobre tudo o que as folhas pedem.' : 'Nada com esse filtro.') : 'Nenhum item nas folhas deste período.') + '</div>';
+  } else if (_lcModo === 'sintetico') {
+    html += _lcHtmlSintetico(visiveis, valorTotal);
   } else {
-    html += '<table class="tbl" style="width:100%;font-size:12px"><thead><tr>' +
-      '<th style="text-align:left">Item</th><th style="text-align:right">Necessário</th><th style="text-align:right">Estoque</th>' +
-      (_lcComMinimo ? '<th style="text-align:right">Mínimo</th>' : '') +
-      '<th style="text-align:right">Comprar</th></tr></thead><tbody>';
-    var catAtual = null;
-    visiveis.forEach(function(l) {
-      if (l.cat !== catAtual) {
-        catAtual = l.cat;
-        html += '<tr><td colspan="' + (_lcComMinimo ? 5 : 4) + '" style="background:var(--bg3);font-weight:600;font-size:11px;text-transform:uppercase;color:var(--text2)">' + _cuEsc(l.cat) + '</td></tr>';
-      }
-      var estTxt;
-      if (l.est != null) estTxt = _cuNum(l.est);
-      else if (r.conectado) estTxt = '<span style="font-size:10px;color:var(--amber)" title="Nome e apelidos do insumo não encontrados no estoque do Sistema Separação">não achado</span>';
-      else estTxt = '<input class="inp" type="number" min="0" style="width:70px;text-align:right;padding:2px 4px" value="' + (_cuTem(_cuEstoqueManual, l.k) ? _cuEstoqueManual[l.k] : '') + '" placeholder="0" onchange="cuEstoqueManual(\'' + _cuJs(l.k) + '\',this.value)">';
-      html += '<tr>' +
-        '<td>' + _cuEsc(l.info.nome) + (l.consignado ? ' <span style="font-size:10px;color:var(--purple)">consignado</span>' : '') + '</td>' +
-        '<td style="text-align:right;font-family:var(--mono);cursor:pointer;text-decoration:underline dotted" title="Ver por festa" onclick="lcDetalhe(\'' + _cuJs(l.k) + '\')">' + _cuNum(Math.ceil(l.total - 1e-9)) + '</td>' +
-        '<td style="text-align:right;font-family:var(--mono)">' + estTxt + '</td>' +
-        (_lcComMinimo ? '<td style="text-align:right;font-family:var(--mono);color:var(--text3)">' + (l.minimo ? _cuNum(l.minimo) : '—') + '</td>' : '') +
-        '<td style="text-align:right;font-family:var(--mono);font-weight:700;color:' + (l.comprar > 0 ? 'var(--red)' : 'var(--green)') + '">' + (l.comprar > 0 ? _lcQtdTxt(l.comprar, l.info.ins) : 'ok') + '</td>' +
-      '</tr>';
-    });
-    html += '</tbody></table>';
+    html += _lcHtmlAnalitico(visiveis, r.conectado);
   }
   html += '</div>';
 
@@ -245,14 +238,87 @@ function _lcRender(cont) {
   cont.innerHTML = html;
 }
 
+function _lcValorTxt(l) {
+  if (l.comprar <= 0) return '—';
+  if (!l.preco.valor) return '<span style="font-size:10px;color:var(--amber)">sem preço</span>';
+  return fR(l.valor);
+}
+
+// SINTÉTICO: resumo por categoria + uma linha por item (o que comprar e quanto custa).
+function _lcHtmlSintetico(linhas, valorTotal) {
+  var porCat = {}, ordem = [];
+  linhas.forEach(function(l) {
+    if (!porCat[l.cat]) { porCat[l.cat] = { itens: [], comprar: 0, valor: 0, semPreco: 0 }; ordem.push(l.cat); }
+    var c = porCat[l.cat];
+    c.itens.push(l);
+    if (l.comprar > 0) { c.comprar++; c.valor += l.valor; if (!l.preco.valor) c.semPreco++; }
+  });
+  var html = '<table class="tbl" style="width:100%;font-size:12px;margin-bottom:6px"><thead><tr>' +
+    '<th style="text-align:left">Categoria</th><th style="text-align:right">Itens a comprar</th><th style="text-align:right">Valor estimado</th><th style="text-align:right">% do total</th></tr></thead><tbody>' +
+    ordem.map(function(cat) {
+      var c = porCat[cat];
+      return '<tr><td>' + _cuEsc(cat) + '</td><td style="text-align:right;font-family:var(--mono)">' + c.comprar + '</td>' +
+        '<td style="text-align:right;font-family:var(--mono)">' + fR(c.valor) + (c.semPreco ? ' <span style="font-size:10px;color:var(--amber)">+' + c.semPreco + ' sem preço</span>' : '') + '</td>' +
+        '<td style="text-align:right;font-family:var(--mono);color:var(--text3)">' + (valorTotal ? Math.round(c.valor / valorTotal * 100) + '%' : '—') + '</td></tr>';
+    }).join('') +
+    '<tr style="font-weight:700"><td>Total</td><td style="text-align:right;font-family:var(--mono)">' +
+      ordem.reduce(function(s, cat) { return s + porCat[cat].comprar; }, 0) + '</td><td style="text-align:right;font-family:var(--mono)">' + fR(valorTotal) + '</td><td></td></tr>' +
+    '</tbody></table>';
+
+  html += '<table class="tbl" style="width:100%;font-size:12px"><thead><tr>' +
+    '<th style="text-align:left">Item</th><th style="text-align:right">Comprar</th><th style="text-align:right">Valor estimado</th></tr></thead><tbody>';
+  ordem.forEach(function(cat) {
+    html += '<tr><td colspan="3" style="background:var(--bg3);font-weight:600;font-size:11px;text-transform:uppercase;color:var(--text2)">' + _cuEsc(cat) + '</td></tr>';
+    porCat[cat].itens.forEach(function(l) {
+      html += '<tr><td>' + _cuEsc(l.info.nome) + (l.consignado ? ' <span style="font-size:10px;color:var(--purple)">consignado</span>' : '') + '</td>' +
+        '<td style="text-align:right;font-family:var(--mono);font-weight:700;color:' + (l.comprar > 0 ? 'var(--red)' : 'var(--green)') + '">' + (l.comprar > 0 ? _lcQtdTxt(l.comprar, l.info.ins) : 'ok') + '</td>' +
+        '<td style="text-align:right;font-family:var(--mono)">' + _lcValorTxt(l) + '</td></tr>';
+    });
+  });
+  return html + '</tbody></table>';
+}
+
+// ANALÍTICO: cada item com a conta inteira e quanto cada festa pede.
+function _lcHtmlAnalitico(linhas, conectado) {
+  var nCol = _lcComMinimo ? 7 : 6;
+  var html = '<table class="tbl" style="width:100%;font-size:12px"><thead><tr>' +
+    '<th style="text-align:left">Item / festa</th><th style="text-align:right">Necessário</th><th style="text-align:right">Estoque</th>' +
+    (_lcComMinimo ? '<th style="text-align:right">Mínimo</th>' : '') +
+    '<th style="text-align:right">Comprar</th><th style="text-align:right">Preço</th><th style="text-align:right">Valor estimado</th></tr></thead><tbody>';
+  var catAtual = null;
+  linhas.forEach(function(l) {
+    if (l.cat !== catAtual) {
+      catAtual = l.cat;
+      html += '<tr><td colspan="' + nCol + '" style="background:var(--bg3);font-weight:600;font-size:11px;text-transform:uppercase;color:var(--text2)">' + _cuEsc(l.cat) + '</td></tr>';
+    }
+    var estTxt;
+    if (l.est != null) estTxt = _cuNum(l.est);
+    else if (conectado) estTxt = '<span style="font-size:10px;color:var(--amber)" title="Nome e apelidos do insumo não encontrados no estoque do Sistema Separação">não achado</span>';
+    else estTxt = '<input class="inp" type="number" min="0" style="width:70px;text-align:right;padding:2px 4px" value="' + (_cuTem(_cuEstoqueManual, l.k) ? _cuEstoqueManual[l.k] : '') + '" placeholder="0" onchange="cuEstoqueManual(\'' + _cuJs(l.k) + '\',this.value)">';
+    var precoTxt = l.preco.valor
+      ? '<span title="' + _cuEsc(l.preco.fonte) + '">' + fR(l.preco.valor) + (l.preco.porCx ? '/cx' : '') + '</span>'
+      : '<span style="font-size:10px;color:var(--amber)">sem preço</span>';
+    html += '<tr style="border-top:2px solid var(--border2)">' +
+      '<td style="font-weight:600">' + _cuEsc(l.info.nome) + (l.consignado ? ' <span style="font-size:10px;color:var(--purple)">consignado</span>' : '') + '</td>' +
+      '<td style="text-align:right;font-family:var(--mono);font-weight:600">' + _cuNum(Math.ceil(l.total - 1e-9)) + '</td>' +
+      '<td style="text-align:right;font-family:var(--mono)">' + estTxt + '</td>' +
+      (_lcComMinimo ? '<td style="text-align:right;font-family:var(--mono);color:var(--text3)">' + (l.minimo ? _cuNum(l.minimo) : '—') + '</td>' : '') +
+      '<td style="text-align:right;font-family:var(--mono);font-weight:700;color:' + (l.comprar > 0 ? 'var(--red)' : 'var(--green)') + '">' + (l.comprar > 0 ? _lcQtdTxt(l.comprar, l.info.ins) : 'ok') + '</td>' +
+      '<td style="text-align:right;font-family:var(--mono);color:var(--text3)">' + precoTxt + '</td>' +
+      '<td style="text-align:right;font-family:var(--mono)">' + _lcValorTxt(l) + '</td>' +
+    '</tr>';
+    l.festas.slice().sort(function(a, b) { return (a.data || '').localeCompare(b.data || ''); }).forEach(function(f) {
+      html += '<tr style="color:var(--text3);font-size:11px">' +
+        '<td style="padding-left:22px">' + _cuEsc((fd(f.data) || '') + ' ' + f.evento) + (f.forn === 'consignado' ? ' (consignado)' : '') + '</td>' +
+        '<td style="text-align:right;font-family:var(--mono)">' + _cuDec(f.qtd) + '</td>' +
+        '<td colspan="' + (nCol - 2) + '"></td></tr>';
+    });
+  });
+  return html + '</tbody></table>';
+}
+
 function _lcFolhaToggle(id, dentro) {
   if (dentro) delete _lcFolhasFora[id]; else _lcFolhasFora[id] = true;
-  rCompraUso();
-}
-function _lcCatToggle(cat, dentro) {
-  var fora = _lcCatsFora();
-  if (dentro) delete fora[cat]; else fora[cat] = true;
-  sv('compraUso');
   rCompraUso();
 }
 
@@ -300,9 +366,9 @@ function lcImprimir() {
   var titulo = 'Lista de compras - ' + _CU_MESES[parseInt(p[1], 10) - 1] + ' ' + p[0];
   var corpo = '', cat = null;
   u.linhas.forEach(function(l) {
-    if (l.cat !== cat) { cat = l.cat; corpo += '<tr><td colspan="4" class="cat">' + _cuEsc(cat) + '</td></tr>'; }
+    if (l.cat !== cat) { cat = l.cat; corpo += '<tr><td colspan="5" class="cat">' + _cuEsc(cat) + '</td></tr>'; }
     corpo += '<tr><td class="ck"></td><td>' + _cuEsc(l.info.nome) + (l.consignado ? ' <i>(consignado)</i>' : '') + '</td>' +
-      '<td class="n">' + _lcQtdTxtSimples(l.comprar, l.info.ins) + '</td><td class="obs"></td></tr>';
+      '<td class="n">' + _lcQtdTxtSimples(l.comprar, l.info.ins) + '</td><td class="n" style="font-weight:normal">' + (l.preco.valor ? fR(l.valor) : '—') + '</td><td class="obs"></td></tr>';
   });
   var w = window.open('', '_blank');
   if (!w) { alert('O navegador bloqueou a janela de impressão. Libere pop-ups para este site.'); return; }
@@ -315,7 +381,7 @@ function lcImprimir() {
     '</style></head><body><h1>' + _cuEsc(titulo) + '</h1>' +
     '<div class="sub">Gerada em ' + new Date().toLocaleString('pt-BR') + ' · ' + u.folhas.length + ' folha(s): ' +
       _cuEsc(u.folhas.map(function(s) { return (fd(s.data) || '') + ' ' + (s.evento || ''); }).join(', ')) + '</div>' +
-    '<table><thead><tr><th></th><th>Item</th><th style="text-align:right">Comprar</th><th>Obs.</th></tr></thead><tbody>' + corpo + '</tbody></table>' +
+    '<table><thead><tr><th></th><th>Item</th><th style="text-align:right">Comprar</th><th style="text-align:right">Valor estimado</th><th>Obs.</th></tr></thead><tbody>' + corpo + '<tr><td></td><td><b>Total estimado</b></td><td></td><td class="n">' + fR(u.linhas.reduce(function(s, l) { return s + l.valor; }, 0)) + '</td><td></td></tr></tbody></table>' +
     '<script>window.onload=function(){window.print()}<\/script></body></html>');
   w.document.close();
 }
