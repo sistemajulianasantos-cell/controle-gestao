@@ -89,7 +89,7 @@ function _lcSomar(folhas) {
         if (!linhas[k]) linhas[k] = { k: k, nomeFolha: nome, cat: cat, total: 0, festas: [], consignado: false };
         var l = linhas[k];
         l.total += q;
-        l.festas.push({ evento: s.evento || s.cliente || '—', data: s.data || '', qtd: q, forn: f });
+        l.festas.push({ evento: s.evento || s.cliente || '—', data: s.data || '', qtd: q, forn: f, conv: s.convidados });
         if (f === 'consignado') l.consignado = true;
       });
     });
@@ -468,11 +468,23 @@ function lcCopiar() {
   }
 }
 
+// ─── IMPRESSÃO (11-26: mesmo visual da Lista de Produção do Sistema Separação) ──
+var _LC_MESES_ABR = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+function _lcDataCurta(d) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || ''));
+  return m ? m[3] + ' ' + _LC_MESES_ABR[parseInt(m[2], 10) - 1] : '';
+}
+// "05 Dez — YPO Capítulo · 150 convidados" (data pode faltar: linha de receita do mix)
+function _lcTxtFesta(f) {
+  var dt = _lcDataCurta(f.data);
+  var conv = Number(f.conv) > 0 ? ' · ' + Number(f.conv) + ' convidado' + (Number(f.conv) === 1 ? '' : 's') : '';
+  return (dt ? dt + ' — ' : '') + f.evento + (f.forn === 'consignado' ? ' (consignado)' : '') + conv;
+}
 // Linhas de "quanto cada festa pede" (impressão do analítico).
 function _lcLinhasFestasImpressao(l, nCol) {
-  return l.festas.slice().sort(function(a, b) { return (a.data || '').localeCompare(b.data || ''); }).map(function(f) {
-    return '<tr class="festa"><td></td><td>' + _cuEsc(((fd(f.data) || '') + ' ' + f.evento).trim()) + (f.forn === 'consignado' ? ' (consignado)' : '') + '</td>' +
-      '<td class="n" style="font-weight:normal">' + _cuDec(f.qtd) + '</td><td colspan="' + (nCol - 3) + '"></td></tr>';
+  return l.festas.slice().sort(function(a, b) { return (a.data || '9999').localeCompare(b.data || '9999'); }).map(function(f) {
+    return '<tr class="festa"><td></td><td>' + _cuEsc(_lcTxtFesta(f)) + '</td>' +
+      '<td class="n">' + _cuDec(f.qtd) + '</td><td colspan="' + (nCol - 3) + '"></td></tr>';
   }).join('');
 }
 
@@ -481,40 +493,76 @@ function lcImprimir() {
   if (!u || (!u.linhas.length && !u.produzir.length)) { alert('Nada a comprar na lista.'); return; }
   var p = u.mes.split('-');
   var analitico = u.modo === 'analitico';
-  var titulo = 'Lista de compras - ' + _CU_MESES[parseInt(p[1], 10) - 1] + ' ' + p[0] + (analitico ? ' (analítico)' : ' (sintético)');
-  var corpo = '', cat = null;
+  var nomeMes = _CU_MESES[parseInt(p[1], 10) - 1] + ' ' + p[0];
+  var titulo = 'Lista de Compras — ' + (analitico ? 'Analítico' : 'Sintético');
+  var logo = new URL('icons/folha-logo-topo.png', location.href).href;
+  var valorTotal = u.linhas.reduce(function(s, l) { return s + l.valor; }, 0);
+
+  // Agrupa por categoria, na ordem da tela.
+  var grupos = [], porCat = {};
   u.linhas.forEach(function(l) {
-    if (l.cat !== cat) { cat = l.cat; corpo += '<tr><td colspan="7" class="cat">' + _cuEsc(cat) + '</td></tr>'; }
-    corpo += '<tr class="item"><td class="ck"></td><td>' + _cuEsc(l.info.nome) + (l.consignado ? ' <i>(consignado)</i>' : '') + '</td>' +
-      '<td class="n" style="font-weight:normal">' + _cuNum(Math.ceil(l.total + l.minimo - 1e-9)) + '</td>' +
-      '<td class="n" style="font-weight:normal">' + (l.est != null ? _cuNum(l.est) : '0') + '</td>' +
-      '<td class="n">' + _lcQtdTxtSimples(l.comprar, l.info.ins) + '</td><td class="n" style="font-weight:normal">' + (l.preco.valor ? fR(l.valor) : '—') + '</td><td class="obs"></td></tr>';
-    if (analitico) corpo += _lcLinhasFestasImpressao(l, 7);
+    if (!porCat[l.cat]) { porCat[l.cat] = []; grupos.push(l.cat); }
+    porCat[l.cat].push(l);
   });
+  var corpo = '';
+  grupos.forEach(function(cat) {
+    var itens = porCat[cat];
+    corpo += '<tr><td colspan="6" class="grupo">' + _cuEsc(cat) + ' <span>(' + itens.length + ' ' + (itens.length === 1 ? 'item' : 'itens') + ')</span></td></tr>';
+    itens.forEach(function(l) {
+      corpo += '<tr class="item"><td class="ck"></td><td>' + _cuEsc(l.info.nome) + (l.consignado ? ' <i>(consignado)</i>' : '') + '</td>' +
+        '<td class="n leve">' + _cuNum(Math.ceil(l.total + l.minimo - 1e-9)) + '</td>' +
+        '<td class="n leve">' + (l.est != null ? _cuNum(l.est) : '0') + '</td>' +
+        '<td class="n"><b class="falta">' + _lcQtdTxtSimples(l.comprar, l.info.ins) + '</b></td>' +
+        '<td class="n leve">' + (l.preco.valor ? fR(l.valor) : '—') + '</td></tr>';
+      if (analitico) corpo += _lcLinhasFestasImpressao(l, 6);
+    });
+  });
+
   var blocoProd = '';
   if (u.produzir.length) {
-    blocoProd = '<h2>Mix a produzir</h2><div class="sub">Os insumos destes mix já estão somados na lista acima, pela receita (Ficha Técnica do Sistema Separação).</div>' +
-      '<table><thead><tr><th></th><th>Mix</th><th style="text-align:right">Precisa</th><th style="text-align:right">Tem em estoque</th><th style="text-align:right">Produzir</th></tr></thead><tbody>' +
+    blocoProd = '<h2>Mix a produzir</h2><div class="nota">Os insumos destes mix já estão somados na lista acima, pela receita (Ficha Técnica do Sistema Separação).</div>' +
+      '<table><thead><tr><th></th><th>Mix</th><th class="n">Precisa</th><th class="n">Estoque</th><th class="n">Produzir</th></tr></thead><tbody>' +
       u.produzir.map(function(l) {
-        return '<tr class="item"><td class="ck"></td><td>' + _cuEsc(l.info.nome) + '</td><td class="n" style="font-weight:normal">' + _cuNum(Math.ceil(l.total + l.minimo - 1e-9)) + '</td>' +
-          '<td class="n" style="font-weight:normal">' + (l.est != null ? _cuNum(l.est) : '0') + '</td><td class="n">' + _cuNum(l.produzir) + '</td></tr>' +
+        return '<tr class="item"><td class="ck"></td><td>' + _cuEsc(l.info.nome) + '</td><td class="n leve">' + _cuNum(Math.ceil(l.total + l.minimo - 1e-9)) + '</td>' +
+          '<td class="n leve">' + (l.est != null ? _cuNum(l.est) : '0') + '</td><td class="n"><b class="falta">Produzir ' + _cuNum(l.produzir) + '</b></td></tr>' +
           (analitico ? _lcLinhasFestasImpressao(l, 5) : '');
       }).join('') + '</tbody></table>';
   }
+
+  var festasTxt = u.folhas.map(function(s) {
+    return _lcDataCurta(s.data) + ' — ' + (s.evento || '—') + (Number(s.convidados) > 0 ? ' (' + Number(s.convidados) + ' conv.)' : '');
+  }).join(' · ');
+
   var w = window.open('', '_blank');
   if (!w) { alert('O navegador bloqueou a janela de impressão. Libere pop-ups para este site.'); return; }
-  w.document.write('<html><head><meta charset="utf-8"><title>' + _cuEsc(titulo) + '</title><style>' +
-    'body{font-family:Arial,sans-serif;font-size:12px;margin:24px;color:#222}h1{font-size:18px;margin:0 0 4px}' +
-    '.sub{color:#666;font-size:11px;margin-bottom:14px}table{width:100%;border-collapse:collapse}' +
-    'td,th{border-bottom:1px solid #ccc;padding:5px 6px;text-align:left}th{font-size:11px;color:#555}' +
-    '.cat{background:#eee;font-weight:bold;text-transform:uppercase;font-size:11px}.n{text-align:right;white-space:nowrap;font-weight:bold}' +
-    '.ck{width:14px}tr.item .ck:before{content:"";display:inline-block;width:11px;height:11px;border:1px solid #555}.obs{width:18%}' +
-    'tr.festa td{color:#666;font-size:10px;border-bottom:1px dotted #ddd;padding-top:2px;padding-bottom:2px}tr.festa td:nth-child(2){padding-left:18px}' +
-    'h2{font-size:14px;margin:18px 0 2px}tr{page-break-inside:avoid}' +
-    '</style></head><body><h1>' + _cuEsc(titulo) + '</h1>' +
-    '<div class="sub">Gerada em ' + new Date().toLocaleString('pt-BR') + ' · ' + u.folhas.length + ' folha(s): ' +
-      _cuEsc(u.folhas.map(function(s) { return (fd(s.data) || '') + ' ' + (s.evento || ''); }).join(', ')) + '</div>' +
-    '<table><thead><tr><th></th><th>Item</th><th style="text-align:right">Precisa</th><th style="text-align:right">Tem em estoque</th><th style="text-align:right">Falta comprar</th><th style="text-align:right">Valor estimado</th><th>Obs.</th></tr></thead><tbody>' + corpo + '<tr><td></td><td><b>Total estimado</b></td><td></td><td></td><td></td><td class="n">' + fR(u.linhas.reduce(function(s, l) { return s + l.valor; }, 0)) + '</td><td></td></tr></tbody></table>' + blocoProd +
-    '<script>window.onload=function(){window.print()}<\/script></body></html>');
+  w.document.write('<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>' + _cuEsc(titulo + ' — ' + nomeMes) + '</title><style>' +
+    '@page{size:A4;margin:12mm}' +
+    'body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#222;margin:0}' +
+    '.topo{display:flex;align-items:center;gap:14px;margin-bottom:10px}.topo img{width:90px}' +
+    'h1{font-size:16px;margin:0;color:#2b3b2a}.sub{color:#555;font-size:11px;margin-top:2px}' +
+    'h2{font-size:14px;margin:18px 0 2px;color:#2b3b2a}.nota{color:#666;font-size:10px;margin-bottom:6px}' +
+    'table{width:100%;border-collapse:collapse}' +
+    'th{text-align:left;font-size:10px;color:#555;border-bottom:1.5px solid #333;padding:4px}' +
+    'td{padding:4px;border-bottom:1px solid #ddd;vertical-align:top}' +
+    '.grupo{background:#e9e4da;font-weight:bold;text-transform:uppercase;font-size:11px;border-bottom:1px solid #999}' +
+    '.grupo span{font-weight:normal;text-transform:none;color:#666}' +
+    'tr.item td{font-weight:bold}tr.item td.leve{font-weight:normal}' +
+    'tr.festa td{color:#555;font-size:10px;border-bottom:1px dotted #ddd;padding-top:2px;padding-bottom:2px}' +
+    'tr.festa td:nth-child(2){padding-left:16px}' +
+    '.n{text-align:right;white-space:nowrap}.falta{color:#a33}' +
+    '.ck{width:14px}tr.item .ck:before{content:"";display:inline-block;width:10px;height:10px;border:1px solid #555}' +
+    'tr{page-break-inside:avoid}' +
+    '.total td{font-weight:bold;border-top:1.5px solid #333;border-bottom:none}' +
+    '.rodape{margin-top:12px;font-size:10px;color:#777;line-height:1.5}' +
+    '</style></head><body>' +
+    '<div class="topo"><img src="' + logo + '" alt=""><div><h1>' + _cuEsc(titulo) + '</h1>' +
+      '<div class="sub">' + _cuEsc(nomeMes) + ' · ' + u.folhas.length + ' festa' + (u.folhas.length === 1 ? '' : 's') +
+      ' · ' + u.linhas.length + ' ' + (u.linhas.length === 1 ? 'item' : 'itens') + ' a comprar · impresso em ' + new Date().toLocaleString('pt-BR') + '</div></div></div>' +
+    '<table><thead><tr><th></th><th>Item</th><th class="n">Precisa</th><th class="n">Estoque</th><th class="n">Comprar</th><th class="n">Valor estimado</th></tr></thead><tbody>' +
+      corpo +
+      '<tr class="total"><td></td><td>Total estimado</td><td></td><td></td><td></td><td class="n">' + fR(valorTotal) + '</td></tr>' +
+    '</tbody></table>' + blocoProd +
+    '<div class="rodape"><b>Festas na conta:</b> ' + _cuEsc(festasTxt) + '</div>' +
+    '<script>window.onload=function(){setTimeout(function(){window.print()},300)}<\/script></body></html>');
   w.document.close();
 }
