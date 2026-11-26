@@ -1162,6 +1162,19 @@ function sepCarregarProducao(prodId) {
     });
     cont.addEventListener('change', function(e) {
       _sepMarcarEditado(window._sepProdAberta, e.target);
+      // Bebida da Cliente = não vamos levar: zera a quantidade do item (ela
+      // ainda pode digitar outra). O item continua na folha e vai zerado pro
+      // Sistema Separação, marcado como Cliente (11-26).
+      var t = e.target;
+      if (t && t.dataset && t.dataset.fornItem != null && t.value === 'cliente') {
+        cont.querySelectorAll('input[data-item][data-cat]').forEach(function(inp) {
+          if (inp.type === 'hidden' || inp.dataset.item !== t.dataset.fornItem || inp.dataset.cat !== t.dataset.fornCat) return;
+          inp.value = 0;
+          _sepSyncConvCaixa(inp);
+          _sepMarcarEditado(window._sepProdAberta, inp);
+        });
+        _sepRecalcAssociacoes();
+      }
     });
   }
   window._sepProdAberta = prodId;
@@ -1503,9 +1516,10 @@ function imprimirSeparacao(id) {
     var fornImp  = _sepCanonizarItensObj(s.fornecedores || {});
     Object.entries(itensImp).forEach(function(entry) {
       var cat = entry[0]; var itens = entry[1];
-      var linhas = Object.entries(itens).filter(function(e){return e[1]>0;});
-      if (!linhas.length) return;
       var fornMap = fornImp[cat] || {};
+      // Bebida da Cliente sai na folha mesmo zerada (não vamos levar).
+      var linhas = Object.entries(itens).filter(function(e){return e[1]>0 || fornMap[e[0]] === 'cliente';});
+      if (!linhas.length) return;
       grupos += '<div class="grp"><div class="st">' + cat + '</div>' +
         '<table>' + col + thead + '<tbody>' +
         linhas.map(function(e){
