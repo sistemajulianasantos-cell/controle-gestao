@@ -302,6 +302,21 @@ var _cuEstoqueHora = '';
 var _cuEstoqueUnsub = null;
 var _cuEstoqueFalhou = false;   // deu erro: só tenta de novo depois de um login novo
 var _cuEstoqueEsperando = false;
+var _cuEstoqueLista = null;     // lista crua do Sistema Separação (tela Estoque atual)
+var _cuLoginPedido = false;     // já abriu a janela de login nesta abertura da página
+
+// Sem sessão do Sistema Separação: abre a janela de login uma vez, só se a
+// tela que usa o estoque estiver aberta. Depois do 1º login o navegador
+// guarda a sessão e conecta sozinho nas próximas vezes.
+function _cuPedirLogin() {
+  if (_cuLoginPedido || typeof abrirLoginEstoqueSeparacao !== 'function') return;
+  var aberta = ['page-compra-uso', 'page-estoque-atual'].some(function(id) {
+    var pg = document.getElementById(id); return pg && pg.classList.contains('active');
+  });
+  if (!aberta) return;
+  _cuLoginPedido = true;
+  abrirLoginEstoqueSeparacao();
+}
 
 function _cuChaveSep(nome) {
   return typeof _normalizarChaveEstoqueSep === 'function' ? _normalizarChaveEstoqueSep(nome) : _cuNorm(nome);
@@ -313,12 +328,14 @@ function _cuIniciarEstoqueAoVivo(forcar) {
   if (_cuEstoqueUnsub || _cuEstoqueFalhou || typeof window.escutarEstoqueSeparacao !== 'function') return;
   var conectar = function(logado) {
     _cuEstoqueEsperando = false;
-    if (!logado || _cuEstoqueUnsub || _cuEstoqueFalhou) return;
+    if (!logado) { _cuPedirLogin(); return; }
+    if (_cuEstoqueUnsub || _cuEstoqueFalhou) return;
     _cuEstoqueUnsub = window.escutarEstoqueSeparacao(function(lista) {
       if (!lista) { // erro / sessão caiu
         if (_cuEstoqueUnsub) { try { _cuEstoqueUnsub(); } catch (e) {} }
         _cuEstoqueUnsub = null;
         _cuEstoque = null;
+        _cuEstoqueLista = null;
         _cuEstoqueFalhou = true;
         _cuRenderSeVisivel();
         return;
@@ -327,11 +344,16 @@ function _cuIniciarEstoqueAoVivo(forcar) {
       lista.forEach(function(it) {
         var k = _cuChaveSep(it.nomeKey || it.nome);
         if (!k) return;
-        if (!mapa[k]) mapa[k] = { qtd: 0, unidade: it.unidade || '' };
+        if (!mapa[k]) mapa[k] = { qtd: 0, unidade: it.unidade || '', variantes: [], contagem: null };
         mapa[k].qtd += Number(it.qtd) || 0;
+        mapa[k].variantes.push({ nome: it.nome || it.nomeKey || '', qtd: Number(it.qtd) || 0 });
+        var dc = it.ultimaContagemEm;
+        dc = dc && typeof dc.toDate === 'function' ? dc.toDate() : (dc && dc.seconds ? new Date(dc.seconds * 1000) : (dc ? new Date(dc) : null));
+        if (dc && !isNaN(dc) && (!mapa[k].contagem || dc > mapa[k].contagem)) mapa[k].contagem = dc;
         if (!mapa[k].unidade && it.unidade) mapa[k].unidade = it.unidade;
       });
       _cuEstoque = mapa;
+      _cuEstoqueLista = lista;
       _cuEstoqueItens = lista.length;
       _cuEstoqueHora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       _cuRenderSeVisivel();
@@ -370,6 +392,7 @@ function _cuEstoqueCelula(info) {
 // Atualização ao vivo: redesenha só se a tela estiver aberta e ninguém estiver
 // digitando num campo dela (senão espera sair do campo).
 function _cuRenderSeVisivel() {
+  if (typeof _eaRenderSeVisivel === 'function') _eaRenderSeVisivel();
   var pg = document.getElementById('page-compra-uso');
   if (!pg || !pg.classList.contains('active')) return;
   var ativo = document.activeElement;

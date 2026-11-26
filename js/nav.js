@@ -36,6 +36,7 @@ var pageInfo={
   seguranca: ['Segurança','Gestão de senhas e autenticação em dois fatores'],
   fornecedores:['Fornecedores','Cadastro e dados dos fornecedores'],
   comparativo: ['Comparativo de Preços','Histórico de preços por produto e fornecedor'],
+  'estoque-atual':['Estoque atual','Estoque ao vivo do Sistema Separação, por item do Cadastro de Insumos'],
   'compra-uso':['Comprado x Utilizado','Compra do mês x uso, por evento — base para a sugestão de compra e o estoque mínimo'],
 };
 // pageRenders como função para evitar referência antecipada
@@ -49,6 +50,7 @@ function initPageRenders(){
     precos:()=>setPrecosView('lista'),
     entrada:rEntradas,
     comparativo:rComparativo,
+    'estoque-atual':()=>rEstoqueAtual(),
     'compra-uso':()=>rCompraUso(), // arrow: se compraUso.js não carregar, só esta tela falha
     festas:()=>setFestaView('fechamento'),
     relatorio:rRelatorio,
