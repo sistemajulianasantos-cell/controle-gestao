@@ -118,19 +118,20 @@ function _cuUn(info) { return (info.ins && info.ins.unidadeCompra) || ''; }
 
 // Caixa com o que veio de nome não cadastrado (nada some calado).
 // itens: { '#NOME': { c: comprado, u: utilizado } }
-function _cuCaixaSemCadastro(itens) {
+function _cuCaixaSemCadastro(itens, origem) {
+  var folha = origem === 'folha';
   var ks = Object.keys(itens);
   if (!ks.length) return '';
   ks.sort(function(a, b) { return (itens[b].c + itens[b].u) - (itens[a].c + itens[a].u); });
   return '<div class="sec" style="margin-top:14px;border-color:var(--amber)">' +
     '<div class="sec-head"><span class="sec-title" style="color:var(--amber)">Nomes fora do Cadastro de Insumos (' + ks.length + ')</span></div>' +
-    '<div style="font-size:11px;color:var(--text3);padding:8px 16px 0;line-height:1.5">Estes nomes foram lançados na Entrada de NF ou na Estimativa de Bebidas, mas não batem com nenhum item do Cadastro de Insumos, então não entram na tabela. ' +
+    '<div style="font-size:11px;color:var(--text3);padding:8px 16px 0;line-height:1.5">' + (folha ? 'Estes nomes estão nas Folhas de Separação do mês,' : 'Estes nomes foram lançados na Entrada de NF ou na Estimativa de Bebidas,') + ' mas não batem com nenhum item do Cadastro de Insumos, então não entram na tabela. ' +
       'Para juntar, abra o insumo certo em Cadastro → Insumos e coloque este nome como apelido (ou cadastre o item).</div>' +
     '<div style="padding:8px 16px 12px">' + ks.map(function(k) {
       return '<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px">' +
         '<span>' + _cuEsc(k.slice(1)) + '</span>' +
         '<span style="font-family:var(--mono);color:var(--text3)">' +
-          (itens[k].c ? 'comprado ' + _cuNum(itens[k].c) : '') + (itens[k].c && itens[k].u ? ' · ' : '') + (itens[k].u ? 'utilizado ' + _cuNum(itens[k].u) : '') +
+          (itens[k].c ? 'comprado ' + _cuNum(itens[k].c) : '') + (itens[k].c && itens[k].u ? ' · ' : '') + (itens[k].u ? (folha ? 'nas folhas ' : 'utilizado ') + _cuNum(itens[k].u) : '') +
         '</span></div>';
     }).join('') + '</div></div>';
 }
@@ -460,7 +461,10 @@ function rCompraUso() {
   if (!cont) return;
   document.getElementById('cu-tab-mes').classList.toggle('active', _cuView === 'mes');
   document.getElementById('cu-tab-sug').classList.toggle('active', _cuView === 'sug');
-  if (_cuView === 'sug') _cuRenderSugestao(cont);
+  var tabLc = document.getElementById('cu-tab-lista');
+  if (tabLc) tabLc.classList.toggle('active', _cuView === 'lista');
+  if (_cuView === 'lista' && typeof _lcRender === 'function') _lcRender(cont);
+  else if (_cuView === 'sug') _cuRenderSugestao(cont);
   else if (_cuEhTodos(_cuMesSel)) _cuRenderTodos(cont, _cuMesSel.slice(6));
   else _cuRenderMes(cont);
 }
