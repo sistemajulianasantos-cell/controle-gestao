@@ -36,6 +36,14 @@ function _lcQtdTxt(un, ins) {
   var cx = Math.ceil(n / m - 1e-9);
   return cx + ' cx <span style="font-size:10px;color:var(--text3)">(faltam ' + _cuNum(n) + ' un)</span>';
 }
+// Quantidade em un, com o equivalente em caixas quando o item é de caixa.
+function _lcQtdPlano(un, ins) {
+  var n = Math.round(Number(un) || 0);
+  var m = _lcTamCaixa(ins);
+  if (!m || n <= 0) return _cuNum(n);
+  var cx = Math.floor(n / m), sol = n - cx * m;
+  return _cuNum(n) + ' <span style="font-size:10px;color:var(--text3)">(' + cx + ' cx' + (sol ? ' + ' + sol : '') + ')</span>';
+}
 function _lcQtdTxtSimples(un, ins) {
   var m = _lcTamCaixa(ins);
   var n = Math.ceil(un - 1e-9);
@@ -266,11 +274,13 @@ function _lcHtmlSintetico(linhas, valorTotal) {
     '</tbody></table>';
 
   html += '<table class="tbl" style="width:100%;font-size:12px"><thead><tr>' +
-    '<th style="text-align:left">Item</th><th style="text-align:right">Comprar</th><th style="text-align:right">Valor estimado</th></tr></thead><tbody>';
+    '<th style="text-align:left">Item</th><th style="text-align:right">Precisa</th><th style="text-align:right">Tem em estoque</th><th style="text-align:right">Falta comprar</th><th style="text-align:right">Valor estimado</th></tr></thead><tbody>';
   ordem.forEach(function(cat) {
-    html += '<tr><td colspan="3" style="background:var(--bg3);font-weight:600;font-size:11px;text-transform:uppercase;color:var(--text2)">' + _cuEsc(cat) + '</td></tr>';
+    html += '<tr><td colspan="5" style="background:var(--bg3);font-weight:600;font-size:11px;text-transform:uppercase;color:var(--text2)">' + _cuEsc(cat) + '</td></tr>';
     porCat[cat].itens.forEach(function(l) {
       html += '<tr><td>' + _cuEsc(l.info.nome) + (l.consignado ? ' <span style="font-size:10px;color:var(--purple)">consignado</span>' : '') + '</td>' +
+        '<td style="text-align:right;font-family:var(--mono)" title="' + (l.minimo ? 'Folhas: ' + _cuDec(l.total) + ' + mínimo ' + _cuDec(l.minimo) : 'Soma das folhas') + '">' + _lcQtdPlano(l.total + l.minimo, l.info.ins) + '</td>' +
+        '<td style="text-align:right;font-family:var(--mono)">' + (l.est != null ? _lcQtdPlano(l.est, l.info.ins) : '<span style="font-size:10px;color:var(--amber)">não achado</span>') + '</td>' +
         '<td style="text-align:right;font-family:var(--mono);font-weight:700;color:' + (l.comprar > 0 ? 'var(--red)' : 'var(--green)') + '">' + (l.comprar > 0 ? _lcQtdTxt(l.comprar, l.info.ins) : 'ok') + '</td>' +
         '<td style="text-align:right;font-family:var(--mono)">' + _lcValorTxt(l) + '</td></tr>';
     });
@@ -343,7 +353,7 @@ function _lcTextoLista() {
   var cat = null;
   u.linhas.forEach(function(l) {
     if (l.cat !== cat) { if (cat !== null) linhas.push(''); cat = l.cat; linhas.push(String(cat).toUpperCase()); }
-    linhas.push('- ' + l.info.nome + ': ' + _lcQtdTxtSimples(l.comprar, l.info.ins) + (l.consignado ? ' (consignado)' : ''));
+    linhas.push('- ' + l.info.nome + ': comprar ' + _lcQtdTxtSimples(l.comprar, l.info.ins) + ' (precisa ' + _cuNum(Math.ceil(l.total + l.minimo - 1e-9)) + ', tem ' + (l.est != null ? _cuNum(l.est) : '0') + ')' + (l.consignado ? ' (consignado)' : ''));
   });
   return linhas.join('\n');
 }
@@ -366,8 +376,10 @@ function lcImprimir() {
   var titulo = 'Lista de compras - ' + _CU_MESES[parseInt(p[1], 10) - 1] + ' ' + p[0];
   var corpo = '', cat = null;
   u.linhas.forEach(function(l) {
-    if (l.cat !== cat) { cat = l.cat; corpo += '<tr><td colspan="5" class="cat">' + _cuEsc(cat) + '</td></tr>'; }
+    if (l.cat !== cat) { cat = l.cat; corpo += '<tr><td colspan="7" class="cat">' + _cuEsc(cat) + '</td></tr>'; }
     corpo += '<tr><td class="ck"></td><td>' + _cuEsc(l.info.nome) + (l.consignado ? ' <i>(consignado)</i>' : '') + '</td>' +
+      '<td class="n" style="font-weight:normal">' + _cuNum(Math.ceil(l.total + l.minimo - 1e-9)) + '</td>' +
+      '<td class="n" style="font-weight:normal">' + (l.est != null ? _cuNum(l.est) : '0') + '</td>' +
       '<td class="n">' + _lcQtdTxtSimples(l.comprar, l.info.ins) + '</td><td class="n" style="font-weight:normal">' + (l.preco.valor ? fR(l.valor) : '—') + '</td><td class="obs"></td></tr>';
   });
   var w = window.open('', '_blank');
@@ -377,11 +389,11 @@ function lcImprimir() {
     '.sub{color:#666;font-size:11px;margin-bottom:14px}table{width:100%;border-collapse:collapse}' +
     'td,th{border-bottom:1px solid #ccc;padding:5px 6px;text-align:left}th{font-size:11px;color:#555}' +
     '.cat{background:#eee;font-weight:bold;text-transform:uppercase;font-size:11px}.n{text-align:right;white-space:nowrap;font-weight:bold}' +
-    '.ck{width:14px}.ck:before{content:"";display:inline-block;width:11px;height:11px;border:1px solid #555}.obs{width:30%}' +
+    '.ck{width:14px}.ck:before{content:"";display:inline-block;width:11px;height:11px;border:1px solid #555}.obs{width:18%}' +
     '</style></head><body><h1>' + _cuEsc(titulo) + '</h1>' +
     '<div class="sub">Gerada em ' + new Date().toLocaleString('pt-BR') + ' · ' + u.folhas.length + ' folha(s): ' +
       _cuEsc(u.folhas.map(function(s) { return (fd(s.data) || '') + ' ' + (s.evento || ''); }).join(', ')) + '</div>' +
-    '<table><thead><tr><th></th><th>Item</th><th style="text-align:right">Comprar</th><th style="text-align:right">Valor estimado</th><th>Obs.</th></tr></thead><tbody>' + corpo + '<tr><td></td><td><b>Total estimado</b></td><td></td><td class="n">' + fR(u.linhas.reduce(function(s, l) { return s + l.valor; }, 0)) + '</td><td></td></tr></tbody></table>' +
+    '<table><thead><tr><th></th><th>Item</th><th style="text-align:right">Precisa</th><th style="text-align:right">Tem em estoque</th><th style="text-align:right">Falta comprar</th><th style="text-align:right">Valor estimado</th><th>Obs.</th></tr></thead><tbody>' + corpo + '<tr><td></td><td><b>Total estimado</b></td><td></td><td></td><td></td><td class="n">' + fR(u.linhas.reduce(function(s, l) { return s + l.valor; }, 0)) + '</td><td></td></tr></tbody></table>' +
     '<script>window.onload=function(){window.print()}<\/script></body></html>');
   w.document.close();
 }

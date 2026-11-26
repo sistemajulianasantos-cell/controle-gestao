@@ -508,18 +508,21 @@ function _cuPainelCategorias() {
   if (!cats.length) return '';
   var fora = _cuCatsFora();
   var nDentro = cats.filter(function(c) { return !fora[c]; }).length;
-  return '<details class="sec" style="padding:10px 14px"' + (_cuCatsAberto ? ' open' : '') + ' ontoggle="_cuCatsAberto=this.open">' +
-    '<summary style="cursor:pointer;font-size:12px;font-weight:600">Categorias: ' +
-      (nDentro === cats.length ? 'todas' : nDentro + ' de ' + cats.length) +
-      (nDentro < cats.length ? ' <span style="font-weight:400;color:var(--amber)">(filtro ativo)</span>' : '') + '</summary>' +
-    '<div style="display:flex;gap:6px;margin:8px 0">' +
+  // Sempre aberto (11-26): recolhido ela não achava o filtro.
+  return '<div class="sec" style="padding:10px 14px;border-left:3px solid var(--blue)">' +
+    '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+      '<span style="font-size:12px;font-weight:700">Categorias que aparecem (na tela, na cópia e na impressão)</span>' +
+      '<span style="font-size:11px;color:' + (nDentro < cats.length ? 'var(--amber)' : 'var(--text3)') + '">' +
+        (nDentro === cats.length ? 'todas' : nDentro + ' de ' + cats.length + ' — desmarcadas ficam ocultas') + '</span>' +
+    '<div style="display:flex;gap:6px;margin-left:auto">' +
       '<button class="btn-sm" style="background:var(--bg3);border:1px solid var(--border2)" onclick="cuCatTodas(true)">Marcar todas</button>' +
       '<button class="btn-sm" style="background:var(--bg3);border:1px solid var(--border2)" onclick="cuCatTodas(false)">Desmarcar todas</button>' +
     '</div>' +
-    '<div style="display:flex;flex-wrap:wrap;gap:6px 16px">' + cats.map(function(c) {
+    '</div></div>' +
+    '<div style="display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px">' + cats.map(function(c) {
       return '<label style="font-size:12px;display:flex;gap:5px;align-items:center"><input type="checkbox"' + (fora[c] ? '' : ' checked') +
         ' onchange="cuCatToggle(\'' + _cuJs(c) + '\',this.checked)">' + _cuEsc(c) + '</label>';
-    }).join('') + '</div></details>';
+    }).join('') + '</div></div>';
 }
 var _cuCatsAberto = false;
 function cuCatToggle(cat, dentro) {
